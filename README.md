@@ -1,2 +1,2 @@
 # portal
-UTSbi User Portal for Team Members and Clients
+UTSBI User Portal for Team Members and Clients
