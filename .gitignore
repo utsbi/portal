@@ -59,6 +59,9 @@ target/
 # DotEnv configuration
 .env
 
+# AI custom response prompt
+system_prompt.md
+
 # Database
 *.db
 *.rdb
