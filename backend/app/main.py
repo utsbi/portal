@@ -1,9 +1,7 @@
 import os
 from fastapi import FastAPI
 from pydantic import BaseModel
-from .ai.gemini import Gemini
-from .auth.dependencies import get_user_identifier
-from .auth.throttling import apply_rate_limit
+from .api.endpoints.agent import Gemini
 
 app = FastAPI()
 

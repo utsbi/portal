@@ -1,4 +1,3 @@
-import os
 import google.generativeai as genai
 from .base import AIPlatform
 
@@ -8,7 +7,7 @@ class Gemini(AIPlatform):
         self.system_prompt = system_prompt
         genai.configure(api_key=self.api_key)
 
-        self.model = genai.GenerativeModel("gemini-2.5-flash-preview-05-20")
+        self.model = genai.GenerativeModel("gemini-2.5-flash")
 
     def chat(self, prompt: str) -> str:
         if self.system_prompt:
