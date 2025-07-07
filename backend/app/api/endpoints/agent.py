@@ -19,6 +19,6 @@ class Gemini(AIPlatform):
                 model=self.model, contents=prompt
             )
         except Exception as e:
-            return f"An error occured: {e}"
+            return f"An error occurred: {e}"
 
         return response.text
