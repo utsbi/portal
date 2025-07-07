@@ -1,9 +1,10 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from pydantic import BaseModel
 from .models.rate_limit import apply_rate_limit
+from .api.deps import get_user_identifier
 
 from .api.endpoints.agent import Gemini
 
@@ -35,8 +36,8 @@ class ChatResponse(BaseModel):
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    apply_rate_limit("global_unauthenticated_user")
+async def chat(request: ChatRequest, user_id: str = Depends(get_user_identifier)):
+    apply_rate_limit(user_id)
     response_test = ai_platform.chat(request.prompt)
     return ChatResponse(response=response_test)
 
