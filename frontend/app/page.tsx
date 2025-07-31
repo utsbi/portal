@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import background from "@/assets/images/background.png";
 import group from "@/assets/images/group.jpg";
 
@@ -42,13 +43,19 @@ export default function HomePage() {
               className="pl-1 pt-6 flex flex-col sm:flex-row sm:space-x-4"
               style={{ pointerEvents: "auto" }}
             >
-              <a href={FORMS_LINK} className="mb-3 sm:mb-0">
-                <button className="bg-green-500 hover:bg-transparent text-white-700 hover:text-white transition duration-300 pt-3 pb-2 px-6 border border-green-500 hover:border-green-500 rounded">
+              <a href={FORMS_LINK} className="mb-3 sm:mb-0" target="_blank">
+                <button
+                  type="button"
+                  className="bg-green-500 hover:bg-transparent text-white-700 hover:text-white transition duration-300 pt-3 pb-2 px-6 border border-green-500 hover:border-green-500 rounded"
+                >
                   Join Us
                 </button>
               </a>
               <a href="/about">
-                <button className="bg-transparent hover:bg-green-500 text-white-700 hover:text-white transition duration-300 pt-3 pb-2 px-6 border border-green-500 hover:border-transparent rounded">
+                <button
+                  type="button"
+                  className="bg-transparent hover:bg-green-500 text-white-700 hover:text-white transition duration-300 pt-3 pb-2 px-6 border border-green-500 hover:border-transparent rounded"
+                >
                   What We're About
                 </button>
               </a>
@@ -157,11 +164,14 @@ export default function HomePage() {
               <span className="italic">Learn, Build, Lead</span>
             </div>
             <div className="pt-8">
-              <a href={FORMS_LINK}>
-                <button className="bg-green-500 hover:bg-transparent text-white-700 hover:text-white transition duration-300 text-base sm:text-xl pt-4 pb-3 px-6 border border-green-500 hover:border-green-500 rounded">
+              <Link href={FORMS_LINK} target="_blank">
+                <button
+                  type="button"
+                  className="bg-green-500 hover:bg-transparent text-white-700 hover:text-white transition duration-300 text-base sm:text-xl pt-4 pb-3 px-6 border border-green-500 hover:border-green-500 rounded"
+                >
                   Apply Now
                 </button>
-              </a>
+              </Link>
             </div>
           </div>
           <Image
