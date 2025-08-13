@@ -20,31 +20,27 @@ interface AccordionContentProps {
 
 // TODO: Refactor to use a loop to import images
 
-// SITE VIEW
-import site1 from "@/assets/images/project-one/site-view/SITE-1.webp";
-import site2 from "@/assets/images/project-one/site-view/SITE-2.webp";
-import site3 from "@/assets/images/project-one/site-view/SITE-3.webp";
-import site4 from "@/assets/images/project-one/site-view/SITE-4.webp";
-
+// EXTERIOR VIEW
+import ex1 from "@/assets/images/project-one/exterior-concept/EXTERIOR-1.webp";
+import ex2 from "@/assets/images/project-one/exterior-concept/EXTERIOR-2.webp";
 // INTERIOR VIEW
 import in1 from "@/assets/images/project-one/interior-concept/INTERIOR-1.webp";
 import in2 from "@/assets/images/project-one/interior-concept/INTERIOR-2.webp";
 import in3 from "@/assets/images/project-one/interior-concept/INTERIOR-3.webp";
 import in4 from "@/assets/images/project-one/interior-concept/INTERIOR-4.webp";
-
-// EXTERIOR VIEW
-import ex1 from "@/assets/images/project-one/exterior-concept/EXTERIOR-1.webp";
-import ex2 from "@/assets/images/project-one/exterior-concept/EXTERIOR-2.webp";
-
-import pi1 from "@/assets/images/project-two/interior-concept/1.webp";
-import pi2 from "@/assets/images/project-two/interior-concept/2.webp";
-import pi3 from "@/assets/images/project-two/interior-concept/3.webp";
-import pi4 from "@/assets/images/project-two/interior-concept/4.webp";
-
+// SITE VIEW
+import site1 from "@/assets/images/project-one/site-view/SITE-1.webp";
+import site2 from "@/assets/images/project-one/site-view/SITE-2.webp";
+import site3 from "@/assets/images/project-one/site-view/SITE-3.webp";
+import site4 from "@/assets/images/project-one/site-view/SITE-4.webp";
 import pe1 from "@/assets/images/project-two/exterior-concept/1.webp";
 import pe2 from "@/assets/images/project-two/exterior-concept/2.webp";
 import pe3 from "@/assets/images/project-two/exterior-concept/3.webp";
 import pe4 from "@/assets/images/project-two/exterior-concept/4.webp";
+import pi1 from "@/assets/images/project-two/interior-concept/1.webp";
+import pi2 from "@/assets/images/project-two/interior-concept/2.webp";
+import pi3 from "@/assets/images/project-two/interior-concept/3.webp";
+import pi4 from "@/assets/images/project-two/interior-concept/4.webp";
 
 const AccordionProjects: React.FC = () => (
 	<Accordion.Root

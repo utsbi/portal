@@ -4,10 +4,9 @@ import {
 	MantineProvider,
 	mantineHtmlProps,
 } from "@mantine/core";
+import { Old_Standard_TT } from "next/font/google";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
-import "@mantine/core/styles.css";
-import { Old_Standard_TT } from "next/font/google";
 import "./globals.css";
 
 export const metadata = {
@@ -18,6 +17,7 @@ export const metadata = {
 const oldStandardTT = Old_Standard_TT({
 	weight: ["400", "700"],
 	subsets: ["latin"],
+	display: "swap",
 });
 
 const theme = createTheme({

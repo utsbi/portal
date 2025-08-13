@@ -1,7 +1,6 @@
 "use client";
 
-import "@google/model-viewer";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const defaultHotspots = [
 	{
@@ -64,6 +63,18 @@ const ModelViewer = ({
 }) => {
 	const [activeHotspot, setActiveHotspot] = useState(null);
 	const [navHistory, setNavHistory] = useState([]);
+	const [isModelViewerLoaded, setIsModelViewerLoaded] = useState(false);
+
+	useEffect(() => {
+		// Dynamically import model-viewer only on client side
+		const loadModelViewer = async () => {
+			if (typeof window !== "undefined") {
+				await import("@google/model-viewer");
+				setIsModelViewerLoaded(true);
+			}
+		};
+		loadModelViewer();
+	}, []);
 
 	const handleHotspotClick = (e) => {
 		const modelViewer = document.getElementById("model-viewer");
@@ -112,27 +123,28 @@ const ModelViewer = ({
 
 	return (
 		<div className="relative w-full rounded overflow-hidden">
-			<model-viewer
-				id="model-viewer"
-				src={modelSrc}
-				skybox-image={skyboxImage}
-				skybox-height="0.06m"
-				shadow-intensity="1"
-				max-camera-orbit="auto 90deg auto"
-				camera-controls
-				touch-action="none"
-				disable-pan
-				ar-modes="webxr scene-viewer quick-look"
-				tone-mapping="neutral"
-				exposure="0.50"
-				shadow-softness="1"
-				environment-image="legacy"
-				alt={alt}
-				style={style}
-				camera-orbit="0deg 75deg 2m"
-				interpolation-decay="200"
-			>
-				{/* {hotspots.map((h, i) => (
+			{isModelViewerLoaded ? (
+				<model-viewer
+					id="model-viewer"
+					src={modelSrc}
+					skybox-image={skyboxImage}
+					skybox-height="0.06m"
+					shadow-intensity="1"
+					max-camera-orbit="auto 90deg auto"
+					camera-controls
+					touch-action="none"
+					disable-pan
+					ar-modes="webxr scene-viewer quick-look"
+					tone-mapping="neutral"
+					exposure="0.50"
+					shadow-softness="1"
+					environment-image="legacy"
+					alt={alt}
+					style={style}
+					camera-orbit="0deg 75deg 2m"
+					interpolation-decay="200"
+				>
+					{/* {hotspots.map((h, i) => (
           <button
             key={h.slot}
             className="absolute block max-w-32 w-max h-max px-[1em] pt-[0.6em] pb-[0.5em] pl-[1em] font-OldStandardTT font-bold text-[12px] break-words rounded bg-white text-black/80 shadow-md transform -translate-x-1/2 -translate-y-1/2 cursor-pointer pointer-events-auto focus:outline-none focus-visible:ring hover:bg-green-50 transition-colors"
@@ -148,11 +160,19 @@ const ModelViewer = ({
           </button>
         ))} */}
 
-				{/* Progress bar */}
-				<div className="progress-bar hide" slot="progress-bar">
-					<div className="update-bar"></div>
+					{/* Progress bar */}
+					<div className="progress-bar hide" slot="progress-bar">
+						<div className="update-bar"></div>
+					</div>
+				</model-viewer>
+			) : (
+				<div
+					style={style}
+					className="flex items-center justify-center bg-gray-100 text-gray-600"
+				>
+					Loading 3D model...
 				</div>
-			</model-viewer>
+			)}
 
 			{/* Tour navigation controls */}
 			<div className="absolute bottom-4 left-0 right-0 flex justify-center items-center space-x-4 z-10 pointer-events-auto">
@@ -169,11 +189,11 @@ const ModelViewer = ({
 				{activeHotspot && (
 					<div className="bg-white/90 px-6 py-3 rounded-lg shadow-lg max-w-md">
 						<h3 className="font-bold mb-1">
-							{hotspots.find((h) => h.slot === activeHotspot)?.label}
+							{defaultHotspots.find((h) => h.slot === activeHotspot)?.label}
 						</h3>
 						<p>
-							{hotspots.find((h) => h.slot === activeHotspot)?.description ||
-								"Explore this area"}
+							{defaultHotspots.find((h) => h.slot === activeHotspot)
+								?.description || "Explore this area"}
 						</p>
 					</div>
 				)}

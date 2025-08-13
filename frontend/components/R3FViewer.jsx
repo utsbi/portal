@@ -484,7 +484,7 @@ export default function TestViewer() {
 			</Canvas>
 
 			{/* Camera debug overlay - outside the canvas to display in DOM */}
-			<div className="absolute top-2.5 left-2.5 z-10 bg-black bg-opacity-70 text-white p-2 rounded font-mono text-sm">
+			{/* <div className="absolute top-2.5 left-2.5 z-10 bg-black bg-opacity-70 text-white p-2 rounded font-mono text-sm">
 				<div className="mb-1">
 					<strong className="text-green-400">Position:</strong>{" "}
 					<span className="text-yellow-300">
@@ -499,7 +499,7 @@ export default function TestViewer() {
 						{cameraInfo.rotation.z}]
 					</span>
 				</div>
-			</div>
+			</div> */}
 		</div>
 	);
 }

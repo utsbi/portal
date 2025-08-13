@@ -51,6 +51,9 @@ function Navbar() {
 						loading={"eager"}
 						className="h-14 w-14 md:h-16 md:w-16"
 						alt="SBI Logo"
+						width={logo.width}
+						height={logo.height}
+						unoptimized
 					/>
 				</Link>
 
