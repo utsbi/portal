@@ -9,6 +9,8 @@ import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import "./globals.css";
 
+import { SpeedInsights } from "@vercel/speed-insights/next";
+
 export const metadata = {
 	title: "Home",
 	description: "SBI Portal app for team members and clients",
@@ -40,6 +42,7 @@ export default function RootLayout({
 					{children}
 					<Footer />
 				</MantineProvider>
+				<SpeedInsights />
 			</body>
 		</html>
 	);
