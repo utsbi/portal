@@ -4,7 +4,7 @@ import { Burger } from "@mantine/core";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import logo from "@/assets/logos/official_logo.gif";
+import logo from "@/assets/logos/logo.gif";
 
 const navItems = [
 	{ name: "Home", href: "/" },
@@ -53,7 +53,7 @@ function Navbar() {
 						alt="SBI Logo"
 						width={logo.width}
 						height={logo.height}
-						unoptimized
+						priority
 					/>
 				</Link>
 

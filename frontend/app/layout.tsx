@@ -12,9 +12,26 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
+import faviconLight from "@/assets/favicons/favicon.ico";
+import faviconDark from "@/assets/favicons/favicon-light.ico";
+
 export const metadata = {
 	title: "Home",
 	description: "SBI Portal app for team members and clients",
+	icons: {
+		icon: [
+			{
+				url: faviconLight.src,
+				type: "image/png",
+				media: "(prefers-color-scheme: light)",
+			},
+			{
+				url: faviconDark.src,
+				type: "image/png",
+				media: "(prefers-color-scheme: dark)",
+			},
+		],
+	},
 };
 
 const oldStandardTT = Old_Standard_TT({
