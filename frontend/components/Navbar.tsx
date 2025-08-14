@@ -12,6 +12,7 @@ const navItems = [
 	{ name: "Outreach", href: "/outreach/" },
 	{ name: "Projects", href: "/projects/" },
 	{ name: "Contact Us", href: "/contact/" },
+	{ name: "Login", href: "/login/" }, // TODO: make login button special
 ];
 
 function Navbar() {

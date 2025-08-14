@@ -11,11 +11,12 @@ import "./globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import type { Metadata } from "next";
 
 import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
 
-export const metadata = {
+export const metadata: Metadata = {
 	title: "Home",
 	description: "SBI Portal app for team members and clients",
 	icons: {
