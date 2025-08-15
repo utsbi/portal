@@ -9,11 +9,30 @@ import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import "./globals.css";
 
+import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import type { Metadata } from "next";
 
-export const metadata = {
+import faviconLight from "@/assets/favicons/favicon.ico";
+import faviconDark from "@/assets/favicons/favicon-light.ico";
+
+export const metadata: Metadata = {
 	title: "Home",
 	description: "SBI Portal app for team members and clients",
+	icons: {
+		icon: [
+			{
+				url: faviconLight.src,
+				type: "image/png",
+				media: "(prefers-color-scheme: light)",
+			},
+			{
+				url: faviconDark.src,
+				type: "image/png",
+				media: "(prefers-color-scheme: dark)",
+			},
+		],
+	},
 };
 
 const oldStandardTT = Old_Standard_TT({
@@ -43,6 +62,7 @@ export default function RootLayout({
 					<Footer />
 				</MantineProvider>
 				<SpeedInsights />
+				<Analytics />
 			</body>
 		</html>
 	);
