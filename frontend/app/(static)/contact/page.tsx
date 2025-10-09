@@ -63,14 +63,14 @@ export default function Contact() {
 				<div className="mt-6 text-xl">
 					<div>Prefer to reach out directly?</div>
 					<div>
-						Contact our presidents:
+						Contact our presidents: {" "}
 						<a
 							href="mailto:pedro@utsbi.org"
 							className="text-green-500 hover:underline font-semibold"
 						>
 							Pedro Guzman
 						</a>{" "}
-						or
+						or {" "}
 						<a
 							href="mailto:sam@utsbi.org"
 							className="text-green-500 hover:underline font-semibold"
