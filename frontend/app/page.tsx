@@ -46,7 +46,7 @@ export default function HomePage() {
 							<a href={FORMS_LINK} className="mb-3 sm:mb-0" target="_blank">
 								<button
 									type="button"
-									className="bg-green-500 hover:bg-transparent text-white-700 hover:text-white transition duration-300 pt-3 pb-2 px-6 border border-green-500 hover:border-green-500 rounded"
+									className="bg-blue-500 hover:bg-transparent text-white-700 hover:text-white transition duration-300 pt-3 pb-2 px-6 border border-green-500 hover:border-green-500 rounded"
 								>
 									Join Us
 								</button>
