@@ -4,7 +4,7 @@ import classNames from "classnames";
 import Image from "next/image";
 import React from "react";
 import ModelViewer from "./ModelViewer.jsx";
-import TestViewer from "./R3FViewer.jsx";
+import TestViewer from "./R3FViewer";
 import "./styles.css";
 
 // TypeScript interfaces
@@ -54,7 +54,10 @@ const AccordionProjects: React.FC = () => (
 				Sustainable Family Home Project
 			</AccordionTrigger>
 			<AccordionContent>
-				{/* // description */}
+				A modern farmhouse concept designed for sustainable family living. This
+				2-bedroom, 2-bathroom home features a spacious layout, including a large
+				garage and patio, that thoughtfully integrates classic design with
+				modern, eco-friendly efficiencies and materials.
 				<div className="py-4">
 					<Accordion.Root className="AccordionRoot" type="multiple">
 						<Accordion.Item className="AccordionItem" value="item-1">

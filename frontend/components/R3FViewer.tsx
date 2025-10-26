@@ -425,7 +425,7 @@ const TestViewer: React.FC = () => {
 				<div className="relative">
 					<button
 						type="button"
-						className="inline-flex items-center justify-between min-w-[160px] px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+						className="inline-flex items-center justify-between min-w-40 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
 						onClick={() => setDropdownOpen(!dropdownOpen)}
 						aria-expanded={dropdownOpen}
 						aria-haspopup="true"
@@ -435,7 +435,7 @@ const TestViewer: React.FC = () => {
 								? cameraViews[activeCameraIndex].label
 								: "Select Camera View"}
 						</span>
-						<svg
+						{/*<svg
 							className={`ml-2 h-4 w-4 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}
 							fill="none"
 							stroke="currentColor"
@@ -448,7 +448,7 @@ const TestViewer: React.FC = () => {
 								strokeWidth={2}
 								d="M19 9l-7 7-7-7"
 							/>
-						</svg>
+						</svg>*/}
 					</button>
 
 					{dropdownOpen && (

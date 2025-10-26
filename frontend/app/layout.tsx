@@ -45,6 +45,9 @@ const theme = createTheme({
 	primaryColor: "green",
 });
 
+// if (!globalThis.localStorage.getItem)
+// 	globalThis.localStorage = undefined as never;
+
 export default function RootLayout({
 	children,
 }: {
