@@ -1,7 +1,6 @@
 import {
 	Button,
-	Checkbox,
-	Group,
+	Center,
 	Paper,
 	PasswordInput,
 	Stack,
@@ -9,10 +8,15 @@ import {
 	TextInput,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-
-import { login } from "@/app/login/actions";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 
 export function Authentication() {
+	const [error, setError] = useState<string | null>(null);
+	const [isLoading, setIsLoading] = useState(false);
+	const router = useRouter();
+
 	const form = useForm({
 		initialValues: {
 			email: "",
@@ -21,12 +25,42 @@ export function Authentication() {
 
 		validate: {
 			email: (val) => (/^\S+@\S+$/.test(val) ? null : "Invalid email"),
-			// password: (val) =>
-			// 	val.length <= 6
-			// 		? "Password should include at least 6 characters"
-			// 		: null, // don't need to validate password for login only
 		},
 	});
+
+	async function login() {
+		const supabase = createClient();
+		setIsLoading(true);
+		setError(null); // Clear previous errors
+
+		try {
+			const { data, error } = await supabase.auth.signInWithPassword({
+				email: form.values.email.trim().toLowerCase(),
+				password: form.values.password,
+			});
+
+			if (error) {
+				if (error.message.includes("Invalid login credentials")) {
+					setError("Invalid email or password");
+				} else if (error.message.includes("Email not confirmed")) {
+					setError("Please verify your email address");
+				} else {
+					setError("An error occurred. Please try again.");
+				}
+				return;
+			}
+
+			if (data.user) {
+				form.reset();
+				router.push("/dashboard");
+				router.refresh();
+			}
+		} catch (error: unknown) {
+			setError("An unexpected error occurred. Please try again.");
+		} finally {
+			setIsLoading(false);
+		}
+	}
 
 	return (
 		<Paper radius="md" p="xl" withBorder shadow="lg" w="100%" maw="400px">
@@ -34,7 +68,7 @@ export function Authentication() {
 				Welcome to SBI Portal
 			</Text>
 
-			<form onSubmit={form.onSubmit((values) => login(values))}>
+			<form onSubmit={form.onSubmit(() => login())}>
 				<Stack>
 					<TextInput
 						required
@@ -46,6 +80,8 @@ export function Authentication() {
 						}
 						error={form.errors.email && "Invalid email"}
 						radius="md"
+						autoComplete="email"
+						disabled={isLoading}
 					/>
 
 					<PasswordInput
@@ -61,15 +97,23 @@ export function Authentication() {
 							"Password should include at least 6 characters"
 						}
 						radius="md"
+						autoComplete="current-password"
+						disabled={isLoading}
 					/>
 				</Stack>
 
-				<Group mt="xl" w="100%" justify="space-between">
-					<Checkbox label="Keep me logged in" size="md" />
-					<Button type="submit" radius="md" fullWidth>
-						Login
+				<Stack mt="xl" w="100%">
+					<Button type="submit" radius="md" fullWidth disabled={isLoading}>
+						{isLoading ? "Logging in..." : "Login"}
 					</Button>
-				</Group>
+					{error && (
+						<Center>
+							<Text c="red" ta="center">
+								{error}
+							</Text>
+						</Center>
+					)}
+				</Stack>
 			</form>
 		</Paper>
 	);
