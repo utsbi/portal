@@ -45,6 +45,7 @@ const theme = createTheme({
 	primaryColor: "green",
 });
 
+// Temporary fix for something trying to access localStorage during SSR
 // if (!globalThis.localStorage.getItem)
 // 	globalThis.localStorage = undefined as never;
 
