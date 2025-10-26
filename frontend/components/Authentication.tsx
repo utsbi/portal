@@ -10,6 +10,8 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 
+import { login } from "@/app/login/actions";
+
 export function Authentication() {
 	const form = useForm({
 		initialValues: {
@@ -19,10 +21,10 @@ export function Authentication() {
 
 		validate: {
 			email: (val) => (/^\S+@\S+$/.test(val) ? null : "Invalid email"),
-			password: (val) =>
-				val.length <= 6
-					? "Password should include at least 6 characters"
-					: null,
+			// password: (val) =>
+			// 	val.length <= 6
+			// 		? "Password should include at least 6 characters"
+			// 		: null, // don't need to validate password for login only
 		},
 	});
 
@@ -32,7 +34,7 @@ export function Authentication() {
 				Welcome to SBI Portal
 			</Text>
 
-			<form onSubmit={form.onSubmit(() => {})}>
+			<form onSubmit={form.onSubmit((values) => login(values))}>
 				<Stack>
 					<TextInput
 						required
