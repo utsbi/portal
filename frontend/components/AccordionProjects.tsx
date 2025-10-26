@@ -50,7 +50,7 @@ const AccordionProjects: React.FC = () => (
 		collapsible
 	>
 		<Accordion.Item className="AccordionItem" value="item-2">
-			<AccordionTrigger className="text-xl">
+			<AccordionTrigger className="text-xl!">
 				Sustainable Family Home Project
 			</AccordionTrigger>
 			<AccordionContent>
@@ -155,7 +155,7 @@ const AccordionProjects: React.FC = () => (
 			</AccordionContent>
 		</Accordion.Item>
 		<Accordion.Item className="AccordionItem" value="item-1">
-			<AccordionTrigger className="text-xl">
+			<AccordionTrigger className="text-xl!">
 				Hobbie Farm Project
 			</AccordionTrigger>
 			<AccordionContent>
@@ -301,7 +301,7 @@ const AccordionTrigger = React.forwardRef<
 >(({ children, className, ...props }, forwardedRef) => (
 	<Accordion.Header className="AccordionHeader">
 		<Accordion.Trigger
-			className={classNames("AccordionTrigger", className)}
+			className={classNames(className, "AccordionTrigger")}
 			{...props}
 			ref={forwardedRef}
 		>
@@ -321,7 +321,7 @@ const AccordionContent = React.forwardRef<
 	AccordionContentProps
 >(({ children, className, ...props }, forwardedRef) => (
 	<Accordion.Content
-		className={classNames("AccordionContent", className)}
+		className={classNames(className, "AccordionContent")}
 		{...props}
 		ref={forwardedRef}
 	>

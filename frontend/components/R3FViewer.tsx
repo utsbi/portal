@@ -342,7 +342,7 @@ const TestViewer: React.FC = () => {
 	}, []);
 	const cameraControlsRef = useRef<any>(null);
 	const [houseRef, setHouseRef] =
-		useState<React.MutableRefObject<THREE.Group | null> | null>(null);
+		useState<React.RefObject<THREE.Group | null> | null>(null);
 	const [activeCameraIndex, setActiveCameraIndex] = useState<number>(-1);
 	const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
 	const [cameraInfo, setCameraInfo] = useState<CameraInfo>({
@@ -401,91 +401,71 @@ const TestViewer: React.FC = () => {
 	};
 
 	// Close dropdown when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event: MouseEvent) => {
-			const target = event.target as Element;
-			if (!target.closest(".camera-dropdown")) {
-				setDropdownOpen(false);
-			}
-		};
+	// useEffect(() => {
+	// 	const handleClickOutside = (event: MouseEvent) => {
+	// 		const target = event.target as Element;
+	// 		if (!target.closest(".camera-dropdown")) {
+	// 			setDropdownOpen(false);
+	// 		}
+	// 	};
 
-		if (dropdownOpen) {
-			document.addEventListener("mousedown", handleClickOutside);
-		}
+	// 	if (dropdownOpen) {
+	// 		document.addEventListener("mousedown", handleClickOutside);
+	// 	}
 
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside);
-		};
-	}, [dropdownOpen]);
+	// 	return () => {
+	// 		document.removeEventListener("mousedown", handleClickOutside);
+	// 	};
+	// }, [dropdownOpen]);
 
 	return (
-		<div className="w-full h-[500px] relative rounded-lg overflow-hidden shadow-lg">
+		<div className="w-full h-[500px] relative rounded overflow-hidden">
 			{/* Camera view dropdown */}
-			<div className="absolute bottom-4 left-4 z-20 camera-dropdown">
+			<div className="absolute bottom-2.5 left-2.5 z-10">
 				<div className="relative">
 					<button
 						type="button"
-						className="inline-flex items-center justify-between min-w-40 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+						className="px-3 pt-2 pb-1 rounded border-none cursor-pointer bg-white opacity-80 hover:opacity-100 transition-opacity"
 						onClick={() => setDropdownOpen(!dropdownOpen)}
 						aria-expanded={dropdownOpen}
 						aria-haspopup="true"
 					>
-						<span className="truncate">
-							{activeCameraIndex >= 0
-								? cameraViews[activeCameraIndex].label
-								: "Select Camera View"}
-						</span>
-						{/*<svg
-							className={`ml-2 h-4 w-4 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-							aria-hidden="true"
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M19 9l-7 7-7-7"
-							/>
-						</svg>*/}
+						{activeCameraIndex >= 0
+							? cameraViews[activeCameraIndex].label
+							: "Select Camera View"}
 					</button>
 
 					{dropdownOpen && (
-						<div className="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-30 max-h-80 overflow-y-auto">
-							<div className="py-1">
-								{cameraViews.map((view) => (
-									<button
-										type="button"
-										key={view.id}
-										className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none transition-colors duration-150 ${
-											activeCameraIndex === view.id
-												? "bg-indigo-50 text-indigo-900 font-medium"
-												: "text-gray-700"
-										}`}
-										onClick={() => handleCameraViewSelect(view.id)}
-										onKeyDown={(e) => {
-											if (e.key === "Enter" || e.key === " ") {
-												e.preventDefault();
-												handleCameraViewSelect(view.id);
-											}
-										}}
-									>
-										{view.label}
-									</button>
-								))}
-							</div>
+						<div className="absolute bottom-full left-0 bg-white rounded p-1.5 mb-1.5 w-40 max-h-[350px] overflow-y-auto shadow-lg opacity-90">
+							{cameraViews.map((view) => (
+								<button
+									type="button"
+									key={view.id}
+									className={`w-full text-left py-1.5 px-2.5 cursor-pointer rounded hover:bg-gray-100 ${
+										activeCameraIndex === view.id ? "bg-gray-200" : ""
+									}`}
+									onClick={() => handleCameraViewSelect(view.id)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault();
+											handleCameraViewSelect(view.id);
+										}
+									}}
+								>
+									{view.label}
+								</button>
+							))}
 						</div>
 					)}
 				</div>
 			</div>
 
 			{/* Camera control buttons */}
-			<div className="absolute bottom-4 right-4 z-20 flex gap-2">
+			<div className="absolute bottom-2.5 right-2.5 z-10 flex gap-1.5">
 				{cameraPresets.map((preset) => (
 					<button
 						type="button"
-						className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+						className="px-3 pt-2 pb-1 rounded border-none cursor-pointer bg-white opacity-80 hover:opacity-100 transition-opacity"
 						key={preset.id}
 						onClick={() => handleCameraPreset(preset.id)}
 					>
