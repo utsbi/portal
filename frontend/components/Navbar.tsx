@@ -42,7 +42,7 @@ function Navbar() {
 
 	return (
 		<nav className="bg-white fixed w-full z-50 top-0 start-0 border-b border-gray-200">
-			<div className="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-3">
+			<div className="max-w-7xl flex flex-wrap items-center justify-between mx-auto p-3">
 				<Link
 					href="/"
 					className="flex items-center space-x-3 rtl:space-x-reverse"
@@ -77,7 +77,7 @@ function Navbar() {
 					}`}
 				>
 					<div className="flex justify-center bg-white p-3">
-						<div className="p-4 w-[100%] border-gray-100 bg-gray-50 rounded-lg">
+						<div className="p-4 w-full border-gray-100 bg-gray-50 rounded-lg">
 							<ul className="flex flex-col space-y-2">
 								{navItems.map((item) => (
 									<li key={item.name}>

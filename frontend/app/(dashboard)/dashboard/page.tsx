@@ -11,7 +11,7 @@ export default async function Dashboard() {
 	}
 
 	return (
-		<div className="flex flex-col items-center justify-center w-full h-screen">
+		<div className="flex flex-col items-center justify-center w-full h-screen gap-2">
 			<div>Hello {data.user.email}</div>
 			<LogoutButton />
 		</div>

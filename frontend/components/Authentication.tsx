@@ -52,8 +52,8 @@ export function Authentication() {
 
 			if (data.user) {
 				form.reset();
-				router.push("/dashboard");
-				router.refresh();
+				router.replace("/dashboard");
+				// router.refresh();
 			}
 		} catch (error: unknown) {
 			setError("An unexpected error occurred. Please try again.");
@@ -102,7 +102,7 @@ export function Authentication() {
 					/>
 				</Stack>
 
-				<Stack mt="xl" w="100%">
+				<Stack mt="lg" w="100%">
 					<Button type="submit" radius="md" fullWidth disabled={isLoading}>
 						{isLoading ? "Logging in..." : "Login"}
 					</Button>
