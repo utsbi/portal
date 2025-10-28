@@ -118,7 +118,7 @@ export default function About() {
 				</div>
 			</section>
 
-			<section className="px-6 py-10 md:px-48 2xl:px-80 relative">
+			<section className="px-6 py-12 md:px-48 2xl:px-80 relative">
 				<div className="flex flex-row justify-center items-center">
 					{images.map((item) => (
 						<Link
