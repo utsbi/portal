@@ -1,5 +1,4 @@
-"use client";
-
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import Rice from "@/assets/images/schools/rice_university.png";
@@ -7,13 +6,14 @@ import TAMU from "@/assets/images/schools/TAMU.png";
 import UTAustin from "@/assets/images/schools/TEXAS_official_seal.svg";
 import ProfileCard from "@/components/ProfileCard";
 
-// import ICOL from "@/assets/images/schools/imperial_college_of_london.png";
+export const metadata: Metadata = {
+	title: "About",
+};
 
 const images = [
 	{ img: UTAustin, href: "https://utexas.edu" },
 	{ img: TAMU, href: "https://tamu.edu" },
 	{ img: Rice, href: "https://www.rice.edu/" },
-	// { img: ICOL, href: "https://www.imperial.ac.uk/" },
 ];
 
 const people = [

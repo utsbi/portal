@@ -1,3 +1,5 @@
+"use client";
+
 import { IconMail } from "@tabler/icons-react";
 import Image from "next/image";
 import type { FC } from "react";
@@ -14,7 +16,7 @@ const ProfileCard: FC<ProfileCardProps> = ({ name, role, email }) => {
 
 	return (
 		<div className="overflow-hidden bg-white">
-			<div className="aspect-[3/4] relative">
+			<div className="aspect-3/4 relative">
 				<Image
 					src={imagePath}
 					alt={`Profile photo of ${name}`}

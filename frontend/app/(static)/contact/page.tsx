@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+	title: "Contact Us",
+};
+
 export default function Contact() {
 	return (
 		<section className="px-6 py-10 pt-36 md:px-32 2xl:px-80 relative font-OldStandardTT">
@@ -63,14 +69,14 @@ export default function Contact() {
 				<div className="mt-6 text-xl">
 					<div>Prefer to reach out directly?</div>
 					<div>
-						Contact our presidents: {" "}
+						Contact our presidents:{" "}
 						<a
 							href="mailto:pedro@utsbi.org"
 							className="text-green-500 hover:underline font-semibold"
 						>
 							Pedro Guzman
 						</a>{" "}
-						or {" "}
+						or{" "}
 						<a
 							href="mailto:sam@utsbi.org"
 							className="text-green-500 hover:underline font-semibold"

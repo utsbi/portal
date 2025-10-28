@@ -55,6 +55,7 @@ function Navbar() {
 						width={logo.width}
 						height={logo.height}
 						priority
+						unoptimized
 					/>
 				</Link>
 

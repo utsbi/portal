@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+	title: "Outreach",
+	description:
+		"Explore our growing network of high schools and colleges, showcasing our current connections and future outreach goals to expand sustainable impact.",
+};
+
 export default function Outreach() {
 	return (
 		<>

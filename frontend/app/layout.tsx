@@ -4,7 +4,7 @@ import {
 	MantineProvider,
 	mantineHtmlProps,
 } from "@mantine/core";
-import { Old_Standard_TT } from "next/font/google";
+import { oldStandardTT } from "@/utils/fonts";
 import "@/app/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
@@ -15,8 +15,13 @@ import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
 
 export const metadata: Metadata = {
-	title: "Home",
-	description: "SBI Portal app for team members and clients",
+	metadataBase: new URL("https://utsbi.org"),
+	title: {
+		default: "Home",
+		template: "%s",
+	},
+	description:
+		"Sustainable Building Initiative - Research Driven, Professionally Inspired, and Student Powered",
 	icons: {
 		icon: [
 			{
@@ -33,15 +38,13 @@ export const metadata: Metadata = {
 	},
 };
 
-const oldStandardTT = Old_Standard_TT({
-	weight: ["400", "700"],
-	subsets: ["latin"],
-	display: "swap",
-});
-
 const theme = createTheme({
 	primaryColor: "green",
 });
+
+// Temporary fix for something trying to access localStorage during SSR
+// if (!globalThis.localStorage.getItem)
+// 	globalThis.localStorage = undefined as never;
 
 export default function RootLayout({
 	children,

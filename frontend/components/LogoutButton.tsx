@@ -2,14 +2,13 @@
 
 import { Button } from "@mantine/core";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/utils/supabase/client";
+import { logout } from "@/utils/supabase/client";
 
 export default function LogoutButton() {
 	const router = useRouter();
-	const supabase = createClient();
 
 	const handleLogout = async () => {
-		await supabase.auth.signOut();
+		await logout();
 		router.push("/login");
 		router.refresh();
 	};

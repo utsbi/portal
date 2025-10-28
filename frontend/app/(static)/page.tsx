@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import background from "@/assets/images/background.png";
 import group from "@/assets/images/group.jpg";
 
 const FORMS_LINK = "https://forms.gle/KWJjaXGYt2dv3bY68";
+
+export const metadata: Metadata = {
+	title: "Home",
+};
 
 export default function HomePage() {
 	return (

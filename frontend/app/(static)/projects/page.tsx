@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import AccordionProjects from "@/components/AccordionProjects";
+
+export const metadata: Metadata = {
+	title: "Projects",
+	description: "Overview of infrastructure projects that we have worked on.",
+};
 
 export default function Projects() {
 	return (
