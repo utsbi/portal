@@ -140,7 +140,7 @@ export default function About() {
 
 			<section className="px-6 py-10 md:px-32 2xl:px-80 relative font-OldStandardTT">
 				<div className="text-4xl">Meet Our Team</div>
-				<div className="flex justify-center">
+				<div className="flex justify-center"> 
 					<div className="pt-10 flex flex-wrap justify-center -mx-4 space-y-8 md:space-y-0 w-3/4">
 						{people.map((item) => (
 							<div key={item.email} className="w-full md:w-1/3 px-4">
