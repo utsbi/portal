@@ -12,11 +12,13 @@ import {
 import { useForm } from "@mantine/form";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import ForgotPasswordModal from "@/components/auth/ForgotPasswordModal";
 import { createClient } from "@/utils/supabase/client";
 
 export function Authentication() {
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
+	const [loginAttempts, setLoginAttempts] = useState(0);
 	const router = useRouter();
 
 	const form = useForm({
@@ -44,6 +46,7 @@ export function Authentication() {
 			if (error) {
 				if (error.message.includes("Invalid login credentials")) {
 					setError("Invalid email or password");
+					setLoginAttempts(loginAttempts + 1);
 				} else if (error.message.includes("Email not confirmed")) {
 					setError("Please verify your email address");
 				} else {
@@ -115,6 +118,7 @@ export function Authentication() {
 							</Text>
 						</Center>
 					)}
+					{loginAttempts >= 2 && <ForgotPasswordModal />}
 				</Stack>
 			</form>
 		</Paper>
