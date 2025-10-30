@@ -60,6 +60,13 @@ export default function AboutMe() {
 					</div>
 				</div>
 			</section>
+
+			<section className="px-6 py-10 md:px-32 2xl:px-80 relative font-OldStandardTT">
+				<div className="text-4xl">Pictures Relating to Me</div>
+				<div className="flex justify-center">
+                    
+				</div>
+			</section>
 		</>
 	);
 }
