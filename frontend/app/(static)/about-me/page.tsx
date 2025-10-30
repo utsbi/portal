@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import Valorant from "@/assets/images/about/Valorant.png";
+import Otter from "@/assets/images/about/Otter.jpg";
+import Jollof from "@/assets/images/about/Jollof.png";
 import ProfileCard from "@/components/ProfileCard";
 
 export const metadata: Metadata = {
 	title: "About Me",
 };
+
+const images = [
+	{ img: Valorant, href: "https://playvalorant.com/en-us/" },
+	{ img: Otter, href: "https://www.reddit.com/r/Eyebleach/comments/loi8hn/i_love_otters_in_hats/" },
+	{ img: Jollof, href: "https://naijastickitchen.com/product/jollof-rice-with-chicken-served-with-plantain-bulk/" },
+];
 
 const about = [
     {
@@ -74,6 +83,26 @@ export default function AboutMe() {
 					</div>
 				</div>
 			</section>
+
+			<section className="px-80 py-40 md:px-100 2xl:px-164 relative">
+				<div className="flex flex-row justify-center items-center">
+					{images.map((item) => (
+						<Link
+							key={item.href}
+							href={item.href}
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							<Image
+								src={item.img}
+								alt={`Fun fact for ${item.href}`}
+								className="w-96 lg:w-80 pt-4 md:pt-0"
+								priority
+							/>
+						</Link>
+					))}
+				</div>
+			</section>           
 		</>
 	);
 }
