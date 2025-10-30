@@ -11,9 +11,9 @@ export const metadata: Metadata = {
 };
 
 const images = [
-	{ img: Valorant, href: "https://playvalorant.com/en-us/" },
-	{ img: Otter, href: "https://www.reddit.com/r/Eyebleach/comments/loi8hn/i_love_otters_in_hats/" },
-	{ img: Jollof, href: "https://naijastickitchen.com/product/jollof-rice-with-chicken-served-with-plantain-bulk/" },
+	{ img: Valorant, href: "https://playvalorant.com/en-us/", desc: "My favorite game is Valorant."},
+	{ img: Otter, href: "https://www.reddit.com/r/Eyebleach/comments/loi8hn/i_love_otters_in_hats/", desc: "My favorite animals are otters in hats." },
+	{ img: Jollof, href: "https://naijastickitchen.com/product/jollof-rice-with-chicken-served-with-plantain-bulk/", desc: "My favorite food is Jollof Rice an African dish." },
 ];
 
 const about = [
@@ -84,8 +84,8 @@ export default function AboutMe() {
 				</div>
 			</section>
 
-			<section className="px-80 py-40 md:px-100 2xl:px-164 relative">
-				<div className="flex flex-row justify-center items-center">
+			<section className="px-80 py-0 md:px-100 2xl:px-164 relative">
+				<div className="flex flex-row justify-center items-center gap-8">
 					{images.map((item) => (
 						<Link
 							key={item.href}
@@ -99,7 +99,9 @@ export default function AboutMe() {
 								className="w-96 lg:w-80 pt-4 md:pt-0"
 								priority
 							/>
+                        <p className="text-muted-foreground text-sm text-center mt-2">{item.desc}</p>
 						</Link>
+                        
 					))}
 				</div>
 			</section>           
