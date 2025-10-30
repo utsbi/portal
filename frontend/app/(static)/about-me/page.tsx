@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-// import Eseohe from "@/assets/images/";
+import ProfileCard from "@/components/ProfileCard";
 
 export const metadata: Metadata = {
 	title: "About Me",
 };
 
-// const images = [
-// 	{ img: Eseohe, href: "" },
-// 	{ img: Valorant, href: "" },
-// 	{ img: Otter, href: "" },
-//     { img: One Piece, href: "" },
-// ];
+const about = [
+    {
+		name: "Eseohe Aigberadion",
+		role: "Computer Science",
+		email: "eseoheaigb@utexas.edu",
+	},
+];
 
 export default function AboutMe() {
 	return (
@@ -64,7 +65,13 @@ export default function AboutMe() {
 			<section className="px-6 py-10 md:px-32 2xl:px-80 relative font-OldStandardTT">
 				<div className="text-4xl">Pictures Relating to Me</div>
 				<div className="flex justify-center">
-                    
+					<div className="pt-10 flex flex-wrap justify-center -mx-4 space-y-8 md:space-y-0 w-3/4">
+						{about.map((item) => (
+							<div key={item.email} className="w-full md:w-1/3 px-4">
+								<ProfileCard {...item} />
+							</div>
+						))}
+					</div>
 				</div>
 			</section>
 		</>
