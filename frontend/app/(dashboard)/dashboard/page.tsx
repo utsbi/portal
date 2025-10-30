@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
+import UpdatePasswordModal from "@/components/auth/UpdatePasswordModal";
 import LogoutButton from "@/components/LogoutButton";
-import UpdatePasswordModal from "@/components/UpdatePasswordModal";
 import { createClient } from "@/utils/supabase/server";
 
 export default async function Dashboard() {
