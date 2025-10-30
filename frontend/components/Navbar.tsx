@@ -8,7 +8,8 @@ import logo from "@/assets/logos/logo.gif";
 
 const navItems = [
 	{ name: "Home", href: "/" },
-	{ name: "About", href: "/about/" },
+	{ name: "About", href: "/about/" }, 
+	{ name: "About Me", href: "/about-me/" },
 	{ name: "Outreach", href: "/outreach/" },
 	{ name: "Projects", href: "/projects/" },
 	{ name: "Contact Us", href: "/contact/" },
