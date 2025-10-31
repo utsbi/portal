@@ -1,53 +1,69 @@
-import './globals.css';
-import Link from 'next/link';
+import {
+    ColorSchemeScript,
+    createTheme,
+    MantineProvider,
+    mantineHtmlProps,
+} from "@mantine/core";
+import { Old_Standard_TT } from "next/font/google";
+import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
+import "./globals.css";
 
-export const metadata = {
-  title: 'UTSB Portal',
-  description: 'Student portal website',
-};
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import type { Metadata } from "next";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body className="bg-white text-gray-900">
-        {/* Header */}
-        <header className="border-b border-gray-200">
-          <nav className="max-w-4xl mx-auto flex items-center justify-between p-4 text-sm">
-            <div className="w-10 h-10 text-xl font-serif text-green-700">
-              UT-S
-            </div>
+import faviconLight from "@/assets/favicons/favicon.ico";
+import faviconDark from "@/assets/favicons/favicon-light.ico";
 
-            <div className="flex gap-6">
-              <Link href="/" className="hover:underline">
-                Home
-              </Link>
-              <Link href="/about-me" className="hover:underline">
-                About
-              </Link>
-              <Link href="/about" className="hover:underline">
-                About Me
-              </Link>
-              <Link href="/outreach" className="hover:underline">
-                Outreach
-              </Link>
-              <Link href="/projects" className="hover:underline">
-                Projects
-              </Link>
-              <Link href="/contact" className="hover:underline">
-                Contact Us
-              </Link>
-              <Link href="/login" className="hover:underline">
-                Login
-              </Link>
-            </div>
-          </nav>
-        </header>
+export const metadata: Metadata = {
+    title: "Home",
+    description: "SBI Portal app for team members and clients",
+    icons: {
+        icon: [
+            {
+                url: faviconLight.src,
+                type: "image/png",
+                media: "(prefers-color-scheme: light)",
+            },
+            {
+                url: faviconDark.src,
+                type: "image/png",
+                media: "(prefers-color-scheme: dark)",
+            },
+        ],
+    },
+  }
+const oldStandardTT = Old_Standard_TT({
+    weight: ["400", "700"],
+    subsets: ["latin"],
+    display: "swap",
+});
 
-        {/* Render page content */}
-        <div className="max-w-4xl mx-auto p-8">
-          {children}
-        </div>
-      </body>
-    </html>
-  );
+const theme = createTheme({
+    primaryColor: "green",
+});
+
+export default function RootLayout({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    return (
+        <html lang="en" {...mantineHtmlProps}>
+            <head>
+                <ColorSchemeScript />
+            </head>
+            <body className={`${oldStandardTT.className} scrollbar`}>
+                <MantineProvider theme={theme}>
+                    <Navbar />
+                    {children}
+                    <Footer />
+                </MantineProvider>
+                <SpeedInsights />
+                <Analytics />
+            </body>
+        </html>
+    );
+
 }

@@ -2,7 +2,8 @@
 
 export default function About() {
   return (
-    <main className="min-h-screen p-8 max-w-3xl mx-auto">
+    <main
+        className="min-h-screen px-6 py-10 pt-36 max-w-3xl mx-auto">
       <h1 className="text-3xl font-bold mb-4">About Me</h1>
 
       <p className="mb-6">
@@ -32,15 +33,15 @@ export default function About() {
       </a>  
         <div className="text-center mb-8"></div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <a href="https://link1.com" target="_blank">
+        <a href="https://www.ibm.com/think/topics/data-science" target="_blank">
           <img src="/images/about/img1.jpg" alt="First" className="w-full h-auto rounded" />
           <p className="text-center mt-1">The field I'm interested in</p>
         </a>
-        <a href="https://link2.com" target="_blank">
+        <a href="https://en.wikipedia.org/wiki/Chameleon" target="_blank">
           <img src="/images/about/img2.jpg" alt="Second" className="w-full h-auto rounded" />
           <p className="text-center mt-1">My favorite animal</p>
         </a>
-        <a href="https://link3.com" target="_blank">
+        <a href="https://en.wikipedia.org/wiki/Archery" target="_blank">
           <img src="/images/about/img3.jpg" alt="Third" className="w-full h-auto rounded" />
           <p className="text-center mt-1">Favorite sport</p>
         </a>
