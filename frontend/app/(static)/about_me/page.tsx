@@ -2,65 +2,22 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import Rice from "@/assets/images/schools/rice_university.png";
-import TAMU from "@/assets/images/schools/TAMU.png";
-import UTAustin from "@/assets/images/schools/TEXAS_official_seal.svg";
+import Netflix from "@/assets/images/about_me/netflix.png";
+import Amazon from "@/assets/images/about_me/amazon.jpg";
+import Java from "@/assets/images/about_me/java.png";
 import ProfileCard from "@/components/ProfileCard";
 
-// import ICOL from "@/assets/images/schools/imperial_college_of_london.png";
-
 const images = [
-  { img: UTAustin, href: "https://utexas.edu" },
-  { img: TAMU, href: "https://tamu.edu" },
-  { img: Rice, href: "https://www.rice.edu/" },
-  // { img: ICOL, href: "https://www.imperial.ac.uk/" },
+  { img: Amazon, href: "https://amazon.com", caption: "Amazon" },
+  { img: Java, href: "https://java.com", caption: "Java" },
+  { img: Netflix, href: "https://www.netflix.com", caption: "Netflix" },
 ];
 
 const people = [
   {
-    name: "Pedro Guzman",
-    role: "President",
-    email: "pedro@utsbi.org",
-  },
-  {
-    name: "Sam Moran",
-    role: "Vice President",
-    email: "sam@utsbi.org",
-  },
-  {
-    name: "Brendan Lyon",
-    role: "Director of Mechanical Systems",
-    email: "brendanlyon@utexas.edu",
-  },
-  {
-    name: "Enoch Zhu",
-    role: "Director of External Technologies",
-    email: "enoch@utsbi.org",
-  },
-  {
-    name: "Daniel Lam",
-    role: "Director of Internal Technologies",
-    email: "daniel@utsbi.org",
-  },
-  {
-    name: "Dev Shroff",
-    role: "Director of R&D",
-    email: "dev@utsbi.org",
-  },
-  {
-    name: "Ali Akbar",
-    role: "Director of Finance",
-    email: "aliakbar@utexas.edu",
-  },
-  {
-    name: "Kabir Muzumdar",
-    role: "Director of Civil Systems",
-    email: "kabir@utsbi.org",
-  },
-  {
-    name: "Noah Dao",
-    role: "Director of Public Relations",
-    email: "ntd534@my.utexas.edu",
+    name: "Adetola Adetunji",
+    role: "Computer Science",
+    email: "aadetunji@utexas.edu",
   },
 ];
 
@@ -103,21 +60,22 @@ export default function About() {
       </section>
 
       <section className="px-6 py-10 md:px-48 2xl:px-80 relative">
-        <div className="flex flex-row justify-center items-center">
+        <div className="flex flex-row justify-center items-center space-x-6">
           {images.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Image
-                src={item.img}
-                alt={`University logo for ${item.href}`}
-                className="w-96 lg:w-80 pt-4 md:pt-0"
-                priority
-              />
-            </Link>
+            <div key={item.href} className="flex flex-col items-center">
+              <Link href={item.href} target="_blank" rel="noopener noreferrer">
+                <Image
+                  src={item.img}
+                  alt={item.caption}
+                  className="w-40 md:w-48 lg:w-56 h-auto pt-4"
+                  priority
+                />
+              </Link>
+              {/* Caption */}
+              <p className="text-sm text-center mt-2 font-medium">
+                {item.caption}
+              </p>
+            </div>
           ))}
         </div>
       </section>
