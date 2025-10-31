@@ -1,6 +1,6 @@
 "use client";
 
-export default function AboutPage() {
+export default function About() {
   return (
     <main className="min-h-screen p-8 max-w-3xl mx-auto">
       <h1 className="text-3xl font-bold mb-4">About Me</h1>
@@ -27,7 +27,7 @@ export default function AboutPage() {
         </a>
       <a href="mailto:vishnu@utexas.edu"
         className="mx-auto mt-3 block w-fit bg-blue-600 text-white px-4 py-2 rounded hover:bg-b">
-          
+
         Email Me
       </a>  
         <div className="text-center mb-8"></div>
