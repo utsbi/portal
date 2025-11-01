@@ -9,10 +9,12 @@ import logo from "@/assets/logos/logo.gif";
 const navItems = [
 	{ name: "Home", href: "/" },
 	{ name: "About", href: "/about/" },
+	{ name: "About Paul", href: "/aboutpt/"},
 	{ name: "Outreach", href: "/outreach/" },
 	{ name: "Projects", href: "/projects/" },
 	{ name: "Contact Us", href: "/contact/" },
-	{ name: "Login", href: "/login/" }, // TODO: make login button special
+	{ name: "Login", href: "/login/" },
+	 // TODO: make login button special
 ];
 
 function Navbar() {
