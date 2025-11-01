@@ -3,9 +3,9 @@ import { ChevronDownIcon } from "@radix-ui/react-icons";
 import classNames from "classnames";
 import Image from "next/image";
 import React from "react";
+import styles from "./AccordionProjects.module.css";
 import ModelViewer from "./ModelViewer.jsx";
 import TestViewer from "./R3FViewer";
-import "./styles.css";
 
 // TypeScript interfaces
 interface AccordionTriggerProps {
@@ -44,12 +44,12 @@ import pi4 from "@/assets/images/project-two/interior-concept/4.webp";
 
 const AccordionProjects: React.FC = () => (
 	<Accordion.Root
-		className="AccordionRoot"
+		className={styles.AccordionRoot}
 		type="single"
 		defaultValue="item-2"
 		collapsible
 	>
-		<Accordion.Item className="AccordionItem" value="item-2">
+		<Accordion.Item className={styles.AccordionItem} value="item-2">
 			<AccordionTrigger className="text-xl!">
 				Sustainable Family Home Project
 			</AccordionTrigger>
@@ -59,8 +59,8 @@ const AccordionProjects: React.FC = () => (
 				garage and patio, that thoughtfully integrates classic design with
 				modern, eco-friendly efficiencies and materials.
 				<div className="py-4">
-					<Accordion.Root className="AccordionRoot" type="multiple">
-						<Accordion.Item className="AccordionItem" value="item-1">
+					<Accordion.Root className={styles.AccordionRoot} type="multiple">
+						<Accordion.Item className={styles.AccordionItem} value="item-1">
 							<AccordionTrigger>Exterior Concept Images</AccordionTrigger>
 							<AccordionContent>
 								<div className="flex flex-col md:flex-row flex-wrap">
@@ -103,7 +103,7 @@ const AccordionProjects: React.FC = () => (
 								</div>
 							</AccordionContent>
 						</Accordion.Item>
-						<Accordion.Item className="AccordionItem" value="item-2">
+						<Accordion.Item className={styles.AccordionItem} value="item-2">
 							<AccordionTrigger>Interior Concept Images</AccordionTrigger>
 							<AccordionContent>
 								<div className="flex flex-col md:flex-row flex-wrap">
@@ -154,7 +154,7 @@ const AccordionProjects: React.FC = () => (
 				{/* <div className="italic text-center pt-4">// caption</div> */}
 			</AccordionContent>
 		</Accordion.Item>
-		<Accordion.Item className="AccordionItem" value="item-1">
+		<Accordion.Item className={styles.AccordionItem} value="item-1">
 			<AccordionTrigger className="text-xl!">
 				Hobbie Farm Project
 			</AccordionTrigger>
@@ -164,8 +164,8 @@ const AccordionProjects: React.FC = () => (
 				plans to integrate eco-friendly features and innovations during the
 				building process.
 				<div className="py-4">
-					<Accordion.Root className="AccordionRoot" type="multiple">
-						<Accordion.Item className="AccordionItem" value="item-1">
+					<Accordion.Root className={styles.AccordionRoot} type="multiple">
+						<Accordion.Item className={styles.AccordionItem} value="item-1">
 							<AccordionTrigger>Site View Images</AccordionTrigger>
 							<AccordionContent>
 								<div className="flex flex-col md:flex-row flex-wrap">
@@ -208,7 +208,7 @@ const AccordionProjects: React.FC = () => (
 								</div>
 							</AccordionContent>
 						</Accordion.Item>
-						<Accordion.Item className="AccordionItem" value="item-2">
+						<Accordion.Item className={styles.AccordionItem} value="item-2">
 							<AccordionTrigger>Exterior Concept Images</AccordionTrigger>
 							<AccordionContent>
 								<div className="flex flex-col md:flex-row">
@@ -233,7 +233,7 @@ const AccordionProjects: React.FC = () => (
 								</div>
 							</AccordionContent>
 						</Accordion.Item>
-						<Accordion.Item className="AccordionItem" value="item-3">
+						<Accordion.Item className={styles.AccordionItem} value="item-3">
 							<AccordionTrigger>Interior Concept Images</AccordionTrigger>
 							<AccordionContent>
 								<div className="flex flex-col md:flex-row flex-wrap">
@@ -299,15 +299,15 @@ const AccordionTrigger = React.forwardRef<
 	React.ComponentRef<typeof Accordion.Trigger>,
 	AccordionTriggerProps
 >(({ children, className, ...props }, forwardedRef) => (
-	<Accordion.Header className="AccordionHeader">
+	<Accordion.Header className={styles.AccordionHeader}>
 		<Accordion.Trigger
-			className={classNames(className, "AccordionTrigger")}
+			className={classNames(className, styles.AccordionTrigger)}
 			{...props}
 			ref={forwardedRef}
 		>
 			{children}
 			<ChevronDownIcon
-				className="AccordionChevron text-green-700"
+				className={classNames(styles.AccordionChevron, "text-green-700")}
 				aria-hidden
 			/>
 		</Accordion.Trigger>
@@ -321,11 +321,11 @@ const AccordionContent = React.forwardRef<
 	AccordionContentProps
 >(({ children, className, ...props }, forwardedRef) => (
 	<Accordion.Content
-		className={classNames(className, "AccordionContent")}
+		className={classNames(className, styles.AccordionContent)}
 		{...props}
 		ref={forwardedRef}
 	>
-		<div className="AccordionContentText">{children}</div>
+		<div className={styles.AccordionContentText}>{children}</div>
 	</Accordion.Content>
 ));
 
