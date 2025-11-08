@@ -1,5 +1,6 @@
 import Image from "next/image";
 import collage from "@/assets/images/collage.png";
+import Background from "@/components/v2/background";
 import { urbanist } from "@/utils/fonts";
 
 export default function V2Page() {
@@ -51,7 +52,7 @@ export default function V2Page() {
 					</a>
 				</div>
 			</div>
-			<Image
+			{/* <Image
 				src={collage}
 				loading="eager"
 				alt="Background"
@@ -59,7 +60,10 @@ export default function V2Page() {
 				priority
 				sizes="100vw"
 				style={{ zIndex: 0 }}
-			/>
+			/> */}
+			<div className="brightness-50">
+				<Background />
+			</div>
 			<div className="block pt-60">content</div>
 		</div>
 	);
