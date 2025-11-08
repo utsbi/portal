@@ -4,7 +4,6 @@ import {
 	MantineProvider,
 	mantineHtmlProps,
 } from "@mantine/core";
-import { oldStandardTT } from "@/utils/fonts";
 import "@/app/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
@@ -56,7 +55,7 @@ export default function RootLayout({
 			<head>
 				<ColorSchemeScript />
 			</head>
-			<body className={`${oldStandardTT.className} scrollbar`}>
+			<body className="scrollbar">
 				<MantineProvider theme={theme}>{children}</MantineProvider>
 				<SpeedInsights />
 				<Analytics />
