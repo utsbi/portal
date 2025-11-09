@@ -8,13 +8,42 @@ import { useEffect, useRef, useState } from "react";
 import logo from "@/assets/logos/logo.gif";
 
 const navItems = [
-	{ name: "Home", href: "/" },
+	// { name: "Home", href: "/" },
 	{ name: "About", href: "/about/" },
 	{ name: "Outreach", href: "/outreach/" },
 	{ name: "Projects", href: "/projects/" },
 	{ name: "Contact Us", href: "/contact/" },
 	{ name: "Login", href: "/login/" }, // TODO: make login button special
 ];
+
+const letterContainerVariants = {
+	initial: {
+		transition: {
+			staggerChildren: 0.02,
+			staggerDirection: -1,
+		},
+	},
+	hover: {
+		transition: {
+			staggerChildren: 0.02,
+		},
+	},
+};
+
+const letterVariants = {
+	initial: {
+		y: 0,
+		transition: {
+			duration: 0.2,
+		},
+	},
+	hover: {
+		y: "-1.5em",
+		transition: {
+			duration: 0.2,
+		},
+	},
+};
 
 function Navbar() {
 	const [open, setOpen] = useState(false);
@@ -30,7 +59,7 @@ function Navbar() {
 	useEffect(() => {
 		const handleScroll = () => {
 			const currentScrollY = window.scrollY;
-			
+
 			if (currentScrollY < lastScrollY || currentScrollY < 10) {
 				// Scrolling up or at top - show navbar
 				setVisible(true);
@@ -38,7 +67,7 @@ function Navbar() {
 				// Scrolling down and past threshold - hide navbar
 				setVisible(false);
 			}
-			
+
 			setLastScrollY(currentScrollY);
 		};
 
@@ -96,6 +125,7 @@ function Navbar() {
 						onClick={toggleMenu}
 						aria-label="Toggle navigation"
 						size="md"
+						color="white"
 					/>
 				</div>
 
@@ -134,10 +164,46 @@ function Navbar() {
 								<Link
 									// href={item.href}
 									href=""
-									className="flex items-center gap-2 py-2 px-3 text-white rounded hover:bg-gray-100 md:hover:bg-transparent hover:underline md:p-0 text-xl"
+									className="flex items-center gap-2 py-2 px-3 text-white rounded md:p-0 text-xl"
 								>
 									<span className="w-3 h-3 rounded-full bg-white" />
-									{item.name}
+									<motion.span
+										className="inline-flex"
+										variants={letterContainerVariants}
+										initial="initial"
+										whileHover="hover"
+									>
+										{item.name.split("").map((char, index) => (
+											<motion.span
+												key={`${item.name}-${index}`}
+												className={`relative overflow-hidden ${char === " " ? "w-2" : ""}`}
+												style={{
+													display: "inline-block",
+													height: "1.5em",
+												}}
+											>
+												<motion.span
+													variants={letterVariants}
+													className="block"
+													style={{
+														lineHeight: "1.5em",
+													}}
+												>
+													{char}
+												</motion.span>
+												<motion.span
+													variants={letterVariants}
+													className="block absolute inset-0"
+													style={{
+														top: "1.5em",
+														lineHeight: "1.5em",
+													}}
+												>
+													{char}
+												</motion.span>
+											</motion.span>
+										))}
+									</motion.span>
 								</Link>
 							</li>
 						))}
