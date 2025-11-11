@@ -30,7 +30,144 @@ import towerTopDay from "@/assets/images/background/tower_top_day.jpg";
 import wcpGreeneryDay from "@/assets/images/background/wcp_greenery_day.jpg";
 import welStairs from "@/assets/images/background/wel_stairs.jpg";
 
+const gridImages = [
+	{
+		id: 14,
+		gridArea: "4 / 1 / 6 / 3",
+		src: eerNight,
+		priority: false,
+		sizes: "22vw",
+	},
+	{
+		id: 17,
+		gridArea: "5 / 5 / 6 / 8",
+		src: austinNightWide,
+		priority: false,
+		sizes: "33vw",
+	},
+	{
+		id: 15,
+		gridArea: "5 / 3 / 6 / 4",
+		src: dkrStadiumNight,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 16,
+		gridArea: "5 / 4 / 6 / 5",
+		src: eerRightSide,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 13,
+		gridArea: "3 / 9 / 6 / 10",
+		src: rlmHallway,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 18,
+		gridArea: "5 / 8 / 6 / 9",
+		src: wcpGreeneryDay,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 12,
+		gridArea: "3 / 3 / 5 / 3",
+		src: bridge,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 19,
+		gridArea: "4 / 7 / 5 / 9",
+		src: clockKnotGreenery,
+		priority: false,
+		sizes: "22vw",
+	},
+	{
+		id: 8,
+		gridArea: "2 / 4 / 5 / 7",
+		src: towerDay,
+		priority: true,
+		sizes: "33vw",
+	}, // Center - priority
+	{
+		id: 10,
+		gridArea: "3 / 8 / 4 / 9",
+		src: welStairs,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 9,
+		gridArea: "2 / 7 / 4 / 8",
+		src: blanton,
+		priority: true,
+		sizes: "11vw",
+	}, // Visible - priority
+	{
+		id: 1,
+		gridArea: "1 / 1 / 4 / 2",
+		src: rlpBridgeCenter,
+		priority: true,
+		sizes: "11vw",
+	}, // Visible - priority
+	{
+		id: 11,
+		gridArea: "3 / 2 / 4 / 3",
+		src: blantonNightArt,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 7,
+		gridArea: "2 / 2 / 3 / 4",
+		src: buildingWithOrangeBig,
+		priority: true,
+		sizes: "22vw",
+	}, // Visible - priority
+	{
+		id: 6,
+		gridArea: "1 / 8 / 3 / 10",
+		src: rlpNight,
+		priority: true,
+		sizes: "22vw",
+	}, // Visible - priority
+	{
+		id: 2,
+		gridArea: "1 / 2 / 2 / 3",
+		src: towerTopDay,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 3,
+		gridArea: "1 / 3 / 2 / 6",
+		src: rlpBridgeGreenery,
+		priority: false,
+		sizes: "33vw",
+	},
+	{
+		id: 4,
+		gridArea: "1 / 6 / 2 / 7",
+		src: rlpBridgeOffset,
+		priority: false,
+		sizes: "11vw",
+	},
+	{
+		id: 5,
+		gridArea: "1 / 7 / 2 / 8",
+		src: dkrStadiumDay,
+		priority: false,
+		sizes: "11vw",
+	},
+];
+
 export {
+	gridImages,
 	austinNightWide,
 	betweenBuildings,
 	blanton,
