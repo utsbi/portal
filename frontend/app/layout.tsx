@@ -9,9 +9,9 @@ import "@/app/globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-
 import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
 	metadataBase: new URL("https://utsbi.org"),
@@ -51,12 +51,21 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<html lang="en" {...mantineHtmlProps}>
+		<html lang="en" {...mantineHtmlProps} suppressHydrationWarning>
 			<head>
 				<ColorSchemeScript />
 			</head>
 			<body className="scrollbar">
-				<MantineProvider theme={theme}>{children}</MantineProvider>
+				<MantineProvider theme={theme}>
+					<ThemeProvider
+						attribute="class"
+						defaultTheme="system"
+						enableSystem
+						disableTransitionOnChange
+					>
+						{children}
+					</ThemeProvider>
+				</MantineProvider>
 				<SpeedInsights />
 				<Analytics />
 			</body>

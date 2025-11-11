@@ -179,14 +179,14 @@ function Navbar() {
 												className={`relative overflow-hidden ${char === " " ? "w-2" : ""}`}
 												style={{
 													display: "inline-block",
-													height: "1.5em",
+													height: "1.2em",
 												}}
 											>
 												<motion.span
 													variants={letterVariants}
 													className="block"
 													style={{
-														lineHeight: "1.5em",
+														lineHeight: "1.2em",
 													}}
 												>
 													{char}

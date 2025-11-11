@@ -2,15 +2,16 @@
 
 import { motion } from "motion/react";
 import Image from "next/image";
-import { useState } from "react";
-import { gridImages } from "./background-images";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+import { gridImages, towerDay, towerNight } from "./background-images";
 
 const containerVariants = {
 	hidden: { opacity: 0 },
 	visible: {
 		opacity: 1,
 		transition: {
-			staggerChildren: 0.08,
+			staggerChildren: 0.06,
 			delayChildren: 0.2,
 		},
 	},
@@ -32,16 +33,35 @@ const itemVariants = {
 
 export default function Background() {
 	const [imagesLoaded, setImagesLoaded] = useState(0);
+	const [mounted, setMounted] = useState(false);
+	const { resolvedTheme } = useTheme();
 	const totalImages = gridImages.length;
 	// Start animation when 50% loaded
-	const shouldAnimate = imagesLoaded >= Math.ceil(totalImages * 0.5);
+	const shouldAnimate = imagesLoaded >= Math.ceil(totalImages * 0.1);
+
+	// Wait for component to mount before using theme
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	// Use resolvedTheme to get actual theme (handles "system" preference)
+	// Default to dark during SSR to match initial render
+	const isDarkMode = mounted ? resolvedTheme === "dark" : true;
 
 	const handleImageLoad = () => {
 		setImagesLoaded((prev) => prev + 1);
 	};
 
+	// Get the correct image source based on dark mode
+	const getImageSrc = (img: (typeof gridImages)[0]) => {
+		if (img.id === 8) {
+			return isDarkMode ? towerNight : towerDay;
+		}
+		return img.src;
+	};
+
 	return (
-		<div className="fixed inset-0 w-full h-screen overflow-hidden bg-[#181718]">
+		<div className="fixed inset-0 w-full h-screen overflow-hidden bg-[#181718] select-none">
 			<motion.div
 				className="w-full h-full grid gap-1 p-1"
 				style={{
@@ -63,7 +83,7 @@ export default function Background() {
 						variants={itemVariants}
 					>
 						<Image
-							src={img.src}
+							src={getImageSrc(img)}
 							alt={`Grid image ${img.id}`}
 							fill
 							className="object-cover"
