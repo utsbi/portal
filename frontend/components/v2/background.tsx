@@ -11,7 +11,7 @@ const containerVariants = {
 	visible: {
 		opacity: 1,
 		transition: {
-			staggerChildren: 0.06,
+			staggerChildren: 0.07,
 			delayChildren: 0.2,
 		},
 	},
@@ -92,6 +92,7 @@ export default function Background() {
 							priority={img.priority}
 							placeholder="blur"
 							onLoad={handleImageLoad}
+							draggable={false}
 						/>
 					</motion.div>
 				))}
