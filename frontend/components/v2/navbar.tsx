@@ -107,7 +107,7 @@ function Navbar() {
 					href="/"
 					className="flex items-center space-x-3 rtl:space-x-reverse"
 				>
-					<Image
+					{/* <Image
 						src={logo}
 						loading={"eager"}
 						className="h-14 w-14 md:h-16 md:w-16"
@@ -116,7 +116,8 @@ function Navbar() {
 						height={logo.height}
 						priority
 						unoptimized
-					/>
+					/> */}
+					<div className="text-4xl text-white">SBI</div>
 				</Link>
 
 				<div className="md:hidden flex items-center">
