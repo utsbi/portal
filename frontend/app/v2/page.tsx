@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, type Variants } from "motion/react";
+import { useState } from "react";
+import { motion, type Variants, AnimatePresence } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -41,6 +42,12 @@ const itemVariants: Variants = {
 };
 
 export default function V2Page() {
+	const [expandedDept, setExpandedDept] = useState<string | null>(null);
+
+	const toggleDept = (dept: string) => {
+		setExpandedDept(expandedDept === dept ? null : dept);
+	};
+
 	return (
 		<div className={`${urbanist.className}`}>
 			{/* Main section */}
@@ -127,16 +134,39 @@ export default function V2Page() {
 							{departments.map((dept) => (
 								<motion.div key={dept} variants={itemVariants}>
 									<motion.div
-										className="flex flex-row justify-between items-center py-4 cursor-pointer group hover:bg-gray-50 transition-colors duration-300 px-2"
+										className="flex flex-row justify-between items-center py-4 cursor-pointer group transition-colors duration-300 px-2"
 										whileHover={{ x: 10 }}
+										onClick={() => toggleDept(dept)}
+										transition-color
 									>
 										<div className="text-3xl font-medium text-gray-500 group-hover:text-green-600 transition-colors">
 											{dept}
 										</div>
 										<div className="flex items-center text-gray-400 group-hover:text-green-600 transition-colors">
-											<ArrowRight className="w-8 h-8" />
+											<motion.div
+												animate={{ rotate: expandedDept === dept ? 90 : 0 }}
+												transition={{ duration: 0.3 }}
+											>
+												<ArrowRight className="w-8 h-8" />
+											</motion.div>
 										</div>
 									</motion.div>
+									<AnimatePresence>
+										{expandedDept === dept && (
+											<motion.div
+												initial={{ height: 0, opacity: 0 }}
+												animate={{ height: "auto", opacity: 1 }}
+												exit={{ height: 0, opacity: 0 }}
+												transition={{ duration: 0.1, ease: "easeInOut" }}
+												className="overflow-hidden"
+											>
+												<div className="pb-6 px-2 text-gray-600 text-lg">
+													Learn more about our {dept} department and how
+													students drive innovation in this field.
+												</div>
+											</motion.div>
+										)}
+									</AnimatePresence>
 									<div className="border-t-[1.5px] border-gray-300" />
 								</motion.div>
 							))}

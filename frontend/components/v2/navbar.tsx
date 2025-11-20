@@ -48,6 +48,7 @@ const letterVariants = {
 function Navbar() {
 	const [open, setOpen] = useState(false);
 	const [visible, setVisible] = useState(true);
+	const [scrolled, setScrolled] = useState(false);
 	const [lastScrollY, setLastScrollY] = useState(0);
 	const menuRef = useRef<HTMLDivElement>(null);
 
@@ -68,6 +69,7 @@ function Navbar() {
 				setVisible(false);
 			}
 
+			setScrolled(currentScrollY > 0);
 			setLastScrollY(currentScrollY);
 		};
 
@@ -94,7 +96,9 @@ function Navbar() {
 
 	return (
 		<motion.nav
-			className="fixed w-full z-50 top-0 start-0"
+			className={`fixed w-full z-50 top-0 start-0 transition-colors duration-300 ${
+				scrolled ? "bg-white shadow-md" : "bg-transparent"
+			}`}
 			initial={{ y: 0 }}
 			animate={{ y: visible ? 0 : -100 }}
 			transition={{
@@ -117,7 +121,13 @@ function Navbar() {
 						priority
 						unoptimized
 					/> */}
-					<div className="text-4xl text-white">SBI</div>
+					<div
+						className={`text-4xl transition-colors duration-300 font-bold ${
+							scrolled ? "text-black" : "text-white"
+						}`}
+					>
+						SBI
+					</div>
 				</Link>
 
 				<div className="md:hidden flex items-center">
@@ -126,7 +136,7 @@ function Navbar() {
 						onClick={toggleMenu}
 						aria-label="Toggle navigation"
 						size="md"
-						color="white"
+						color={scrolled ? "black" : "white"}
 					/>
 				</div>
 
@@ -165,9 +175,15 @@ function Navbar() {
 								<Link
 									// href={item.href}
 									href=""
-									className="flex items-center gap-2 py-2 px-3 text-white rounded md:p-0 text-lg"
+									className={`flex items-center gap-2 py-2 px-3 rounded md:p-0 text-lg transition-colors duration-300 ${
+										scrolled ? "text-black" : "text-white"
+									}`}
 								>
-									<span className="w-3 h-3 rounded-full bg-white" />
+									<span
+										className={`w-3 h-3 rounded-full transition-colors duration-300 ${
+											scrolled ? "bg-black" : "bg-white"
+										}`}
+									/>
 									<motion.span
 										className="inline-flex"
 										variants={letterContainerVariants}
