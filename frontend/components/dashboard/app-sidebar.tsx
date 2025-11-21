@@ -56,7 +56,7 @@ const mainItems = [
   },
   {
     title: 'Questionnaire',
-    url: '/dashboard/questionnaire',
+    url: '/questionnaire',
     icon: ClipboardList,
   },
 ];
