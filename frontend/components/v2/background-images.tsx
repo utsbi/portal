@@ -75,7 +75,7 @@ const gridImages = [
 	},
 	{
 		id: 12,
-		gridArea: "3 / 3 / 5 / 3",
+		gridArea: "3 / 3 / 5 / 4",
 		src: bridge,
 		priority: false,
 		sizes: "11vw",

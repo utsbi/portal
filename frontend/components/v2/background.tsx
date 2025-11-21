@@ -75,7 +75,7 @@ export default function Background() {
 				{gridImages.map((img) => (
 					<motion.div
 						key={img.id}
-						className="relative overflow-hidden bg-gray-200 border-2 md:border-2 border-gray-800"
+						className="relative overflow-hidden bg-gray-200 border-2 border-gray-800"
 						style={{
 							gridArea: img.gridArea,
 							willChange: "transform, opacity",

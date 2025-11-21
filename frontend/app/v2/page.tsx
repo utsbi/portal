@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { motion, type Variants, AnimatePresence } from "motion/react";
 import { ArrowRight } from "lucide-react";
+import { AnimatePresence, motion, type Variants } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import group from "@/assets/images/group.jpg";
 import Background from "@/components/v2/background";
 import { urbanist } from "@/utils/fonts";
@@ -88,7 +88,7 @@ export default function V2Page() {
 							href="https://utsbi.org"
 							className="mb-3 sm:mb-0"
 							target="_blank"
-							rel="noopener"
+							rel="noopener noreferrer"
 						>
 							<button
 								type="button"
@@ -137,7 +137,6 @@ export default function V2Page() {
 										className="flex flex-row justify-between items-center py-4 cursor-pointer group transition-colors duration-300 px-2"
 										whileHover={{ x: 10 }}
 										onClick={() => toggleDept(dept)}
-										transition-color
 									>
 										<div className="text-3xl font-medium text-gray-500 group-hover:text-green-600 transition-colors">
 											{dept}

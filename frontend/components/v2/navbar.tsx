@@ -2,10 +2,9 @@
 
 import { Burger } from "@mantine/core";
 import { motion } from "motion/react";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import logo from "@/assets/logos/logo.gif";
+import NavLink from "./nav-link";
 
 const navItems = [
 	// { name: "Home", href: "/" },
@@ -15,35 +14,6 @@ const navItems = [
 	{ name: "CONTACT US", href: "/contact/" },
 	{ name: "LOGIN", href: "/login/" }, // TODO: make login button special
 ];
-
-const letterContainerVariants = {
-	initial: {
-		transition: {
-			staggerChildren: 0.02,
-			staggerDirection: -1,
-		},
-	},
-	hover: {
-		transition: {
-			staggerChildren: 0.01,
-		},
-	},
-};
-
-const letterVariants = {
-	initial: {
-		y: 0,
-		transition: {
-			duration: 0.2,
-		},
-	},
-	hover: {
-		y: "-1.5em",
-		transition: {
-			duration: 0.2,
-		},
-	},
-};
 
 function Navbar() {
 	const [open, setOpen] = useState(false);
@@ -100,13 +70,13 @@ function Navbar() {
 				scrolled ? "bg-white shadow-md" : "bg-transparent"
 			}`}
 			initial={{ y: 0 }}
-			animate={{ y: visible ? 0 : -100 }}
+			animate={{ y: visible ? 0 : "-100%" }}
 			transition={{
 				duration: 0.3,
 				ease: "easeInOut",
 			}}
 		>
-			<div className="max-w-7xl flex flex-wrap items-center justify-between mx-auto p-6">
+			<div className="max-w-7xl flex flex-wrap items-center justify-between mx-auto px-6 py-8">
 				<Link
 					href="/"
 					className="flex items-center space-x-3 rtl:space-x-reverse"
@@ -172,56 +142,7 @@ function Navbar() {
 					<ul className="flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg md:space-x-12 rtl:space-x-reverse md:flex-row md:mt-0 md:border-0 ">
 						{navItems.map((item) => (
 							<li key={item.name}>
-								<Link
-									// href={item.href}
-									href=""
-									className={`flex items-center gap-2 py-2 px-3 rounded md:p-0 text-lg transition-colors duration-300 ${
-										scrolled ? "text-black" : "text-white"
-									}`}
-								>
-									<span
-										className={`w-3 h-3 rounded-full transition-colors duration-300 ${
-											scrolled ? "bg-black" : "bg-white"
-										}`}
-									/>
-									<motion.span
-										className="inline-flex"
-										variants={letterContainerVariants}
-										initial="initial"
-										whileHover="hover"
-									>
-										{item.name.split("").map((char, index) => (
-											<motion.span
-												key={`${item.name}-${index}`}
-												className={`relative overflow-hidden ${char === " " ? "w-2" : ""}`}
-												style={{
-													display: "inline-block",
-													height: "1.2em",
-												}}
-											>
-												<motion.span
-													variants={letterVariants}
-													className="block"
-													style={{
-														lineHeight: "1.2em",
-													}}
-												>
-													{char}
-												</motion.span>
-												<motion.span
-													variants={letterVariants}
-													className="block absolute inset-0"
-													style={{
-														top: "1.5em",
-														lineHeight: "1.5em",
-													}}
-												>
-													{char}
-												</motion.span>
-											</motion.span>
-										))}
-									</motion.span>
-								</Link>
+								<NavLink name={item.name} href="" scrolled={scrolled} />
 							</li>
 						))}
 					</ul>
