@@ -9,7 +9,7 @@ export default function StaticLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<div className={`${urbanist.className} scrollbar`}>
+		<div className={`${urbanist.className} bg-sbi-dark min-h-screen`}>
 			<Navbar />
 			{children}
 			{/* <Footer /> */}

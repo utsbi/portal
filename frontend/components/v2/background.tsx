@@ -31,13 +31,18 @@ const itemVariants = {
 	},
 };
 
-export default function Background() {
+export default function Background({
+	startAnimation = true,
+}: {
+	startAnimation?: boolean;
+}) {
 	const [imagesLoaded, setImagesLoaded] = useState(0);
 	const [mounted, setMounted] = useState(false);
 	const { resolvedTheme } = useTheme();
 	const totalImages = gridImages.length;
-	// Start animation when 50% loaded
-	const shouldAnimate = imagesLoaded >= Math.ceil(totalImages * 0.1);
+	// Start animation when 50% loaded AND startAnimation is true
+	const shouldAnimate =
+		startAnimation && imagesLoaded >= Math.ceil(totalImages * 0.1);
 
 	// Wait for component to mount before using theme
 	useEffect(() => {
