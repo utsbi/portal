@@ -1,5 +1,6 @@
 // import Footer from "@/components/Footer";
 
+import { Footer } from "@/components/v2/footer";
 import Navbar from "@/components/v2/navbar";
 import { urbanist } from "@/utils/fonts";
 
@@ -12,7 +13,7 @@ export default function StaticLayout({
 		<div className={`${urbanist.className} bg-sbi-dark min-h-screen`}>
 			<Navbar />
 			{children}
-			{/* <Footer /> */}
+			<Footer />
 		</div>
 	);
 }
