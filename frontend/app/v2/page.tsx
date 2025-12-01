@@ -165,18 +165,6 @@ function LoadingScreen({ onComplete }: { onComplete: () => void }) {
 						{Math.floor(progress)}%
 					</motion.div>
 				</div>
-
-				{/* Loading text */}
-				<motion.p
-					className="absolute -bottom-20 text-xs tracking-[0.3em] uppercase text-sbi-muted-dark"
-					initial={{ opacity: 0 }}
-					animate={{
-						opacity: phase === "loading" ? 1 : 0,
-					}}
-					transition={{ delay: 0.8, duration: 0.4 }}
-				>
-					Loading Experience
-				</motion.p>
 			</div>
 
 			{/* Corner accents */}
@@ -930,17 +918,62 @@ export default function V2Page() {
 									</p>
 								</motion.div>
 
-								{/* Decorative element */}
+								{/* Interactive decorative element */}
 								<motion.div
-									initial={{ opacity: 0, scale: 0.8 }}
-									whileInView={{ opacity: 1, scale: 1 }}
-									transition={{ delay: 0.3, duration: 0.8 }}
+									initial="hidden"
+									whileInView="visible"
+									whileHover="hover"
 									viewport={{ once: true }}
-									className="hidden lg:block relative w-64 h-64 mt-12"
+									variants={{
+										hidden: { opacity: 0, scale: 0.8 },
+										visible: {
+											opacity: 1,
+											scale: 1,
+											transition: { delay: 0.3, duration: 0.8 },
+										},
+										hover: { scale: 1.05 },
+									}}
+									className="hidden lg:block relative w-64 h-64 mt-12 cursor-pointer"
 								>
-									<div className="absolute inset-0 border border-sbi-dark-border rotate-45" />
-									<div className="absolute inset-4 border border-sbi-green/20 rotate-45" />
-									<div className="absolute inset-8 border border-sbi-green/10 rotate-45" />
+									{/* Squares */}
+									<motion.div
+										className="absolute inset-0 border border-sbi-dark-border"
+										variants={{
+											hidden: { rotate: 45 },
+											visible: { rotate: 45 },
+											hover: {
+												rotate: 55,
+												borderColor: "rgba(45, 212, 191, 0.3)",
+											},
+										}}
+										transition={{ type: "spring", stiffness: 300, damping: 20 }}
+									/>
+									<motion.div
+										className="absolute inset-4 border border-sbi-green/20"
+										variants={{
+											hidden: { rotate: 45 },
+											visible: { rotate: 45 },
+											hover: {
+												rotate: 35,
+												borderColor: "rgba(45, 212, 191, 0.4)",
+											},
+										}}
+										transition={{ type: "spring", stiffness: 250, damping: 20 }}
+									/>
+									<motion.div
+										className="absolute inset-8 border border-sbi-green/10"
+										variants={{
+											hidden: { rotate: 45 },
+											visible: { rotate: 45 },
+											hover: {
+												rotate: 55,
+												borderColor: "rgba(45, 212, 191, 0.5)",
+											},
+										}}
+										transition={{ type: "spring", stiffness: 200, damping: 20 }}
+									/>
+
+									{/* Rotating center */}
 									<motion.div
 										className="absolute inset-0 flex items-center justify-center"
 										animate={{ rotate: 360 }}
@@ -950,7 +983,37 @@ export default function V2Page() {
 											ease: "linear",
 										}}
 									>
-										<div className="w-2 h-2 bg-sbi-green rounded-full" />
+										<motion.div
+											className="w-2 h-2 bg-sbi-green rounded-full"
+											variants={{
+												visible: { scale: 1 },
+												hover: {
+													scale: 3,
+													boxShadow: "0 0 20px rgba(45, 212, 191, 0.6)",
+												},
+											}}
+											transition={{
+												type: "spring",
+												stiffness: 400,
+												damping: 15,
+											}}
+										/>
+									</motion.div>
+
+									{/* Expanding rings on hover */}
+									<motion.div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+										<motion.div
+											className="w-4 h-4 border border-sbi-green/0 rounded-full"
+											variants={{
+												visible: { scale: 1, opacity: 0 },
+												hover: {
+													scale: 8,
+													opacity: [0, 0.3, 0],
+													borderColor: "rgba(45, 212, 191, 0.5)",
+													transition: { duration: 1.5, repeat: Infinity },
+												},
+											}}
+										/>
 									</motion.div>
 								</motion.div>
 							</div>
