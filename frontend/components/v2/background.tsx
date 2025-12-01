@@ -31,7 +31,7 @@ const itemVariants = {
 	},
 };
 
-export default function Background({
+export function Background({
 	startAnimation = true,
 }: {
 	startAnimation?: boolean;

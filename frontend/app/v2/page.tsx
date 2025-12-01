@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 
 import group from "@/assets/images/group.jpg";
-import Background from "@/components/v2/background";
+import { Background } from "@/components/v2/background";
 import { BlueprintGrid } from "@/components/v2/blueprint-grid";
 import { Counter } from "@/components/v2/counter";
 import { DecorativeElement } from "@/components/v2/decorative-element";
