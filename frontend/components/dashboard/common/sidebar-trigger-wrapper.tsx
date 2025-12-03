@@ -1,7 +1,6 @@
 'use client';
 
-import { useSidebar } from '@/components/ui/sidebar';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useSidebar, SidebarTrigger } from '@/components/ui/sidebar';
 import { useEffect, useState } from 'react';
 
 export function SidebarTriggerWrapper() {

@@ -1,5 +1,5 @@
 import { dm_sans } from '@/utils/fonts';
-import { AppSidebar } from '@/components/dashboard/explore/app-sidebar';
+import { AppSidebar } from '@/components/dashboard/common/app-sidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function DashboardLayout({
