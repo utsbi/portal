@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/dashboard/_shared/button';
 import { TrendingUp, DollarSign, AlertCircle } from 'lucide-react';
 import gsap from 'gsap';
 

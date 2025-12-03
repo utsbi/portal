@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/dashboard/_shared/input';
+import { Button } from '@/components/dashboard/_shared/button';
 import { Plus } from 'lucide-react';
 
 export function PortalInput() {

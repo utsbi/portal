@@ -25,7 +25,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from '@/components/ui/sidebar';
+} from '@/components/dashboard/_shared/sidebar';
 
 // Menu items
 const mainItems = [

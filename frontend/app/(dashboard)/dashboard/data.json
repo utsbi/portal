@@ -19,7 +19,7 @@
     ],
     "documents": [
       { "title": "Files", "url": "/dashboard/files" },
-      { "title": "Reports", "url": "/dashboard/reports" }
+      { "title": "Reports", "url": "/dashboard/reports" },
       { "title": "Requests", "url": "/dashboard/requests" }
     ]
   }
