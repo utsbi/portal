@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@/components/dashboard/_shared/button';
+import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 
 export function PortalHeader() {
