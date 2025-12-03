@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import {
   Compass,
   MessageSquare,
@@ -10,7 +9,7 @@ import {
   ClipboardList,
   FolderOpen,
   FileText,
-  MailQuestionMark,
+  MailQuestion,
   ChevronDown,
 } from 'lucide-react';
 
@@ -27,65 +26,29 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 
-// Menu items
+// Updated URLs - all under /dashboard
 const mainItems = [
-  {
-    title: 'Explore',
-    url: '/dashboard',
-    icon: Compass,
-  },
-  {
-    title: 'Message',
-    url: '/dashboard/message',
-    icon: MessageSquare,
-  },
-  {
-    title: 'Finances',
-    url: '/dashboard/finances',
-    icon: DollarSign,
-  },
-  {
-    title: 'Lifecycle',
-    url: '/dashboard/lifecycle',
-    icon: Repeat,
-  },
-  {
-    title: 'Calendar',
-    url: '/dashboard/calendar',
-    icon: Calendar,
-  },
-  {
-    title: 'Questionnaire',
-    url: '/dashboard/questionnaire',
-    icon: ClipboardList,
-  },
+  { title: 'Explore', url: '/dashboard', icon: Compass },
+  { title: 'Messages', url: '/dashboard/messages', icon: MessageSquare },
+  { title: 'Finances', url: '/dashboard/finances', icon: DollarSign },
+  { title: 'Lifecycle', url: '/dashboard/lifecycle', icon: Repeat },
+  { title: 'Calendar', url: '/dashboard/calendar', icon: Calendar },
+  { title: 'Questionnaire', url: '/dashboard/questionnaire', icon: ClipboardList },
 ];
 
 const documentItems = [
-  {
-    title: 'Files',
-    url: '/dashboard/files',
-    icon: FolderOpen,
-  },
-  {
-    title: 'Reports',
-    url: '/dashboard/reports',
-    icon: FileText,
-  },
-  {
-    title: 'Requests',
-    url: '/dashboard/requests',
-    icon: MailQuestionMark,
-  },
+  { title: 'Files', url: '/dashboard/files', icon: FolderOpen },
+  { title: 'Reports', url: '/dashboard/reports', icon: FileText },
+  { title: 'Requests', url: '/dashboard/requests', icon: MailQuestion },
 ];
 
 export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-zinc-800 bg-zinc-900">
-      <SidebarHeader className="border-b border-zinc-800 bg-zinc-900">
+      <SidebarHeader className="h-16 border-b border-zinc-800 bg-zinc-900 flex items-center justify-center">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild className="hover:bg-zinc-800">
+            <SidebarMenuButton size="lg" asChild className="hover:bg-zinc-800 data-[state=open]:bg-zinc-800">
               <a href="/dashboard">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-zinc-800 text-white">
                   <svg
@@ -113,7 +76,6 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="bg-zinc-900">
-        {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -131,7 +93,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Documents Section */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-zinc-500">Documents</SidebarGroupLabel>
           <SidebarGroupContent>

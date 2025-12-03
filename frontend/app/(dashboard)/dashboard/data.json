@@ -11,7 +11,7 @@
   "navigation": {
     "main": [
       { "title": "Explore", "url": "/dashboard/explore" },
-      { "title": "Message", "url": "/dashboard/message" },
+      { "title": "Messages", "url": "/dashboard/messages" },
       { "title": "Finances", "url": "/dashboard/finances" },
       { "title": "Lifecycle", "url": "/dashboard/lifecycle" },
       { "title": "Calendar", "url": "/dashboard/calendar" },
