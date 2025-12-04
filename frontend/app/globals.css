@@ -7,6 +7,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+  --color-sbi-green: #22c55e;
+  --color-sbi-dark: #050807;
+  --color-sbi-dark-card: #0a120c;
+  --color-sbi-dark-border: #16301d;
+  --color-sbi-dark-btn: #0f1a12;
+  --color-sbi-muted: #8a9a93;
+  --color-sbi-muted-dark: #6b7c74;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
