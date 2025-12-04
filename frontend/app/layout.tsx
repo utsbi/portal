@@ -52,11 +52,11 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<html lang="en" {...mantineHtmlProps}>
+		<html lang="en" {...mantineHtmlProps} suppressHydrationWarning>
 			<head>
 				<ColorSchemeScript />
 			</head>
-			<body className={`${oldStandardTT.className} scrollbar`}>
+			<body className={`${oldStandardTT.className} scrollbar`} suppressHydrationWarning>
 				<MantineProvider theme={theme}>{children}</MantineProvider>
 				<SpeedInsights />
 				<Analytics />
