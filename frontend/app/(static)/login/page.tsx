@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DotLoader } from "react-spinners";
 import bg from "@/assets/images/login.jpg";
-import { Authentication } from "@/components/Authentication";
+import { Authentication } from "@/components/auth/Authentication";
 import { createClient } from "@/utils/supabase/client";
 
 export default function Login() {
