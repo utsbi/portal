@@ -349,7 +349,8 @@ export default function V2Page() {
 
 				{/* Departments Section */}
 				<section className="relative py-32 md:py-48 overflow-hidden">
-					<div className="max-w-7xl mx-auto px-8 md:px-16">
+					<BlueprintGrid />
+					<div className="relative z-10 max-w-7xl mx-auto px-8 md:px-16">
 						<div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24">
 							{/* Left column - Text */}
 							<div>

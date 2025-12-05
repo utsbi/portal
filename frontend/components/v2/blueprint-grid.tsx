@@ -1,7 +1,7 @@
 // Blueprint grid pattern for architectural aesthetic
 export function BlueprintGrid() {
 	return (
-		<div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.03]">
+		<div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.05]">
 			<svg
 				width="100%"
 				height="100%"
@@ -20,7 +20,7 @@ export function BlueprintGrid() {
 							d="M 50 0 L 0 0 0 50"
 							fill="none"
 							stroke="currentColor"
-							strokeWidth="0.5"
+							strokeWidth=".7"
 						/>
 					</pattern>
 					<pattern
@@ -33,7 +33,7 @@ export function BlueprintGrid() {
 							d="M 250 0 L 0 0 0 250"
 							fill="none"
 							stroke="currentColor"
-							strokeWidth="1"
+							strokeWidth="1.2"
 						/>
 					</pattern>
 				</defs>

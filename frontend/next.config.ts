@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
         pathname: "/**",
       },
     ],
+    qualities: [70, 75],
   },
   reactStrictMode: true,
 
