@@ -207,7 +207,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       {/* Navigation Content */}
-      <SidebarContent className="bg-sbi-dark px-2 group-data-[collapsible=icon]:px-0 py-4">
+      <SidebarContent className="bg-sbi-dark px-2 group-data-[collapsible=icon]:px-0 py-4 overflow-x-hidden">
         {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>
