@@ -13,6 +13,11 @@ import {
   FileText,
   MailQuestion,
   ChevronDown,
+  BadgeCheck,
+  Bell,
+  Settings,
+  LifeBuoy,
+  LogOut,
   type LucideIcon,
 } from 'lucide-react';
 import gsap from 'gsap';
@@ -30,6 +35,14 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface NavItem {
   title: string;
@@ -83,14 +96,14 @@ function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
         <a 
           ref={linkRef}
           href={item.url} 
-          className={`relative flex items-center gap-3 px-3 py-2.5 transition-all duration-300 ${
+          className={`relative flex items-center gap-3 px-2.5 py-2.5 transition-all duration-300 group-data-[collapsible=icon]:justify-center ${
             isActive ? 'text-white' : 'text-sbi-muted hover:text-white'
           }`}
         >
           {/* Active indicator line */}
           <div 
             ref={indicatorRef}
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-sbi-green origin-center scale-y-0 opacity-0"
+            className="absolute left-1 group-data-[collapsible=icon]:left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-sbi-green origin-center scale-y-0 opacity-0"
           />
           
           {/* Icon with glow effect on active */}
@@ -102,7 +115,7 @@ function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
           </div>
           
           {/* Label */}
-          <span className={`font-extralight tracking-wide text-sm ${
+          <span className={`font-extralight tracking-wide text-sm group-data-[collapsible=icon]:hidden ${
             isActive ? 'text-white' : ''
           }`}>
             {item.title}
@@ -194,7 +207,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       {/* Navigation Content */}
-      <SidebarContent className="bg-sbi-dark px-2 py-4">
+      <SidebarContent className="bg-sbi-dark px-2 group-data-[collapsible=icon]:px-0 py-4">
         {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>
@@ -222,39 +235,84 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Footer - User Profile */}
-      <SidebarFooter className="border-t border-sbi-dark-border/50 bg-sbi-dark p-3 px-3">
+      <SidebarFooter className="border-t border-sbi-dark-border/50 bg-sbi-dark p-3 px-3 group-data-[collapsible=icon]:px-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              className="group hover:bg-sbi-dark-card/50 transition-colors duration-300 w-full px-2
-                group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon))]
-                group-data-[collapsible=icon]:h-12
-                group-data-[collapsible=icon]:px-0
-                group-data-[collapsible=icon]:gap-0
-                group-data-[collapsible=icon]:justify-center"
-            >
-              {/* Avatar */}
-              <div
-                className="relative flex size-9 items-center justify-center shrink-0
-                  group-data-[collapsible=icon]:size-8"
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  className="group hover:bg-sbi-dark-card/50 transition-colors duration-300 w-full px-2
+                    group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon))]
+                    group-data-[collapsible=icon]:h-12
+                    group-data-[collapsible=icon]:px-0
+                    group-data-[collapsible=icon]:gap-0
+                    group-data-[collapsible=icon]:justify-center
+                    data-[state=open]:bg-sbi-dark-card/50"
+                >
+                  {/* Avatar */}
+                  <div
+                    className="relative flex size-9 items-center justify-center shrink-0
+                      group-data-[collapsible=icon]:size-8"
+                  >
+                    <div className="absolute inset-0 scale-90 border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-300" />
+                    <span className="text-xs font-extralight text-sbi-green tracking-wider">JD</span>
+                  </div>
+                  
+                  {/* User info */}
+                  <div className="flex-1 text-left min-w-0 group-data-[collapsible=icon]:hidden">
+                    <p className="text-sm font-extralight text-white truncate">John Doe</p>
+                    <p className="text-[11px] text-sbi-muted-dark truncate tracking-wide">john@utsbi.com</p>
+                  </div>
+                  
+                  {/* Dropdown indicator */}
+                  <ChevronDown
+                    className="size-4 text-sbi-muted group-hover:text-sbi-green transition-colors duration-300
+                      group-data-[collapsible=icon]:hidden"
+                    strokeWidth={1.5}
+                  />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-none bg-sbi-dark border border-sbi-dark-border p-0 shadow-xl"
+                sideOffset={13}
               >
-                <div className="absolute inset-0 scale-90 border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-300" />
-                <span className="text-xs font-extralight text-sbi-green tracking-wider">JD</span>
-              </div>
-              
-              {/* User info */}
-              <div className="flex-1 text-left min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="text-sm font-extralight text-white truncate">John Doe</p>
-                <p className="text-[11px] text-sbi-muted-dark truncate tracking-wide">john@utsbi.com</p>
-              </div>
-              
-              {/* Dropdown indicator */}
-              <ChevronDown
-                className="size-4 text-sbi-muted group-hover:text-sbi-green transition-colors duration-300
-                  group-data-[collapsible=icon]:hidden"
-                strokeWidth={1.5}
-              />
-            </SidebarMenuButton>
+                <DropdownMenuLabel className="p-0 font-normal">
+                  <div className="flex items-center gap-2 px-2 py-2 text-left text-sm">
+                    <div className="relative flex size-8 items-center justify-center shrink-0">
+                      <div className="absolute inset-0 scale-90 border border-sbi-dark-border" />
+                      <span className="text-xs font-extralight text-sbi-green tracking-wider">JD</span>
+                    </div>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-extralight text-white">John Doe</span>
+                      <span className="truncate text-xs text-sbi-muted-dark">john@utsbi.com</span>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-sbi-dark-border/50 my-0" />
+                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
+                  <BadgeCheck className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
+                  Account
+                </DropdownMenuItem>
+                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
+                  <Bell className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
+                  Notifications
+                </DropdownMenuItem>
+                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
+                  <Settings className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
+                  <LifeBuoy className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
+                  Get Help
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-sbi-dark-border/50 my-0" />
+                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
+                  <LogOut className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
