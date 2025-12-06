@@ -13,10 +13,10 @@ import {
   FileText,
   MailQuestion,
   ChevronDown,
-  BadgeCheck,
+  User,
   Bell,
   Settings,
-  LifeBuoy,
+  MessageCircleQuestionMark,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -291,7 +291,7 @@ export function AppSidebar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-sbi-dark-border/50 my-0" />
                 <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
-                  <BadgeCheck className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
+                  <User className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
                   Account
                 </DropdownMenuItem>
                 <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
@@ -303,8 +303,8 @@ export function AppSidebar() {
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
-                  <LifeBuoy className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
-                  Get Help
+                  <MessageCircleQuestionMark className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
+                  Help
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-sbi-dark-border/50 my-0" />
                 <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
