@@ -63,6 +63,15 @@ export enum Priority {
     STRETCH = "Stretch Feature",
 }
 
+//having ordering to Priority enums so that they can be sorted in a particular way
+export const PRIORITY_ORDER: Record<Priority, number> = {
+    [Priority.STRETCH]: 0,
+    [Priority.LOW]: 1,
+    [Priority.MED]: 2,
+    [Priority.HIGH]: 3,
+    [Priority.EX_HIGH]: 4,
+};
+
 //all of the teams in SBI
 export enum TeamName {
     TECH = "Technology Team",
