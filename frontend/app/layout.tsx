@@ -4,15 +4,14 @@ import {
 	MantineProvider,
 	mantineHtmlProps,
 } from "@mantine/core";
-import { oldStandardTT } from "@/utils/fonts";
 import "@/app/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-
 import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
 	metadataBase: new URL("https://utsbi.org"),
@@ -56,8 +55,17 @@ export default function RootLayout({
 			<head>
 				<ColorSchemeScript />
 			</head>
-			<body className={`${oldStandardTT.className} scrollbar`} suppressHydrationWarning>
-				<MantineProvider theme={theme}>{children}</MantineProvider>
+			<body className="scrollbar">
+				<MantineProvider theme={theme}>
+					<ThemeProvider
+						attribute="class"
+						defaultTheme="system"
+						enableSystem
+						disableTransitionOnChange
+					>
+						{children}
+					</ThemeProvider>
+				</MantineProvider>
 				<SpeedInsights />
 				<Analytics />
 			</body>
