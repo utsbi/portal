@@ -177,8 +177,8 @@ export default function QuestionnairePage() {
     <div className="flex flex-col h-full w-full p-8 space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-100">Proposal Sections</h1>
-          <p className="text-gray-400 mt-2">Manage and review your proposal sections.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-100">Questionnaires</h1>
+          <p className="text-gray-400 mt-2">Manage and review your questionnaires.</p>
         </div>
         <div className="flex items-center space-x-2">
           <div className="flex items-center space-x-2 mr-4">
@@ -282,11 +282,11 @@ export default function QuestionnairePage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-zinc-950 border-zinc-800 data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-1/2 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-1/2">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-zinc-950 border-zinc-800 animate-in fade-in zoom-in-95 duration-300">
           <DialogHeader>
             <DialogTitle className="text-xl text-gray-100">{selectedSection?.formName}</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Edit the details and dsdf for this section.
+              Provide the necessary details for this project section.
             </DialogDescription>
           </DialogHeader>
 
