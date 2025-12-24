@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -24,44 +24,88 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
 // Updated mock data with new columns
-const sections = [
-  { id: 1, formName: "Cover page", priority: "High", status: "In Process", questionCount: 5, team: "Design Team" },
-  { id: 2, formName: "Table of contents", priority: "Medium", status: "Done", questionCount: 0, team: "Design Team" },
-  { id: 3, formName: "Executive summary", priority: "High", status: "Done", questionCount: 3, team: "Executive Team" },
-  { id: 4, formName: "Technical approach", priority: "Critical", status: "Done", questionCount: 12, team: "Engineering" },
-  { id: 5, formName: "Design", priority: "Medium", status: "In Process", questionCount: 8, team: "Design Team" },
-  { id: 6, formName: "Capabilities", priority: "Low", status: "In Process", questionCount: 15, team: "Product" },
-  { id: 7, formName: "Integration with existing systems", priority: "Critical", status: "In Process", questionCount: 20, team: "Engineering" },
-  { id: 8, formName: "Innovation and Advantages", priority: "Medium", status: "Done", questionCount: 6, team: "R&D" },
-  { id: 9, formName: "Overview of EMR's Innovative Solutions", priority: "Low", status: "Done", questionCount: 4, team: "R&D" },
-  { id: 10, formName: "Advanced Algorithms and Machine Learning", priority: "High", status: "Done", questionCount: 10, team: "Data Science" },
+const initialSections = [
+  { id: 1, formName: "General Form", priority: "High", status: "In Process", questionCount: 5, team: "Architecture" },
 ];
 
 type SortConfig = {
-  key: keyof typeof sections[0] | null;
+  key: "id" | "formName" | "priority" | "status" | "questionCount" | "team" | null; // improved typing
   direction: 'asc' | 'desc';
 };
 
 const priorityOrder = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
 
 export default function QuestionnairePage() {
+  const [sections, setSections] = useState(initialSections);
+  const [allFormData, setAllFormData] = useState<Record<number, any>>({});
   const [open, setOpen] = useState(false);
-  const [selectedSection, setSelectedSection] = useState<typeof sections[0] | null>(null);
+  const [selectedSection, setSelectedSection] = useState<typeof initialSections[0] | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: 'asc' });
   const [hideCompleted, setHideCompleted] = useState(false);
 
-  const handleRowClick = (section: typeof sections[0]) => {
+  const handleRowClick = (section: typeof initialSections[0]) => {
     setSelectedSection(section);
     setOpen(true);
   };
 
-  const handleSort = (key: keyof typeof sections[0]) => {
+  const handleSort = (key: keyof typeof initialSections[0]) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
   };
+
+  const handleFormUpdate = useCallback((data: any) => {
+    if (!selectedSection) return;
+
+    // Save the data for this section
+    setAllFormData(prev => ({
+      ...prev,
+      [selectedSection.id]: {
+        ...prev[selectedSection.id],
+        ...data
+      }
+    }));
+
+    if (selectedSection?.formName === "General Form") {
+      const hasPool = data.hasPool === "yes";
+
+      setSections(prev => {
+        // Remove existing pool/no-pool forms to avoid duplicates if answer changes
+        if (data.hasPool === undefined) return prev;
+
+        // Check if we actually need to change anything to avoid render loops if we add onUpdate to deps
+        const existingPool = prev.find(s => s.formName === "Pool Question Form");
+        const existingNoPool = prev.find(s => s.formName === "No Pool Form");
+
+        if (hasPool && existingPool) return prev;
+        if (!hasPool && existingNoPool) return prev;
+
+        const filtered = prev.filter(s => s.formName !== "Pool Question Form" && s.formName !== "No Pool Form");
+
+        if (hasPool) {
+          return [...filtered, {
+            id: 2, // Fixed ID for Pool Form to persist its data too easily
+            formName: "Pool Question Form",
+            priority: "Medium",
+            status: "In Process",
+            questionCount: 3,
+            team: "Architecture"
+          }];
+        } else {
+          return [...filtered, {
+            id: 3, // Fixed ID for No Pool Form
+            formName: "No Pool Form",
+            priority: "Low",
+            status: "In Process",
+            questionCount: 1,
+            team: "Architecture"
+          }];
+        }
+      });
+    }
+  }, [selectedSection]);
 
   const filteredAndSortedSections = useMemo(() => {
     let result = [...sections];
@@ -94,7 +138,7 @@ export default function QuestionnairePage() {
     }
 
     return result;
-  }, [sortConfig, hideCompleted]);
+  }, [sections, sortConfig, hideCompleted]);
 
   return (
     <div className="flex flex-col h-full w-full p-8 space-y-8">
@@ -195,15 +239,20 @@ export default function QuestionnairePage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-zinc-950 border-zinc-800">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-zinc-950 border-zinc-800 data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-1/2 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-1/2">
           <DialogHeader>
             <DialogTitle className="text-xl text-gray-100">{selectedSection?.formName}</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Edit the details and questionnaire for this section.
+              Edit the details and dsdf for this section.
             </DialogDescription>
           </DialogHeader>
 
-          <QuestionnaireForm onClose={() => setOpen(false)} />
+          <QuestionnaireForm
+            onClose={() => setOpen(false)}
+            formName={selectedSection?.formName}
+            initialData={selectedSection ? allFormData[selectedSection.id] : {}}
+            onUpdate={handleFormUpdate}
+          />
         </DialogContent>
       </Dialog>
     </div>
