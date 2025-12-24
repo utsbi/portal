@@ -14,116 +14,124 @@ import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { formSchemas } from '@/data/formSchemas';
 
 export function QuestionnaireForm({
     onClose,
     formName,
     initialData = {},
-    onUpdate
+    onUpdate,
+    onSubmit
 }: {
     onClose?: () => void;
     formName?: string;
     initialData?: any;
     onUpdate?: (data: any) => void;
+    onSubmit?: () => void;
 }) {
-    const [formData, setFormData] = useState({
-        name: initialData.name || '',
-        email: initialData.email || '',
-        stuff: initialData.stuff || '',
-    });
-    const [hasPool, setHasPool] = useState(initialData.hasPool === 'yes');
+    const schema = formName ? formSchemas[formName] : null;
+    const [formData, setFormData] = useState<Record<string, any>>(initialData);
 
     // Update parent whenever local state changes
     useEffect(() => {
-        if (onUpdate) {
-            onUpdate({
-                ...formData,
-                hasPool: hasPool ? 'yes' : 'no'
-            });
+        if (onUpdate && formData) {
+            onUpdate(formData);
         }
-    }, [formData, hasPool]); // Careful with dependency array to avoid infinite loops if onUpdate is not stable
+    }, [formData, onUpdate]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         console.log('Form submitted:', formData);
-        // Handle submission logic here
+        if (onSubmit) onSubmit();
         if (onClose) onClose();
     };
 
-    const handlePoolChange = (checked: boolean) => {
-        setHasPool(checked);
-        // effect will handle the update
+    const handleInputChange = (id: string, value: any) => {
+        setFormData(prev => ({
+            ...prev,
+            [id]: value
+        }));
     };
+
+    if (!schema) {
+        return (
+            <Card className="w-full border-0 shadow-none bg-transparent">
+                <CardHeader className="px-0">
+                    <CardTitle className="text-2xl font-bold text-gray-100">{formName || 'Questionnaire'}</CardTitle>
+                    <CardDescription className="text-gray-400">
+                        Form definition not found.
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+        );
+    }
 
     return (
         <Card className="w-full border-0 shadow-none bg-transparent">
             <CardHeader className="px-0">
-                <CardTitle className="text-2xl font-bold text-gray-100">{formName || 'Questionnaire'}</CardTitle>
+                <CardTitle className="text-2xl font-bold text-gray-100">{schema.title}</CardTitle>
                 <CardDescription className="text-gray-400">
-                    We'd love to hear your thoughts. Please fill out the form below.
+                    {schema.description}
                 </CardDescription>
             </CardHeader>
             <CardContent className="px-0">
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {formName === "General Form" && (
-                        <div className="space-y-2 p-4 border border-zinc-800 rounded-md bg-zinc-900/30">
-                            <Label className="text-base text-gray-200">Project Requirements</Label>
-                            <div className="flex items-center space-x-2 mt-2">
-                                <Checkbox
-                                    id="pool"
-                                    checked={hasPool}
-                                    onCheckedChange={(checked) => handlePoolChange(checked as boolean)}
-                                    className="border-zinc-700 data-[state=checked]:bg-zinc-100 data-[state=checked]:text-zinc-900"
-                                />
-                                <Label htmlFor="pool" className="text-gray-300 font-normal cursor-pointer">
-                                    Do you want to include a pool in this project?
-                                </Label>
-                            </div>
+                    {schema.fields.map((field) => (
+                        <div key={field.id} className="space-y-2">
+                            {field.type === 'checkbox' ? (
+                                <div className="flex items-start space-x-2 p-4 border border-zinc-800 rounded-md bg-zinc-900/30">
+                                    <Checkbox
+                                        id={field.id}
+                                        checked={formData[field.id] === 'yes'}
+                                        onCheckedChange={(checked) => handleInputChange(field.id, checked ? 'yes' : 'no')}
+                                        className="mt-1 border-zinc-700 data-[state=checked]:bg-zinc-100 data-[state=checked]:text-zinc-900"
+                                    />
+                                    <div className="space-y-1">
+                                        <Label htmlFor={field.id} className="text-gray-200 font-medium cursor-pointer flex items-center gap-1">
+                                            {field.label}
+                                            {field.required && <span className="text-red-500 font-bold">*</span>}
+                                        </Label>
+                                        {field.description && (
+                                            <p className="text-sm text-gray-400">
+                                                {field.description}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <Label htmlFor={field.id} className="text-sm font-medium text-gray-200 flex items-center gap-1">
+                                        {field.label}
+                                        {field.required && <span className="text-red-500 font-bold">*</span>}
+                                    </Label>
+                                    {field.type === 'textarea' ? (
+                                        <textarea
+                                            id={field.id}
+                                            placeholder={field.placeholder}
+                                            rows={4}
+                                            value={formData[field.id] || ''}
+                                            onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                            className="flex w-full rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-gray-100 ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:ring-offset-zinc-950 dark:focus-visible:ring-zinc-300"
+                                        />
+                                    ) : (
+                                        <Input
+                                            id={field.id}
+                                            type={field.type}
+                                            placeholder={field.placeholder}
+                                            value={formData[field.id] || ''}
+                                            onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                            className="bg-zinc-950/50 border-zinc-800 text-gray-100 placeholder:text-gray-500 focus-visible:ring-zinc-700"
+                                        />
+                                    )}
+                                    {field.description && field.type !== 'checkbox' && (
+                                        <p className="text-xs text-gray-500">
+                                            {field.description}
+                                        </p>
+                                    )}
+                                </>
+                            )}
                         </div>
-                    )}
-
-                    <div className="space-y-2">
-                        <Label htmlFor="name" className="text-sm font-medium text-gray-200">
-                            Name
-                        </Label>
-                        <Input
-                            id="name"
-                            placeholder="First Last"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="bg-zinc-950/50 border-zinc-800 text-gray-100 placeholder:text-gray-500 focus-visible:ring-zinc-700"
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="email" className="text-sm font-medium text-gray-200">
-                            Email
-                        </Label>
-                        <Input
-                            id="email"
-                            type="email"
-                            placeholder="name@email.com"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            className="bg-zinc-950/50 border-zinc-800 text-gray-100 placeholder:text-gray-500 focus-visible:ring-zinc-700"
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="stuff" className="text-sm font-medium text-gray-200">
-                            Additional Comments
-                        </Label>
-                        <textarea
-                            id="stuff"
-                            placeholder="Please share any other details..."
-                            rows={5}
-                            value={formData.stuff}
-                            onChange={(e) => setFormData({ ...formData, stuff: e.target.value })}
-                            className="flex w-full rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-gray-100 ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:ring-offset-zinc-950 dark:focus-visible:ring-zinc-300"
-                        />
-                    </div>
-
-
+                    ))}
                 </form>
             </CardContent>
             <CardFooter className="flex justify-end px-0">

@@ -22,6 +22,8 @@ import { ArrowUpDown, Check } from 'lucide-react';
 import { QuestionnaireForm } from '@/components/QuestionnaireForm';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { formSchemas } from '@/data/formSchemas';
+import { AlertCircle } from 'lucide-react';
 
 // Updated mock data with new columns
 const initialSections = [
@@ -56,6 +58,14 @@ export default function QuestionnairePage() {
     setSortConfig({ key, direction });
   };
 
+  const handleFormSubmit = useCallback(() => {
+    if (!selectedSection) return;
+
+    setSections(prev => prev.map(s =>
+      s.id === selectedSection.id ? { ...s, status: "Done" as const } : s
+    ));
+  }, [selectedSection]);
+
   const handleFormUpdate = useCallback((data: any) => {
     if (!selectedSection) return;
 
@@ -72,43 +82,66 @@ export default function QuestionnairePage() {
       const hasPool = data.hasPool === "yes";
 
       setSections(prev => {
-        // Remove existing pool/no-pool forms to avoid duplicates if answer changes
         if (data.hasPool === undefined) return prev;
 
-        // Check if we actually need to change anything to avoid render loops if we add onUpdate to deps
-        const existingPool = prev.find(s => s.formName === "Pool Question Form");
-        const existingNoPool = prev.find(s => s.formName === "No Pool Form");
+        const existingCivil = prev.find(s => s.formName === "Pool - Civil Engineering");
 
-        if (hasPool && existingPool) return prev;
-        if (!hasPool && existingNoPool) return prev;
+        if (hasPool && existingCivil) return prev;
+        if (!hasPool && !existingCivil) return prev;
 
-        const filtered = prev.filter(s => s.formName !== "Pool Question Form" && s.formName !== "No Pool Form");
+        const filtered = prev.filter(s =>
+          s.formName !== "Pool - Civil Engineering" &&
+          s.formName !== "Pool - Mechanical Systems" &&
+          s.formName !== "Pool - Finance"
+        );
 
         if (hasPool) {
-          return [...filtered, {
-            id: 2, // Fixed ID for Pool Form to persist its data too easily
-            formName: "Pool Question Form",
-            priority: "Medium",
-            status: "In Process",
-            questionCount: 3,
-            team: "Architecture"
-          }];
+          return [
+            ...filtered,
+            {
+              id: 2,
+              formName: "Pool - Civil Engineering",
+              priority: "Medium",
+              status: "In Process",
+              questionCount: 2,
+              team: "Engineering"
+            },
+            {
+              id: 3,
+              formName: "Pool - Mechanical Systems",
+              priority: "Medium",
+              status: "In Process",
+              questionCount: 2,
+              team: "Engineering"
+            },
+            {
+              id: 4,
+              formName: "Pool - Finance",
+              priority: "Low",
+              status: "In Process",
+              questionCount: 1,
+              team: "Finance"
+            }
+          ];
         } else {
-          return [...filtered, {
-            id: 3, // Fixed ID for No Pool Form
-            formName: "No Pool Form",
-            priority: "Low",
-            status: "In Process",
-            questionCount: 1,
-            team: "Architecture"
-          }];
+          return filtered;
         }
       });
     }
   }, [selectedSection]);
 
   const filteredAndSortedSections = useMemo(() => {
-    let result = [...sections];
+    let result = sections.map(section => {
+      const schema = formSchemas[section.formName];
+      const data = allFormData[section.id] || {};
+
+      const missingRequired = schema?.fields.filter(f => f.required).some(f => {
+        const val = data[f.id];
+        return val === undefined || val === '' || (f.type === 'checkbox' && val === 'no');
+      });
+
+      return { ...section, missingRequired };
+    });
 
     if (hideCompleted) {
       result = result.filter(section => section.status !== 'Done');
@@ -138,7 +171,7 @@ export default function QuestionnairePage() {
     }
 
     return result;
-  }, [sections, sortConfig, hideCompleted]);
+  }, [sections, sortConfig, hideCompleted, allFormData]);
 
   return (
     <div className="flex flex-col h-full w-full p-8 space-y-8">
@@ -204,7 +237,17 @@ export default function QuestionnairePage() {
                 <TableCell>
                   <div className="h-4 w-4 rounded border border-zinc-700" />
                 </TableCell>
-                <TableCell className="font-medium text-gray-200">{section.formName}</TableCell>
+                <TableCell className="font-medium text-gray-200">
+                  <div className="flex items-center gap-2">
+                    {section.formName}
+                    {section.missingRequired && (
+                      <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/10 h-5 px-1.5 py-0 text-[10px] uppercase font-bold tracking-wider">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Missing Required
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <span className={
                     section.priority === 'Critical' ? 'text-red-400 font-medium' :
@@ -252,6 +295,7 @@ export default function QuestionnairePage() {
             formName={selectedSection?.formName}
             initialData={selectedSection ? allFormData[selectedSection.id] : {}}
             onUpdate={handleFormUpdate}
+            onSubmit={handleFormSubmit}
           />
         </DialogContent>
       </Dialog>
