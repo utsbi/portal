@@ -10,15 +10,38 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { PoolSurvey } from '@/components/PoolSurvey';
-import { useState } from 'react';
 
-export function QuestionnaireForm({ onClose }: { onClose?: () => void }) {
+import { useState, useEffect } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+
+export function QuestionnaireForm({
+    onClose,
+    formName,
+    initialData = {},
+    onUpdate
+}: {
+    onClose?: () => void;
+    formName?: string;
+    initialData?: any;
+    onUpdate?: (data: any) => void;
+}) {
     const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        stuff: '',
+        name: initialData.name || '',
+        email: initialData.email || '',
+        stuff: initialData.stuff || '',
     });
+    const [hasPool, setHasPool] = useState(initialData.hasPool === 'yes');
+
+    // Update parent whenever local state changes
+    useEffect(() => {
+        if (onUpdate) {
+            onUpdate({
+                ...formData,
+                hasPool: hasPool ? 'yes' : 'no'
+            });
+        }
+    }, [formData, hasPool]); // Careful with dependency array to avoid infinite loops if onUpdate is not stable
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,20 +50,42 @@ export function QuestionnaireForm({ onClose }: { onClose?: () => void }) {
         if (onClose) onClose();
     };
 
+    const handlePoolChange = (checked: boolean) => {
+        setHasPool(checked);
+        // effect will handle the update
+    };
+
     return (
         <Card className="w-full border-0 shadow-none bg-transparent">
             <CardHeader className="px-0">
-                <CardTitle className="text-2xl font-bold text-gray-100">Questionnaire</CardTitle>
+                <CardTitle className="text-2xl font-bold text-gray-100">{formName || 'Questionnaire'}</CardTitle>
                 <CardDescription className="text-gray-400">
                     We'd love to hear your thoughts. Please fill out the form below.
                 </CardDescription>
             </CardHeader>
             <CardContent className="px-0">
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {formName === "General Form" && (
+                        <div className="space-y-2 p-4 border border-zinc-800 rounded-md bg-zinc-900/30">
+                            <Label className="text-base text-gray-200">Project Requirements</Label>
+                            <div className="flex items-center space-x-2 mt-2">
+                                <Checkbox
+                                    id="pool"
+                                    checked={hasPool}
+                                    onCheckedChange={(checked) => handlePoolChange(checked as boolean)}
+                                    className="border-zinc-700 data-[state=checked]:bg-zinc-100 data-[state=checked]:text-zinc-900"
+                                />
+                                <Label htmlFor="pool" className="text-gray-300 font-normal cursor-pointer">
+                                    Do you want to include a pool in this project?
+                                </Label>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-2">
-                        <label htmlFor="name" className="text-sm font-medium text-gray-200">
+                        <Label htmlFor="name" className="text-sm font-medium text-gray-200">
                             Name
-                        </label>
+                        </Label>
                         <Input
                             id="name"
                             placeholder="First Last"
@@ -51,9 +96,9 @@ export function QuestionnaireForm({ onClose }: { onClose?: () => void }) {
                     </div>
 
                     <div className="space-y-2">
-                        <label htmlFor="email" className="text-sm font-medium text-gray-200">
+                        <Label htmlFor="email" className="text-sm font-medium text-gray-200">
                             Email
-                        </label>
+                        </Label>
                         <Input
                             id="email"
                             type="email"
@@ -65,12 +110,12 @@ export function QuestionnaireForm({ onClose }: { onClose?: () => void }) {
                     </div>
 
                     <div className="space-y-2">
-                        <label htmlFor="stuff" className="text-sm font-medium text-gray-200">
-                            stuff
-                        </label>
+                        <Label htmlFor="stuff" className="text-sm font-medium text-gray-200">
+                            Additional Comments
+                        </Label>
                         <textarea
                             id="stuff"
-                            placeholder="say stuff"
+                            placeholder="Please share any other details..."
                             rows={5}
                             value={formData.stuff}
                             onChange={(e) => setFormData({ ...formData, stuff: e.target.value })}
@@ -78,7 +123,7 @@ export function QuestionnaireForm({ onClose }: { onClose?: () => void }) {
                         />
                     </div>
 
-                    <PoolSurvey />
+
                 </form>
             </CardContent>
             <CardFooter className="flex justify-end px-0">
@@ -86,7 +131,7 @@ export function QuestionnaireForm({ onClose }: { onClose?: () => void }) {
                     onClick={handleSubmit}
                     className="bg-white text-black hover:bg-gray-200"
                 >
-                    Submit stuff
+                    Submit
                 </Button>
             </CardFooter>
         </Card>
