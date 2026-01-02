@@ -32,6 +32,8 @@ export type Project = {
     //in the a function that will set the tast status because all of them will start
     //off with not started which we know is == 0, and can update to its associated project
     tasks: Task[];
+    //optional image to project card, from civil team -> file path reference
+    image?: string;
 };
 export enum TaskStatus {
     NOT_STARTED = "Not Started",
