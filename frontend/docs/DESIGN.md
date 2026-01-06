@@ -55,10 +55,15 @@ bg-linear-to-t from-sbi-dark via-sbi-dark/80 to-sbi-dark/60
 
 **Urbanist** — Primary typeface for all v2 pages
 
+Fonts are loaded via CSS variables in `app/layout.tsx` using `next/font/google`. Use Tailwind utility classes:
+
 ```tsx
-import { urbanist } from "@/utils/fonts";
-<div className={urbanist.className}>...</div>
+// Available font utilities (defined in globals.css @theme)
+<div className="font-urbanist">...</div>   // Primary UI font
+<div className="font-old-standard">...</div>  // Serif accent font
 ```
+
+The `font-urbanist` class is applied to `<body>` by default.
 
 ### Type Scale
 
@@ -337,7 +342,7 @@ Common patterns:
 
 When creating new v2 pages/sections:
 
-- [ ] Apply `urbanist.className` to root wrapper
+- [ ] Apply `font-urbanist` class to root wrapper (already default on `<body>`)
 - [ ] Use `bg-sbi-dark` as page background
 - [ ] Include `<BlueprintGrid />` for visual texture
 - [ ] Add section labels with green line + uppercase text

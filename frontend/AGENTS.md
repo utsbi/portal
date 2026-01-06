@@ -27,7 +27,7 @@ bun lint              # Run Next.js linting
 - `components/v2/` - New design system components (preferred for new work)
 - `components/ui/` - shadcn/ui components (Radix-based primitives)
 - `components/dashboard/` - Dashboard-specific components
-- `utils/supabase/` - Supabase client/server/middleware utilities
+- `lib/supabase/` - Supabase client/server/middleware utilities
 - `lib/utils.ts` - Utility functions (`cn` for className merging)
 - `assets/` - Static assets (fonts, images, logos)
 - `public/` - Public files (3D models)
@@ -36,7 +36,7 @@ bun lint              # Run Next.js linting
 
 ### Formatting (Biome)
 
-- **Indentation**: Tabs (not spaces)
+- **Indentation**: Spaces (not tabs)
 - **Quotes**: Double quotes for strings
 - **Semicolons**: Required
 - **Trailing commas**: Include in multiline structures
@@ -51,7 +51,7 @@ import Link from "next/link";
 // 2. Internal aliases using @/
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 ```
 
 Always use the `@/` path alias for internal imports (configured in tsconfig.json).
@@ -127,12 +127,15 @@ className={cn(
 
 ### Fonts
 
-Defined in `utils/fonts.ts`, apply via className:
+Fonts are loaded via CSS variables in `app/layout.tsx` using `next/font/google`. Use Tailwind utility classes:
 
 ```typescript
-import { urbanist, oldStandardTT, dm_sans } from "@/utils/fonts";
-<div className={urbanist.className}>...</div>
+// Available font utilities (defined in globals.css @theme)
+<div className="font-urbanist">...</div>   // Primary UI font
+<div className="font-old-standard">...</div>  // Serif accent font
 ```
+
+The `font-urbanist` class is applied to `<body>` by default.
 
 ## Animation
 
@@ -154,14 +157,14 @@ const variants: Variants = {
 ### Client-side
 
 ```typescript
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 const supabase = createClient();
 ```
 
 ### Server-side (async)
 
 ```typescript
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 const supabase = await createClient();
 ```
 
@@ -171,7 +174,7 @@ Colocate as `actions.ts` in route folders:
 
 ```typescript
 "use server";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function myAction(formData: FormData) {
   const supabase = await createClient();
@@ -181,7 +184,7 @@ export async function myAction(formData: FormData) {
 
 ### Protected Routes
 
-Routes under `/dashboard/*` require authentication. Middleware in `utils/supabase/middleware.ts` handles redirects.
+Routes under `/dashboard/*` require authentication. Middleware in `lib/supabase/middleware.ts` handles redirects.
 
 ## Error Handling
 
@@ -204,7 +207,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 
 1. Create folder in `app/v2/your-page/`
 2. Add `page.tsx` with default export
-3. Apply font: `<div className={urbanist.className}>...</div>`
+3. Apply font: `<div className="font-urbanist">...</div>`
 
 ### New Protected Route
 
