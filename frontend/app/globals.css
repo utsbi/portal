@@ -15,6 +15,8 @@
   --color-sbi-dark-btn: #0f1a12;
   --color-sbi-muted: #8a9a93;
   --color-sbi-muted-dark: #6b7c74;
+  --font-urbanist: var(--font-urbanist);
+  --font-old-standard: var(--font-old-standard);
 }
 
 @layer base {
@@ -324,7 +326,8 @@
 
 /* Subtle glow pulse for active states */
 @keyframes glow-pulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 20px -8px rgba(34, 197, 94, 0.3);
   }
   50% {
@@ -368,7 +371,7 @@
 
 /* Architectural grid pattern for backgrounds */
 .architectural-grid {
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(34, 197, 94, 0.03) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(34, 197, 94, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
@@ -376,7 +379,7 @@
 
 /* Noise texture overlay */
 .noise-overlay::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
@@ -396,7 +399,9 @@
 
 /* Smooth page transitions */
 .page-transition {
-  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  transition:
+    opacity 0.3s ease-out,
+    transform 0.3s ease-out;
 }
 
 .page-transition-enter {
