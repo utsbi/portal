@@ -140,8 +140,8 @@ export default function LoginPage() {
 
       <div className="relative z-10 min-h-screen flex items-center justify-center px-8 py-24">
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ y: 40 }}
+          animate={{ y: 0 }}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           className="w-full max-w-md"
         >
@@ -163,8 +163,8 @@ export default function LoginPage() {
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ y: 20 }}
+            animate={{ y: 0 }}
             transition={{ delay: 0.2, duration: 0.6 }}
             className="relative"
           >
