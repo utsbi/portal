@@ -30,7 +30,7 @@ const projects: Project[] = [
     title: "Hobbie Farm Project",
     description:
       "A small, space-efficient housing concept designed as a foundation for sustainable living. This prototype serves as a starting point, with plans to integrate eco-friendly features and innovations during the building process.",
-    status: "in-progress",
+    status: "completed",
     tags: ["Prototype", "Space-Efficient", "Sustainable Tech"],
     coverImage: ex1,
   },
@@ -224,11 +224,10 @@ export default function ProjectsPage() {
                       key={img.src}
                       type="button"
                       onClick={() => setSelectedImageIndex(index)}
-                      className={`relative w-20 h-16 flex-shrink-0 overflow-hidden border-2 transition-colors ${
-                        index === selectedImageIndex
+                      className={`relative w-20 h-16 flex-shrink-0 overflow-hidden border-2 transition-colors ${index === selectedImageIndex
                           ? "border-sbi-green"
                           : "border-sbi-dark-border hover:border-sbi-green/50"
-                      }`}
+                        }`}
                     >
                       <Image
                         src={img}

@@ -32,8 +32,8 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
   }, []);
 
   useEffect(() => {
-    const duration = 2000;
-    const interval = 20;
+    const duration = 1200;
+    const interval = 16;
     const steps = duration / interval;
     let currentStep = 0;
 

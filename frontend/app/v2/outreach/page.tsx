@@ -1,6 +1,5 @@
 "use client";
 
-import { Building, GraduationCap, Users } from "lucide-react";
 import { motion } from "motion/react";
 
 import { BlueprintGrid } from "@/components/v2/blueprint-grid";
@@ -10,24 +9,21 @@ import { PageHero } from "@/components/v2/page-hero";
 
 const stats = [
   {
-    value: 15,
+    value: 5,
     label: "Schools Reached",
     suffix: "+",
-    icon: GraduationCap,
     description: "High schools and universities in our growing network.",
   },
   {
-    value: 500,
+    value: 200,
     label: "Students Impacted",
     suffix: "+",
-    icon: Users,
     description: "Future leaders introduced to sustainable building practices.",
   },
   {
-    value: 8,
+    value: 6,
     label: "Active Partnerships",
     suffix: "",
-    icon: Building,
     description: "Organizations collaborating on sustainability initiatives.",
   },
 ];
@@ -93,22 +89,18 @@ export default function OutreachPage() {
       <section className="relative py-24 border-y border-sbi-dark-border">
         <div className="max-w-7xl mx-auto px-8 md:px-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-0 md:divide-x divide-sbi-dark-border">
-            {stats.map((stat, index) => (
+            {stats.map((stat) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{
-                  delay: index * 0.2,
                   duration: 0.8,
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 viewport={{ once: true, margin: "-100px" }}
                 className="flex flex-col items-center text-center px-8"
               >
-                <div className="w-12 h-12 flex items-center justify-center border border-sbi-green/30 text-sbi-green mb-6">
-                  <stat.icon className="w-5 h-5" strokeWidth={1.5} />
-                </div>
                 <div className="text-5xl md:text-6xl lg:text-7xl font-thin text-white mb-4 tracking-tighter">
                   <Counter value={stat.value} suffix={stat.suffix} />
                 </div>
@@ -224,9 +216,9 @@ export default function OutreachPage() {
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 viewport={{ once: true }}
-                className="group relative"
+                className="group relative h-full"
               >
-                <div className="relative p-8 bg-sbi-dark-card border border-sbi-dark-border hover:border-sbi-green/30 transition-colors duration-500">
+                <div className="relative h-full p-8 bg-sbi-dark-card border border-sbi-dark-border hover:border-sbi-green/30 transition-colors duration-500 flex flex-col">
                   <span className="absolute top-6 right-6 text-5xl font-thin text-sbi-dark-border tracking-tighter">
                     {String(index + 1).padStart(2, "0")}
                   </span>
@@ -234,7 +226,7 @@ export default function OutreachPage() {
                   <h3 className="text-2xl font-light text-white mb-4 tracking-tight">
                     {item.title}
                   </h3>
-                  <p className="text-sbi-muted text-sm leading-relaxed">
+                  <p className="text-sbi-muted text-sm leading-relaxed flex-1">
                     {item.description}
                   </p>
 

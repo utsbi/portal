@@ -83,7 +83,7 @@ export function PageHero({ label, title, subtitle }: PageHeroProps) {
           </span>
         </motion.div>
 
-        <div className="overflow-hidden">
+        <div className="overflow-hidden pb-2">
           <motion.h1
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
@@ -92,7 +92,7 @@ export function PageHero({ label, title, subtitle }: PageHeroProps) {
               duration: 1,
               ease: [0.22, 1, 0.36, 1],
             }}
-            className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extralight tracking-tighter text-white"
+            className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extralight tracking-tighter text-white leading-[1.1]"
           >
             {title}
           </motion.h1>

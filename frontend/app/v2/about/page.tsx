@@ -82,8 +82,8 @@ const teamMembers = [
 ];
 
 const universities = [
-  { name: "UT Austin", logo: UTAustin, href: "https://utexas.edu" },
-  { name: "Texas A&M", logo: TAMU, href: "https://tamu.edu" },
+  { name: "UT Austin", logo: UTAustin, href: "https://www.utexas.edu" },
+  { name: "Texas A&M", logo: TAMU, href: "https://www.tamu.edu" },
   { name: "Rice University", logo: Rice, href: "https://www.rice.edu/" },
 ];
 
@@ -236,12 +236,13 @@ export default function AboutPage() {
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 viewport={{ once: true }}
+                className="group"
               >
                 <Link
                   href={uni.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block opacity-50 hover:opacity-100 grayscale hover:grayscale-0 transition-all duration-500"
+                  className="block transition-transform duration-500 group-hover:scale-110"
                 >
                   <Image
                     src={uni.logo}

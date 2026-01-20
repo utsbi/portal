@@ -19,7 +19,7 @@ const FORMS_LINK = "https://forms.gle/KWJjaXGYt2dv3bY68";
 
 const stats = [
   {
-    value: 25,
+    value: 210,
     label: "Project Portfolio",
     prefix: "$",
     suffix: "M+",

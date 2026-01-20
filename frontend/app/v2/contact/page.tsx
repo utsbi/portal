@@ -30,6 +30,25 @@ const subjectOptions = [
   { value: "partnership", label: "Partnership" },
 ];
 
+const inquiryTypes = [
+  {
+    title: "General",
+    description: "Questions about SBI, our mission, or how we operate.",
+  },
+  {
+    title: "Projects",
+    description: "Interested in our services or have a project proposal.",
+  },
+  {
+    title: "Membership",
+    description: "Want to join SBI as a student member.",
+  },
+  {
+    title: "Partnership",
+    description: "Sponsor, collaborate, or partner with us.",
+  },
+];
+
 export default function ContactPage() {
   const [formState, setFormState] = useState({
     name: "",
@@ -73,6 +92,48 @@ export default function ContactPage() {
         title="Contact Us"
         subtitle="Have a question or want to collaborate? We'd love to hear from you."
       />
+
+      <section className="relative py-16 border-b border-sbi-dark-border/50">
+        <div className="relative z-10 max-w-7xl mx-auto px-8 md:px-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            viewport={{ once: true }}
+            className="flex items-center gap-4 mb-8"
+          >
+            <div className="w-8 h-px bg-sbi-green/60" />
+            <span className="text-xs tracking-[0.25em] uppercase text-sbi-muted">
+              How Can We Help?
+            </span>
+          </motion.div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {inquiryTypes.map((item, index) => (
+              <motion.div
+                key={item.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{
+                  delay: index * 0.08,
+                  duration: 0.5,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                viewport={{ once: true }}
+                className="group relative py-4 px-5 border-l border-sbi-dark-border hover:border-sbi-green/40 transition-colors duration-300"
+              >
+                <div className="absolute left-0 top-0 w-px h-0 bg-sbi-green group-hover:h-full transition-all duration-300" />
+                <h3 className="text-sm font-medium text-white mb-1 group-hover:text-sbi-green transition-colors">
+                  {item.title}
+                </h3>
+                <p className="text-xs text-sbi-muted leading-relaxed">
+                  {item.description}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="relative py-32 md:py-48 overflow-hidden">
         <BlueprintGrid />
@@ -160,12 +221,17 @@ export default function ContactPage() {
                   <h3 className="text-sm tracking-[0.2em] uppercase text-sbi-muted mb-4">
                     Location
                   </h3>
-                  <div className="flex items-start gap-3 text-sbi-muted">
-                    <span className="w-8 h-8 flex items-center justify-center border border-sbi-dark-border flex-shrink-0">
+                  <a
+                    href="https://www.utexas.edu"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 text-sbi-muted hover:text-white transition-colors group"
+                  >
+                    <span className="w-8 h-8 flex items-center justify-center border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors flex-shrink-0">
                       <MapPin className="w-4 h-4" />
                     </span>
                     <span>{contactInfo.location}</span>
-                  </div>
+                  </a>
                 </div>
               </div>
             </motion.div>
@@ -177,102 +243,104 @@ export default function ContactPage() {
               viewport={{ once: true }}
               className="lg:col-span-3"
             >
-              <div className="relative p-8 md:p-12 bg-sbi-dark-card border border-sbi-dark-border">
-                <div className="absolute -top-3 -left-3 w-6 h-6 border border-sbi-green bg-sbi-dark" />
-                <div className="absolute -top-3 -right-3 w-6 h-6 border border-sbi-green bg-sbi-dark" />
-                <div className="absolute -bottom-3 -left-3 w-6 h-6 border border-sbi-green bg-sbi-dark" />
-                <div className="absolute -bottom-3 -right-3 w-6 h-6 border border-sbi-green bg-sbi-dark" />
-
-                <h3 className="text-2xl font-light tracking-tight mb-8">
+              <div className="flex items-center gap-4 mb-10">
+                <div className="w-12 h-px bg-sbi-green/40" />
+                <h3 className="text-xs tracking-[0.3em] uppercase text-sbi-muted">
                   Send a Message
                 </h3>
+              </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label
-                        htmlFor="name"
-                        className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-2"
-                      >
-                        Name
-                      </label>
-                      <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        value={formState.name}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 bg-sbi-dark border border-sbi-dark-border focus:border-sbi-green/50 focus:outline-none focus:ring-1 focus:ring-sbi-green/20 text-white placeholder:text-sbi-muted-dark transition-colors"
-                        placeholder="Your name"
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="email"
-                        className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-2"
-                      >
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        value={formState.email}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 bg-sbi-dark border border-sbi-dark-border focus:border-sbi-green/50 focus:outline-none focus:ring-1 focus:ring-sbi-green/20 text-white placeholder:text-sbi-muted-dark transition-colors"
-                        placeholder="your@email.com"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
+              <form onSubmit={handleSubmit} className="space-y-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="group">
                     <label
-                      htmlFor="subject"
-                      className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-2"
+                      htmlFor="name"
+                      className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
                     >
-                      Subject
+                      Name
                     </label>
-                    <select
-                      id="subject"
-                      name="subject"
-                      value={formState.subject}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 bg-sbi-dark border border-sbi-dark-border focus:border-sbi-green/50 focus:outline-none focus:ring-1 focus:ring-sbi-green/20 text-white transition-colors appearance-none cursor-pointer"
-                    >
-                      {subjectOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="message"
-                      className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-2"
-                    >
-                      Message
-                    </label>
-                    <textarea
-                      id="message"
-                      name="message"
-                      value={formState.message}
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      value={formState.name}
                       onChange={handleChange}
                       required
-                      rows={6}
-                      className="w-full px-4 py-3 bg-sbi-dark border border-sbi-dark-border focus:border-sbi-green/50 focus:outline-none focus:ring-1 focus:ring-sbi-green/20 text-white placeholder:text-sbi-muted-dark transition-colors resize-none"
-                      placeholder="Tell us about your inquiry..."
+                      className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white placeholder:text-sbi-muted/40 transition-colors"
+                      placeholder="Your name"
                     />
                   </div>
 
+                  <div className="group">
+                    <label
+                      htmlFor="email"
+                      className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
+                    >
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formState.email}
+                      onChange={handleChange}
+                      required
+                      className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white placeholder:text-sbi-muted/40 transition-colors"
+                      placeholder="your@email.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="group">
+                  <label
+                    htmlFor="subject"
+                    className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
+                  >
+                    Subject
+                  </label>
+                  <select
+                    id="subject"
+                    name="subject"
+                    value={formState.subject}
+                    onChange={handleChange}
+                    className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white transition-colors appearance-none cursor-pointer"
+                  >
+                    {subjectOptions.map((option) => (
+                      <option
+                        key={option.value}
+                        value={option.value}
+                        className="bg-sbi-dark text-white"
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="group">
+                  <label
+                    htmlFor="message"
+                    className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
+                  >
+                    Message
+                  </label>
+                  <textarea
+                    id="message"
+                    name="message"
+                    value={formState.message}
+                    onChange={handleChange}
+                    required
+                    rows={5}
+                    className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white placeholder:text-sbi-muted/40 transition-colors resize-none"
+                    placeholder="Tell us about your inquiry..."
+                  />
+                </div>
+
+                <div className="pt-4 flex items-center gap-6">
                   <motion.button
                     type="submit"
                     disabled={isSubmitting}
-                    className="relative inline-flex items-center gap-2 px-8 py-4 text-sm font-medium tracking-wider uppercase overflow-hidden bg-sbi-dark-btn text-sbi-green border border-sbi-green/30 hover:bg-sbi-green hover:text-sbi-dark-btn disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-500"
+                    className="relative inline-flex items-center gap-3 px-8 py-4 text-sm font-medium tracking-wider uppercase bg-transparent text-sbi-green border border-sbi-green/30 hover:bg-sbi-green hover:text-sbi-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                     whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
                     whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
                   >
@@ -299,91 +367,26 @@ export default function ContactPage() {
 
                   {submitStatus === "success" && (
                     <motion.p
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
                       className="text-sbi-green text-sm"
                     >
-                      Message sent successfully! We&apos;ll get back to you
-                      soon.
+                      Message sent successfully!
                     </motion.p>
                   )}
 
                   {submitStatus === "error" && (
                     <motion.p
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
                       className="text-red-400 text-sm"
                     >
                       Something went wrong. Please try again.
                     </motion.p>
                   )}
-                </form>
-              </div>
+                </div>
+              </form>
             </motion.div>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative py-24 border-t border-sbi-dark-border">
-        <BlueprintGrid />
-        <div className="relative z-10 max-w-7xl mx-auto px-8 md:px-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            viewport={{ once: true }}
-            className="mb-12"
-          >
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-px bg-sbi-green" />
-              <span className="text-xs tracking-[0.3em] uppercase text-sbi-green">
-                How Can We Help?
-              </span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-light tracking-tight">
-              Inquiry Types
-            </h2>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                title: "General",
-                description:
-                  "Questions about SBI, our mission, or how we operate.",
-              },
-              {
-                title: "Projects",
-                description:
-                  "Interested in our services or have a project proposal.",
-              },
-              {
-                title: "Membership",
-                description: "Want to join SBI as a student member.",
-              },
-              {
-                title: "Partnership",
-                description: "Sponsor, collaborate, or partner with us.",
-              },
-            ].map((item, index) => (
-              <motion.div
-                key={item.title}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{
-                  delay: index * 0.1,
-                  duration: 0.8,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                viewport={{ once: true }}
-                className="p-6 bg-sbi-dark-card border border-sbi-dark-border hover:border-sbi-green/30 transition-colors"
-              >
-                <h3 className="text-lg font-light text-white mb-2">
-                  {item.title}
-                </h3>
-                <p className="text-sm text-sbi-muted">{item.description}</p>
-              </motion.div>
-            ))}
           </div>
         </div>
       </section>
