@@ -13,7 +13,11 @@ const contactInfo = {
     { name: "Sam Moran", email: "sam@utsbi.org", role: "Vice President" },
   ],
   social: [
-    { name: "Instagram", href: "https://instagram.com/utsbi", icon: Instagram },
+    {
+      name: "Instagram",
+      href: "https://instagram.com/ut.sbi",
+      icon: Instagram,
+    },
     {
       name: "LinkedIn",
       href: "https://linkedin.com/company/utsbi",
