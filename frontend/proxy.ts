@@ -13,13 +13,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match only protected routes that require authentication:
-     * - /auth (for auth callbacks)
-     * Note: /dashboard temporarily excluded for testing
-     */
-    // "/dashboard/:path*",
-    "/auth/:path*",
-  ],
+  matcher: ["/dashboard/:path*", "/auth/:path*"],
 };
