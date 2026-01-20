@@ -12,53 +12,56 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
   const [phase, setPhase] = useState<"loading" | "revealing" | "done">(
     "loading",
   );
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasCompletedRef = useRef(false);
-
-  // Memoize to prevent effect re-runs
-  const stableOnComplete = useCallback(() => {
-    onComplete();
-  }, [onComplete]);
+  const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
-    // Simulate loading progress
-    const duration = 2000;
-    const interval = 20;
-    const increment = 100 / (duration / interval);
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
-    timerRef.current = setInterval(() => {
-      setProgress((prev) => {
-        const next = prev + increment + Math.random() * 2;
-        if (next >= 100) {
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          return 100;
-        }
-        return next;
-      });
-    }, interval);
+  const triggerCompletion = useCallback(() => {
+    if (hasCompletedRef.current) return;
+    hasCompletedRef.current = true;
 
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
+    setProgress(100);
+    setTimeout(() => setPhase("revealing"), 300);
+    setTimeout(() => {
+      setPhase("done");
+      onCompleteRef.current();
+    }, 1200);
   }, []);
 
   useEffect(() => {
-    // Prevent multiple completions
-    if (progress >= 100 && !hasCompletedRef.current) {
-      hasCompletedRef.current = true;
-      setTimeout(() => setPhase("revealing"), 300);
-      setTimeout(() => {
-        setPhase("done");
-        stableOnComplete();
-      }, 1200);
-    }
-  }, [progress, stableOnComplete]);
+    const duration = 2000;
+    const interval = 20;
+    const steps = duration / interval;
+    let currentStep = 0;
+
+    const timer = setInterval(() => {
+      currentStep++;
+      const baseProgress = (currentStep / steps) * 100;
+      const jitter = Math.random() * 3;
+      const newProgress = Math.min(baseProgress + jitter, 99);
+
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        triggerCompletion();
+        return;
+      }
+
+      setProgress(newProgress);
+    }, interval);
+
+    const safetyTimeout = setTimeout(() => {
+      clearInterval(timer);
+      triggerCompletion();
+    }, duration + 500);
+
+    return () => {
+      clearInterval(timer);
+      clearTimeout(safetyTimeout);
+    };
+  }, [triggerCompletion]);
 
   return (
     <motion.div
@@ -70,7 +73,6 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
       }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
     >
-      {/* Background grid */}
       <div className="absolute inset-0 overflow-hidden opacity-[0.02]">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <title>Loading grid</title>
@@ -93,9 +95,7 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
         </svg>
       </div>
 
-      {/* Center content */}
       <div className="relative flex flex-col items-center">
-        {/* Logo / Letters */}
         <div className="flex items-center gap-1 mb-12">
           {["S", "B", "I"].map((letter, index) => (
             <motion.div
@@ -116,7 +116,6 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
               <span className="text-7xl md:text-8xl font-extralight tracking-tighter text-white">
                 {letter}
               </span>
-              {/* Glow effect on each letter */}
               <motion.div
                 className="absolute inset-0 blur-xl bg-sbi-green/20"
                 initial={{ opacity: 0 }}
@@ -132,12 +131,9 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
           ))}
         </div>
 
-        {/* Progress bar container */}
         <div className="relative w-48 md:w-64">
-          {/* Track */}
           <div className="h-px bg-sbi-dark-border w-full" />
 
-          {/* Progress fill */}
           <motion.div
             className="absolute top-0 left-0 h-px bg-sbi-green origin-left"
             initial={{ scaleX: 0 }}
@@ -145,14 +141,12 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
             transition={{ duration: 0.1, ease: "linear" }}
           />
 
-          {/* Progress indicator dot */}
           <motion.div
             className="absolute top-1/2 -translate-y-1/2 w-2 h-2 bg-sbi-green rounded-full"
             initial={{ left: 0 }}
             animate={{ left: `${Math.min(progress, 100)}%` }}
             transition={{ duration: 0.1, ease: "linear" }}
           >
-            {/* Pulse effect */}
             <motion.div
               className="absolute inset-0 bg-sbi-green rounded-full"
               animate={{ scale: [1, 2, 1], opacity: [0.5, 0, 0.5] }}
@@ -160,7 +154,6 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
             />
           </motion.div>
 
-          {/* Percentage */}
           <motion.div
             className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs tracking-[0.3em] text-sbi-muted tabular-nums"
             initial={{ opacity: 0 }}
@@ -172,13 +165,11 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
         </div>
       </div>
 
-      {/* Corner accents */}
       <CornerAccent position="top-left" delay={0.2} />
       <CornerAccent position="top-right" delay={0.3} />
       <CornerAccent position="bottom-left" delay={0.4} />
       <CornerAccent position="bottom-right" delay={0.5} />
 
-      {/* Reveal curtains */}
       <motion.div
         className="absolute inset-0 bg-sbi-dark origin-top"
         initial={{ scaleY: 0 }}
@@ -191,7 +182,6 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
   );
 }
 
-// Corner accent sub-component
 function CornerAccent({
   position,
   delay,
