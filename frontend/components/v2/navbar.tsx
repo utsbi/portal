@@ -7,11 +7,11 @@ import NavLink from "./nav-link";
 
 const navItems = [
   // { name: "Home", href: "/" },
-  { name: "ABOUT", href: "/v2/about/" },
-  { name: "OUTREACH", href: "/v2/outreach/" },
-  { name: "PROJECTS", href: "/v2/projects/" },
-  { name: "CONTACT US", href: "/v2/contact/" },
-  { name: "LOGIN", href: "/v2/login/" },
+  { name: "ABOUT", href: "/about" },
+  { name: "OUTREACH", href: "/outreach" },
+  { name: "PROJECTS", href: "/projects" },
+  { name: "CONTACT US", href: "/contact" },
+  { name: "LOGIN", href: "/login" },
 ];
 
 // Animated hamburger menu icon
@@ -58,9 +58,8 @@ function MobileMenuItem({
       <Link
         href={item.href}
         onClick={onClose}
-        className={`group flex items-center gap-4 py-4 transition-colors duration-300 ${
-          isLogin ? "text-sbi-green" : "text-sbi-muted hover:text-white"
-        }`}
+        className={`group flex items-center gap-4 py-4 transition-colors duration-300 ${isLogin ? "text-sbi-green" : "text-sbi-muted hover:text-white"
+          }`}
       >
         <motion.span
           className="w-8 h-px bg-sbi-green origin-left"
@@ -155,11 +154,10 @@ function Navbar() {
   return (
     <>
       <motion.nav
-        className={`fixed w-full z-50 top-0 start-0 transition-all duration-500 will-change-transform ${
-          scrolled
+        className={`fixed w-full z-50 top-0 start-0 transition-all duration-500 will-change-transform ${scrolled
             ? "bg-sbi-dark/95 backdrop-blur-md border-b border-sbi-dark-border"
             : "bg-transparent"
-        }`}
+          }`}
         initial={{ y: 0 }}
         animate={{ y: visible ? 0 : "-100%" }}
         transition={{
@@ -169,7 +167,7 @@ function Navbar() {
       >
         <div className="max-w-7xl flex flex-wrap items-center justify-between mx-auto px-8 md:px-16 py-6 select-none">
           <Link
-            href="/v2"
+            href="/"
             className="flex items-center space-x-3 rtl:space-x-reverse group z-50"
           >
             <div className="relative">

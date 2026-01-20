@@ -1,5 +1,5 @@
-import Footer from "@/components/Footer";
-import Navbar from "@/components/Navbar";
+import { Footer } from "@/components/v2/footer";
+import Navbar from "@/components/v2/navbar";
 
 export default function StaticLayout({
   children,
@@ -7,7 +7,7 @@ export default function StaticLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="font-old-standard scrollbar">
+    <div className="font-urbanist bg-sbi-dark min-h-screen">
       <Navbar />
       {children}
       <Footer />
