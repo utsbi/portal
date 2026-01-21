@@ -283,6 +283,9 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    background-color: #050807;
+  }
   body {
     @apply bg-background text-foreground;
   }
