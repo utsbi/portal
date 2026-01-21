@@ -1,0 +1,26 @@
+{
+  "user": {
+    "name": "John Doe",
+    "email": "john@utsbi.com",
+    "avatar": "/avatars/john-doe.jpg"
+  },
+  "company": {
+    "name": "UTSBI",
+    "logo": "/logos/utsbi.svg"
+  },
+  "navigation": {
+    "main": [
+      { "title": "Explore", "url": "/dashboard/explore" },
+      { "title": "Messages", "url": "/dashboard/messages" },
+      { "title": "Finances", "url": "/dashboard/finances" },
+      { "title": "Lifecycle", "url": "/dashboard/lifecycle" },
+      { "title": "Calendar", "url": "/dashboard/calendar" },
+      { "title": "Questionnaire", "url": "/dashboard/questionnaire" }
+    ],
+    "documents": [
+      { "title": "Files", "url": "/dashboard/files" },
+      { "title": "Reports", "url": "/dashboard/reports" },
+      { "title": "Requests", "url": "/dashboard/requests" }
+    ]
+  }
+}
