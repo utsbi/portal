@@ -1,11 +1,26 @@
 "use client";
 
 import { motion } from "motion/react";
+import dynamic from "next/dynamic";
 
 import { BlueprintGrid } from "@/components/v2/blueprint-grid";
 import { Counter } from "@/components/v2/counter";
 import { MagneticButton } from "@/components/v2/magnetic-button";
 import { PageHero } from "@/components/v2/page-hero";
+
+const NetworkGlobe = dynamic(
+  () => import("@/components/v2/network-globe").then((mod) => mod.NetworkGlobe),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 flex items-center justify-center bg-sbi-dark-card">
+        <div className="text-sbi-muted text-sm tracking-wider uppercase animate-pulse">
+          Loading Globe...
+        </div>
+      </div>
+    ),
+  },
+);
 
 const stats = [
   {
@@ -116,55 +131,8 @@ export default function OutreachPage() {
         </div>
       </section>
 
-      <section className="relative py-32 md:py-48 overflow-hidden">
-        <BlueprintGrid />
-        <div className="relative z-10 max-w-7xl mx-auto px-8 md:px-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            viewport={{ once: true }}
-            className="mb-12"
-          >
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-px bg-sbi-green" />
-              <span className="text-xs tracking-[0.3em] uppercase text-sbi-green">
-                Network
-              </span>
-            </div>
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-light tracking-tight">
-              Our Growing Network
-            </h2>
-            <p className="mt-4 text-sbi-muted max-w-xl">
-              Explore our connections with high schools, universities, and
-              organizations across the region.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            viewport={{ once: true }}
-            className="relative"
-          >
-            <div className="absolute -inset-4 border border-sbi-dark-border pointer-events-none" />
-            <div className="absolute -top-2 -left-2 w-4 h-4 border border-sbi-green bg-sbi-dark" />
-            <div className="absolute -top-2 -right-2 w-4 h-4 border border-sbi-green bg-sbi-dark" />
-            <div className="absolute -bottom-2 -left-2 w-4 h-4 border border-sbi-green bg-sbi-dark" />
-            <div className="absolute -bottom-2 -right-2 w-4 h-4 border border-sbi-green bg-sbi-dark" />
-
-            <div className="relative aspect-[16/9] bg-sbi-dark-card overflow-hidden">
-              <iframe
-                src="https://www.google.com/maps/d/embed?mid=1ItBSYv-_H_PJBScpnU8gLMzr9F4qA6Q&ehbc=2E312F"
-                className="absolute inset-0 w-full h-full"
-                allowFullScreen
-                title="SBI Outreach Network Map"
-                style={{ border: 0 }}
-              />
-            </div>
-          </motion.div>
-        </div>
+      <section className="relative min-h-[80vh] md:min-h-screen overflow-hidden">
+        <NetworkGlobe />
       </section>
 
       <section className="relative py-32 md:py-48 overflow-hidden">
