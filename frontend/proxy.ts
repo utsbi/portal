@@ -1,5 +1,5 @@
 import type { NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/utils/supabase/middleware";
+import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
   const response = await updateSession(request);
@@ -13,13 +13,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match only protected routes that require authentication:
-     * - /auth (for auth callbacks)
-     * Note: /dashboard temporarily excluded for testing
-     */
-    // "/dashboard/:path*",
-    "/auth/:path*",
-  ],
+  matcher: ["/dashboard/:path*", "/auth/:path*"],
 };
