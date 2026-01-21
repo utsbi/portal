@@ -14,9 +14,14 @@ import Kabir from "@/assets/images/people/Kabir.jpg";
 import Noah from "@/assets/images/people/Noah.jpg";
 import Pedro from "@/assets/images/people/Pedro.jpg";
 import Sam from "@/assets/images/people/Sam.jpg";
+
+// University Logos
 import Rice from "@/assets/images/schools/rice_university.png";
 import TAMU from "@/assets/images/schools/TAMU.png";
 import UTAustin from "@/assets/images/schools/TEXAS_official_seal.svg";
+import Harvard from "@/assets/images/schools/Harvard_University_coat_of_arms.svg";
+import ICL from "@/assets/images/schools/Shield_of_Imperial_College_London.svg";
+
 import { BlueprintGrid } from "@/components/v2/blueprint-grid";
 import { MagneticButton } from "@/components/v2/magnetic-button";
 import { PageHero } from "@/components/v2/page-hero";
@@ -82,9 +87,11 @@ const teamMembers = [
 ];
 
 const universities = [
-  { name: "UT Austin", logo: UTAustin, href: "https://www.utexas.edu" },
-  { name: "Texas A&M", logo: TAMU, href: "https://www.tamu.edu" },
+  { name: "Texas A&M", logo: TAMU, href: "https://www.tamu.edu/" },
   { name: "Rice University", logo: Rice, href: "https://www.rice.edu/" },
+  { name: "UT Austin", logo: UTAustin, href: "https://www.utexas.edu/" },
+  { name: "Harvard University", logo: Harvard, href: "https://www.harvard.edu/" },
+  { name: "Imperial College London", logo: ICL, href: "https://www.imperial.ac.uk/" }
 ];
 
 export default function AboutPage() {

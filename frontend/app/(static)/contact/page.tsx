@@ -69,13 +69,31 @@ export default function ContactPage() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formState),
+      });
 
-    setIsSubmitting(false);
-    setSubmitStatus("success");
-    setFormState({ name: "", email: "", subject: "general", message: "" });
+      if (!response.ok) {
+        throw new Error("Failed to submit form");
+      }
 
-    setTimeout(() => setSubmitStatus("idle"), 5000);
+      setIsSubmitting(false);
+      setSubmitStatus("success");
+      setFormState({ name: "", email: "", subject: "general", message: "" });
+
+      setTimeout(() => setSubmitStatus("idle"), 5000);
+    } catch (error) {
+      console.error("Form submission error:", error);
+      setIsSubmitting(false);
+      setSubmitStatus("error");
+
+      setTimeout(() => setSubmitStatus("idle"), 5000);
+    }
   };
 
   const handleChange = (
