@@ -3,6 +3,7 @@
 import { Instagram, Linkedin, Mail, MapPin, Send } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 import { BlueprintGrid } from "@/components/v2/blueprint-grid";
 import { PageHero } from "@/components/v2/page-hero";
@@ -60,6 +61,7 @@ export default function ContactPage() {
     subject: "general",
     message: "",
   });
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<
     "idle" | "success" | "error"
@@ -67,6 +69,13 @@ export default function ContactPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!turnstileToken) {
+      setSubmitStatus("error");
+      setTimeout(() => setSubmitStatus("idle"), 5000);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -75,7 +84,10 @@ export default function ContactPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formState),
+        body: JSON.stringify({
+          ...formState,
+          turnstileToken,
+        }),
       });
 
       if (!response.ok) {
@@ -85,6 +97,7 @@ export default function ContactPage() {
       setIsSubmitting(false);
       setSubmitStatus("success");
       setFormState({ name: "", email: "", subject: "general", message: "" });
+      setTurnstileToken(null);
 
       setTimeout(() => setSubmitStatus("idle"), 5000);
     } catch (error) {
@@ -358,10 +371,20 @@ export default function ContactPage() {
                   />
                 </div>
 
+                <div>
+                  <Turnstile
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={(token) => setTurnstileToken(token)}
+                    onError={() => setTurnstileToken(null)}
+                    onExpire={() => setTurnstileToken(null)}
+                    theme="dark"
+                  />
+                </div>
+
                 <div className="pt-4 flex items-center gap-6">
                   <motion.button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !turnstileToken}
                     className="relative inline-flex items-center gap-3 px-8 py-4 text-sm font-medium tracking-wider uppercase bg-transparent text-sbi-green border border-sbi-green/30 hover:bg-sbi-green hover:text-sbi-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                     whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
                     whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
