@@ -50,7 +50,7 @@ function FooterLink({
   );
 }
 
-export function Footer() {
+function Footer() {
   return (
     <footer className="relative bg-sbi-dark border-t border-sbi-dark-border overflow-hidden">
       {/* Architectural grid background */}
@@ -299,3 +299,5 @@ export function Footer() {
     </footer>
   );
 }
+
+export default Footer;
