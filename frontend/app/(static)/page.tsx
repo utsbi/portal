@@ -6,14 +6,14 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 
 import group from "@/assets/images/group.jpg";
-import { Background } from "@/components/v2/background";
-import { BlueprintGrid } from "@/components/v2/blueprint-grid";
-import { Counter } from "@/components/v2/counter";
-import { DecorativeElement } from "@/components/v2/decorative-element";
-import { DepartmentItem } from "@/components/v2/department-item";
-import { LoadingScreen } from "@/components/v2/loading-screen";
-import { MagneticButton } from "@/components/v2/magnetic-button";
-import { StrategyCard } from "@/components/v2/strategy-card";
+import { Background } from "@/components/background";
+import { BlueprintGrid } from "@/components/blueprint-grid";
+import { Counter } from "@/components/counter";
+import { DecorativeElement } from "@/components/decorative-element";
+import { DepartmentItem } from "@/components/department-item";
+import { LoadingScreen } from "@/components/loading-screen";
+import { MagneticButton } from "@/components/magnetic-button";
+import { StrategyCard } from "@/components/strategy-card";
 
 const FORMS_LINK = "https://forms.gle/KWJjaXGYt2dv3bY68";
 

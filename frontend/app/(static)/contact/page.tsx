@@ -5,8 +5,8 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 
-import { BlueprintGrid } from "@/components/v2/blueprint-grid";
-import { PageHero } from "@/components/v2/page-hero";
+import { BlueprintGrid } from "@/components/blueprint-grid";
+import { PageHero } from "@/components/page-hero";
 
 const contactInfo = {
   emails: [
