@@ -10,10 +10,10 @@ import pe1 from "@/assets/images/project-two/exterior-concept/1.webp";
 import pe2 from "@/assets/images/project-two/exterior-concept/2.webp";
 import pe3 from "@/assets/images/project-two/exterior-concept/3.webp";
 import pe4 from "@/assets/images/project-two/exterior-concept/4.webp";
-import { BlueprintGrid } from "@/components/v2/blueprint-grid";
-import { MagneticButton } from "@/components/v2/magnetic-button";
-import { PageHero } from "@/components/v2/page-hero";
-import { type Project, ProjectCard } from "@/components/v2/project-card";
+import { BlueprintGrid } from "@/components/blueprint-grid";
+import { MagneticButton } from "@/components/magnetic-button";
+import { PageHero } from "@/components/page-hero";
+import { type Project, ProjectCard } from "@/components/project-card";
 
 const projects: Project[] = [
   {

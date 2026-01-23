@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import NavLink from "./nav-link";
+import NavLink from "@/components/nav-link";
 
 const navItems = [
   // { name: "Home", href: "/" },

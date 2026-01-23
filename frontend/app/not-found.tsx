@@ -1,5 +1,5 @@
-import Footer from "@/components/v2/footer";
-import Navbar from "@/components/v2/navbar";
+import Footer from "@/components/footer";
+import Navbar from "@/components/navbar";
 
 export default function Custom404() {
   return (

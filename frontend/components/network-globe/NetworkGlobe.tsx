@@ -278,7 +278,10 @@ export function NetworkGlobe({
       className={`relative w-full h-full min-h-[80vh] md:min-h-screen bg-sbi-dark ${className}`}
     >
       {/* Subtle gradient overlay - lighter to preserve arc/marker visibility */}
-      <div className="absolute inset-0 bg-gradient-to-r from-sbi-dark/90 via-sbi-dark/40 to-transparent z-10 pointer-events-none" />
+      <div className="absolute inset-0 bg-linear-to-r from-sbi-dark/90 via-sbi-dark/40 to-transparent z-10 pointer-events-none" />
+
+      {/* Mouse interaction blocker - left 1/3 of screen */}
+      <div className="absolute inset-y-0 left-0 w-1/3 z-15 pointer-events-auto" />
 
       {/* Floating info panel - left side */}
       <FloatingInfoPanel hoveredLocation={hoveredLocation} />

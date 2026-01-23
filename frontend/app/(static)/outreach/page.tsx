@@ -3,13 +3,13 @@
 import { motion } from "motion/react";
 import dynamic from "next/dynamic";
 
-import { BlueprintGrid } from "@/components/v2/blueprint-grid";
-import { Counter } from "@/components/v2/counter";
-import { MagneticButton } from "@/components/v2/magnetic-button";
-import { PageHero } from "@/components/v2/page-hero";
+import { BlueprintGrid } from "@/components/blueprint-grid";
+import { Counter } from "@/components/counter";
+import { MagneticButton } from "@/components/magnetic-button";
+import { PageHero } from "@/components/page-hero";
 
 const NetworkGlobe = dynamic(
-  () => import("@/components/v2/network-globe").then((mod) => mod.NetworkGlobe),
+  () => import("@/components/network-globe").then((mod) => mod.NetworkGlobe),
   {
     ssr: false,
     loading: () => (
