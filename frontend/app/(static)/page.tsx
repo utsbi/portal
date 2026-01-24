@@ -35,7 +35,7 @@ const stats = [
       "Multidisciplinary talents from engineering, business, and technology converging as one consultancy.",
   },
   {
-    value: 1000,
+    value: 1500,
     label: "Hours Contributed",
     prefix: "",
     suffix: "+",
@@ -87,6 +87,10 @@ const departments = [
       "Project management, client relations, and strategic planning.",
   },
   {
+    name: "Legal",
+    description: "Contract negotiation, zoning compliance, and liability assessment."
+  },
+  {
     name: "Technology",
     description:
       "Building information modeling, energy simulations, and digital tools.",
@@ -102,7 +106,7 @@ const departments = [
   },
 ];
 
-export default function V2Page() {
+export default function Page() {
   const [isLoading, setIsLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
   const [expandedDept, setExpandedDept] = useState<string | null>(null);
