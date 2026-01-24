@@ -1,17 +1,45 @@
 from typing import Optional
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from fastapi import Depends, HTTPException, status, Header
+from app.db.supabase import supabase
 
-SECRET_KEY = "a-string-secret-at-least-256-bits-long"
-ALGORITHM = "HS256"
 
-oauth2_scheme  = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
-
-async def get_user_identifier(token: Optional[str] = Depends(oauth2_scheme)):
-    if token is None:
-        return "global_unauthenticated_user"
+async def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:
+    """Get the current authenticated user ID from Supabase Auth."""
+    if not authorization:
+        # Return test user ID from claude.md
+        return "ed13b878-b87d-4b34-a138-7e51994fa0f8"
     
-    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    username: str = payload.get("sub")
-    return username
+    try:
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authorization header format"
+            )
+        
+        token = authorization.replace("Bearer ", "")
+        
+        user_response = supabase.auth.get_user(token)
+        
+        if not user_response or not user_response.user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
+        
+        return user_response.user.id
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Authentication failed: {str(e)}"
+        )
+
+
+async def get_optional_user_id(authorization: Optional[str] = Header(None)) -> Optional[str]:
+    """Get the current user ID if authenticated."""
+    try:
+        return await get_current_user_id(authorization)
+    except HTTPException:
+        return None

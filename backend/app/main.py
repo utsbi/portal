@@ -1,47 +1,41 @@
-import os
-
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI
-from pydantic import BaseModel
-from .models.rate_limit import apply_rate_limit
-from .api.deps import get_user_identifier
-
-from .api.endpoints.agent import Gemini
-
-load_dotenv()
-
-app = FastAPI()
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.v1.router import router as v1_router
 
 
-def load_system_prompt():
-    try:
-        with open("system_prompt.md", "r") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "System prompt file was unable to be read"
+app = FastAPI(
+    title="SBI Client Portal API",
+    description="AI-powered project management dashboard",
+    version="1.0.0"
+)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-system_prompt = load_system_prompt()
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-
-ai_platform = Gemini(api_key=gemini_api_key, system_prompt=system_prompt)
-
-
-class ChatRequest(BaseModel):
-    prompt: str
-
-
-class ChatResponse(BaseModel):
-    response: str
-
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, user_id: str = Depends(get_user_identifier)):
-    apply_rate_limit(user_id)
-    response_test = ai_platform.chat(request.prompt)
-    return ChatResponse(response=response_test)
+app.include_router(v1_router, prefix="/api")
 
 
 @app.get("/")
 async def root():
-    return {"message": "API is running"}
+    """Health check endpoint."""
+    return {
+        "message": "SBI Client Portal API is running",
+        "version": "1.0.0",
+        "status": "healthy"
+    }
+
+
+@app.get("/health")
+async def health():
+    """Detailed health check."""
+    return {
+        "status": "healthy",
+        "api": "online",
+        "version": "1.0.0"
+    }
+
