@@ -6,14 +6,14 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 
 import group from "@/assets/images/group.jpg";
-import { Background } from "@/components/v2/background";
-import { BlueprintGrid } from "@/components/v2/blueprint-grid";
-import { Counter } from "@/components/v2/counter";
-import { DecorativeElement } from "@/components/v2/decorative-element";
-import { DepartmentItem } from "@/components/v2/department-item";
-import { LoadingScreen } from "@/components/v2/loading-screen";
-import { MagneticButton } from "@/components/v2/magnetic-button";
-import { StrategyCard } from "@/components/v2/strategy-card";
+import { Background } from "@/components/background";
+import { BlueprintGrid } from "@/components/blueprint-grid";
+import { Counter } from "@/components/counter";
+import { DecorativeElement } from "@/components/decorative-element";
+import { DepartmentItem } from "@/components/department-item";
+import { LoadingScreen } from "@/components/loading-screen";
+import { MagneticButton } from "@/components/magnetic-button";
+import { StrategyCard } from "@/components/strategy-card";
 
 const FORMS_LINK = "https://forms.gle/KWJjaXGYt2dv3bY68";
 
@@ -35,7 +35,7 @@ const stats = [
       "Multidisciplinary talents from engineering, business, and technology converging as one consultancy.",
   },
   {
-    value: 1000,
+    value: 1500,
     label: "Hours Contributed",
     prefix: "",
     suffix: "+",
@@ -87,6 +87,10 @@ const departments = [
       "Project management, client relations, and strategic planning.",
   },
   {
+    name: "Legal",
+    description: "Contract negotiation, zoning compliance, and liability assessment."
+  },
+  {
     name: "Technology",
     description:
       "Building information modeling, energy simulations, and digital tools.",
@@ -102,7 +106,7 @@ const departments = [
   },
 ];
 
-export default function V2Page() {
+export default function Page() {
   const [isLoading, setIsLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
   const [expandedDept, setExpandedDept] = useState<string | null>(null);

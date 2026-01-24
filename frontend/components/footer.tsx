@@ -141,7 +141,7 @@ function Footer() {
               viewport={{ once: true }}
             >
               {/* Logo */}
-              <Link href="/v2" className="inline-block group">
+              <Link href="/" className="inline-block group">
                 <div className="flex items-baseline gap-1">
                   <span className="text-4xl md:text-5xl font-extralight tracking-tighter">
                     <span className="text-sbi-green">S</span>

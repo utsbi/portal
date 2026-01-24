@@ -22,10 +22,10 @@ import UTAustin from "@/assets/images/schools/TEXAS_official_seal.svg";
 import Harvard from "@/assets/images/schools/Harvard_University_coat_of_arms.svg";
 import ICL from "@/assets/images/schools/Shield_of_Imperial_College_London.svg";
 
-import { BlueprintGrid } from "@/components/v2/blueprint-grid";
-import { MagneticButton } from "@/components/v2/magnetic-button";
-import { PageHero } from "@/components/v2/page-hero";
-import { TeamCard } from "@/components/v2/team-card";
+import { BlueprintGrid } from "@/components/blueprint-grid";
+import { MagneticButton } from "@/components/magnetic-button";
+import { PageHero } from "@/components/page-hero";
+import { TeamCard } from "@/components/team-card";
 
 const FORMS_LINK = "https://forms.gle/KWJjaXGYt2dv3bY68";
 
