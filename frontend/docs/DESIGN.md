@@ -1,14 +1,14 @@
-# SBI Portal V2 Design System
+# SBI Portal Design System
 
-A comprehensive design guide for the Sustainable Building Initiative portal redesign. This document captures the visual language, component patterns, and animation principles derived from the v2 index page.
+Design guide for the Sustainable Building Initiative public website. Captures the visual language, component patterns, and animation principles.
 
 ---
 
 ## Design Philosophy
 
-The v2 design follows an **architectural blueprint aesthetic** — minimal, precise, and professional. Key principles:
+The design follows an **architectural blueprint aesthetic** — minimal, precise, and professional.
 
-- **Restraint**: Dark backgrounds with strategic accent usage
+- **Restraint**: Dark backgrounds with strategic green accent usage
 - **Precision**: Clean geometry, subtle grid patterns, technical markers
 - **Motion**: Purposeful animations that reveal and guide
 - **Typography**: Ultra-light weights with generous tracking
@@ -17,7 +17,7 @@ The v2 design follows an **architectural blueprint aesthetic** — minimal, prec
 
 ## Color Palette
 
-### Core Colors
+### Core Colors (defined in globals.css)
 
 | Token | Hex | Usage |
 |-------|-----|-------|
@@ -51,19 +51,10 @@ bg-linear-to-t from-sbi-dark via-sbi-dark/80 to-sbi-dark/60
 
 ## Typography
 
-### Font Family
+### Font Families
 
-**Urbanist** — Primary typeface for all v2 pages
-
-Fonts are loaded via CSS variables in `app/layout.tsx` using `next/font/google`. Use Tailwind utility classes:
-
-```tsx
-// Available font utilities (defined in globals.css @theme)
-<div className="font-urbanist">...</div>   // Primary UI font
-<div className="font-old-standard">...</div>  // Serif accent font
-```
-
-The `font-urbanist` class is applied to `<body>` by default.
+- **Urbanist** — Primary UI font (applied to `<body>` via `font-urbanist`)
+- **Old Standard TT** — Serif accent font (`font-old-standard`)
 
 ### Type Scale
 
@@ -76,9 +67,7 @@ The `font-urbanist` class is applied to `<body>` by default.
 | Labels | `text-xs` | — | `tracking-[0.2em]` to `tracking-[0.3em]` | `uppercase` |
 | Stats | `text-5xl` to `text-7xl` | `font-thin` | `tracking-tighter` | `tabular-nums` |
 
-### First Letter Accent
-
-The "SBI" pattern emphasizes first letters in green:
+### First Letter Accent (SBI Pattern)
 
 ```tsx
 <span className="text-sbi-green">S</span>ustainable
@@ -89,6 +78,20 @@ The "SBI" pattern emphasizes first letters in green:
 ---
 
 ## Components
+
+### PageHero
+
+Reusable hero for interior pages with label, title, subtitle:
+
+```tsx
+<PageHero
+  label="About Us"
+  title="Who We Are"
+  subtitle="A student-powered initiative..."
+/>
+```
+
+Features: BlueprintGrid background, diagonal accent lines, animated line draws.
 
 ### Section Labels
 
@@ -113,16 +116,15 @@ Bordered inline element:
 </span>
 ```
 
-### Cards (StrategyCard)
+### Cards (StrategyCard, ProjectCard, TeamCard)
 
 - Background: `bg-sbi-dark-card`
 - Border: `border border-sbi-dark-border`
 - Hover: `hover:border-sbi-green/30`
 - Padding: `p-8 md:p-10`
-- Mouse-following glow effect on hover
-- Animated bottom line reveal
+- Animated bottom line reveal on scroll
 
-### Buttons (MagneticButton)
+### MagneticButton
 
 Two variants with magnetic hover effect:
 
@@ -139,7 +141,7 @@ hover:bg-white hover:text-sbi-dark-btn
 ```
 
 Features:
-- Magnetic follow on mouse movement (±15% offset)
+- Magnetic follow on mouse movement (15% offset)
 - Arrow icon with diagonal translate on hover
 - Spring physics: `stiffness: 400, damping: 25`
 
@@ -147,12 +149,12 @@ Features:
 
 - Full-width with bottom border
 - Slide-right on hover (`whileHover={{ x: 8 }}`)
-- Plus icon rotates 45° when expanded
+- Plus icon rotates 45deg when expanded
 - AnimatePresence for smooth expand/collapse
 
 ### Counter
 
-Animated number counting with:
+Animated number counting:
 - `useInView` trigger (once, -100px margin)
 - 2.5s duration with custom easing
 - Locale-formatted output
@@ -161,9 +163,9 @@ Animated number counting with:
 
 ## Background Patterns
 
-### Blueprint Grid
+### BlueprintGrid
 
-SVG-based architectural grid with two scales:
+SVG-based architectural grid:
 
 ```tsx
 <BlueprintGrid />
@@ -174,29 +176,24 @@ SVG-based architectural grid with two scales:
 - Opacity: `opacity-[0.05]`
 - Non-interactive: `pointer-events-none`
 
-### Hero Background
+### Hero Background (Home page)
 
 Image grid with staggered reveal animation:
 - 9x5 grid layout
-- Images animate in with `staggerChildren: 0.07`
+- `staggerChildren: 0.07`
 - Scale and opacity transitions
-- Theme-aware (switches tower image for dark/light)
 
 ---
 
 ## Animation Patterns
 
-### Easing
-
-Standard easing curve across all animations:
+### Standard Easing
 
 ```ts
-ease: [0.22, 1, 0.36, 1]  // Custom cubic-bezier
+ease: [0.22, 1, 0.36, 1]  // Custom cubic-bezier used everywhere
 ```
 
 ### Staggered Reveal
-
-For lists and grids:
 
 ```ts
 const containerVariants = {
@@ -227,14 +224,12 @@ const containerVariants = {
 ```tsx
 <motion.h1
   initial={{ y: "100%" }}
-  animate={showContent ? { y: 0 } : {}}
+  animate={{ y: 0 }}
   transition={{ delay: 0.1, duration: 1, ease: [0.22, 1, 0.36, 1] }}
 >
 ```
 
 ### Line Draw
-
-Horizontal lines that scale from 0:
 
 ```tsx
 <motion.div
@@ -244,9 +239,7 @@ Horizontal lines that scale from 0:
 />
 ```
 
-### Parallax
-
-Hero section uses scroll-driven transforms:
+### Parallax (Home Hero)
 
 ```tsx
 const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
@@ -256,37 +249,31 @@ const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.1]);
 
 ---
 
-## Loading Screen
-
-Three-phase loading experience:
-
-1. **Loading** — Progress bar with pulsing dot
-2. **Revealing** — Letters scale pulse, glow effect
-3. **Done** — Fade out
-
-Features:
-- SBI letters with staggered entrance
-- Corner accent animations
-- Blueprint grid background
-- Progress percentage display
-
----
-
 ## Navigation
 
-### Desktop
+### Desktop Navbar
 
-- Fixed position, transparent → blur on scroll
+- Fixed position, transparent -> blur on scroll
 - Hide on scroll down, show on scroll up
 - Logo: "SBI" with green S, underline animation on hover
-- Links: Letter-by-letter stagger animation on hover
+- Links: Letter-by-letter stagger animation on hover (NavLink component)
 
-### Mobile
+### Mobile Menu
 
 - Animated hamburger icon (lines rotate to X)
 - Full-screen overlay with backdrop blur
 - Staggered menu item entrance
 - Decorative vertical line and bottom SBI marker
+
+---
+
+## Footer
+
+- Grid background pattern (opacity 2%)
+- Diagonal accent SVG lines
+- Three-column link layout: Navigate, Resources, Connect
+- Technical corner markers at bottom border
+- Animated status indicator ("Building Sustainably")
 
 ---
 
@@ -307,16 +294,62 @@ Small corner squares at section boundaries:
 SVG lines with gradient fade:
 
 ```tsx
-<line stroke="url(#gradient)" /> // Fades from transparent → green → transparent
+<line stroke="url(#gradient)" /> // Fades: transparent -> green -> transparent
 ```
 
-### Rotating Decorative (DecorativeElement)
+### DecorativeElement
 
-Interactive geometric element:
+Interactive geometric element on home page:
 - Three nested rotating squares
 - Central pulsing dot
 - Expanding ring effect on hover
 - 30s infinite rotation
+
+---
+
+## Page Structure
+
+### Home (`/`)
+
+1. **Hero** - Full viewport, parallax background, SBI title reveal, CTA buttons
+2. **Mission** - Centered text block with badge
+3. **Stats** - Three-column with animated counters
+4. **Strategy** - Three StrategyCards (Identify, Architect, Execute)
+5. **Departments** - Two-column: text + accordion list
+6. **CTA** - Background image with gradient overlay
+
+### About (`/about`)
+
+1. PageHero
+2. Story section (centered text)
+3. Vision section (image + text two-column)
+4. Partner Universities (logo row)
+5. Team grid (TeamCards)
+6. Join CTA
+
+### Projects (`/projects`)
+
+1. PageHero
+2. Featured project (large ProjectCard)
+3. All projects grid
+4. Collaboration CTA
+5. Image gallery modal (AnimatePresence)
+
+### Outreach (`/outreach`)
+
+1. PageHero
+2. Mission text
+3. Stats row
+4. NetworkGlobe (3D React Three Fiber)
+5. Partner categories (Schools, Organizations, Sponsors)
+6. Collaboration CTA
+
+### Contact (`/contact`)
+
+1. PageHero
+2. Inquiry types row
+3. Two-column: contact info + form
+4. Turnstile bot protection
 
 ---
 
@@ -340,15 +373,14 @@ Common patterns:
 
 ## Implementation Checklist
 
-When creating new v2 pages/sections:
+When creating new pages/sections:
 
-- [ ] Apply `font-urbanist` class to root wrapper (already default on `<body>`)
 - [ ] Use `bg-sbi-dark` as page background
 - [ ] Include `<BlueprintGrid />` for visual texture
 - [ ] Add section labels with green line + uppercase text
 - [ ] Use `motion/react` for animations (NOT framer-motion)
 - [ ] Apply standard easing `[0.22, 1, 0.36, 1]`
 - [ ] Set `viewport={{ once: true }}` on scroll animations
-- [ ] Maintain color hierarchy (white → green → muted)
+- [ ] Maintain color hierarchy (white -> green -> muted)
 - [ ] Use `tracking-[0.2em]` or `tracking-[0.3em]` on labels
 - [ ] Add `select-none` to decorative/hero content

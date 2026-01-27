@@ -1,6 +1,6 @@
 # AGENTS.md - SBI Portal Frontend
 
-Guidelines for AI agents working in this Next.js 16 App Router codebase.
+Next.js 16 App Router codebase for the Sustainable Building Initiative portal.
 
 ## Build & Development Commands
 
@@ -8,33 +8,34 @@ Guidelines for AI agents working in this Next.js 16 App Router codebase.
 bun install           # Install dependencies (prefer bun over npm/yarn)
 bun dev               # Dev server with Turbopack on localhost:3000
 bun build             # Production build
-bun lint              # Run Next.js linting
+bun lint              # Run Next.js + Biome linting
 ```
 
-**No test framework is currently configured.** There are no test commands available.
+**No test framework configured.** No test commands available.
 
-## Project Architecture
+## Project Structure
 
-### Route Structure
+```
+app/
+  (static)/            # Public pages (home, about, contact, projects, outreach, login)
+  (dashboard)/         # Protected routes (Supabase auth required)
+  api/                 # API routes
+  error/               # Error page
+  auth/                # Auth flows (password reset, etc.)
+components/
+  ui/                  # shadcn/ui primitives (Radix-based)
+  dashboard/           # Dashboard-specific components
+    common/            # Shared dashboard components (sidebar, status bar)
+    explore/           # AI portal components
+    [feature]/         # Feature-specific (reports, messages, etc.)
+lib/
+  supabase/            # Client/server/middleware utilities
+  utils.ts             # Utility functions (cn for className merging)
+assets/                # Static assets (fonts, images, logos)
+public/models/         # 3D models
+```
 
-- `app/(static)/` - Legacy public pages (being phased out)
-- `app/(dashboard)/` - Protected routes requiring Supabase auth
-- `app/v2/` - **Active redesign** using modern components from `components/v2/`
-
-### Key Directories
-
-- `components/` - Shared components (legacy)
-- `components/v2/` - New design system components (preferred for new work)
-- `components/ui/` - shadcn/ui components (Radix-based primitives)
-- `components/dashboard/` - Dashboard-specific components
-- `lib/supabase/` - Supabase client/server/middleware utilities
-- `lib/utils.ts` - Utility functions (`cn` for className merging)
-- `assets/` - Static assets (fonts, images, logos)
-- `public/` - Public files (3D models)
-
-## Code Style Guidelines
-
-### Formatting (Biome)
+## Code Style (Biome)
 
 - **Indentation**: Spaces (not tabs)
 - **Quotes**: Double quotes for strings
@@ -48,20 +49,18 @@ bun lint              # Run Next.js linting
 import { motion } from "motion/react";
 import Link from "next/link";
 
-// 2. Internal aliases using @/
+// 2. Internal using @/ alias
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 ```
 
-Always use the `@/` path alias for internal imports (configured in tsconfig.json).
-
 ### TypeScript
 
 - **Strict mode enabled** - avoid `any`, use proper types
 - Use `interface` for component props
-- Use `type` imports: `import type { Metadata } from "next"`
-- Non-null assertions (`!`) acceptable for environment variables
+- Use type imports: `import type { Metadata } from "next"`
+- Non-null assertions (`!`) acceptable for env variables
 
 ```typescript
 interface ComponentProps {
@@ -71,43 +70,37 @@ interface ComponentProps {
 }
 ```
 
+### Naming Conventions
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Files | kebab-case | `nav-link.tsx` |
+| Components | PascalCase | `NavLink` |
+| Hooks | camelCase + use prefix | `useMobile` |
+| Utilities | camelCase | `createClient` |
+
 ### Component Patterns
 
 ```typescript
-// Client components require directive
-"use client";
-
-// Server Actions require directive
-"use server";
+"use client";  // Client components
+"use server";  // Server Actions
 
 // Default exports for pages/layouts
 export default function PageComponent() { ... }
 
 // Named exports for utilities/components
 export function Button() { ... }
-export { Button, buttonVariants };
 ```
 
-### Naming Conventions
-
-- **Files**: kebab-case (`nav-link.tsx`, `app-sidebar.tsx`)
-- **Components**: PascalCase (`NavLink`, `AppSidebar`)
-- **Hooks**: camelCase with `use` prefix (`useMobile`)
-- **Utilities**: camelCase (`createClient`, `cn`)
-- **CSS classes**: kebab-case, BEM-like for custom classes
-
-## UI Libraries & Styling
-
-### Primary Stack
+## UI Stack
 
 1. **Mantine UI** (`@mantine/core`) - Primary component library
 2. **Tailwind CSS v4** - Utility classes
-3. **shadcn/ui** - Radix-based primitives in `components/ui/`
+3. **shadcn/ui** - Radix primitives in `components/ui/`
 
-### Tailwind Usage
+### Tailwind + cn()
 
 ```typescript
-// Use cn() for conditional classes
 import { cn } from "@/lib/utils";
 
 className={cn(
@@ -117,29 +110,18 @@ className={cn(
 )}
 ```
 
-### Custom Theme Colors (defined in globals.css)
+### Theme Colors (globals.css)
 
-- `sbi-green` - Primary accent (#22c55e)
-- `sbi-dark` - Dark background (#050807)
-- `sbi-dark-card` - Card backgrounds
-- `sbi-dark-border` - Border color
-- `sbi-muted` - Muted text
+- `sbi-green` (#22c55e), `sbi-dark` (#050807), `sbi-dark-card`, `sbi-dark-border`, `sbi-muted`
 
 ### Fonts
 
-Fonts are loaded via CSS variables in `app/layout.tsx` using `next/font/google`. Use Tailwind utility classes:
-
-```typescript
-// Available font utilities (defined in globals.css @theme)
-<div className="font-urbanist">...</div>   // Primary UI font
-<div className="font-old-standard">...</div>  // Serif accent font
-```
-
-The `font-urbanist` class is applied to `<body>` by default.
+- `font-urbanist` - Primary UI font (applied to body by default)
+- `font-old-standard` - Serif accent
 
 ## Animation
 
-**IMPORTANT**: Use `motion/react`, NOT `framer-motion`:
+**Use `motion/react`, NOT `framer-motion`:**
 
 ```typescript
 import { motion, type Variants } from "motion/react";
@@ -152,18 +134,14 @@ const variants: Variants = {
 <motion.div variants={variants} initial="initial" animate="animate" />
 ```
 
-## Supabase Authentication
-
-### Client-side
+## Supabase Auth
 
 ```typescript
+// Client-side
 import { createClient } from "@/lib/supabase/client";
 const supabase = createClient();
-```
 
-### Server-side (async)
-
-```typescript
+// Server-side (async)
 import { createClient } from "@/lib/supabase/server";
 const supabase = await createClient();
 ```
@@ -182,15 +160,24 @@ export async function myAction(formData: FormData) {
 }
 ```
 
-### Protected Routes
-
-Routes under `/dashboard/*` require authentication. Middleware in `lib/supabase/middleware.ts` handles redirects.
+Routes under `(dashboard)/` are auto-protected by middleware.
 
 ## Error Handling
 
 - Server Actions: Redirect to `/error` on failure
-- Use try/catch blocks with descriptive error handling
-- Empty catch blocks acceptable only for non-critical SSR cookie operations
+- Use try/catch with descriptive handling
+- Empty catch blocks OK only for non-critical SSR cookie operations
+
+## API Routes
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  return NextResponse.json({ success: true });
+}
+```
 
 ## Environment Variables
 
@@ -199,30 +186,19 @@ Required in `.env.local`:
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+N8N_CONTACT_WEBHOOK_URL=
+BASIC_AUTH_USER=
+BASIC_AUTH_PASSWORD=
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
 ```
 
 ## Adding New Features
 
-### New Page (v2 design)
-
-1. Create folder in `app/v2/your-page/`
-2. Add `page.tsx` with default export
-3. Apply font: `<div className="font-urbanist">...</div>`
-
-### New Protected Route
-
-1. Create folder in `app/(dashboard)/your-route/`
-2. Route is automatically protected by middleware
-3. Access user via `supabase.auth.getUser()`
-
-### New Component
-
-1. Place in `components/v2/` for new design system
-2. Use `components/ui/` for shadcn primitives
-3. Follow existing patterns for props interfaces
-
-## 3D & Media
-
-- **React Three Fiber**: `components/R3FViewer.tsx` for interactive 3D
-- **Google Model Viewer**: `components/ModelViewer.jsx` for embeds
-- Models stored in `public/models/`
+| Task | Location | Notes |
+|------|----------|-------|
+| New public page | `app/(static)/your-page/page.tsx` | Add layout.tsx if needed |
+| Protected route | `app/(dashboard)/dashboard/your-route/` | Auto-protected |
+| Dashboard component | `components/dashboard/` | Group by feature |
+| shadcn primitive | `components/ui/` | Radix-based |
+| API endpoint | `app/api/your-endpoint/route.ts` | Named exports (GET, POST) |
