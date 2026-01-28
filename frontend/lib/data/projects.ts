@@ -12,6 +12,7 @@ export interface CameraPreset {
   label: string;
   position: [number, number, number];
   target: [number, number, number];
+  embeddedIndex?: number;
 }
 
 export interface Project {
@@ -38,7 +39,64 @@ export const projects: Project[] = [
     coverImage: pe1,
     modelUrl: "/models/family_home.glb",
     has3D: true,
-    cameraPresets: null,
+    cameraPresets: [
+      {
+        id: "living-1",
+        label: "Living Room 1",
+        position: [0, 0, 0],
+        target: [0, 0, 0],
+        embeddedIndex: 0,
+      },
+      {
+        id: "living-2",
+        label: "Living Room 2",
+        position: [0, 0, 0],
+        target: [0, 0, 0],
+        embeddedIndex: 1,
+      },
+      {
+        id: "living-3",
+        label: "Living Room 3",
+        position: [0, 0, 0],
+        target: [0, 0, 0],
+        embeddedIndex: 2,
+      },
+      {
+        id: "bedroom-1",
+        label: "Bedroom 1",
+        position: [0, 0, 0],
+        target: [0, 0, 0],
+        embeddedIndex: 3,
+      },
+      {
+        id: "bedroom-2",
+        label: "Bedroom 2",
+        position: [0, 0, 0],
+        target: [0, 0, 0],
+        embeddedIndex: 4,
+      },
+      {
+        id: "theater",
+        label: "Theater Room",
+        position: [0, 0, 0],
+        target: [0, 0, 0],
+        embeddedIndex: 5,
+      },
+      {
+        id: "garage",
+        label: "Garage",
+        position: [0, 0, 0],
+        target: [0, 0, 0],
+        embeddedIndex: 6,
+      },
+      {
+        id: "office",
+        label: "Office",
+        position: [0, 0, 0],
+        target: [0, 0, 0],
+        embeddedIndex: 7,
+      },
+    ],
     galleryImages: [pe1, pe2, pe3, pe4],
   },
   {

@@ -1,137 +1,84 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import Image from "next/image";
-import { useState } from "react";
-import ex1 from "@/assets/images/project-one/exterior-concept/EXTERIOR-1.webp";
-import ex2 from "@/assets/images/project-one/exterior-concept/EXTERIOR-2.webp";
-import site1 from "@/assets/images/project-one/site-view/SITE-1.webp";
-import pe1 from "@/assets/images/project-two/exterior-concept/1.webp";
-import pe2 from "@/assets/images/project-two/exterior-concept/2.webp";
-import pe3 from "@/assets/images/project-two/exterior-concept/3.webp";
-import pe4 from "@/assets/images/project-two/exterior-concept/4.webp";
+import { Minus, Plus } from "lucide-react";
+import { motion } from "motion/react";
+import { useCallback, useRef, useState } from "react";
 import { BlueprintGrid } from "@/components/blueprint-grid";
 import { MagneticButton } from "@/components/magnetic-button";
-import { PageHero } from "@/components/page-hero";
-import { type Project, ProjectCard } from "@/components/project-card";
-
-const projects: Project[] = [
-  {
-    slug: "sustainable-family-home",
-    title: "Sustainable Family Home",
-    description:
-      "A modern farmhouse concept designed for sustainable family living. This 2-bedroom, 2-bathroom home features a spacious layout, including a large garage and patio, that thoughtfully integrates classic design with modern, eco-friendly efficiencies and materials.",
-    status: "completed",
-    tags: ["Residential", "Modern Farmhouse", "2BR/2BA", "Eco-Friendly"],
-    coverImage: pe1,
-  },
-  {
-    slug: "hobbie-farm",
-    title: "Hobbie Farm Project",
-    description:
-      "A small, space-efficient housing concept designed as a foundation for sustainable living. This prototype serves as a starting point, with plans to integrate eco-friendly features and innovations during the building process.",
-    status: "completed",
-    tags: ["Prototype", "Space-Efficient", "Sustainable Tech"],
-    coverImage: ex1,
-  },
-];
-
-const galleryImages = {
-  "sustainable-family-home": [pe1, pe2, pe3, pe4],
-  "hobbie-farm": [ex1, ex2, site1],
-};
+import { CameraControlsUI } from "@/components/projects/CameraControlsUI";
+import type { Project3DViewerRef } from "@/components/projects/Project3DViewer";
+import { ProjectDetails } from "@/components/projects/ProjectDetails";
+import { ProjectHero } from "@/components/projects/ProjectHero";
+import { ProjectInfoOverlay } from "@/components/projects/ProjectInfoOverlay";
+import { ProjectSelector } from "@/components/projects/ProjectSelector";
+import { type Project, projects } from "@/lib/data/projects";
 
 export default function ProjectsPage() {
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [activeProject, setActiveProject] = useState<Project>(projects[0]);
+  const [activeCameraIndex, setActiveCameraIndex] = useState(-1);
+  const viewerRef = useRef<Project3DViewerRef>(null);
 
-  const handleProjectClick = (slug: string) => {
-    setSelectedProject(slug);
-    setSelectedImageIndex(0);
-  };
+  const handleProjectChange = useCallback((project: Project) => {
+    setActiveProject(project);
+    setActiveCameraIndex(-1);
+  }, []);
 
-  const handleCloseModal = () => {
-    setSelectedProject(null);
-  };
+  const handleCameraSelect = useCallback((index: number) => {
+    setActiveCameraIndex(index);
+    viewerRef.current?.setCamera(index);
+  }, []);
 
-  const currentGallery = selectedProject
-    ? galleryImages[selectedProject as keyof typeof galleryImages]
-    : [];
+  const handleCameraReset = useCallback(() => {
+    setActiveCameraIndex(-1);
+    viewerRef.current?.resetCamera();
+  }, []);
 
   return (
     <div className="bg-sbi-dark text-white">
-      <PageHero
-        label="Our Work"
-        title="Projects"
-        subtitle="Professional-grade sustainable building solutions designed and executed by our interdisciplinary team."
-      />
+      <ProjectHero project={activeProject} viewerRef={viewerRef}>
+        <ProjectSelector
+          projects={projects}
+          activeProject={activeProject}
+          onProjectChange={handleProjectChange}
+        />
 
-      <section className="relative py-32 md:py-48 overflow-hidden">
-        <BlueprintGrid />
-        <div className="relative z-10 max-w-7xl mx-auto px-8 md:px-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            viewport={{ once: true }}
-            className="mb-16"
-          >
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-px bg-sbi-green" />
-              <span className="text-xs tracking-[0.3em] uppercase text-sbi-green">
-                Featured
-              </span>
-            </div>
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-light tracking-tight">
-              Latest Project
-            </h2>
-          </motion.div>
+        <ProjectInfoOverlay project={activeProject} />
 
-          <ProjectCard
-            project={projects[0]}
-            index={0}
-            featured
-            onClick={() => handleProjectClick(projects[0].slug)}
-          />
-        </div>
-      </section>
+        <CameraControlsUI
+          presets={activeProject.cameraPresets}
+          activeIndex={activeCameraIndex}
+          onPresetSelect={handleCameraSelect}
+          onReset={handleCameraReset}
+        />
 
-      <section className="relative py-32 md:py-48 overflow-hidden">
-        <BlueprintGrid />
-        <div className="relative z-10 max-w-7xl mx-auto px-8 md:px-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            viewport={{ once: true }}
-            className="mb-16"
-          >
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-px bg-sbi-green" />
-              <span className="text-xs tracking-[0.3em] uppercase text-sbi-green">
-                Portfolio
-              </span>
-            </div>
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-light tracking-tight">
-              All Projects
-            </h2>
-            <p className="mt-4 text-sbi-muted max-w-xl">
-              Explore our complete portfolio of sustainable building projects.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {projects.map((project, index) => (
-              <ProjectCard
-                key={project.slug}
-                project={project}
-                index={index}
-                onClick={() => handleProjectClick(project.slug)}
-              />
-            ))}
+        <div className="absolute bottom-6 right-6 z-20">
+          <div className="flex flex-col gap-1 bg-sbi-dark/60 backdrop-blur-md rounded-lg border border-sbi-dark-border p-1">
+            <button
+              type="button"
+              onClick={() => viewerRef.current?.zoomIn()}
+              className="p-2 hover:bg-white/10 rounded transition-colors text-white/80 hover:text-white"
+              aria-label="Zoom in"
+            >
+              <Plus size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => viewerRef.current?.zoomOut()}
+              className="p-2 hover:bg-white/10 rounded transition-colors text-white/80 hover:text-white"
+              aria-label="Zoom out"
+            >
+              <Minus size={16} />
+            </button>
           </div>
         </div>
-      </section>
+      </ProjectHero>
+
+      <div id="project-details" />
+      <ProjectDetails
+        project={activeProject}
+        projects={projects}
+        onProjectChange={handleProjectChange}
+      />
 
       <section className="relative py-32 border-t border-sbi-dark-border">
         <BlueprintGrid />
@@ -179,84 +126,6 @@ export default function ProjectsPage() {
           </motion.div>
         </div>
       </section>
-
-      <AnimatePresence>
-        {selectedProject && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8"
-            onClick={handleCloseModal}
-          >
-            <div className="absolute inset-0 bg-sbi-dark/95 backdrop-blur-sm" />
-
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="relative max-w-5xl w-full max-h-[90vh] overflow-auto bg-sbi-dark-card border border-sbi-dark-border"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center border border-sbi-dark-border hover:border-sbi-green/30 bg-sbi-dark transition-colors"
-              >
-                <span className="text-white text-xl">×</span>
-              </button>
-
-              <div className="aspect-[16/10] relative">
-                <Image
-                  src={currentGallery[selectedImageIndex]}
-                  alt="Project image"
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 1280px) 100vw, 1280px"
-                />
-              </div>
-
-              {currentGallery.length > 1 && (
-                <div className="p-4 flex gap-2 overflow-x-auto">
-                  {currentGallery.map((img, index) => (
-                    <button
-                      key={img.src}
-                      type="button"
-                      onClick={() => setSelectedImageIndex(index)}
-                      className={`relative w-20 h-16 flex-shrink-0 overflow-hidden border-2 transition-colors ${
-                        index === selectedImageIndex
-                          ? "border-sbi-green"
-                          : "border-sbi-dark-border hover:border-sbi-green/50"
-                      }`}
-                    >
-                      <Image
-                        src={img}
-                        alt={`Thumbnail ${index + 1}`}
-                        fill
-                        className="object-cover"
-                        sizes="80px"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="p-6 border-t border-sbi-dark-border">
-                <h3 className="text-2xl font-light text-white mb-2">
-                  {projects.find((p) => p.slug === selectedProject)?.title}
-                </h3>
-                <p className="text-sbi-muted">
-                  {
-                    projects.find((p) => p.slug === selectedProject)
-                      ?.description
-                  }
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

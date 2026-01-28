@@ -3,8 +3,10 @@
 import { motion } from "motion/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import type React from "react";
 import { useCallback, useRef, useState } from "react";
 import type { Project } from "@/lib/data/projects";
+import { cn } from "@/lib/utils";
 import type { Project3DViewerRef } from "./Project3DViewer";
 import { TransitionOverlay } from "./TransitionOverlay";
 
@@ -15,19 +17,18 @@ const Project3DViewer = dynamic(
 
 interface ProjectHeroProps {
   project: Project;
-  onProjectChange?: (project: Project) => void;
+  viewerRef?: React.RefObject<Project3DViewerRef | null>;
   children?: React.ReactNode;
 }
 
 export function ProjectHero({
   project,
-  onProjectChange,
+  viewerRef,
   children,
 }: ProjectHeroProps) {
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isTransitioning, _setIsTransitioning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
-  const viewerRef = useRef<Project3DViewerRef>(null);
 
   const handleLoadProgress = useCallback((percent: number) => {
     setLoadProgress(percent);
@@ -37,7 +38,7 @@ export function ProjectHero({
   }, []);
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-sbi-dark">
+    <div className="relative w-full h-[calc(100vh-80px)] mt-20 overflow-hidden bg-sbi-dark">
       {/* Loading progress bar */}
       {isLoading && project.has3D && (
         <div className="absolute top-0 left-0 right-0 z-30 h-1 bg-sbi-dark-border">
@@ -53,7 +54,7 @@ export function ProjectHero({
       {/* 3D Viewer or Parallax Image */}
       {project.has3D && project.modelUrl ? (
         <Project3DViewer
-          ref={viewerRef}
+          ref={viewerRef as React.RefObject<Project3DViewerRef>}
           modelUrl={project.modelUrl}
           cameraPresets={project.cameraPresets}
           autoRotate={true}

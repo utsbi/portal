@@ -10,9 +10,9 @@ const statusLabels = {
 };
 
 const statusColors = {
-  completed: "bg-sbi-green/20 text-sbi-green",
-  "in-progress": "bg-amber-500/20 text-amber-400",
-  concept: "bg-blue-500/20 text-blue-400",
+  completed: "bg-sbi-green/20 text-sbi-green border-sbi-green/30",
+  "in-progress": "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  concept: "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
 
 interface ProjectInfoOverlayProps {
@@ -20,41 +20,50 @@ interface ProjectInfoOverlayProps {
 }
 
 export function ProjectInfoOverlay({ project }: ProjectInfoOverlayProps) {
+  const handleScrollToDetails = () => {
+    document
+      .getElementById("project-details")
+      ?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
-    <div className="absolute bottom-0 left-0 p-6 md:p-8 z-20 max-w-md md:max-w-lg">
+    <div className="absolute bottom-0 left-0 p-6 md:p-8 z-20">
       <motion.div
         key={project.slug}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-sbi-dark/80 backdrop-blur-md p-6 rounded-lg border border-sbi-dark-border"
+        className="bg-sbi-dark/80 backdrop-blur-md px-5 py-4 rounded-lg border border-sbi-dark-border"
       >
-        <div className="flex items-center gap-3 mb-4">
-          <span
-            className={`px-3 py-1 text-xs tracking-wider uppercase ${statusColors[project.status]}`}
-          >
-            {statusLabels[project.status]}
-          </span>
-        </div>
-
-        <h3 className="text-xl md:text-2xl lg:text-3xl font-light text-white mb-3 tracking-tight">
+        <h3 className="text-xl md:text-2xl font-light text-white tracking-tight mb-2">
           {project.title}
         </h3>
 
-        <p className="text-sbi-muted leading-relaxed mb-4 line-clamp-2 md:line-clamp-3 text-sm md:text-base">
-          {project.description}
-        </p>
+        <div className="flex items-center justify-between gap-4">
+          <span
+            className={`inline-block px-3 py-1 text-xs tracking-wider uppercase border ${statusColors[project.status]}`}
+          >
+            {statusLabels[project.status]}
+          </span>
 
-        <div className="flex flex-wrap gap-2">
-          {project.tags.slice(0, 4).map((tag) => (
-            <span
-              key={tag}
-              className="px-2 py-1 text-xs text-sbi-muted-dark border border-sbi-dark-border"
+          <button
+            type="button"
+            onClick={handleScrollToDetails}
+            className="flex items-center gap-2 text-white/50 hover:text-sbi-green transition-colors text-xs uppercase tracking-wider"
+          >
+            <span>Details</span>
+            <motion.span
+              animate={{ y: [0, 2, 0] }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
             >
-              {tag}
-            </span>
-          ))}
+              ↓
+            </motion.span>
+          </button>
         </div>
       </motion.div>
     </div>
