@@ -2,10 +2,19 @@
 
 import { shaderMaterial, useTexture } from "@react-three/drei";
 import { extend, useFrame } from "@react-three/fiber";
-import { forwardRef, Suspense, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import {
+  forwardRef,
+  Suspense,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from "react";
 import * as THREE from "three";
 
 export type GlobeStyle = "wireframe" | "dotted" | "earth";
+
+const DEFAULT_SUN_DIRECTION = new THREE.Vector3(1, 0.2, 0.5).normalize();
 
 export interface GlobeRef {
   group: THREE.Group | null;
@@ -17,8 +26,13 @@ interface GlobeProps {
   autoRotate?: boolean;
   rotationSpeed?: number;
   initialRotation?: number;
+  sunDirection?: THREE.Vector3;
   children?: React.ReactNode;
 }
+
+// ---------------------------------------------------------------------------
+// Wireframe style (unchanged)
+// ---------------------------------------------------------------------------
 
 const WireframeGlobeMaterial = shaderMaterial(
   {
@@ -27,41 +41,45 @@ const WireframeGlobeMaterial = shaderMaterial(
     uGridSize: 12.0,
     uLineWidth: 0.015,
   },
-  `
+  /* glsl */ `
     varying vec2 vUv;
     varying vec3 vNormal;
-    
+
     void main() {
       vUv = uv;
       vNormal = normalize(normalMatrix * normal);
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
-  `
+  /* glsl */ `
     uniform vec3 uColor;
     uniform float uOpacity;
     uniform float uGridSize;
     uniform float uLineWidth;
-    
+
     varying vec2 vUv;
     varying vec3 vNormal;
-    
+
     void main() {
       float lat = fract(vUv.y * uGridSize);
       float lng = fract(vUv.x * uGridSize * 2.0);
-      
+
       float latLine = smoothstep(uLineWidth, 0.0, lat) + smoothstep(1.0 - uLineWidth, 1.0, lat);
       float lngLine = smoothstep(uLineWidth, 0.0, lng) + smoothstep(1.0 - uLineWidth, 1.0, lng);
-      
+
       float grid = max(latLine, lngLine);
-      
+
       float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.0);
       float finalOpacity = grid * uOpacity + fresnel * 0.05;
-      
+
       gl_FragColor = vec4(uColor, finalOpacity);
     }
   `,
 );
+
+// ---------------------------------------------------------------------------
+// Dotted style (unchanged)
+// ---------------------------------------------------------------------------
 
 const DottedGlobeMaterial = shaderMaterial(
   {
@@ -70,83 +88,170 @@ const DottedGlobeMaterial = shaderMaterial(
     uDotSize: 40.0,
     uDotSpacing: 0.08,
   },
-  `
+  /* glsl */ `
     varying vec2 vUv;
     varying vec3 vNormal;
-    
+
     void main() {
       vUv = uv;
       vNormal = normalize(normalMatrix * normal);
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
-  `
+  /* glsl */ `
     uniform vec3 uColor;
     uniform float uOpacity;
     uniform float uDotSize;
     uniform float uDotSpacing;
-    
+
     varying vec2 vUv;
     varying vec3 vNormal;
-    
+
     void main() {
       vec2 gridUv = vUv * uDotSize;
       vec2 gridFract = fract(gridUv);
-      
+
       float dist = length(gridFract - 0.5);
       float dotPattern = 1.0 - smoothstep(uDotSpacing - 0.02, uDotSpacing, dist);
-      
+
       float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 1.5);
       float finalOpacity = dotPattern * uOpacity * (0.5 + fresnel * 0.5);
-      
+
       gl_FragColor = vec4(uColor, finalOpacity);
     }
   `,
 );
 
-extend({ WireframeGlobeMaterial, DottedGlobeMaterial });
+// ---------------------------------------------------------------------------
+// Earth shader material — day/night, city lights, clouds, bump, atmosphere rim
+// ---------------------------------------------------------------------------
 
-// Local high-resolution textures
-const EARTH_TEXTURE_URL = "/textures/world.200401.3x5400x2700.jpg";
-// Cloud texture - add to public/textures/ when available
-const CLOUD_TEXTURE_URL = "/textures/8k_earth_clouds.jpg"
-// "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_clouds_2048.png";
+const EarthSurfaceMaterial = shaderMaterial(
+  {
+    uDayTexture: null as THREE.Texture | null,
+    uNightTexture: null as THREE.Texture | null,
+    uBumpTexture: null as THREE.Texture | null,
+    uCloudTexture: null as THREE.Texture | null,
+    uSunDirection: new THREE.Vector3(1, 0.2, 0.5).normalize(),
+    uAtmosphereDayColor: new THREE.Color("#4db2ff"),
+    uAtmosphereTwilightColor: new THREE.Color("#bc490b"),
+    uBumpStrength: 0.015,
+    uCloudTime: 0.0,
+  },
+  // --- Vertex ---
+  /* glsl */ `
+    varying vec2 vUv;
+    varying vec3 vNormalWorld;
+    varying vec3 vPositionWorld;
 
-function EarthMaterial() {
-  const texture = useTexture(EARTH_TEXTURE_URL);
-
-  return (
-    <meshStandardMaterial
-      map={texture}
-      roughness={0.8}
-      metalness={0.0}
-    />
-  );
-}
-
-function CloudLayer({ radius }: { radius: number }) {
-  const cloudTexture = useTexture(CLOUD_TEXTURE_URL);
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  // Rotate clouds slightly faster than the earth for realism
-  useFrame(() => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.00012;
+    void main() {
+      vUv = uv;
+      vNormalWorld = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+      vec4 worldPos = modelMatrix * vec4(position, 1.0);
+      vPositionWorld = worldPos.xyz;
+      gl_Position = projectionMatrix * viewMatrix * worldPos;
     }
-  });
+  `,
+  // --- Fragment ---
+  /* glsl */ `
+    uniform sampler2D uDayTexture;
+    uniform sampler2D uNightTexture;
+    uniform sampler2D uBumpTexture;
+    uniform sampler2D uCloudTexture;
+    uniform vec3 uSunDirection;
+    uniform vec3 uAtmosphereDayColor;
+    uniform vec3 uAtmosphereTwilightColor;
+    uniform float uBumpStrength;
+    uniform float uCloudTime;
 
-  return (
-    <mesh ref={meshRef}>
-      <sphereGeometry args={[radius * 1.012, 64, 64]} />
-      <meshStandardMaterial
-        map={cloudTexture}
-        transparent
-        opacity={0.35}
-        depthWrite={false}
-      />
-    </mesh>
-  );
-}
+    varying vec2 vUv;
+    varying vec3 vNormalWorld;
+    varying vec3 vPositionWorld;
+
+    float smoothRange(float value, float edge0, float edge1) {
+      float t = clamp((value - edge0) / (edge1 - edge0), 0.0, 1.0);
+      return t * t * (3.0 - 2.0 * t);
+    }
+
+    vec3 perturbNormal(vec3 N) {
+      vec2 texelSize = vec2(1.0) / vec2(textureSize(uBumpTexture, 0));
+      float hL = texture2D(uBumpTexture, vUv + vec2(-texelSize.x, 0.0)).r;
+      float hR = texture2D(uBumpTexture, vUv + vec2( texelSize.x, 0.0)).r;
+      float hD = texture2D(uBumpTexture, vUv + vec2(0.0, -texelSize.y)).r;
+      float hU = texture2D(uBumpTexture, vUv + vec2(0.0,  texelSize.y)).r;
+
+      vec3 dPdx = dFdx(vPositionWorld);
+      vec3 dPdy = dFdy(vPositionWorld);
+      vec3 T = normalize(dPdx);
+      vec3 B = normalize(cross(N, T));
+
+      return normalize(N + (hL - hR) * uBumpStrength * T + (hD - hU) * uBumpStrength * B);
+    }
+
+    void main() {
+      vec3 N = normalize(vNormalWorld);
+      N = perturbNormal(N);
+
+      vec3 sunDir = normalize(uSunDirection);
+
+      // Sun orientation & day/night strength
+      float sunOrientation = dot(N, sunDir);
+      float dayStrength = smoothRange(sunOrientation, -0.25, 0.5);
+
+      // Fresnel for atmospheric rim — use geometric normal to avoid bump noise on rim
+      vec3 viewDir = normalize(vPositionWorld - cameraPosition);
+      float fresnel = 1.0 - abs(dot(viewDir, normalize(vNormalWorld)));
+
+      // Atmosphere overlay color
+      vec3 atmosphereColor = mix(
+        uAtmosphereTwilightColor,
+        uAtmosphereDayColor,
+        smoothRange(sunOrientation, -0.25, 0.75)
+      );
+      float atmosphereDayStrength = smoothRange(sunOrientation, -0.5, 1.0);
+      float atmosphereMix = clamp(atmosphereDayStrength * pow(fresnel, 2.0), 0.0, 1.0);
+
+      // Clouds (scrolling UV)
+      vec2 cloudUv = vUv + vec2(uCloudTime, 0.0);
+      float cloudsStrength = smoothstep(0.2, 1.0, texture2D(uCloudTexture, cloudUv).r);
+
+      // Day surface: earth texture + cloud overlay
+      vec3 dayColor = texture2D(uDayTexture, vUv).rgb;
+      dayColor = mix(dayColor, vec3(1.0), cloudsStrength * 0.6);
+
+      // Lambertian diffuse
+      float diffuse = max(dot(N, sunDir), 0.0);
+      vec3 litDay = dayColor * (0.08 + 0.92 * diffuse);
+
+      // Night surface: city lights, dimmed by clouds
+      vec3 nightColor = texture2D(uNightTexture, vUv).rgb;
+      nightColor *= (1.0 - cloudsStrength * 0.8);
+
+      // Blend day/night
+      vec3 surfaceColor = mix(nightColor, litDay, dayStrength);
+
+      // Apply atmosphere rim
+      vec3 finalColor = mix(surfaceColor, atmosphereColor, atmosphereMix);
+
+      gl_FragColor = vec4(finalColor, 1.0);
+    }
+  `,
+);
+
+extend({ WireframeGlobeMaterial, DottedGlobeMaterial, EarthSurfaceMaterial });
+
+// ---------------------------------------------------------------------------
+// Texture paths
+// ---------------------------------------------------------------------------
+
+const DAY_TEXTURE_URL = "/textures/world.200401.3x5400x2700.jpg";
+const NIGHT_TEXTURE_URL = "/textures/8k_earth_nightmap.jpg";
+const CLOUD_TEXTURE_URL = "/textures/8k_earth_clouds.jpg";
+const BUMP_TEXTURE_URL = "/textures/earth_bump.jpg";
+
+// ---------------------------------------------------------------------------
+// R3F type augmentation
+// ---------------------------------------------------------------------------
 
 declare module "@react-three/fiber" {
   interface ThreeElements {
@@ -162,8 +267,67 @@ declare module "@react-three/fiber" {
       uDotSize?: number;
       uDotSpacing?: number;
     };
+    earthSurfaceMaterial: React.JSX.IntrinsicElements["shaderMaterial"] & {
+      uDayTexture?: THREE.Texture | null;
+      uNightTexture?: THREE.Texture | null;
+      uBumpTexture?: THREE.Texture | null;
+      uCloudTexture?: THREE.Texture | null;
+      uSunDirection?: THREE.Vector3;
+      uAtmosphereDayColor?: THREE.Color;
+      uAtmosphereTwilightColor?: THREE.Color;
+      uBumpStrength?: number;
+      uCloudTime?: number;
+    };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Earth material component — loads 4 textures, animates cloud UV
+// ---------------------------------------------------------------------------
+
+function EarthMaterial({
+  sunDirection,
+}: {
+  sunDirection: THREE.Vector3;
+}) {
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+  const [dayTex, nightTex, cloudTex, bumpTex] = useTexture(
+    [DAY_TEXTURE_URL, NIGHT_TEXTURE_URL, CLOUD_TEXTURE_URL, BUMP_TEXTURE_URL],
+    (textures) => {
+      const [day, night, cloud, bump] = textures as THREE.Texture[];
+      day.colorSpace = THREE.SRGBColorSpace;
+      day.anisotropy = 8;
+      night.colorSpace = THREE.SRGBColorSpace;
+      night.anisotropy = 8;
+      cloud.anisotropy = 4;
+      cloud.wrapS = THREE.RepeatWrapping;
+      bump.anisotropy = 4;
+    },
+  );
+
+  // Animate cloud UV offset
+  useFrame((_, delta) => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uCloudTime.value += delta * 0.003;
+    }
+  });
+
+  return (
+    <earthSurfaceMaterial
+      ref={materialRef}
+      uDayTexture={dayTex}
+      uNightTexture={nightTex}
+      uCloudTexture={cloudTex}
+      uBumpTexture={bumpTex}
+      uSunDirection={sunDirection}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Globe component
+// ---------------------------------------------------------------------------
 
 export const Globe = forwardRef<GlobeRef, GlobeProps>(function Globe(
   {
@@ -172,6 +336,7 @@ export const Globe = forwardRef<GlobeRef, GlobeProps>(function Globe(
     autoRotate = true,
     rotationSpeed = 0.001,
     initialRotation = 0,
+    sunDirection = DEFAULT_SUN_DIRECTION,
     children,
   },
   ref,
@@ -188,7 +353,6 @@ export const Globe = forwardRef<GlobeRef, GlobeProps>(function Globe(
     [radius],
   );
 
-  // Dispose geometry on unmount or when radius changes
   useEffect(() => {
     return () => {
       geometry.dispose();
@@ -229,18 +393,15 @@ export const Globe = forwardRef<GlobeRef, GlobeProps>(function Globe(
         );
       case "earth":
       default:
-        return <EarthMaterial />;
+        return <EarthMaterial sunDirection={sunDirection} />;
     }
   };
 
   return (
     <group ref={groupRef}>
-      <mesh geometry={geometry}>{renderMaterial()}</mesh>
-      {style === "earth" && (
-        <Suspense fallback={null}>
-          <CloudLayer radius={radius} />
-        </Suspense>
-      )}
+      <Suspense fallback={null}>
+        <mesh geometry={geometry}>{renderMaterial()}</mesh>
+      </Suspense>
       {children}
     </group>
   );

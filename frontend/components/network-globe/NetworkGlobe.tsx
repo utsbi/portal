@@ -3,7 +3,7 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { motion } from "motion/react";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ConnectionArcs } from "./ConnectionArcs";
@@ -17,6 +17,7 @@ import {
 import { Globe } from "./Globe";
 import { GlobeAtmosphere } from "./GlobeAtmosphere";
 import { LocationMarkers } from "./LocationMarker";
+import { Stars } from "./Stars";
 
 interface NetworkGlobeProps {
   className?: string;
@@ -88,20 +89,19 @@ function GlobeScene({
     };
   }, []);
 
+  // Static sun direction — lit side faces roughly toward the camera
+  const sunDirection = useMemo(
+    () => new THREE.Vector3(1, 0.2, 0.5).normalize(),
+    [],
+  );
+
   return (
     <>
       {/* Offset camera view to position globe bottom-right */}
       <CameraViewOffset />
 
-      {/* Natural lighting */}
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[5, 3, 5]} intensity={2.5} color="#ffffff" />
-      <directionalLight
-        position={[-5, -3, -5]}
-        intensity={0.4}
-        color="#4488ff"
-      />
-      <pointLight position={[0, 10, 0]} intensity={0.5} color="#ffffff" />
+      {/* Stars background */}
+      <Stars count={2000} radius={25} />
 
       {/* Globe at origin - view offset handles screen positioning */}
       <group position={[0, 0, 0]}>
@@ -111,6 +111,7 @@ function GlobeScene({
           autoRotate={autoRotate}
           rotationSpeed={0.0006}
           initialRotation={0.15}
+          sunDirection={sunDirection}
         >
           <LocationMarkers
             locations={ALL_LOCATIONS}
@@ -123,7 +124,10 @@ function GlobeScene({
             globeRadius={GLOBE_RADIUS}
           />
         </Globe>
-        <GlobeAtmosphere radius={GLOBE_RADIUS} intensity={0.25} color="#66aaff" />
+        <GlobeAtmosphere
+          radius={GLOBE_RADIUS}
+          sunDirection={sunDirection}
+        />
       </group>
 
       <OrbitControls
