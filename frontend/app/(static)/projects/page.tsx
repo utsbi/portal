@@ -51,7 +51,7 @@ export default function ProjectsPage() {
           onReset={handleCameraReset}
         />
 
-        <div className="absolute bottom-6 right-6 z-20">
+        <div className="absolute bottom-6 right-6 z-20 hidden md:block">
           <div className="flex flex-col gap-1 bg-sbi-dark/60 backdrop-blur-md rounded-lg border border-sbi-dark-border p-1">
             <button
               type="button"
@@ -73,7 +73,6 @@ export default function ProjectsPage() {
         </div>
       </ProjectHero>
 
-      <div id="project-details" />
       <ProjectDetails
         project={activeProject}
         projects={projects}

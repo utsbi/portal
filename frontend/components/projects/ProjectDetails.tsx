@@ -26,6 +26,11 @@ export function ProjectDetails({
     null,
   );
 
+  // Reset gallery selection when project changes
+  useEffect(() => {
+    setSelectedImageIndex(null);
+  }, [project.slug]);
+
   // Handle escape key to close modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -48,7 +53,10 @@ export function ProjectDetails({
   const handleCloseModal = () => setSelectedImageIndex(null);
 
   return (
-    <section className="relative py-20 md:py-32 overflow-hidden bg-sbi-dark border-t border-sbi-dark-border">
+    <section
+      id="project-details"
+      className="scroll-mt-20 relative py-20 md:py-32 overflow-hidden bg-sbi-dark border-t border-sbi-dark-border"
+    >
       <div className="relative z-10 max-w-7xl mx-auto px-8 md:px-16">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -156,7 +164,7 @@ export function ProjectDetails({
               <h4 className="text-sm text-sbi-muted uppercase tracking-wider mb-3">
                 Other Projects
               </h4>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 max-w-xs lg:max-w-none">
                 {projects
                   .filter((p) => p.slug !== project.slug)
                   .map((p) => (
@@ -164,7 +172,7 @@ export function ProjectDetails({
                       key={p.slug}
                       type="button"
                       onClick={() => onProjectChange(p)}
-                      className="text-left px-3 py-3 rounded border border-sbi-dark-border hover:border-sbi-green/50 hover:bg-sbi-dark-card transition-colors w-full"
+                      className="text-left px-3 py-3 rounded border border-sbi-dark-border hover:border-sbi-green/50 hover:bg-sbi-dark-card transition-colors"
                     >
                       <span className="text-white text-sm">{p.title}</span>
                     </button>

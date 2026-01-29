@@ -17,46 +17,46 @@ export function CameraControlsUI({
   onPresetSelect,
   onReset,
 }: CameraControlsUIProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node)
       ) {
-        setIsExpanded(false);
+        setIsPopoverOpen(false);
       }
     }
-    if (isExpanded) {
+    if (isPopoverOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isExpanded]);
+  }, [isPopoverOpen]);
 
   if (!presets || presets.length === 0) {
     return null;
   }
 
-  const shouldCollapse = presets.length > 4;
+  const canExpand = presets.length <= 4;
   const activePreset = activeIndex >= 0 ? presets[activeIndex] : null;
 
   return (
-    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 p-6 md:p-8 z-20 pointer-events-none">
+    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 p-4 md:p-8 z-20 pointer-events-none">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, duration: 0.4 }}
-        className="flex gap-2 pointer-events-auto items-end"
-        ref={containerRef}
+        className="pointer-events-auto"
       >
-        {shouldCollapse ? (
+        {/* Popover layout: always on mobile; on desktop only for >4 presets */}
+        <div className={cn(canExpand && "lg:hidden")} ref={popoverRef}>
           <div className="relative flex flex-col items-center gap-2">
             <AnimatePresence>
-              {isExpanded && (
+              {isPopoverOpen && (
                 <motion.div
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -71,7 +71,7 @@ export function CameraControlsUI({
                         type="button"
                         onClick={() => {
                           onPresetSelect(index);
-                          setIsExpanded(false);
+                          setIsPopoverOpen(false);
                         }}
                         className={cn(
                           "px-3 py-2 text-left text-sm rounded-md transition-colors w-full flex items-center justify-between group",
@@ -94,13 +94,13 @@ export function CameraControlsUI({
             <div className="flex gap-2 bg-sbi-dark/60 backdrop-blur-md rounded-lg border border-sbi-dark-border p-1">
               <button
                 type="button"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="px-3 py-2 rounded text-sm font-medium text-white hover:bg-white/10 transition-colors flex items-center gap-2 min-w-[140px] justify-between"
+                onClick={() => setIsPopoverOpen(!isPopoverOpen)}
+                className="px-2.5 py-1.5 md:px-3 md:py-2 rounded text-xs md:text-sm font-medium text-white hover:bg-white/10 transition-colors flex items-center gap-2 min-w-[110px] md:min-w-[140px] justify-between"
               >
                 <span className="truncate max-w-[120px]">
                   {activePreset ? activePreset.label : "Select View"}
                 </span>
-                {isExpanded ? (
+                {isPopoverOpen ? (
                   <ChevronDown size={14} />
                 ) : (
                   <ChevronUp size={14} />
@@ -119,8 +119,11 @@ export function CameraControlsUI({
               </button>
             </div>
           </div>
-        ) : (
-          <div className="flex gap-2 p-1 bg-sbi-dark/60 backdrop-blur-md rounded-lg border border-sbi-dark-border">
+        </div>
+
+        {/* Expanded bar: desktop only, for projects with <=4 presets */}
+        {canExpand && (
+          <div className="hidden lg:flex gap-2 p-1 bg-sbi-dark/60 backdrop-blur-md rounded-lg border border-sbi-dark-border">
             {presets.map((preset, index) => (
               <motion.button
                 key={preset.id}
@@ -129,7 +132,7 @@ export function CameraControlsUI({
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className={cn(
-                  "px-3 py-2 rounded text-xs font-medium whitespace-nowrap transition-colors",
+                  "px-2 py-1.5 md:px-3 md:py-2 rounded text-xs font-medium whitespace-nowrap transition-colors",
                   activeIndex === index
                     ? "bg-sbi-green text-sbi-dark"
                     : "text-white hover:bg-white/10",
@@ -146,7 +149,7 @@ export function CameraControlsUI({
               onClick={onReset}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="px-2 py-2 rounded text-sbi-muted hover:text-white hover:bg-white/10 transition-colors"
+              className="px-3 py-2 rounded text-sbi-muted hover:text-white hover:bg-white/10 transition-colors"
               title="Reset View"
             >
               <RotateCcw size={14} />

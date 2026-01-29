@@ -6,7 +6,6 @@ import Image from "next/image";
 import type React from "react";
 import { useCallback, useRef, useState } from "react";
 import type { Project } from "@/lib/data/projects";
-import { cn } from "@/lib/utils";
 import type { Project3DViewerRef } from "./Project3DViewer";
 import { TransitionOverlay } from "./TransitionOverlay";
 
@@ -38,7 +37,7 @@ export function ProjectHero({
   }, []);
 
   return (
-    <div className="relative w-full h-[calc(100vh-80px)] mt-20 overflow-hidden bg-sbi-dark">
+    <div className="relative w-full h-[calc(100dvh-80px)] mt-20 overflow-hidden bg-sbi-dark">
       {/* Loading progress bar */}
       {isLoading && project.has3D && (
         <div className="absolute top-0 left-0 right-0 z-30 h-1 bg-sbi-dark-border">
@@ -80,6 +79,9 @@ export function ProjectHero({
 
       {/* Transition Overlay */}
       <TransitionOverlay isVisible={isTransitioning} />
+
+      {/* Bottom gradient hint — signals content below */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-sbi-dark via-sbi-dark/30 to-transparent pointer-events-none z-10" />
 
       {/* Children (overlays) */}
       {children}
