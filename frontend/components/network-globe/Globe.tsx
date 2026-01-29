@@ -209,7 +209,7 @@ const EarthSurfaceMaterial = shaderMaterial(
         smoothRange(sunOrientation, -0.25, 0.75)
       );
       float atmosphereDayStrength = smoothRange(sunOrientation, -0.5, 1.0);
-      float atmosphereMix = clamp(atmosphereDayStrength * pow(fresnel, 2.0), 0.0, 1.0);
+      float atmosphereMix = clamp(atmosphereDayStrength * pow(fresnel, 4.0) * 0.15, 0.0, 1.0);
 
       // Clouds (scrolling UV)
       vec2 cloudUv = vUv + vec2(uCloudTime, 0.0);
@@ -221,11 +221,13 @@ const EarthSurfaceMaterial = shaderMaterial(
 
       // Lambertian diffuse
       float diffuse = max(dot(N, sunDir), 0.0);
-      vec3 litDay = dayColor * (0.08 + 0.92 * diffuse);
+      vec3 litDay = dayColor * (0.12 + 0.88 * diffuse);
 
-      // Night surface: city lights, dimmed by clouds
+      // Night surface: city lights, dimmed by clouds, plus ambient terrain
       vec3 nightColor = texture2D(uNightTexture, vUv).rgb;
       nightColor *= (1.0 - cloudsStrength * 0.8);
+      vec3 nightAmbient = texture2D(uDayTexture, vUv).rgb * 0.35;
+      nightColor = max(nightColor, nightAmbient);
 
       // Blend day/night
       vec3 surfaceColor = mix(nightColor, litDay, dayStrength);

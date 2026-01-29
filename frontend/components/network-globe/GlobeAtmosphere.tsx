@@ -50,7 +50,7 @@ const EarthAtmosphereMaterial = shaderMaterial(
       float edgeFactor = dot(viewDir, N);
 
       // Glow strongest at rim (edgeFactor → 0), invisible face-on (edgeFactor → 1)
-      float alpha = pow(clamp(1.0 - edgeFactor, 0.0, 1.0), 3.0);
+      float alpha = pow(clamp(1.0 - edgeFactor, 0.0, 1.0), 5.0) * 0.35;
 
       float sunOrientation = dot(N, normalize(uSunDirection));
 
