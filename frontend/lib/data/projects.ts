@@ -15,6 +15,16 @@ export interface CameraPreset {
   embeddedIndex?: number;
 }
 
+export interface CameraConfig {
+  position: [number, number, number];
+  target: [number, number, number];
+}
+
+export interface CameraLimits {
+  minDistance: number;
+  maxDistance: number;
+}
+
 export interface Project {
   slug: string;
   title: string;
@@ -25,6 +35,9 @@ export interface Project {
   modelUrl?: string;
   has3D: boolean;
   cameraPresets: CameraPreset[] | null;
+  defaultCamera?: CameraConfig;
+  cameraLimits?: CameraLimits;
+  modelScale?: number;
   galleryImages: StaticImageData[];
 }
 
@@ -39,6 +52,14 @@ export const projects: Project[] = [
     coverImage: pe1,
     modelUrl: "/models/family_home.glb",
     has3D: true,
+    defaultCamera: {
+      position: [6.5, 615, 1015],
+      target: [0, 0, 0],
+    },
+    cameraLimits: {
+      minDistance: 50,
+      maxDistance: 2000,
+    },
     cameraPresets: [
       {
         id: "living-1",
@@ -109,6 +130,15 @@ export const projects: Project[] = [
     coverImage: ex1,
     modelUrl: "/models/hobbie_farm.glb",
     has3D: true,
+    defaultCamera: {
+      position: [60, 40, 70],
+      target: [0, 10, 0],
+    },
+    cameraLimits: {
+      minDistance: 5,
+      maxDistance: 3000,
+    },
+    modelScale: 200,
     cameraPresets: [
       {
         id: "exterior-front",
