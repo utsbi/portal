@@ -123,7 +123,7 @@ export function QuestionnaireForm({
                                             className="bg-zinc-950/50 border-zinc-800 text-gray-100 placeholder:text-gray-500 focus-visible:ring-zinc-700"
                                         />
                                     )}
-                                    {field.description && field.type !== 'checkbox' && (
+                                    {field.description && (
                                         <p className="text-xs text-gray-500">
                                             {field.description}
                                         </p>
