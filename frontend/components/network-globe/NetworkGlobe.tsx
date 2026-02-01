@@ -27,29 +27,43 @@ interface NetworkGlobeProps {
 const GLOBE_RADIUS = 1;
 const AUTO_ROTATE_RESUME_DELAY_MS = 10000;
 
-// Offset the camera view to position globe in bottom-right
+// Responsive camera: offset and FOV adapt to screen size
 function CameraViewOffset() {
   const { camera, size } = useThree();
 
   useEffect(() => {
     if (camera instanceof THREE.PerspectiveCamera) {
-      // Offset: negative X shifts view right, negative Y shifts view down
-      const offsetX = -size.width * 0.25; // Shift right by 25%
-      const offsetY = size.height * -0.15; // Shift down by 15%
+      const isMobile = size.width < 768;
 
-      camera.setViewOffset(
-        size.width,
-        size.height,
-        offsetX,
-        offsetY,
-        size.width,
-        size.height
-      );
+      if (isMobile) {
+        // Mobile: center globe horizontally, shift up to clear bottom panel
+        camera.fov = 55;
+        camera.setViewOffset(
+          size.width,
+          size.height,
+          0,
+          size.height * 0.08,
+          size.width,
+          size.height,
+        );
+      } else {
+        // Desktop: position globe bottom-right, info panel on left
+        camera.fov = 50;
+        camera.setViewOffset(
+          size.width,
+          size.height,
+          -size.width * 0.25,
+          size.height * -0.15,
+          size.width,
+          size.height,
+        );
+      }
       camera.updateProjectionMatrix();
     }
 
     return () => {
       if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = 50;
         camera.clearViewOffset();
         camera.updateProjectionMatrix();
       }
@@ -61,12 +75,20 @@ function CameraViewOffset() {
 
 function GlobeScene({
   onHover,
+  onSelect,
+  selectedId,
+  onClickBackground,
 }: {
   onHover: (location: Location | null) => void;
+  onSelect: (location: Location) => void;
+  selectedId: string | undefined;
+  onClickBackground: () => void;
 }) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const [autoRotate, setAutoRotate] = useState(true);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { size } = useThree();
+  const isMobile = size.width < 768;
 
   const handleInteractionStart = useCallback(() => {
     setAutoRotate(false);
@@ -109,14 +131,17 @@ function GlobeScene({
           radius={GLOBE_RADIUS}
           style="earth"
           autoRotate={autoRotate}
-          rotationSpeed={0.0006}
+          rotationSpeed={isMobile ? 0.0002 : 0.0006}
           initialRotation={0.15}
           sunDirection={sunDirection}
+          onClickBackground={onClickBackground}
         >
           <LocationMarkers
             locations={ALL_LOCATIONS}
             globeRadius={GLOBE_RADIUS}
             onHover={onHover}
+            onSelect={onSelect}
+            selectedId={selectedId}
           />
           <ConnectionArcs
             hub={HUB_LOCATION}
@@ -138,7 +163,7 @@ function GlobeScene({
         maxDistance={2.2}
         minPolarAngle={Math.PI * 0.25}
         maxPolarAngle={Math.PI * 0.75}
-        rotateSpeed={0.4}
+        rotateSpeed={isMobile ? 0.2 : 0.4}
         target={[0, 0, 0]}
         onStart={handleInteractionStart}
         onEnd={handleInteractionEnd}
@@ -268,6 +293,12 @@ export function NetworkGlobe({
   onLocationHover,
 }: NetworkGlobeProps) {
   const [hoveredLocation, setHoveredLocation] = useState<Location | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(
+    null,
+  );
+
+  // Display priority: hover (transient) > selected (sticky)
+  const displayedLocation = hoveredLocation ?? selectedLocation;
 
   const handleHover = useCallback(
     (location: Location | null) => {
@@ -277,18 +308,53 @@ export function NetworkGlobe({
     [onLocationHover],
   );
 
+  const handleSelect = useCallback(
+    (location: Location) => {
+      setSelectedLocation((prev) =>
+        prev?.id === location.id ? null : location,
+      );
+      onLocationHover?.(location);
+    },
+    [onLocationHover],
+  );
+
+  const handleClickBackground = useCallback(() => {
+    setSelectedLocation(null);
+  }, []);
+
   return (
     <div
       className={`relative w-full h-full min-h-[80vh] md:min-h-screen bg-sbi-dark ${className}`}
     >
-      {/* Subtle gradient overlay - lighter to preserve arc/marker visibility */}
-      <div className="absolute inset-0 bg-linear-to-r from-sbi-dark/90 via-sbi-dark/40 to-transparent z-10 pointer-events-none" />
+      {/* Gradient overlay — desktop: left-to-right for side panel; mobile: bottom-to-top for bottom panel */}
+      <div className="hidden md:block absolute inset-0 bg-linear-to-r from-sbi-dark/90 via-sbi-dark/40 to-transparent z-10 pointer-events-none" />
+      <div className="md:hidden absolute inset-0 bg-linear-to-t from-sbi-dark/80 via-transparent to-transparent z-10 pointer-events-none" />
 
-      {/* Mouse interaction blocker - left 1/3 of screen */}
-      <div className="absolute inset-y-0 left-0 w-1/3 z-15 pointer-events-auto" />
+      {/* Mouse interaction blocker — desktop only, left 1/3 behind info panel */}
+      <div className="hidden md:block absolute inset-y-0 left-0 w-1/3 z-15 pointer-events-auto" />
 
-      {/* Floating info panel - left side */}
-      <FloatingInfoPanel hoveredLocation={hoveredLocation} />
+      {/* Floating info panel — desktop only (mobile uses bottom panel) */}
+      <div className="hidden md:block">
+        <FloatingInfoPanel hoveredLocation={displayedLocation} />
+      </div>
+
+      {/* Mobile context header */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.3 }}
+        className="md:hidden absolute top-6 left-4 right-4 z-20"
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-6 h-px bg-sbi-green" />
+          <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-green">
+            Outreach
+          </span>
+        </div>
+        <h2 className="text-2xl font-light tracking-tight text-white">
+          Our Global <span className="italic text-sbi-green">Network</span>
+        </h2>
+      </motion.div>
 
       {/* Globe canvas - full viewport */}
       <div className="absolute inset-0">
@@ -303,7 +369,12 @@ export function NetworkGlobe({
             gl={{ antialias: true, alpha: true }}
             style={{ background: "transparent" }}
           >
-            <GlobeScene onHover={handleHover} />
+            <GlobeScene
+              onHover={handleHover}
+              onSelect={handleSelect}
+              selectedId={selectedLocation?.id}
+              onClickBackground={handleClickBackground}
+            />
           </Canvas>
         </Suspense>
       </div>
@@ -322,13 +393,13 @@ export function NetworkGlobe({
               Network
             </span>
           </div>
-          {hoveredLocation ? (
+          {displayedLocation ? (
             <div>
               <div className="text-[10px] tracking-[0.2em] uppercase text-sbi-green/70 mb-1">
-                {CATEGORY_LABELS[hoveredLocation.category]}
+                {CATEGORY_LABELS[displayedLocation.category]}
               </div>
               <div className="text-base font-light text-white">
-                {hoveredLocation.name}
+                {displayedLocation.name}
               </div>
             </div>
           ) : (

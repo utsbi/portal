@@ -43,6 +43,7 @@ export interface Project3DViewerProps {
   autoRotate?: boolean;
   onCameraChange?: (index: number) => void;
   onLoadProgress?: (percent: number) => void;
+  onModelReady?: () => void;
 }
 
 export interface Project3DViewerRef {
@@ -76,6 +77,7 @@ interface ModelProps {
   url: string;
   scale?: number;
   setModelRef?: (ref: React.RefObject<THREE.Group | null>) => void;
+  onReady?: () => void;
 }
 
 interface AutoRotateControllerProps {
@@ -94,6 +96,7 @@ interface SceneContentProps {
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
   setModelRef: (ref: React.RefObject<THREE.Group | null>) => void;
+  onModelReady?: () => void;
 }
 
 // =============================================================================
@@ -384,7 +387,7 @@ const CameraSelector: React.FC<CameraSelectorProps> = ({
 // Model
 // =============================================================================
 
-const Model: React.FC<ModelProps> = ({ url, scale = 1, setModelRef }) => {
+const Model: React.FC<ModelProps> = ({ url, scale = 1, setModelRef, onReady }) => {
   const { scene } = useGLTF(url);
   const group = useRef<THREE.Group>(null);
 
@@ -393,6 +396,13 @@ const Model: React.FC<ModelProps> = ({ url, scale = 1, setModelRef }) => {
       setModelRef(group);
     }
   }, [setModelRef]);
+
+  // Signal that the model is loaded and rendered.
+  // useGLTF suspends until the model is ready, so this effect
+  // only fires once the model (cached or fetched) is available.
+  useEffect(() => {
+    onReady?.();
+  }, [url, onReady]);
 
   return (
     <group ref={group} position={[0, 0, 0]} scale={scale} dispose={null}>
@@ -434,6 +444,7 @@ const SceneContent: React.FC<SceneContentProps> = ({
   onInteractionStart,
   onInteractionEnd,
   setModelRef,
+  onModelReady,
 }) => {
   const [modelRef, setModelRefState] =
     useState<React.RefObject<THREE.Group | null> | null>(null);
@@ -456,7 +467,7 @@ const SceneContent: React.FC<SceneContentProps> = ({
         position={[5, 25, 20]}
       />
 
-      <Model url={modelUrl} scale={modelScale} setModelRef={handleSetModelRef} />
+      <Model url={modelUrl} scale={modelScale} setModelRef={handleSetModelRef} onReady={onModelReady} />
 
       {activeCameraIndex >= 0 && (
         <CameraSelector
@@ -521,6 +532,7 @@ export const Project3DViewer = forwardRef<
       autoRotate = true,
       onCameraChange,
       onLoadProgress,
+      onModelReady,
     },
     ref,
   ) => {
@@ -712,6 +724,7 @@ export const Project3DViewer = forwardRef<
               onInteractionStart={handleInteractionStart}
               onInteractionEnd={handleInteractionEnd}
               setModelRef={handleSetModelRef}
+              onModelReady={onModelReady}
             />
             <LoadProgressReporter onLoadProgress={onLoadProgress} />
           </Suspense>

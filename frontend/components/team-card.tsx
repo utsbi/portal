@@ -9,7 +9,7 @@ interface TeamCardProps {
   name: string;
   role: string;
   email: string;
-  imageSrc: string;
+  imageSrc?: string | null;
   index: number;
 }
 
@@ -59,14 +59,34 @@ export function TeamCard({
       />
 
       <div className="relative bg-sbi-dark-card border border-sbi-dark-border hover:border-sbi-green/30 transition-colors duration-500 overflow-hidden">
-        <div className="aspect-[3/4] relative overflow-hidden">
-          <Image
-            src={imageSrc}
-            alt={`${name}, ${role}`}
-            fill
-            className="object-cover brightness-90 group-hover:brightness-100 group-hover:scale-105 transition-all duration-700"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          />
+        <div className="aspect-3/4 relative overflow-hidden">
+          {imageSrc ? (
+            <Image
+              src={imageSrc}
+              alt={`${name}, ${role}`}
+              fill
+              className="object-cover brightness-90 group-hover:brightness-100 group-hover:scale-105 transition-all duration-700"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-sbi-dark-card flex flex-col items-center justify-center gap-4">
+              <div className="w-20 h-20 rounded-full border border-sbi-dark-border flex items-center justify-center">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  className="w-10 h-10 text-sbi-dark-border"
+                >
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+              <span className="text-xs tracking-[0.2em] uppercase select-none text-sbi-muted/60">
+                Portrait Coming Soon
+              </span>
+            </div>
+          )}
           <div className="absolute inset-0 bg-linear-to-t from-sbi-dark via-sbi-dark/20 to-transparent" />
         </div>
 

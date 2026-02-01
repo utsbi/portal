@@ -1,6 +1,5 @@
 "use client";
 
-import { Compass, Layers, Target } from "lucide-react";
 import { AnimatePresence, motion, useScroll, useTransform } from "motion/react";
 import Image from "next/image";
 import { useRef, useState } from "react";
@@ -14,97 +13,7 @@ import { DepartmentItem } from "@/components/department-item";
 import { LoadingScreen } from "@/components/loading-screen";
 import { MagneticButton } from "@/components/magnetic-button";
 import { StrategyCard } from "@/components/strategy-card";
-
-const FORMS_LINK = "https://forms.gle/KWJjaXGYt2dv3bY68";
-
-const stats = [
-  {
-    value: 210,
-    label: "Project Portfolio",
-    prefix: "$",
-    suffix: "M+",
-    description:
-      "Professional-grade sustainable solutions delivered across diverse project scopes.",
-  },
-  {
-    value: 50,
-    label: "Student Members",
-    prefix: "",
-    suffix: "+",
-    description:
-      "Multidisciplinary talents from engineering, business, and technology converging as one consultancy.",
-  },
-  {
-    value: 1500,
-    label: "Hours Contributed",
-    prefix: "",
-    suffix: "+",
-    description:
-      "Expertise dedicated to innovative designs serving our community.",
-  },
-];
-
-const strategy = [
-  {
-    num: "01",
-    title: "Identify",
-    subtitle: "the Opportunity",
-    description:
-      "We assess infrastructure challenges to find opportunities where sustainable design can deliver the greatest impact for our clients and community.",
-    icon: Target,
-  },
-  {
-    num: "02",
-    title: "Architect",
-    subtitle: "the Solution",
-    description:
-      "Our teams fuse client vision with cutting-edge, sustainable practices to design practical, personalized solutions.",
-    icon: Compass,
-  },
-  {
-    num: "03",
-    title: "Execute",
-    subtitle: "with Precision",
-    description:
-      "We take a hands-on approach to implementation, delivering projects on time and to the highest professional standard.",
-    icon: Layers,
-  },
-];
-
-const departments = [
-  {
-    name: "Engineering",
-    description:
-      "Structural analysis, MEP systems, and sustainable infrastructure design.",
-  },
-  {
-    name: "Architecture",
-    description: "Conceptual design, 3D modeling, and spatial planning.",
-  },
-  {
-    name: "Business",
-    description:
-      "Project management, client relations, and strategic planning.",
-  },
-  {
-    name: "Legal",
-    description: "Contract negotiation, zoning compliance, and liability assessment."
-  },
-  {
-    name: "Technology",
-    description:
-      "Building information modeling, energy simulations, and digital tools.",
-  },
-  {
-    name: "Research & Development",
-    description:
-      "Material science, sustainability metrics, and innovation labs.",
-  },
-  {
-    name: "Public Relations",
-    description: "Community engagement, outreach, and partnership development.",
-  },
-];
+import { FORMS_LINK, departments, stats, strategy } from "@/lib/data/home";
 
 export default function Page() {
   const [isLoading, setIsLoading] = useState(true);

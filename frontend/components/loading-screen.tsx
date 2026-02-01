@@ -113,7 +113,13 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
                 ease: [0.22, 1, 0.36, 1],
               }}
             >
-              <span className="text-7xl md:text-8xl font-extralight tracking-tighter text-white">
+              <span
+                className={`text-7xl md:text-8xl font-extralight tracking-tighter transition-colors duration-500 ${
+                  letter === "S" && progress >= 70
+                    ? "text-sbi-green"
+                    : "text-white"
+                }`}
+              >
                 {letter}
               </span>
               <motion.div
