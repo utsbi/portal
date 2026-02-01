@@ -62,7 +62,12 @@ const EarthAtmosphereMaterial = shaderMaterial(
       );
 
       // Stronger glow on the sun-facing side
-      alpha *= smoothRange(sunOrientation, -0.5, 1.0);
+      float sunFade = smoothRange(sunOrientation, -0.5, 1.0);
+      alpha *= sunFade;
+
+      // Subtle night-side rim for edge definition against dark background
+      float nightRim = pow(clamp(1.0 - edgeFactor, 0.0, 1.0), 2.5) * 0.1 * (1.0 - sunFade);
+      alpha += nightRim;
 
       gl_FragColor = vec4(atmosphereColor, alpha);
     }
@@ -88,7 +93,7 @@ export function GlobeAtmosphere({
   atmosphereTwilightColor = "#bc490b",
 }: GlobeAtmosphereProps) {
   const geometry = useMemo(
-    () => new THREE.SphereGeometry(radius * 1.04, 64, 64),
+    () => new THREE.SphereGeometry(radius * 1.02, 64, 64),
     [radius],
   );
 

@@ -58,9 +58,8 @@ function MobileMenuItem({
       <Link
         href={item.href}
         onClick={onClose}
-        className={`group flex items-center gap-4 py-4 transition-colors duration-300 ${
-          isLogin ? "text-sbi-green" : "text-sbi-muted hover:text-white"
-        }`}
+        className={`group flex items-center gap-4 py-4 transition-colors duration-300 ${isLogin ? "text-sbi-green" : "text-sbi-muted hover:text-white"
+          }`}
       >
         <motion.span
           className="w-8 h-px bg-sbi-green origin-left"
@@ -155,11 +154,10 @@ function Navbar() {
   return (
     <>
       <motion.nav
-        className={`fixed w-full z-50 top-0 start-0 transition-all duration-500 will-change-transform ${
-          scrolled
-            ? "bg-sbi-dark/95 backdrop-blur-md border-b border-sbi-dark-border"
-            : "bg-transparent"
-        }`}
+        className={`fixed w-full z-50 top-0 start-0 transition-all duration-500 will-change-transform ${scrolled
+          ? "bg-sbi-dark/95 backdrop-blur-md border-b border-sbi-dark-border"
+          : "bg-transparent"
+          }`}
         initial={{ y: 0 }}
         animate={{ y: visible ? 0 : "-100%" }}
         transition={{
@@ -172,16 +170,12 @@ function Navbar() {
             href="/"
             className="flex items-center space-x-3 rtl:space-x-reverse group z-50"
           >
-            <div className="relative">
-              <span className="text-3xl font-light tracking-tight text-white">
-                <span className="text-sbi-green">S</span>BI
+            <div className="flex items-baseline gap-0.5">
+              <span className="text-3xl font-light tracking-tighter text-white">
+                <span className="text-sbi-green">S</span>
+                <span className="text-white">BI</span>
               </span>
-              <motion.div
-                className="absolute -bottom-1 left-0 h-px bg-sbi-green"
-                initial={{ width: 0 }}
-                whileHover={{ width: "100%" }}
-                transition={{ duration: 0.3 }}
-              />
+              <span className="w-1.5 h-1.5 bg-sbi-green rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
           </Link>
 

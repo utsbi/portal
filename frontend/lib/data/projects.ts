@@ -58,7 +58,7 @@ export const projects: Project[] = [
     },
     cameraLimits: {
       minDistance: 50,
-      maxDistance: 2000,
+      maxDistance: 1500,
     },
     cameraPresets: [
       {
@@ -136,14 +136,14 @@ export const projects: Project[] = [
     },
     cameraLimits: {
       minDistance: 5,
-      maxDistance: 3000,
+      maxDistance: 150,
     },
-    modelScale: 200,
+    modelScale: 250,
     cameraPresets: [
       {
         id: "exterior-front",
         label: "Front View",
-        position: [50, 30, 80],
+        position: [1, 15, 80],
         target: [0, 10, 0],
       },
       {
@@ -157,6 +157,12 @@ export const projects: Project[] = [
         label: "Aerial View",
         position: [40, 80, 60],
         target: [0, 0, 0],
+      },
+      {
+        id: "interior",
+        label: "Interior View",
+        position: [6.24, 13.84, 8.53],
+        target: [0, 10, 0],
       },
     ],
     galleryImages: [ex1, ex2, site1],

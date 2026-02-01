@@ -27,6 +27,7 @@ interface GlobeProps {
   rotationSpeed?: number;
   initialRotation?: number;
   sunDirection?: THREE.Vector3;
+  onClickBackground?: () => void;
   children?: React.ReactNode;
 }
 
@@ -289,8 +290,10 @@ declare module "@react-three/fiber" {
 
 function EarthMaterial({
   sunDirection,
+  rotationSpeed = 0.001,
 }: {
   sunDirection: THREE.Vector3;
+  rotationSpeed?: number;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
@@ -308,10 +311,10 @@ function EarthMaterial({
     },
   );
 
-  // Animate cloud UV offset
+  // Gentle counterclockwise cloud drift
   useFrame((_, delta) => {
     if (materialRef.current) {
-      materialRef.current.uniforms.uCloudTime.value += delta * 0.003;
+      materialRef.current.uniforms.uCloudTime.value -= delta * 0.003;
     }
   });
 
@@ -339,6 +342,7 @@ export const Globe = forwardRef<GlobeRef, GlobeProps>(function Globe(
     rotationSpeed = 0.001,
     initialRotation = 0,
     sunDirection = DEFAULT_SUN_DIRECTION,
+    onClickBackground,
     children,
   },
   ref,
@@ -395,14 +399,14 @@ export const Globe = forwardRef<GlobeRef, GlobeProps>(function Globe(
         );
       case "earth":
       default:
-        return <EarthMaterial sunDirection={sunDirection} />;
+        return <EarthMaterial sunDirection={sunDirection} rotationSpeed={rotationSpeed} />;
     }
   };
 
   return (
     <group ref={groupRef}>
       <Suspense fallback={null}>
-        <mesh geometry={geometry}>{renderMaterial()}</mesh>
+        <mesh geometry={geometry} onClick={onClickBackground}>{renderMaterial()}</mesh>
       </Suspense>
       {children}
     </group>

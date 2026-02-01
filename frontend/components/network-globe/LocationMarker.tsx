@@ -1,6 +1,6 @@
 "use client";
 
-import { useFrame, useThree } from "@react-three/fiber";
+import { type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { Location } from "./data/locations";
@@ -17,6 +17,8 @@ interface LocationMarkerProps {
   location: Location;
   globeRadius: number;
   onHover?: (location: Location | null) => void;
+  onSelect?: (location: Location) => void;
+  selected?: boolean;
   isHub?: boolean;
 }
 
@@ -24,6 +26,8 @@ export function LocationMarker({
   location,
   globeRadius,
   onHover,
+  onSelect,
+  selected = false,
   isHub = false,
 }: LocationMarkerProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -48,7 +52,8 @@ export function LocationMarker({
   const color = CATEGORY_COLORS[location.category];
   // Very small markers to avoid overlap
   const baseSize = isHub ? 0.004 : 0.0018;
-  const markerSize = hovered ? baseSize * 1.5 : baseSize;
+  const isActive = hovered || selected;
+  const markerSize = isActive ? baseSize * 1.5 : baseSize;
 
   // Reset cursor style on unmount if still hovered
   useEffect(() => {
@@ -99,6 +104,11 @@ export function LocationMarker({
     onHover?.(null);
   };
 
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    onSelect?.(location);
+  };
+
   // Don't render if facing away from camera
   if (!visible) {
     return <group ref={groupRef} position={position} quaternion={orientation} />;
@@ -115,20 +125,21 @@ export function LocationMarker({
       <mesh
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
+        onClick={handleClick}
         scale={markerSize}
-        renderOrder={hovered ? 101 : isHub ? 51 : 11}
+        renderOrder={isActive ? 101 : isHub ? 51 : 11}
       >
         <circleGeometry args={[1, 16]} />
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={hovered ? 1 : 0.95}
+          opacity={isActive ? 1 : 0.95}
           side={THREE.DoubleSide}
           depthTest={false}
         />
       </mesh>
 
-      {hovered && (
+      {isActive && (
         <mesh scale={markerSize * 1.6} renderOrder={102}>
           <ringGeometry args={[0.6, 1, 24]} />
           <meshBasicMaterial
@@ -161,12 +172,16 @@ interface LocationMarkersProps {
   locations: Location[];
   globeRadius: number;
   onHover?: (location: Location | null) => void;
+  onSelect?: (location: Location) => void;
+  selectedId?: string;
 }
 
 export function LocationMarkers({
   locations,
   globeRadius,
   onHover,
+  onSelect,
+  selectedId,
 }: LocationMarkersProps) {
   return (
     <group>
@@ -176,6 +191,8 @@ export function LocationMarkers({
           location={location}
           globeRadius={globeRadius * 1.008}
           onHover={onHover}
+          onSelect={onSelect}
+          selected={selectedId === location.id}
           isHub={location.category === "hub"}
         />
       ))}

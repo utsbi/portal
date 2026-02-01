@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 
 export interface Department {
 	name: string;
-	description: string;
+	description: string[];
 }
 
 interface DepartmentItemProps {
@@ -61,9 +61,14 @@ export function DepartmentItem({
 						transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
 						className="overflow-hidden"
 					>
-						<p className="pb-6 text-sbi-muted-dark leading-relaxed pl-1">
-							{dept.description}
-						</p>
+						<ul className="pb-6 pl-1 space-y-2">
+							{dept.description.map((item, i) => (
+								<li key={i} className="flex items-start gap-3 text-sbi-muted-dark leading-relaxed">
+									<span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-sbi-green/50" />
+									{item}
+								</li>
+							))}
+						</ul>
 					</motion.div>
 				)}
 			</AnimatePresence>
