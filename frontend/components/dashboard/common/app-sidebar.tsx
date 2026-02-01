@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Compass,
   MessageSquare,
@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import gsap from 'gsap';
+import { createClient } from '@/lib/supabase/client';
 
 import {
   Sidebar,
@@ -132,12 +133,19 @@ function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
 export function AppSidebar() {
   const { state } = useSidebar();
   const pathname = usePathname();
+  const router = useRouter();
   
   const isActive = (url: string) => {
     if (url === '/dashboard') {
       return pathname === '/dashboard';
     }
     return pathname.startsWith(url);
+  };
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
   };
 
   return (
@@ -307,7 +315,10 @@ export function AppSidebar() {
                   Help
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-sbi-dark-border/50 my-0" />
-                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
+                <DropdownMenuItem 
+                  className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5"
+                  onSelect={handleLogout}
+                >
                   <LogOut className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
                   Log out
                 </DropdownMenuItem>
