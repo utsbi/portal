@@ -46,7 +46,7 @@ export function SuggestionChips({ disableAutoAnimation = false }: SuggestionChip
         <button
           key={index}
           type="button"
-          className="suggestion-chip group relative overflow-hidden"
+          className="suggestion-chip invisible opacity-0 translate-y-4 scale-95 group relative overflow-hidden"
         >
           {/* Background layers */}
           <div className="absolute inset-0 bg-sbi-dark-card/60 backdrop-blur-sm transition-all duration-500 group-hover:bg-sbi-dark-card" />

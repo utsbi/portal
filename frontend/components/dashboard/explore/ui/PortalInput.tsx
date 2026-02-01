@@ -9,7 +9,7 @@ export function PortalInput() {
   const [input, setInput] = useState('');
 
   return (
-    <div className="input-container">
+    <div className="input-container opacity-0 translate-y-8">
       <div className="relative group">
         <Button
           size="icon"

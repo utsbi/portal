@@ -13,20 +13,17 @@ export default function DashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <AppSidebar />
         <SidebarInset className="bg-sbi-dark">
-          {/* Header with architectural styling */}
+          {/* Header*/}
           <header className="relative flex h-16 shrink-0 items-center gap-2 bg-sbi-dark px-6 border-b border-sbi-dark-border/30">
-            {/* Left architectural accent */}
             <div className="absolute left-0 top-0 w-16 h-full border-r border-sbi-dark-border/20" />
 
-            {/* Sidebar trigger */}
+            {/* Sidebar */}
             <div className="relative z-10">
               <SidebarTriggerCustom />
             </div>
 
-            {/* Project status indicators */}
             <ProjectStatusBar />
 
-            {/* Spacer */}
             <div className="flex-1" />
 
             {/* Right side status indicator */}
@@ -38,9 +35,8 @@ export default function DashboardLayout({
             </div>
           </header>
 
-          {/* Main content area */}
+          {/* Main content */}
           <div className="flex flex-1 flex-col bg-sbi-dark relative">
-            {/* Subtle top gradient */}
             <div className="absolute top-0 left-0 right-0 h-32 bg-linear-to-b from-sbi-dark-card/20 to-transparent pointer-events-none" />
             {children}
           </div>

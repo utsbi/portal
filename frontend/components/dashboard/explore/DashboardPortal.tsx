@@ -14,7 +14,6 @@ export default function DashboardPortal() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Small delay to ensure DOM is ready
     const timer = setTimeout(() => setIsReady(true), 100);
     return () => clearTimeout(timer);
   }, []);
@@ -77,6 +76,7 @@ export default function DashboardPortal() {
         opacity: 1,
         y: 0,
         scale: 1,
+        visibility: 'visible',
         duration: 0.9,
         stagger: 0.1,
         ease: 'power3.out',
@@ -98,7 +98,7 @@ export default function DashboardPortal() {
       {/* Ambient Background Elements */}
       <AmbientGrid />
       
-      {/* Architectural corner accents */}
+      {/* Corner accents */}
       <div className="ambient-element absolute top-8 left-8 w-24 h-24 border-l border-t border-sbi-dark-border/40 opacity-0" />
       <div className="ambient-element absolute bottom-8 right-8 w-24 h-24 border-r border-b border-sbi-dark-border/40 opacity-0" />
       
@@ -106,7 +106,7 @@ export default function DashboardPortal() {
       <div className="ambient-element absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
       <div className="ambient-element absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
 
-      {/* Time Display - Architectural element */}
+      {/* Time Display */}
       <TimeDisplay />
 
       {/* Main Content */}
@@ -116,7 +116,7 @@ export default function DashboardPortal() {
         <SuggestionChips disableAutoAnimation />
       </div>
 
-      {/* Bottom architectural line */}
+      {/* Bottom line */}
       <div className="ambient-element absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent opacity-0" />
     </div>
   );

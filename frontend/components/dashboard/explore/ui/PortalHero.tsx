@@ -8,8 +8,8 @@ export function PortalHero() {
   return (
     <div className="flex flex-col items-center text-center space-y-6">
       {/* Main greeting */}
-      <div className="hero-content space-y-4">
-        {/* Greeting text with architectural typography */}
+      <div className="hero-content opacity-0 translate-y-10 space-y-4">
+        {/* Greeting text */}
         <div className="overflow-hidden">
           <h1 className="text-4xl md:text-4xl lg:text-5xl font-extralight tracking-tight text-white leading-none">
             Hello, <span className="text-sbi-green">{userName}</span>
@@ -22,8 +22,8 @@ export function PortalHero() {
         </p>
       </div>
 
-      {/* Original decorative separator - simple gradient line */}
-      <div className="hero-content w-24 h-px bg-linear-to-r from-transparent via-sbi-green/50 to-transparent" />
+      {/* Original decorative line */}
+      <div className="hero-content opacity-0 translate-y-10 w-24 h-px bg-linear-to-r from-transparent via-sbi-green/50 to-transparent" />
     </div>
   );
 }
