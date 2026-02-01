@@ -3,14 +3,17 @@
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { Project } from "@/lib/data/projects";
 import type { Project3DViewerRef } from "./Project3DViewer";
+import { ProjectImageHero } from "./ProjectImageHero";
 
 const Project3DViewer = dynamic(
   () => import("./Project3DViewer").then((mod) => mod.Project3DViewer),
-  { ssr: false },
+  {
+    ssr: false,
+    loading: () => <div className="w-full h-full bg-sbi-dark" />,
+  },
 );
 
 interface ProjectHeroProps {
@@ -20,6 +23,27 @@ interface ProjectHeroProps {
 }
 
 const MIN_LOADING_MS = 1500;
+
+class ViewerErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 
 export function ProjectHero({
   project,
@@ -89,6 +113,7 @@ export function ProjectHero({
 
     const startTime = loadingStartRef.current;
     let frameId: number;
+    let lastUpdate = 0;
 
     const tick = () => {
       const elapsed = Date.now() - startTime;
@@ -102,7 +127,11 @@ export function ProjectHero({
 
       // Cap at 85% while model loads, 95% while waiting for min time
       const cap = modelLoadedRef.current ? 95 : 85;
-      setDisplayProgress(Math.min(eased * cap, cap));
+      const now = Date.now();
+      if (now - lastUpdate > 100) {
+        setDisplayProgress(Math.min(eased * cap, cap));
+        lastUpdate = now;
+      }
       frameId = requestAnimationFrame(tick);
     };
 
@@ -114,16 +143,34 @@ export function ProjectHero({
     <div className="relative w-full h-[calc(100dvh-80px)] mt-20 overflow-hidden bg-sbi-dark">
       {/* 3D Viewer or Parallax Image */}
       {project.has3D && project.modelUrl ? (
-        <Project3DViewer
-          ref={viewerRef as React.RefObject<Project3DViewerRef>}
-          modelUrl={project.modelUrl}
-          cameraPresets={project.cameraPresets}
-          defaultCamera={project.defaultCamera}
-          cameraLimits={project.cameraLimits}
-          modelScale={project.modelScale}
-          autoRotate={true}
-          onLoadProgress={handleLoadProgress}
-          onModelReady={handleModelReady}
+        <ViewerErrorBoundary
+          fallback={
+            project.galleryImages && project.galleryImages.length > 1 ? (
+              <ProjectImageHero images={project.galleryImages} title={project.title} />
+            ) : (
+              <div className="absolute inset-0 bg-sbi-dark">
+                <Image src={project.coverImage} alt={project.title} fill className="object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-sbi-dark via-sbi-dark/50 to-transparent" />
+              </div>
+            )
+          }
+        >
+          <Project3DViewer
+            ref={viewerRef as React.RefObject<Project3DViewerRef>}
+            modelUrl={project.modelUrl}
+            cameraPresets={project.cameraPresets}
+            defaultCamera={project.defaultCamera}
+            cameraLimits={project.cameraLimits}
+            modelScale={project.modelScale}
+            autoRotate={true}
+            onLoadProgress={handleLoadProgress}
+            onModelReady={handleModelReady}
+          />
+        </ViewerErrorBoundary>
+      ) : project.galleryImages && project.galleryImages.length > 1 ? (
+        <ProjectImageHero
+          images={project.galleryImages}
+          title={project.title}
         />
       ) : (
         <motion.div

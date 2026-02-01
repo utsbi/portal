@@ -1,11 +1,31 @@
 import type { StaticImageData } from "next/image";
 import ex1 from "@/assets/images/project-one/exterior-concept/EXTERIOR-1.webp";
 import ex2 from "@/assets/images/project-one/exterior-concept/EXTERIOR-2.webp";
+import in1 from "@/assets/images/project-one/interior-concept/INTERIOR-1.webp";
+import in2 from "@/assets/images/project-one/interior-concept/INTERIOR-2.webp";
+import in3 from "@/assets/images/project-one/interior-concept/INTERIOR-3.webp";
+import in4 from "@/assets/images/project-one/interior-concept/INTERIOR-4.webp";
 import site1 from "@/assets/images/project-one/site-view/SITE-1.webp";
+import site2 from "@/assets/images/project-one/site-view/SITE-2.webp";
+import site3 from "@/assets/images/project-one/site-view/SITE-3.webp";
+import site4 from "@/assets/images/project-one/site-view/SITE-4.webp";
 import pe1 from "@/assets/images/project-two/exterior-concept/1.webp";
 import pe2 from "@/assets/images/project-two/exterior-concept/2.webp";
 import pe3 from "@/assets/images/project-two/exterior-concept/3.webp";
 import pe4 from "@/assets/images/project-two/exterior-concept/4.webp";
+import pi1 from "@/assets/images/project-two/interior-concept/1.webp";
+import pi2 from "@/assets/images/project-two/interior-concept/2.webp";
+import pi3 from "@/assets/images/project-two/interior-concept/3.webp";
+import pi4 from "@/assets/images/project-two/interior-concept/4.webp";
+import dc0 from "@/assets/images/data-center/img-000.png";
+import dc1 from "@/assets/images/data-center/img-001.png";
+import dc2 from "@/assets/images/data-center/img-002.png";
+import dc3 from "@/assets/images/data-center/img-003.png";
+import dc4 from "@/assets/images/data-center/img-004.png";
+import hr1 from "@/assets/images/high-rise/001.png";
+import hr2 from "@/assets/images/high-rise/002.png";
+import hr3 from "@/assets/images/high-rise/003.png";
+import hr4 from "@/assets/images/high-rise/004.png";
 
 export interface CameraPreset {
   id: string;
@@ -118,7 +138,7 @@ export const projects: Project[] = [
         embeddedIndex: 7,
       },
     ],
-    galleryImages: [pe1, pe2, pe3, pe4],
+    galleryImages: [pe1, pe2, pe3, pe4, pi1, pi2, pi3, pi4],
   },
   {
     slug: "hobbie-farm",
@@ -165,6 +185,37 @@ export const projects: Project[] = [
         target: [0, 10, 0],
       },
     ],
-    galleryImages: [ex1, ex2, site1],
+    galleryImages: [ex1, ex2, in1, in2, in3, in4, site1, site2, site3, site4],
+  },
+  {
+    slug: "regis-energy-data-center-project",
+    title: "Regis Energy Data Center",
+    description: "A master site plan and phase development for a massive 1 GW-capable data center campus in Laredo, Texas. This project encompasses five compute halls across a sprawling campus, with Phase 1 design focused on delivering 320 MW of utility load through the integration of four compute halls, supporting infrastructure for power distribution, cooling systems, and site logistics.",
+    status: "completed",
+    tags: ["Commercial", "Data Center", "Infrastructure", "1 GW Campus"],
+    coverImage: dc0,
+    has3D: false,
+    cameraPresets: null,
+    galleryImages: [dc0, dc1, dc2, dc3, dc4],
+  },
+  {
+    slug: "high-rise-tower",
+    title: "Houston Museum District High-Rise Tower",
+    description: "A mixed-use high-rise tower concept situated in Houston's Museum District, designed to explore vertical density and sustainable urban living. This project features a bold structural form that balances commercial and residential programming while prioritizing energy efficiency and occupant comfort at scale.",
+    status: "completed",
+    tags: ["Commercial", "High-Rise", "Urban", "Mixed-Use"],
+    coverImage: hr1,
+    modelUrl: "/models/high_rise.glb",
+    has3D: true,
+    defaultCamera: {
+      position: [120, 80, -130],
+      target: [24, 40, -234],
+    },
+    cameraLimits: {
+      minDistance: 30,
+      maxDistance: 500,
+    },
+    cameraPresets: null,
+    galleryImages: [hr1, hr2, hr3, hr4],
   },
 ];

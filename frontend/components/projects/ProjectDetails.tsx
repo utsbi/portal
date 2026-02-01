@@ -171,7 +171,10 @@ export function ProjectDetails({
                     <button
                       key={p.slug}
                       type="button"
-                      onClick={() => onProjectChange(p)}
+                      onClick={() => {
+                        onProjectChange(p);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
                       className="text-left px-3 py-3 rounded border border-sbi-dark-border hover:border-sbi-green/50 hover:bg-sbi-dark-card transition-colors"
                     >
                       <span className="text-white text-sm">{p.title}</span>
