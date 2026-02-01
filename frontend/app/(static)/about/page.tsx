@@ -14,6 +14,7 @@ import Kabir from "@/assets/images/people/Kabir.jpg";
 import Noah from "@/assets/images/people/Noah.jpg";
 import Pedro from "@/assets/images/people/Pedro.jpg";
 import Sam from "@/assets/images/people/Sam.jpg";
+import Preston from "@/assets/images/people/Preston.jpg";
 
 // University Logos
 import Rice from "@/assets/images/schools/rice_university.png";
@@ -44,9 +45,21 @@ const teamMembers = [
   },
   {
     name: "Brendan Lyon",
-    role: "Director of Mechanical Systems",
+    role: "Director of Project Operations",
     email: "brendanlyon@utexas.edu",
     image: Brendan,
+  },
+  {
+    name: "Kabir Muzumdar",
+    role: "Director of Civil Engineering",
+    email: "kabir@utsbi.org",
+    image: Kabir,
+  },
+  {
+    name: "Preston Vajdos",
+    role: "Director of Civil Engineering",
+    email: "vajdosp@gmail.com",
+    image: Preston,
   },
   {
     name: "Enoch Zhu",
@@ -62,27 +75,54 @@ const teamMembers = [
   },
   {
     name: "Dev Shroff",
-    role: "Director of R&D",
+    role: "Director of Business",
     email: "dev@utsbi.org",
     image: Dev,
   },
+  // {
+  //   name: "",
+  //   role: "Director of R&D",
+  //   email: "admin@utsbi.org",
+  //   image: null,
+  // },
   {
-    name: "Ali Akbar",
-    role: "Director of Finance",
-    email: "aliakbar@utexas.edu",
-    image: Ali,
+    name: "Arianne Yude",
+    role: "Director of Public Relations",
+    email: "ariannegraceyude@utsbi.org",
+    image: null,
   },
   {
-    name: "Kabir Muzumdar",
-    role: "Director of Civil Systems",
-    email: "kabir@utsbi.org",
-    image: Kabir,
+    name: "Christian Butler",
+    role: "Director of Architecture",
+    email: "christian.butler@utsbi.org",
+    image: null,
+  },
+  {
+    name: "Alim Makanov",
+    role: "Director of Legal",
+    email: "alim.makanov@utsbi.org",
+    image: null,
+  },
+];
+
+const alumnis = [
+  {
+    name: "Ryan Xiong",
+    role: "Alumni",
+    email: "admin@utsbi.org",
+    image: null,
   },
   {
     name: "Noah Dao",
     role: "Director of Public Relations",
     email: "ntd534@my.utexas.edu",
     image: Noah,
+  },
+  {
+    name: "Ali Akbar",
+    role: "Director of Business",
+    email: "admin@utsbi.org",
+    image: Ali,
   },
 ];
 
@@ -159,7 +199,7 @@ export default function AboutPage() {
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
               viewport={{ once: true }}
-              className="relative aspect-[4/3] overflow-hidden"
+              className="relative aspect-4/3 overflow-hidden"
             >
               <Image
                 src={group}
@@ -296,7 +336,7 @@ export default function AboutPage() {
                 name={member.name}
                 role={member.role}
                 email={member.email}
-                imageSrc={member.image.src}
+                imageSrc={member.image?.src}
                 index={index}
               />
             ))}
