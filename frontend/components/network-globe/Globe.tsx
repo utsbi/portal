@@ -247,7 +247,7 @@ extend({ WireframeGlobeMaterial, DottedGlobeMaterial, EarthSurfaceMaterial });
 // Texture paths
 // ---------------------------------------------------------------------------
 
-const DAY_TEXTURE_URL = "/textures/world.200401.3x5400x2700.jpg";
+const DAY_TEXTURE_URL = "/textures/earth_day.jpg";
 const NIGHT_TEXTURE_URL = "/textures/8k_earth_nightmap.jpg";
 const CLOUD_TEXTURE_URL = "/textures/8k_earth_clouds.jpg";
 const BUMP_TEXTURE_URL = "/textures/earth_bump.jpg";

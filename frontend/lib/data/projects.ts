@@ -58,6 +58,7 @@ export interface Project {
   defaultCamera?: CameraConfig;
   cameraLimits?: CameraLimits;
   modelScale?: number;
+  videoUrl?: string;
   galleryImages: StaticImageData[];
 }
 
@@ -213,9 +214,10 @@ export const projects: Project[] = [
     },
     cameraLimits: {
       minDistance: 30,
-      maxDistance: 500,
+      maxDistance: 150,
     },
     cameraPresets: null,
+    videoUrl: "https://www.youtube.com/watch?v=uuex1wIOf8Y",
     galleryImages: [hr1, hr2, hr3, hr4],
   },
 ];

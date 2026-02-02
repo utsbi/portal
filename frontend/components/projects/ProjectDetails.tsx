@@ -93,6 +93,27 @@ export function ProjectDetails({
               </p>
             </motion.div>
 
+            {/* Video */}
+            {project.videoUrl && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25, duration: 0.6 }}
+                viewport={{ once: true }}
+              >
+                <h3 className="text-xl font-medium text-white mb-4">Video</h3>
+                <div className="relative w-full aspect-video rounded-sm overflow-hidden border border-sbi-dark-border bg-sbi-dark-card">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${project.videoUrl.match(/(?:v=|\/)([\w-]{11})/)?.[1]}`}
+                    title={`${project.title} video`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute inset-0 w-full h-full"
+                  />
+                </div>
+              </motion.div>
+            )}
+
             {/* Compact Gallery Grid */}
             {project.galleryImages && project.galleryImages.length > 0 && (
               <motion.div

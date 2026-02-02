@@ -37,6 +37,10 @@ class ViewerErrorBoundary extends React.Component<
     return { hasError: true };
   }
 
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("3D Viewer crashed:", error, info.componentStack);
+  }
+
   render() {
     if (this.state.hasError) {
       return this.props.fallback;
@@ -58,18 +62,24 @@ export function ProjectHero({
   const modelLoadedRef = useRef(false);
   const loadingStartRef = useRef(Date.now());
   const sessionRef = useRef(0);
-  const prevModelUrlRef = useRef(project.modelUrl);
+  const prevSlugRef = useRef(project.slug);
 
   // Reset refs synchronously during render so they happen BEFORE
   // child effects (Model's onReady). useEffect runs bottom-up
   // (children first), so a useEffect reset would be too late for
   // cached models that signal ready immediately.
-  if (project.has3D && project.modelUrl !== prevModelUrlRef.current) {
-    prevModelUrlRef.current = project.modelUrl;
+  // Track slug (not modelUrl) so navigating 3D → non-3D → same 3D
+  // still resets stale refs like hasCompletedRef.
+  if (project.has3D && project.slug !== prevSlugRef.current) {
+    prevSlugRef.current = project.slug;
     sessionRef.current += 1;
     hasCompletedRef.current = false;
     modelLoadedRef.current = false;
     loadingStartRef.current = Date.now();
+  }
+  // Keep prevSlugRef in sync even for non-3D projects
+  if (!project.has3D) {
+    prevSlugRef.current = project.slug;
   }
 
   // State updates still need useEffect (can't call setState during render)
@@ -78,7 +88,7 @@ export function ProjectHero({
       setPhase("loading");
       setDisplayProgress(0);
     }
-  }, [project.modelUrl, project.has3D]);
+  }, [project.slug, project.has3D]);
 
   const triggerCompletion = useCallback(() => {
     if (hasCompletedRef.current) return;
@@ -194,7 +204,7 @@ export function ProjectHero({
       <AnimatePresence mode="wait">
         {phase !== "done" && project.has3D && (
           <motion.div
-            key={project.modelUrl}
+            key={project.slug}
             className="absolute inset-0 z-40 bg-sbi-dark flex items-center justify-center"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}

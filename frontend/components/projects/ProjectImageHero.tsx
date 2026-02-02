@@ -66,6 +66,16 @@ export function ProjectImageHero({ images, title }: ProjectImageHeroProps) {
     setCurrentIndex(index);
   }, []);
 
+  const goPrev = useCallback(() => {
+    cycleRef.current += 1;
+    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+  }, [images.length]);
+
+  const goNext = useCallback(() => {
+    cycleRef.current += 1;
+    setCurrentIndex((prev) => (prev + 1) % images.length);
+  }, [images.length]);
+
   // Ken Burns variants - alternate between different pan directions
   const getKenBurnsVariant = (index: number) => {
     const variants = [
@@ -125,33 +135,57 @@ export function ProjectImageHero({ images, title }: ProjectImageHeroProps) {
       {/* Bottom gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-sbi-dark via-sbi-dark/40 to-transparent pointer-events-none" />
 
-      {/* Dot indicators */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
-        {images.map((image, index) => (
-          <button
-            key={image.src}
-            type="button"
-            onClick={() => goToImage(index)}
-            className="group relative w-2 h-2 rounded-full transition-all duration-300"
-            aria-label={`Go to image ${index + 1}`}
-          >
-            <div
-              className={`w-full h-full rounded-full transition-all duration-300 ${
-                index === currentIndex
-                  ? "bg-sbi-green scale-125"
-                  : "bg-white/30 group-hover:bg-white/50"
-              }`}
-            />
-            {index === currentIndex && (
-              <motion.div
-                className="absolute inset-0 bg-sbi-green/30 rounded-full"
-                initial={{ scale: 1 }}
-                animate={{ scale: [1, 1.8, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+      {/* Navigation arrows + dot indicators */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-4 z-10">
+        <button
+          type="button"
+          onClick={goPrev}
+          className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+          aria-label="Previous image"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        <div className="flex items-center gap-2">
+          {images.map((image, index) => (
+            <button
+              key={image.src}
+              type="button"
+              onClick={() => goToImage(index)}
+              className="group relative w-2 h-2 rounded-full transition-all duration-300"
+              aria-label={`Go to image ${index + 1}`}
+            >
+              <div
+                className={`w-full h-full rounded-full transition-all duration-300 ${
+                  index === currentIndex
+                    ? "bg-sbi-green scale-125"
+                    : "bg-white/30 group-hover:bg-white/50"
+                }`}
               />
-            )}
-          </button>
-        ))}
+              {index === currentIndex && (
+                <motion.div
+                  className="absolute inset-0 bg-sbi-green/30 rounded-full"
+                  initial={{ scale: 1 }}
+                  animate={{ scale: [1, 1.8, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={goNext}
+          className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+          aria-label="Next image"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
 
       {/* Progress bar — updated via ref, not state */}

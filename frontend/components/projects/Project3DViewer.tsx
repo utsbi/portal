@@ -25,7 +25,7 @@ import type {
   CameraPreset,
 } from "@/lib/data/projects";
 
-const HDRI = "/models/spruit_sunrise_4k.jpg";
+const HDRI = "/textures/spruit_sunrise_4k.jpg";
 const AUTO_ROTATE_RESUME_DELAY_MS = 5000;
 const FALLBACK_CAMERA_POSITION: [number, number, number] = [6.5, 615, 1015];
 const FALLBACK_CAMERA_TARGET: [number, number, number] = [0, 0, 0];
