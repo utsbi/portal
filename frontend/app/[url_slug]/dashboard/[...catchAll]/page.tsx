@@ -5,7 +5,7 @@ import gsap from "gsap";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-export default function DashboardNotFound() {
+export default function CatchAllPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const params = useParams();
   const urlSlug = (params.url_slug as string) || "dev_test";
@@ -89,7 +89,7 @@ export default function DashboardNotFound() {
         </div>
       </div>
 
-      {/* Bottom architectural line */}
+      {/* Bottom line */}
       <div className="absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent" />
     </div>
   );

@@ -53,7 +53,6 @@ export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
     const query = input.trim();
     setInput('');
     
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -75,7 +74,6 @@ export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     
-    // Auto-resize textarea
     const textarea = e.target;
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
@@ -122,7 +120,7 @@ export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
 
         {/* Input box with rounded corners */}
         <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-2xl overflow-hidden transition-all duration-300 hover:border-sbi-green/20 focus-within:border-sbi-green/30 focus-within:ring-1 focus-within:ring-sbi-green/20">
-          {/* Attachments preview - inside the box */}
+          {/* Attachments preview */}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 px-4 pt-4">
               {attachments.map((attachment) => (
