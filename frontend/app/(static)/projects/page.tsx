@@ -51,26 +51,28 @@ export default function ProjectsPage() {
           onReset={handleCameraReset}
         />
 
-        <div className="absolute bottom-6 right-6 z-20 hidden md:block">
-          <div className="flex flex-col gap-1 bg-sbi-dark/60 backdrop-blur-md rounded-lg border border-sbi-dark-border p-1">
-            <button
-              type="button"
-              onClick={() => viewerRef.current?.zoomIn()}
-              className="p-2 hover:bg-white/10 rounded transition-colors text-white/80 hover:text-white"
-              aria-label="Zoom in"
-            >
-              <Plus size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => viewerRef.current?.zoomOut()}
-              className="p-2 hover:bg-white/10 rounded transition-colors text-white/80 hover:text-white"
-              aria-label="Zoom out"
-            >
-              <Minus size={16} />
-            </button>
+        {activeProject.has3D && (
+          <div className="absolute bottom-6 right-6 z-20 hidden md:block">
+            <div className="flex flex-col gap-1 bg-sbi-dark/60 backdrop-blur-md rounded-lg border border-sbi-dark-border p-1">
+              <button
+                type="button"
+                onClick={() => viewerRef.current?.zoomIn()}
+                className="p-2 hover:bg-white/10 rounded transition-colors text-white/80 hover:text-white"
+                aria-label="Zoom in"
+              >
+                <Plus size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => viewerRef.current?.zoomOut()}
+                className="p-2 hover:bg-white/10 rounded transition-colors text-white/80 hover:text-white"
+                aria-label="Zoom out"
+              >
+                <Minus size={16} />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </ProjectHero>
 
       <ProjectDetails

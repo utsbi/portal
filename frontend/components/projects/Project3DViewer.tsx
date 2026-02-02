@@ -25,7 +25,7 @@ import type {
   CameraPreset,
 } from "@/lib/data/projects";
 
-const HDRI = "/models/spruit_sunrise_4k.jpg";
+const HDRI = "/textures/spruit_sunrise_4k.jpg";
 const AUTO_ROTATE_RESUME_DELAY_MS = 5000;
 const FALLBACK_CAMERA_POSITION: [number, number, number] = [6.5, 615, 1015];
 const FALLBACK_CAMERA_TARGET: [number, number, number] = [0, 0, 0];
@@ -218,7 +218,7 @@ const CameraConstraints: React.FC<CameraConstraintsProps> = ({
   minHeight = 5,
   cameraControlsRef,
 }) => {
-  const { camera } = useThree();
+  const { camera, invalidate } = useThree();
 
   useFrame(() => {
     if (camera.position.y < minHeight) {
@@ -226,6 +226,7 @@ const CameraConstraints: React.FC<CameraConstraintsProps> = ({
       if (cameraControlsRef?.current) {
         cameraControlsRef.current.update(0);
       }
+      invalidate();
     }
   });
 
@@ -238,7 +239,7 @@ const ModelOptimizer: React.FC<ModelOptimizerProps> = ({ houseRef }) => {
       houseRef.current.traverse((object) => {
         if (object.type === "Mesh") {
           const mesh = object as THREE.Mesh;
-          mesh.frustumCulled = false;
+          mesh.frustumCulled = true;
 
           if (mesh.material) {
             const material = mesh.material as THREE.Material;
@@ -286,9 +287,11 @@ const AutoRotateController: React.FC<AutoRotateControllerProps> = ({
   enabled,
   cameraControlsRef,
 }) => {
+  const { invalidate } = useThree();
   useFrame((_, delta) => {
     if (enabled && cameraControlsRef?.current) {
       cameraControlsRef.current.azimuthAngle += delta * 0.1;
+      invalidate();
     }
   });
 
@@ -307,6 +310,7 @@ const CameraSelector: React.FC<CameraSelectorProps> = ({
 }) => {
   useEffect(() => {
     if (activeCameraIndex < 0) return;
+    if (cameraPresets && activeCameraIndex >= cameraPresets.length) return;
 
     if (cameraPresets && cameraPresets.length > 0) {
       const preset = cameraPresets[activeCameraIndex];
@@ -388,7 +392,7 @@ const CameraSelector: React.FC<CameraSelectorProps> = ({
 // =============================================================================
 
 const Model: React.FC<ModelProps> = ({ url, scale = 1, setModelRef, onReady }) => {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, true);
   const group = useRef<THREE.Group>(null);
 
   useEffect(() => {
@@ -405,7 +409,7 @@ const Model: React.FC<ModelProps> = ({ url, scale = 1, setModelRef, onReady }) =
   }, [url, onReady]);
 
   return (
-    <group ref={group} position={[0, 0, 0]} scale={scale} dispose={null}>
+    <group ref={group} position={[0, 0, 0]} scale={scale}>
       <primitive object={scene} />
     </group>
   );
@@ -550,7 +554,7 @@ export const Project3DViewer = forwardRef<
     const [boundingBox, setBoundingBox] = useState<BBoxData | null>(null);
 
     useEffect(() => {
-      useGLTF.preload(modelUrl);
+      useGLTF.preload(modelUrl, true);
     }, [modelUrl]);
 
     // Reset camera when project changes (modelUrl changes)
@@ -578,13 +582,13 @@ export const Project3DViewer = forwardRef<
     // Poll camera data for debug panel (dev-only)
     useEffect(() => {
       if (!IS_DEV) return;
+      const target = new THREE.Vector3();
       const interval = setInterval(() => {
         const ctrl = cameraControlsRef.current;
         if (!ctrl) return;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cam = (ctrl as any).camera as THREE.PerspectiveCamera;
         if (!cam) return;
-        const target = new THREE.Vector3();
         ctrl.getTarget(target);
         setDebugData({
           position: [
@@ -695,7 +699,7 @@ export const Project3DViewer = forwardRef<
     return (
       <div className="w-full h-full relative">
         <Canvas
-          dpr={[1, 2]}
+          dpr={[1, 1.5]}
           camera={{
             position: initialPosition,
             fov: 50,
@@ -709,7 +713,7 @@ export const Project3DViewer = forwardRef<
             depth: true,
             stencil: false,
           }}
-          frameloop="always"
+          frameloop="demand"
           performance={{ min: 0.5 }}
         >
           <Suspense fallback={null}>

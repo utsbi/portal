@@ -3,14 +3,17 @@
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { Project } from "@/lib/data/projects";
 import type { Project3DViewerRef } from "./Project3DViewer";
+import { ProjectImageHero } from "./ProjectImageHero";
 
 const Project3DViewer = dynamic(
   () => import("./Project3DViewer").then((mod) => mod.Project3DViewer),
-  { ssr: false },
+  {
+    ssr: false,
+    loading: () => <div className="w-full h-full bg-sbi-dark" />,
+  },
 );
 
 interface ProjectHeroProps {
@@ -20,6 +23,31 @@ interface ProjectHeroProps {
 }
 
 const MIN_LOADING_MS = 1500;
+
+class ViewerErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("3D Viewer crashed:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 
 export function ProjectHero({
   project,
@@ -34,18 +62,24 @@ export function ProjectHero({
   const modelLoadedRef = useRef(false);
   const loadingStartRef = useRef(Date.now());
   const sessionRef = useRef(0);
-  const prevModelUrlRef = useRef(project.modelUrl);
+  const prevSlugRef = useRef(project.slug);
 
   // Reset refs synchronously during render so they happen BEFORE
   // child effects (Model's onReady). useEffect runs bottom-up
   // (children first), so a useEffect reset would be too late for
   // cached models that signal ready immediately.
-  if (project.has3D && project.modelUrl !== prevModelUrlRef.current) {
-    prevModelUrlRef.current = project.modelUrl;
+  // Track slug (not modelUrl) so navigating 3D → non-3D → same 3D
+  // still resets stale refs like hasCompletedRef.
+  if (project.has3D && project.slug !== prevSlugRef.current) {
+    prevSlugRef.current = project.slug;
     sessionRef.current += 1;
     hasCompletedRef.current = false;
     modelLoadedRef.current = false;
     loadingStartRef.current = Date.now();
+  }
+  // Keep prevSlugRef in sync even for non-3D projects
+  if (!project.has3D) {
+    prevSlugRef.current = project.slug;
   }
 
   // State updates still need useEffect (can't call setState during render)
@@ -54,7 +88,7 @@ export function ProjectHero({
       setPhase("loading");
       setDisplayProgress(0);
     }
-  }, [project.modelUrl, project.has3D]);
+  }, [project.slug, project.has3D]);
 
   const triggerCompletion = useCallback(() => {
     if (hasCompletedRef.current) return;
@@ -89,6 +123,7 @@ export function ProjectHero({
 
     const startTime = loadingStartRef.current;
     let frameId: number;
+    let lastUpdate = 0;
 
     const tick = () => {
       const elapsed = Date.now() - startTime;
@@ -102,7 +137,11 @@ export function ProjectHero({
 
       // Cap at 85% while model loads, 95% while waiting for min time
       const cap = modelLoadedRef.current ? 95 : 85;
-      setDisplayProgress(Math.min(eased * cap, cap));
+      const now = Date.now();
+      if (now - lastUpdate > 100) {
+        setDisplayProgress(Math.min(eased * cap, cap));
+        lastUpdate = now;
+      }
       frameId = requestAnimationFrame(tick);
     };
 
@@ -114,16 +153,34 @@ export function ProjectHero({
     <div className="relative w-full h-[calc(100dvh-80px)] mt-20 overflow-hidden bg-sbi-dark">
       {/* 3D Viewer or Parallax Image */}
       {project.has3D && project.modelUrl ? (
-        <Project3DViewer
-          ref={viewerRef as React.RefObject<Project3DViewerRef>}
-          modelUrl={project.modelUrl}
-          cameraPresets={project.cameraPresets}
-          defaultCamera={project.defaultCamera}
-          cameraLimits={project.cameraLimits}
-          modelScale={project.modelScale}
-          autoRotate={true}
-          onLoadProgress={handleLoadProgress}
-          onModelReady={handleModelReady}
+        <ViewerErrorBoundary
+          fallback={
+            project.galleryImages && project.galleryImages.length > 1 ? (
+              <ProjectImageHero images={project.galleryImages} title={project.title} />
+            ) : (
+              <div className="absolute inset-0 bg-sbi-dark">
+                <Image src={project.coverImage} alt={project.title} fill className="object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-sbi-dark via-sbi-dark/50 to-transparent" />
+              </div>
+            )
+          }
+        >
+          <Project3DViewer
+            ref={viewerRef as React.RefObject<Project3DViewerRef>}
+            modelUrl={project.modelUrl}
+            cameraPresets={project.cameraPresets}
+            defaultCamera={project.defaultCamera}
+            cameraLimits={project.cameraLimits}
+            modelScale={project.modelScale}
+            autoRotate={true}
+            onLoadProgress={handleLoadProgress}
+            onModelReady={handleModelReady}
+          />
+        </ViewerErrorBoundary>
+      ) : project.galleryImages && project.galleryImages.length > 1 ? (
+        <ProjectImageHero
+          images={project.galleryImages}
+          title={project.title}
         />
       ) : (
         <motion.div
@@ -147,7 +204,7 @@ export function ProjectHero({
       <AnimatePresence mode="wait">
         {phase !== "done" && project.has3D && (
           <motion.div
-            key={project.modelUrl}
+            key={project.slug}
             className="absolute inset-0 z-40 bg-sbi-dark flex items-center justify-center"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
