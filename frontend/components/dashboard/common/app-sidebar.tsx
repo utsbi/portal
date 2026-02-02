@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import gsap from 'gsap';
 import { createClient } from '@/lib/supabase/client';
+import { useClient } from '@/lib/client/client-context';
 
 import {
   Sidebar,
@@ -47,29 +48,36 @@ import {
 
 interface NavItem {
   title: string;
-  url: string;
+  path: string;
   icon: LucideIcon;
 }
 
-// Updated URLs - all under /dashboard
+// Navigation paths (relative to /{url_slug}/dashboard)
 const mainItems: NavItem[] = [
-  { title: 'Explore', url: '/dashboard', icon: Compass },
-  { title: 'Messages', url: '/dashboard/messages', icon: MessageSquare },
-  { title: 'Calendar', url: '/dashboard/calendar', icon: Calendar },
-  { title: 'Finances', url: '/dashboard/finances', icon: DollarSign },
-  { title: 'Lifecycle', url: '/dashboard/lifecycle', icon: Repeat },
+  { title: 'Explore', path: '', icon: Compass },
+  { title: 'Messages', path: '/messages', icon: MessageSquare },
+  { title: 'Calendar', path: '/calendar', icon: Calendar },
+  { title: 'Finances', path: '/finances', icon: DollarSign },
+  { title: 'Lifecycle', path: '/lifecycle', icon: Repeat },
 ];
 
 const documentItems: NavItem[] = [
-  { title: 'Questionnaire', url: '/dashboard/questionnaire', icon: ClipboardList },
-  { title: 'Files', url: '/dashboard/files', icon: FolderOpen },
-  { title: 'Reports', url: '/dashboard/reports', icon: FileText },
-  { title: 'Requests', url: '/dashboard/requests', icon: MailQuestion },
+  { title: 'Questionnaire', path: '/questionnaire', icon: ClipboardList },
+  { title: 'Files', path: '/files', icon: FolderOpen },
+  { title: 'Reports', path: '/reports', icon: FileText },
+  { title: 'Requests', path: '/requests', icon: MailQuestion },
 ];
 
-function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
+interface NavLinkProps {
+  item: NavItem;
+  isActive: boolean;
+  baseUrl: string;
+}
+
+function NavLink({ item, isActive, baseUrl }: NavLinkProps) {
   const linkRef = useRef<HTMLAnchorElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
+  const fullUrl = `${baseUrl}${item.path}`;
 
   useEffect(() => {
     if (!indicatorRef.current) return;
@@ -96,7 +104,7 @@ function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
       <SidebarMenuButton asChild className="relative group hover:bg-transparent">
         <a 
           ref={linkRef}
-          href={item.url} 
+          href={fullUrl} 
           className={`relative flex items-center gap-3 px-2.5 py-2.5 transition-all duration-300 group-data-[collapsible=icon]:justify-center ${
             isActive ? 'text-white' : 'text-sbi-muted hover:text-white'
           }`}
@@ -130,16 +138,31 @@ function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
   );
 }
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  urlSlug: string;
+}
+
+export function AppSidebar({ urlSlug }: AppSidebarProps) {
   const { state } = useSidebar();
   const pathname = usePathname();
   const router = useRouter();
+  const { client } = useClient();
   
-  const isActive = (url: string) => {
-    if (url === '/dashboard') {
-      return pathname === '/dashboard';
+  // Base URL for all dashboard routes
+  const baseUrl = `/${urlSlug}/dashboard`;
+  
+  // Get user display info from client context
+  const userName = client?.name || 'Loading...';
+  const userEmail = client?.email || '';
+  const userInitials = client?.initials || '...';
+  
+  const isActive = (path: string) => {
+    const fullPath = `${baseUrl}${path}`;
+    if (path === '') {
+      // Explore page (root dashboard)
+      return pathname === baseUrl;
     }
-    return pathname.startsWith(url);
+    return pathname.startsWith(fullPath);
   };
 
   const handleLogout = async () => {
@@ -165,7 +188,7 @@ export function AppSidebar() {
                 group-data-[collapsible=icon]:justify-center"
             >
               <a
-                href="/dashboard"
+                href={baseUrl}
                 className="flex items-center gap-3
                   group-data-[collapsible=icon]:gap-0
                   group-data-[collapsible=icon]:justify-center
@@ -221,7 +244,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="space-y-0.5">
               {mainItems.map((item) => (
-                <NavLink key={item.title} item={item} isActive={isActive(item.url)} />
+                <NavLink key={item.title} item={item} isActive={isActive(item.path)} baseUrl={baseUrl} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -235,7 +258,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="space-y-0.5">
               {documentItems.map((item) => (
-                <NavLink key={item.title} item={item} isActive={isActive(item.url)} />
+                <NavLink key={item.title} item={item} isActive={isActive(item.path)} baseUrl={baseUrl} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -263,13 +286,13 @@ export function AppSidebar() {
                       group-data-[collapsible=icon]:size-8"
                   >
                     <div className="absolute inset-0 scale-90 border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-300" />
-                    <span className="text-xs font-extralight text-sbi-green tracking-wider">JD</span>
+                    <span className="text-xs font-extralight text-sbi-green tracking-wider">{userInitials}</span>
                   </div>
                   
                   {/* User info */}
                   <div className="flex-1 text-left min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-extralight text-white truncate">John Doe</p>
-                    <p className="text-[11px] text-sbi-muted-dark truncate tracking-wide">john@utsbi.com</p>
+                    <p className="text-sm font-extralight text-white truncate">{userName}</p>
+                    <p className="text-[11px] text-sbi-muted-dark truncate tracking-wide">{userEmail}</p>
                   </div>
                   
                   {/* Dropdown indicator */}
@@ -289,11 +312,11 @@ export function AppSidebar() {
                   <div className="flex items-center gap-2 px-2 py-2 text-left text-sm">
                     <div className="relative flex size-8 items-center justify-center shrink-0">
                       <div className="absolute inset-0 scale-90 border border-sbi-dark-border" />
-                      <span className="text-xs font-extralight text-sbi-green tracking-wider">JD</span>
+                      <span className="text-xs font-extralight text-sbi-green tracking-wider">{userInitials}</span>
                     </div>
                     <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-extralight text-white">John Doe</span>
-                      <span className="truncate text-xs text-sbi-muted-dark">john@utsbi.com</span>
+                      <span className="truncate font-extralight text-white">{userName}</span>
+                      <span className="truncate text-xs text-sbi-muted-dark">{userEmail}</span>
                     </div>
                   </div>
                 </DropdownMenuLabel>

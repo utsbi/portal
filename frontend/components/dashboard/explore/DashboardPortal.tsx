@@ -8,10 +8,19 @@ import { SuggestionChips } from './ui/SuggestionChips';
 import { AmbientGrid } from './ui/AmbientGrid';
 import { TimeDisplay } from './ui/TimeDisplay';
 import { FloatingNodes } from './ui/FloatingNodes';
+import { ChatMessages } from './ui/ChatMessages';
+import { ChatProvider, useChat } from '@/lib/chat/chat-context';
 
-export default function DashboardPortal() {
+interface DashboardPortalProps {
+  urlSlug?: string;
+}
+
+function DashboardPortalContent({ urlSlug }: DashboardPortalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
+  const { messages } = useChat();
+  
+  const hasMessages = messages.length > 0;
 
   useEffect(() => {
     const timer = setTimeout(() => setIsReady(true), 100);
@@ -111,13 +120,28 @@ export default function DashboardPortal() {
 
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-3xl mx-auto space-y-8 px-4">
-        <PortalHero />
+        {/* Show hero only when no messages */}
+        {!hasMessages && <PortalHero />}
+        
+        {/* Chat messages */}
+        {hasMessages && <ChatMessages />}
+        
         <PortalInput />
-        <SuggestionChips disableAutoAnimation />
+        
+        {/* Show suggestion chips only when no messages */}
+        {!hasMessages && <SuggestionChips disableAutoAnimation />}
       </div>
 
       {/* Bottom line */}
       <div className="ambient-element absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent opacity-0" />
     </div>
+  );
+}
+
+export default function DashboardPortal({ urlSlug }: DashboardPortalProps) {
+  return (
+    <ChatProvider>
+      <DashboardPortalContent urlSlug={urlSlug} />
+    </ChatProvider>
   );
 }

@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import bg from "@/assets/images/login.jpg";
-import { createClient } from "@/lib/supabase/client";
+import { loginAction, checkAuthAction } from "./actions";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,12 +24,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) {
-        router.replace("/dashboard");
+      const result = await checkAuthAction();
+      
+      if (result.authenticated && result.urlSlug) {
+        router.replace(`/${result.urlSlug}/dashboard`);
       } else {
         setIsCheckingAuth(false);
       }
@@ -51,28 +49,19 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    const supabase = createClient();
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formState.email.trim().toLowerCase(),
-        password: formState.password,
-      });
+      const result = await loginAction(formState.email, formState.password);
 
-      if (error) {
-        if (error.message.includes("Invalid login credentials")) {
-          setError("Invalid email or password");
+      if (!result.success) {
+        setError(result.error || "An error occurred. Please try again.");
+        if (result.error === "Invalid email or password") {
           setLoginAttempts((prev) => prev + 1);
-        } else if (error.message.includes("Email not confirmed")) {
-          setError("Please verify your email address");
-        } else {
-          setError("An error occurred. Please try again.");
         }
         return;
       }
 
-      if (data.user) {
-        router.replace("/dashboard");
+      if (result.urlSlug) {
+        router.replace(`/${result.urlSlug}/dashboard`);
       }
     } catch {
       setError("An unexpected error occurred. Please try again.");
@@ -87,6 +76,8 @@ export default function LoginPage() {
       return;
     }
 
+    // Use a dynamic import for the client-side forgot password
+    const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(
       formState.email.trim().toLowerCase(),

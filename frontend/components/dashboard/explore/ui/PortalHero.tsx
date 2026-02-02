@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useClient } from '@/lib/client/client-context';
 
 export function PortalHero() {
-  const [userName] = useState('John Doe'); // This would come from auth context
+  const { client, isLoading } = useClient();
+  
+  // Get first name from full name
+  const firstName = client?.name?.split(' ')[0] || '';
 
   return (
     <div className="flex flex-col items-center text-center space-y-6">
@@ -12,7 +15,7 @@ export function PortalHero() {
         {/* Greeting text */}
         <div className="overflow-hidden">
           <h1 className="text-4xl md:text-4xl lg:text-5xl font-extralight tracking-tight text-white leading-none">
-            Hello, <span className="text-sbi-green">{userName}</span>
+            Hello, <span className="text-sbi-green">{isLoading ? '...' : firstName}</span>
           </h1>
         </div>
         

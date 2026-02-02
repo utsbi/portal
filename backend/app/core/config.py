@@ -23,3 +23,5 @@ class Settings(BaseSettings):
     def supabase_secret(self) -> str:
         """Get the Supabase secret key."""
         return self.SUPABASE_SECRET_KEY or ""
+    
+settings = Settings()
