@@ -1,7 +1,7 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
-import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,6 +10,8 @@ import { useEffect, useState } from "react";
 import bg from "@/assets/images/login.jpg";
 import { loginAction, checkAuthAction } from "./actions";
 
+const portalTypes = ["Client", "Member", "Sponsor"];
+
 export default function LoginPage() {
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -17,10 +19,19 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loginAttempts, setLoginAttempts] = useState(0);
+  const [portalTypeIndex, setPortalTypeIndex] = useState(0);
   const [formState, setFormState] = useState({
     email: "",
     password: "",
   });
+
+  // Cycle through portal types
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPortalTypeIndex((prev) => (prev + 1) % portalTypes.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -148,8 +159,24 @@ export default function LoginPage() {
             {/*   </span> */}
             {/*   <div className="h-px w-0 bg-sbi-green group-hover:w-full transition-all duration-300 mx-auto" /> */}
             {/* </Link> */}
-            <p className="mt-4 text-sbi-muted text-sm tracking-wider uppercase">
-              SBI Member Portal
+            <p className="mt-4 text-sbi-muted text-sm tracking-wider uppercase flex items-center justify-center gap-[0.3em]">
+              <span>SBI</span>
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={portalTypes[portalTypeIndex]}
+                    initial={{ y: "100%", opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: "-100%", opacity: 0 }}
+                    transition={{
+                      duration: 0.4,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="inline-block"
+                  >
+                    {portalTypes[portalTypeIndex]}
+                  </motion.span>
+                </AnimatePresence>
+              <span>Portal</span>
             </p>
           </motion.div>
 
