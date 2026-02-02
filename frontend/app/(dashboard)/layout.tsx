@@ -1,6 +1,12 @@
-import { dm_sans } from '@/utils/fonts';
-import { AppSidebar } from '@/components/dashboard/app-sidebar';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { DM_Sans } from "next/font/google";
+import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+
+const dm_sans = DM_Sans({ subsets: ["latin"] });
 
 export default function DashboardLayout({
   children,

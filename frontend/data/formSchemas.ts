@@ -1,10 +1,11 @@
 export type FormField = {
     id: string;
     label: string;
-    type: 'text' | 'textarea' | 'email' | 'checkbox' | 'date';
+    type: 'text' | 'textarea' | 'email' | 'checkbox' | 'date' | 'section-header' | 'multi-select' | 'select';
     placeholder?: string;
     required?: boolean;
-    description?: string; // For the "Follow-up/Specifics"
+    description?: string;
+    options?: string[]; // For multi-select or select
 };
 
 export type FormSchema = {
@@ -130,6 +131,184 @@ export const formSchemas: Record<string, FormSchema> = {
                 placeholder: "Estimated annual costs...",
                 required: true,
                 description: "Include filter replacement, chemical costs, and pump maintenance."
+            }
+        ]
+    },
+    "Conceptual Basics": {
+        title: "Project Concept: Basics",
+        description: "Foundational details about the layout and scale of your home.",
+        fields: [
+            {
+                id: "sq_footage",
+                label: "Approximate desired total square footage",
+                type: "text",
+                placeholder: "sq. ft."
+            },
+            {
+                id: "floors",
+                label: "Number of floors",
+                type: "text",
+                placeholder: "e.g., 1, 2, 3"
+            },
+            {
+                id: "total_bedrooms",
+                label: "Total number of bedrooms",
+                type: "text"
+            },
+            {
+                id: "master_suite",
+                label: "Ideal Master Suite Description",
+                type: "textarea",
+                description: "Special features (e.g., private balcony, sitting room, fireplace, dual closets)?"
+            },
+            {
+                id: "entryway",
+                label: "Front Entrance Impression",
+                type: "textarea",
+                description: "How should it feel? (e.g., Grand, Understated, Welcoming)"
+            }
+        ]
+    },
+    "Interior Detail": {
+        title: "Project Concept: Interior Programming",
+        description: "How you plan to live and entertain within the home.",
+        fields: [
+            {
+                id: "sec_kitchen",
+                label: "Kitchen & Dining",
+                type: "section-header"
+            },
+            {
+                id: "kitchen_spaces",
+                label: "Desired Kitchen & Dining Spaces",
+                type: "multi-select",
+                options: ["Gourmet Kitchen", "Prep Kitchen/Scullery", "Formal Dining Room", "Breakfast Nook", "Wine Cellar/Room", "Large Island(s)"]
+            },
+            {
+                id: "sec_living",
+                label: "Living & Entertaining",
+                type: "section-header"
+            },
+            {
+                id: "living_spaces",
+                label: "Priority Spaces",
+                type: "multi-select",
+                options: ["Great Room", "Double-Height Ceiling", "Home Theater/Media Room", "Game Room/Billiards", "Home Bar/Lounge", "Library/Study", "Private Guest Wing"]
+            },
+            {
+                id: "sec_functional",
+                label: "Personal Spaces",
+                type: "section-header"
+            },
+            {
+                id: "functional_spaces",
+                label: "Personal & Functional Requirements",
+                type: "multi-select",
+                options: ["Home Office(s)", "Home Gym", "Yoga/Massage Room", "Mudroom", "Large Laundry Room", "Safe Room/Panic Room"]
+            }
+        ]
+    },
+    "Architecture & Aesthetic": {
+        title: "Project Concept: Architecture & Soul",
+        description: "The visual language and materials of your dream home.",
+        fields: [
+            {
+                id: "atmosphere",
+                label: "Interior Atmosphere Keywords",
+                type: "textarea",
+                placeholder: "e.g., Modern, Cozy, Industrial, Minimalist..."
+            },
+            {
+                id: "arch_styles",
+                label: "Architectural Styles",
+                type: "textarea",
+                description: "Styles you are drawn to (e.g., Contemporary, Transitional, Mediterranean, Hill Country Modern)"
+            },
+            {
+                id: "exterior_materials",
+                label: "Primary Exterior Materials",
+                type: "multi-select",
+                options: ["Stone", "Stucco", "Brick", "Wood/Siding", "Steel/Metal", "Glass Panels"],
+                description: "Check up to two"
+            },
+            {
+                id: "window_style",
+                label: "Window & Door Style Preference",
+                type: "textarea"
+            },
+            {
+                id: "roofing",
+                label: "Roofing Materials",
+                type: "text"
+            }
+        ]
+    },
+    "The Estate": {
+        title: "Project Concept: The Estate & Grounds",
+        description: "Everything outside the main living walls.",
+        fields: [
+            {
+                id: "garage_bays",
+                label: "Number of garage bays required",
+                type: "text"
+            },
+            {
+                id: "garage_style",
+                label: "Garage style",
+                type: "textarea",
+                description: "Attached, Detached, Side-entry, etc."
+            },
+            {
+                id: "indoor_outdoor_flow",
+                label: "Indoor-Outdoor Connection Importance",
+                type: "textarea"
+            },
+            {
+                id: "outdoor_structures",
+                label: "Outdoor Structures",
+                type: "multi-select",
+                options: ["Outdoor Kitchen", "Pool House/Cabana", "Guest House (Casita)", "Pergola/Gazebo", "Fire Pit/Outdoor Fireplace"]
+            },
+            {
+                id: "sports_rec",
+                label: "Sports & Recreation",
+                type: "multi-select",
+                options: ["Sport Court (Basketball)", "Tennis/Pickleball Court", "Putting Green", "Hiking Trails on Property"]
+            },
+            {
+                id: "landscaping",
+                label: "Landscaping Style",
+                type: "textarea"
+            },
+            {
+                id: "wantsPool",
+                label: "Include a swimming pool in this concept?",
+                type: "checkbox",
+                description: "Checking this will unlock the Pool Specifications questionnaire."
+            }
+        ]
+    },
+    "Pool Specifications": {
+        title: "Client Concept: Pool Details",
+        description: "Refining the vision for your pool and water features.",
+        fields: [
+            {
+                id: "pool_style",
+                label: "Swimming Pool Style Preference",
+                type: "textarea",
+                placeholder: "Geometric, Freeform, Infinity-edge..."
+            },
+            {
+                id: "pool_extra",
+                label: "Extra Pool Features",
+                type: "multi-select",
+                options: ["Spa/Hot Tub", "Fire pits near pool", "Tanning ledge (Baja shelf)", "Waterfall/Water feature", "LED Lighting"]
+            },
+            {
+                id: "pool_usage",
+                label: "Primary Pool Usage",
+                type: "textarea",
+                description: "Laps, Entertaining, Kids/Family, Aesthetics?"
             }
         ]
     }

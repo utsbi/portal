@@ -27,11 +27,15 @@ import { AlertCircle } from 'lucide-react';
 
 // Updated mock data with new columns
 const initialSections = [
-  { id: 1, formName: "General Form", priority: "High", status: "In Process", questionCount: 5, team: "Architecture" },
+  { id: 1, formName: "General Form", priority: "High", status: "In Process", questionCount: 8, team: "Architecture" },
+  { id: 2, formName: "Conceptual Basics", priority: "Critical", status: "In Process", questionCount: 5, team: "Architecture" },
+  { id: 3, formName: "Interior Detail", priority: "High", status: "In Process", questionCount: 6, team: "Architecture" },
+  { id: 4, formName: "Architecture & Aesthetic", priority: "Medium", status: "In Process", questionCount: 5, team: "Architecture" },
+  { id: 5, formName: "The Estate", priority: "Medium", status: "In Process", questionCount: 7, team: "Architecture" },
 ];
 
 type SortConfig = {
-  key: "id" | "formName" | "priority" | "status" | "questionCount" | "team" | null; // improved typing
+  key: "id" | "formName" | "priority" | "status" | "questionCount" | "team" | "missingRequired" | null;
   direction: 'asc' | 'desc';
 };
 
@@ -50,7 +54,7 @@ export default function QuestionnairePage() {
     setOpen(true);
   };
 
-  const handleSort = (key: keyof typeof initialSections[0]) => {
+  const handleSort = (key: keyof typeof initialSections[0] | 'missingRequired') => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
@@ -99,7 +103,7 @@ export default function QuestionnairePage() {
           return [
             ...filtered,
             {
-              id: 2,
+              id: 10,
               formName: "Pool - Civil Engineering",
               priority: "Medium",
               status: "In Process",
@@ -107,7 +111,7 @@ export default function QuestionnairePage() {
               team: "Engineering"
             },
             {
-              id: 3,
+              id: 11,
               formName: "Pool - Mechanical Systems",
               priority: "Medium",
               status: "In Process",
@@ -115,7 +119,7 @@ export default function QuestionnairePage() {
               team: "Engineering"
             },
             {
-              id: 4,
+              id: 12,
               formName: "Pool - Finance",
               priority: "Low",
               status: "In Process",
@@ -125,6 +129,33 @@ export default function QuestionnairePage() {
           ];
         } else {
           return filtered;
+        }
+      });
+    }
+
+    if (selectedSection?.formName === "The Estate") {
+      const wantsPool = data.wantsPool === "yes";
+
+      setSections(prev => {
+        const existingPoolSpec = prev.find(s => s.formName === "Pool Specifications");
+
+        if (wantsPool && existingPoolSpec) return prev;
+        if (!wantsPool && !existingPoolSpec) return prev;
+
+        if (wantsPool) {
+          return [
+            ...prev,
+            {
+              id: 6,
+              formName: "Pool Specifications",
+              priority: "High",
+              status: "In Process",
+              questionCount: 3,
+              team: "Architecture"
+            }
+          ];
+        } else {
+          return prev.filter(s => s.formName !== "Pool Specifications");
         }
       });
     }

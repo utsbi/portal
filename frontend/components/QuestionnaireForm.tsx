@@ -78,7 +78,12 @@ export function QuestionnaireForm({
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {schema.fields.map((field) => (
                         <div key={field.id} className="space-y-2">
-                            {field.type === 'checkbox' ? (
+                            {field.type === 'section-header' ? (
+                                <div className="pt-6 pb-2 border-b border-zinc-800 mb-4 first:pt-0">
+                                    <h3 className="text-lg font-semibold text-gray-100 tracking-tight">{field.label}</h3>
+                                    {field.description && <p className="text-sm text-gray-500 mt-1">{field.description}</p>}
+                                </div>
+                            ) : field.type === 'checkbox' ? (
                                 <div className="flex items-start space-x-2 p-4 border border-zinc-800 rounded-md bg-zinc-900/30">
                                     <Checkbox
                                         id={field.id}
@@ -97,6 +102,42 @@ export function QuestionnaireForm({
                                             </p>
                                         )}
                                     </div>
+                                </div>
+                            ) : field.type === 'multi-select' ? (
+                                <div className="space-y-3">
+                                    <Label className="text-sm font-medium text-gray-200 flex items-center gap-1">
+                                        {field.label}
+                                        {field.required && <span className="text-red-500 font-bold">*</span>}
+                                    </Label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 border border-zinc-800 rounded-md bg-zinc-900/10">
+                                        {field.options?.map((option) => (
+                                            <div key={option} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`${field.id}-${option}`}
+                                                    checked={(formData[field.id] || []).includes(option)}
+                                                    onCheckedChange={(checked) => {
+                                                        const current = formData[field.id] || [];
+                                                        const next = checked
+                                                            ? [...current, option]
+                                                            : current.filter((i: string) => i !== option);
+                                                        handleInputChange(field.id, next);
+                                                    }}
+                                                    className="border-zinc-700 data-[state=checked]:bg-zinc-100 data-[state=checked]:text-zinc-900"
+                                                />
+                                                <Label
+                                                    htmlFor={`${field.id}-${option}`}
+                                                    className="text-sm text-gray-300 font-normal cursor-pointer"
+                                                >
+                                                    {option}
+                                                </Label>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {field.description && (
+                                        <p className="text-xs text-gray-500">
+                                            {field.description}
+                                        </p>
+                                    )}
                                 </div>
                             ) : (
                                 <>
