@@ -171,7 +171,7 @@ export default function LoginPage() {
                       duration: 0.4,
                       ease: [0.22, 1, 0.36, 1],
                     }}
-                    className="inline-block"
+                    className="inline-block uppercase text-sbi-green"
                   >
                     {portalTypes[portalTypeIndex]}
                   </motion.span>
