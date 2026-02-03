@@ -32,7 +32,7 @@ export function TimeDisplay() {
   if (!mounted) return null;
 
   return (
-    <div className="time-display absolute top-8 right-8 flex flex-col items-end opacity-0 translate-x-5">
+    <div className="time-display flex flex-col items-end opacity-0 translate-x-5">
       <div className="flex items-baseline gap-2">
         <span className="text-4xl font-extralight tracking-tight text-white/80 tabular-nums">
           {time}

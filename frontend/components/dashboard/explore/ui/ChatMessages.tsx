@@ -22,7 +22,7 @@ export function ChatMessages() {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto space-y-6 py-6 px-4 max-h-[60vh] scrollbar-thin scrollbar-thumb-sbi-dark-border scrollbar-track-transparent"
+      className="h-full overflow-y-auto space-y-6 py-4 pr-4 dashboard-scrollbar"
     >
       {messages.map((message) => (
         <ChatMessage key={message.id} message={message} />

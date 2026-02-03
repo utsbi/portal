@@ -6,11 +6,17 @@ import { createClient } from "@/lib/supabase/client";
 
 export type LoadingPhase = "idle" | "thinking" | "planning" | "searching" | "generating" | "complete" | "error";
 
+export interface MessageAttachment {
+  filename: string;
+  content: string;
+}
+
 export interface DisplayMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: SourceDocument[];
+  attachments?: MessageAttachment[];
   timestamp: Date;
   isStreaming?: boolean;
   displayedContent?: string;
@@ -102,10 +108,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     setError(null);
     
+    // Capture attachments for this message
+    const messageAttachments: MessageAttachment[] = attachments.map(a => ({
+      filename: a.filename,
+      content: a.content,
+    }));
+    
     const userMessage: DisplayMessage = {
       id: `user-${Date.now()}`,
       role: "user",
       content: query,
+      attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMessage]);

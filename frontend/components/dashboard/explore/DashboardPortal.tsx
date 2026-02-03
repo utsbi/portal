@@ -116,17 +116,37 @@ function DashboardPortalContent({ urlSlug }: DashboardPortalProps) {
       <div className="ambient-element absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
 
       {/* Time Display */}
-      <TimeDisplay />
+      <div className="fixed top-24 right-12 z-20">
+        <TimeDisplay />
+      </div>
 
       {/* Main Content */}
-      <div className="relative z-10 w-full max-w-3xl mx-auto space-y-8 px-4">
+      <div className={`relative z-10 w-full max-w-3xl mx-auto px-4 ${
+        hasMessages 
+          ? 'flex flex-col h-[calc(100vh-4rem)]' 
+          : 'space-y-8'
+      }`}>
         {/* Show hero only when no messages */}
         {!hasMessages && <PortalHero />}
         
         {/* Chat messages */}
-        {hasMessages && <ChatMessages />}
+        {hasMessages && (
+          <div className="flex-1 overflow-hidden pt-6 pr-2">
+            <ChatMessages />
+          </div>
+        )}
         
-        <PortalInput />
+        {/* Input section */}
+        <div className={hasMessages ? 'shrink-0 pb-4' : ''}>
+          <PortalInput />
+          
+          {/* AI Disclaimer */}
+          {hasMessages && (
+            <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
+              AI can make mistakes, so double check responses
+            </p>
+          )}
+        </div>
         
         {/* Show suggestion chips only when no messages */}
         {!hasMessages && <SuggestionChips disableAutoAnimation />}
