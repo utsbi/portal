@@ -46,18 +46,14 @@ export function SuggestionChips({ disableAutoAnimation = false }: SuggestionChip
         <button
           key={index}
           type="button"
-          className="suggestion-chip group relative overflow-hidden"
+          className="suggestion-chip invisible opacity-0 translate-y-4 scale-95 group relative overflow-hidden rounded-full"
         >
           {/* Background layers */}
-          <div className="absolute inset-0 bg-sbi-dark-card/60 backdrop-blur-sm transition-all duration-500 group-hover:bg-sbi-dark-card" />
-          <div className="absolute inset-0 bg-linear-to-r from-sbi-green/0 via-sbi-green/5 to-sbi-green/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <div className="absolute inset-0 bg-sbi-dark-card/60 backdrop-blur-sm transition-all duration-500 group-hover:bg-sbi-dark-card rounded-full" />
+          <div className="absolute inset-0 bg-linear-to-r from-sbi-green/0 via-sbi-green/5 to-sbi-green/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 rounded-full" />
           
           {/* Border */}
-          <div className="absolute inset-0 border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-500" />
-          
-          {/* Corner accents on hover */}
-          <div className="absolute top-0 left-0 w-2 h-2 border-l border-t border-sbi-green/0 group-hover:border-sbi-green/50 transition-all duration-300" />
-          <div className="absolute bottom-0 right-0 w-2 h-2 border-r border-b border-sbi-green/0 group-hover:border-sbi-green/50 transition-all duration-300" />
+          <div className="absolute inset-0 border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-500 rounded-full" />
           
           {/* Content */}
           <div className="relative flex items-center gap-3 px-6 py-3">
@@ -70,8 +66,8 @@ export function SuggestionChips({ disableAutoAnimation = false }: SuggestionChip
             </span>
           </div>
           
-          {/* Bottom line indicator */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-px bg-sbi-green group-hover:w-3/4 transition-all duration-500" />
+          {/* Bottom glow indicator on hover */}
+          <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 shadow-[inset_0_-1px_0_0_rgba(34,197,94,0.3)]" />
         </button>
       ))}
     </div>

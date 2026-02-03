@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { useSidebar } from '@/components/ui/sidebar';
+import { useSidebar } from '@/lib/sidebar/sidebar-context';
 import gsap from 'gsap';
 
 export function SidebarTriggerCustom() {
