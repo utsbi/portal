@@ -36,12 +36,11 @@ export function FloatingNodes() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Initialize nodes (more particles for a richer field)
+    // Initialize nodes
     const nodeCount = 16;
     nodesRef.current = Array.from({ length: nodeCount }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      // Slightly higher velocity range to feel more alive
       vx: (Math.random() - 0.5) * 0.45,
       vy: (Math.random() - 0.5) * 0.45,
       size: Math.random() * 2 + 1,

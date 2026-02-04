@@ -22,22 +22,22 @@ Visit [http://localhost:3000](http://localhost:3000) to view the application.
 
 ```
 app/
-  ├── (static)/          # Public pages (no auth required)
+  ├── (static)/          # Public pages
   │   ├── about/
   │   ├── contact/
   │   ├── outreach/
-  │   └── projects/
-  ├── dashboard/         # Protected pages (auth required)
-  ├── login/             # Authentication
+  │   ├── projects/
+  │   └── login/         # Authentication
+  ├── dashboard/         # Protected pages
   └── layout.tsx         # Root layout
 components/              # Reusable React components
-utils/
+lib/
   └── supabase/          # Supabase client configuration
 ```
 
 ## Tech Stack
 
-- **Framework:** Next.js 15 (App Router)
+- **Framework:** Next.js 16 (App Router)
 - **Styling:** Tailwind CSS, Mantine UI
 - **3D Rendering:** React Three Fiber
 - **Authentication:** Supabase Auth
@@ -57,6 +57,11 @@ bun lint         # Run linter
 Create a `.env.local` file:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_key
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+N8N_CONTACT_WEBHOOK_URL=
+BASIC_AUTH_USER=
+BASIC_AUTH_PASSWORD=
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
 ```
