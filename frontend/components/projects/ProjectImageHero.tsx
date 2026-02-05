@@ -136,7 +136,7 @@ export function ProjectImageHero({ images, title }: ProjectImageHeroProps) {
       <div className="absolute inset-0 bg-gradient-to-t from-sbi-dark via-sbi-dark/40 to-transparent pointer-events-none" />
 
       {/* Navigation arrows + dot indicators */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-4 z-10">
+      <div className="absolute bottom-4 md:bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-4 z-10">
         <button
           type="button"
           onClick={goPrev}
