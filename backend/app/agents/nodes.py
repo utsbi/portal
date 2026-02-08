@@ -34,24 +34,23 @@ async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
     history = state.get("history", [])
     attachments = state.get("attachments", [])
     
-    # Simple heuristic routing for common cases
+    # Simple routing for common uses
     query_lower = query.lower().strip()
-    
-    # Greetings and simple queries
+
+    # Greeting queries
     greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"]
     if any(query_lower.startswith(g) for g in greetings):
         return {**state, "route": "direct", "route_reason": "Greeting detected"}
-    
+
     # Help requests
     if query_lower in ["help", "what can you do", "what can you help with"]:
         return {**state, "route": "direct", "route_reason": "Help request"}
+
+    # If attachments are present, always route to attachment path.
+    if attachments:
+        return {**state, "route": "attachment", "route_reason": "Session attachments present"}
     
-    # If attachments are present and query seems to reference them
-    attachment_keywords = ["attached", "attachment", "file", "document", "uploaded", "this file", "the file"]
-    if attachments and any(kw in query_lower for kw in attachment_keywords):
-        return {**state, "route": "attachment", "route_reason": "Query references attachments"}
-    
-    # For more complex routing decisions, use LLM
+    # Complex routing decisions, use LLM
     routing_prompt = ROUTING_PROMPT.format(
         query=query,
         has_history=len(history) > 0,
@@ -59,8 +58,8 @@ async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
     )
     
     try:
-        response = gemini_client.models.generate_content(
-            model="gemini-2.5-flash-lite",
+        response = await gemini_client.aio.models.generate_content(
+            model=settings.fast_model,
             contents=routing_prompt
         )
         decision = (response.text or "").strip().upper()
@@ -88,12 +87,31 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
     context = ""
     
     # Handle attachment-focused queries
+    # Gemini supports 1M tokens. Cap at 800K tokens
+    # leave room for system prompt, history, and generation.
+    MAX_ATTACHMENT_CONTEXT = 800_000
+
     if route == "attachment" and attachments:
         context_parts = ["=== Session Attachments ===\n"]
+        current_length = 0
         for att in attachments:
-            context_parts.append(f"\n[File: {att.get('filename', 'attachment')}]\n")
-            context_parts.append(att.get("content", ""))
+            att_header = f"\n[File: {att.get('filename', 'attachment')}]\n"
+            att_content = att.get("content", "")
+
+            if current_length + len(att_header) + len(att_content) > MAX_ATTACHMENT_CONTEXT:
+                # Include as much of this attachment as fits
+                remaining = MAX_ATTACHMENT_CONTEXT - current_length - len(att_header) - 100
+                if remaining > 1000:
+                    context_parts.append(att_header)
+                    context_parts.append(att_content[:remaining])
+                    context_parts.append("\n\n[Note: File content was truncated due to size limits.]\n")
+                break
+
+            context_parts.append(att_header)
+            context_parts.append(att_content)
             context_parts.append("\n")
+            current_length += len(att_header) + len(att_content) + 1
+
         context = "".join(context_parts)
         
     # Retrieve from vector store
@@ -128,9 +146,9 @@ async def generate_response(state: Dict[str, Any]) -> Dict[str, Any]:
     
     # Select model based on preference
     if model_preference == "thinking":
-        model = "gemini-2.5-pro"
+        model = settings.think_model
     else:
-        model = "gemini-2.5-flash-lite"
+        model = settings.fast_model
     
     # Handle direct responses (greetings, help)
     if route == "direct":
@@ -147,11 +165,11 @@ async def generate_response(state: Dict[str, Any]) -> Dict[str, Any]:
                 **state,
                 "response": """I'm here to help you with your construction and sustainability projects. I can assist with:
 
-- Answering questions about your project documents and specifications
-- Summarizing meeting notes and reports
-- Tracking project progress, deadlines, and deliverables
-- Extracting action items from documents
-- Providing insights from your project data
+* Answering questions about your project documents and specifications
+* Summarizing meeting notes and reports
+* Tracking project progress, deadlines, and deliverables
+* Extracting action items from documents
+* Providing insights from your project data
 
 Feel free to ask me anything about your project, or upload documents for me to analyze."""
             }
@@ -166,7 +184,7 @@ Feel free to ask me anything about your project, or upload documents for me to a
     )}"
     
     try:
-        response = gemini_client.models.generate_content(
+        response = await gemini_client.aio.models.generate_content(
             model=model,
             contents=generation_prompt
         )
@@ -182,6 +200,7 @@ Feel free to ask me anything about your project, or upload documents for me to a
         
         return {**state, "response": answer}
         
+    # TODO: Remove the error message {e} once it hits prod
     except Exception as e:
         return {
             **state,
