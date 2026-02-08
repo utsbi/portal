@@ -166,7 +166,7 @@ POST /api/v1/chat/
   ],
   "attachments": [],
   "include_sources": true,
-  "model_preference": "flash"
+  "model_preference": "fast"
 }
 ```
 
@@ -240,12 +240,14 @@ The frontend is now fully integrated with the backend API:
 **Problem:** Clicking the Stop button aborted the `fetch()` call but the backend continued processing (wasting Gemini tokens), and responses could still appear if the API response arrived before/during the loading animation or text streaming.
 
 **Frontend fixes (`chat-context.tsx`):**
+
 - Added `cancelledRef` ref checked after every `await` point in `sendMessage` and `editAndResend`
 - `cancelRequest` sets `cancelledRef.current = true`, aborts the fetch, and removes any streaming assistant messages
 - `animateLoadingPhases` and `streamText` check `cancelledRef` on each tick and resolve immediately if cancelled
 - Used local `abortController` variable to prevent null reference if cancel fires during auth
 
 **Backend fixes:**
+
 - `nodes.py`: Switched Gemini calls from sync (`client.models.generate_content`) to async (`await client.aio.models.generate_content`) making them cancellable via `asyncio.CancelledError`
 - `rag_service.py`: Switched embedding call to async (`await client.aio.models.embed_content`)
 - `chat.py`: Added `Request` parameter and `asyncio.wait` pattern to monitor client disconnection in parallel with agent execution; cancels the agent task when the client disconnects
@@ -257,6 +259,7 @@ The frontend is now fully integrated with the backend API:
 **Root cause:** The flex layout lacked `min-w-0` on flex containers, preventing width constraint propagation. The `max-w-[80%]` on the bubble was ineffective because its parent flex-col had no width constraint. Copy/edit icons were at the outer flex level (next to the full column including attachments) instead of specifically next to the message bubble.
 
 **Fix (`ChatMessage.tsx`):**
+
 - Restructured user message layout: outer column (`max-w-[80%]`) contains attachments row, then a sub-row with `[icons + bubble]`
 - Added `min-w-0` to the message row and bubble div for proper flex width constraint propagation
 - Copy/edit icons now appear on hover to the left of the message bubble (Gemini-style)

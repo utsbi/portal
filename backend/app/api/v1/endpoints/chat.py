@@ -33,7 +33,7 @@ async def chat(request: ChatRequest, raw_request: Request, user_id: str = Depend
                     {"filename": att.filename, "content": att.content, "file_type": att.file_type}
                     for att in request.attachments
                 ],
-                model_preference=request.model_preference or "flash"
+                model_preference=request.model_preference or "fast"
             )
         )
 

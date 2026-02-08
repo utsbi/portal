@@ -15,7 +15,7 @@
 - **Database:** Supabase (PostgreSQL + pgvector)
 - **Auth:** Supabase Auth (RLS is **MANDATORY** for all queries)
 - **Orchestration:** LangGraph (Stateful agent workflows)
-- **LLM:** Gemini 3.0 Flash (Fast/RAG) & Gemini 3.0 Flash Thinking (Complex Reasoning)
+- **LLM:** Gemini 3.0 Flash (Fast/RAG) & Gemini 3.0 Thinking (Complex Reasoning)
 - **Validation:** Pydantic V2
 
 ## 3. Architecture & Directory Structure
@@ -163,7 +163,7 @@ root/
 **Recent Changes (Phase 1.5 - Frontend Integration):**
 
 - Fixed chat.py to pass `attachments` and `model_preference` to agent
-- Updated Gemini models to 2.0 Flash and 2.0 Flash Thinking
+- Updated Gemini models to 3.0 Flash and 3.0 Thinking
 - Added `/extract-text` endpoint for session-only file extraction
 - Added `python-docx` dependency for DOCX support
 - Frontend ChatProvider now manages model state, abort controller
@@ -175,7 +175,7 @@ root/
 **Bug Fix - Large File Context Window:**
 
 - Fixed routing: when attachments are present, always route to "attachment" path (users who upload files intend to ask about them)
-- Increased attachment context cap to 800K chars (Gemini 2.5 Flash supports ~1M tokens)
+- Increased attachment context cap to 800K chars (Gemini 3 Flash supports ~1M tokens)
 - Increased RAG retrieve path `max_context_length` from 8,000 to 200,000 chars
 - Large PDFs (textbooks, reports) now work correctly as session attachments
 

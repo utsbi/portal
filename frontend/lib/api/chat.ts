@@ -28,7 +28,7 @@ export interface ChatRequest {
   history?: ChatMessage[];
   attachments?: AttachmentFile[];
   include_sources?: boolean;
-  model_preference?: "flash" | "thinking";
+  model_preference?: "fast" | "thinking";
 }
 
 export interface ChatResponse {
@@ -61,7 +61,7 @@ export async function sendChatMessage(
       history: request.history || [],
       attachments: request.attachments || [],
       include_sources: request.include_sources ?? true,
-      model_preference: request.model_preference || "flash",
+      model_preference: request.model_preference || "fast",
     }),
     signal,
   });

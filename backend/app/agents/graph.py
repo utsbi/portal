@@ -84,7 +84,7 @@ def get_compiled_graph():
 async def run_graph(query: str, client_id: str,
     history: Optional[List[Dict[str, str]]] = None,
     attachments: Optional[List[Dict[str, str]]] = None,
-    model_preference: str = "flash"
+    model_preference: str = "fast"
 ) -> Dict[str, Any]:
     """Run the Explore agent graph with the given inputs."""
     graph = get_compiled_graph()

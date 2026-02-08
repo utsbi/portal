@@ -8,7 +8,7 @@ from app.agents.graph import run_graph
 async def run_explore_agent(query: str, client_id: str,
     history: Optional[List[Dict[str, str]]] = None,
     attachments: Optional[List[Dict[str, str]]] = None,
-    model_preference: str = "flash"
+    model_preference: str = "fast"
 ) -> Dict[str, Any]:
     """Main entry point for running the Explore AI Agent."""
     result = await run_graph(

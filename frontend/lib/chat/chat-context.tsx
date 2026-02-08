@@ -51,7 +51,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
-  const [modelPreference, setModelPreference] = useState<ModelPreference>("flash");
+  const [modelPreference, setModelPreference] = useState<ModelPreference>("fast");
   const [loadingAttachments, setLoadingAttachments] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);

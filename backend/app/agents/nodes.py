@@ -142,7 +142,7 @@ async def generate_response(state: Dict[str, Any]) -> Dict[str, Any]:
     context = state.get("context", "")
     history = state.get("history", [])
     route = state.get("route", "retrieve")
-    model_preference = state.get("model_preference", "flash")
+    model_preference = state.get("model_preference", "fast")
     
     # Select model based on preference
     if model_preference == "thinking":
