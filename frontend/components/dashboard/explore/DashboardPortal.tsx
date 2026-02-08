@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import gsap from 'gsap';
 import { PortalHero } from './ui/PortalHero';
 import { PortalInput } from './ui/PortalInput';
@@ -18,14 +19,41 @@ interface DashboardPortalProps {
 function DashboardPortalContent({ urlSlug }: DashboardPortalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
-  const { messages } = useChat();
-  
+  const pathname = usePathname();
+  const previousPathRef = useRef(pathname);
+  const { messages, clearChat, cancelRequest } = useChat();
+
   const hasMessages = messages.length > 0;
 
   useEffect(() => {
     const timer = setTimeout(() => setIsReady(true), 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Cleanup on route change
+  useEffect(() => {
+    if (previousPathRef.current !== pathname) {
+      cancelRequest();
+      clearChat();
+      previousPathRef.current = pathname;
+    }
+  }, [pathname, clearChat, cancelRequest]);
+
+  // Cleanup on page unload/refresh
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      cancelRequest();
+      clearChat();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Also cleanup on navigating away
+      cancelRequest();
+      clearChat();
+    };
+  }, [clearChat, cancelRequest]);
 
   useEffect(() => {
     if (!containerRef.current || !isReady) return;
