@@ -47,7 +47,8 @@ export interface ChatError {
  */
 export async function sendChatMessage(
   request: ChatRequest,
-  authToken: string
+  authToken: string,
+  signal?: AbortSignal
 ): Promise<ChatResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/chat/`, {
     method: "POST",
@@ -62,6 +63,7 @@ export async function sendChatMessage(
       include_sources: request.include_sources ?? true,
       model_preference: request.model_preference || "flash",
     }),
+    signal,
   });
 
   if (!response.ok) {
@@ -133,24 +135,52 @@ export async function checkChatHealth(): Promise<{ status: string; service: stri
 }
 
 /**
- * Extract text from a file for attachment (undone)
+ * Extract text from a file for session-only attachment
+ * Uses backend /extract-text endpoint for PDF/DOCX, FileReader for txt files
  */
-export async function extractFileContent(file: File): Promise<AttachmentFile> {
+export async function extractFileText(
+  file: File,
+  authToken: string
+): Promise<AttachmentFile> {
+  const filename = file.name.toLowerCase();
+
+  // For PDF and DOCX files, use the backend extraction endpoint
+  if (filename.endsWith(".pdf") || filename.endsWith(".doc") || filename.endsWith(".docx")) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/chat/extract-text`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to extract text" }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // For text files, read directly in browser
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
+
     reader.onload = () => {
       resolve({
         filename: file.name,
         content: reader.result as string,
-        file_type: file.type.includes("pdf") ? "pdf" : "txt",
+        file_type: "txt",
       });
     };
-    
+
     reader.onerror = () => {
       reject(new Error("Failed to read file"));
     };
-    
+
     reader.readAsText(file);
   });
 }
