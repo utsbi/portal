@@ -17,7 +17,6 @@ async def upload_document(
     user_id: str = Depends(get_current_user_id)
 ):
     """Upload a PDF document for RAG processing."""
-    # Validate file type
     if not file.filename.endswith('.pdf'):
         raise HTTPException(
             status_code=400,
@@ -74,9 +73,9 @@ async def list_documents(user_id: str = Depends(get_current_user_id), limit: int
     try:
         from app.db.supabase import supabase
         
-        result = supabase.table("client_documents") \
+        result = supabase.table("client_knowledge") \
             .select("metadata") \
-            .eq("client_id", user_id) \
+            .eq("uid", user_id) \
             .limit(limit) \
             .execute()
         

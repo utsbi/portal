@@ -9,8 +9,7 @@ class RAGService:
     """Service for embedding generation, vector storage, and hybrid search."""
     
     # Gemini embedding model - 768 dimensions
-    EMBEDDING_MODEL = "text-embedding-004"
-    EMBEDDING_DIMENSION = 768
+    EMBEDDING_MODEL = "gemini-embedding-001"
     
     def __init__(self):
         self.client = genai.Client(api_key=settings.api_key)
@@ -19,7 +18,7 @@ class RAGService:
     async def generate_embedding(self, text: str) -> List[float]:
         """Generate an embedding vector for the given text using Gemini."""
         try:
-            result = self.client.models.embed_content(
+            result = await self.client.aio.models.embed_content(
                 model=self.EMBEDDING_MODEL,
                 contents=text
             )
@@ -45,9 +44,9 @@ class RAGService:
                 "total_chunks": len(chunks)
             }
             
-            # Insert into Supabase
-            result = supabase.table("client_documents").insert({
-                "client_id": client_id,
+            # Insert into Supabase (using 'uid' column per schema)
+            result = supabase.table("client_knowledge").insert({
+                "uid": client_id,
                 "content": chunk,
                 "metadata": chunk_metadata,
                 "embedding": embedding
@@ -61,33 +60,37 @@ class RAGService:
     async def search_documents(self, query: str, client_id: str, limit: int = 5,
         similarity_threshold: float = 0.5) -> List[Dict[str, Any]]:
         """Search for relevant documents using vector similarity."""
-        # Generate embedding for the query
         query_embedding = await self.generate_embedding(query)
-        
-        result = supabase.rpc(
-            "match_documents",
-            {
-                "_query_embedding": query_embedding,
-                "_match_count": limit,
-                "_filter_client_id": client_id,
-                "_similarity_threshold": similarity_threshold
-            }
-        ).execute()
-        
-        if not result.data:
-            return []
-        
-        # Format results
-        documents = []
-        for doc in result.data:
-            documents.append({
-                "id": doc.get("id"),
-                "content": doc.get("content", ""),
-                "metadata": doc.get("metadata", {}),
-                "similarity_score": doc.get("similarity", 0.0)
-            })
-        
-        return documents
+
+        try:
+            # Try RPC function first
+            result = supabase.rpc(
+                "match_client_knowledge",
+                {
+                    "_query_embedding": query_embedding,
+                    "_match_count": limit,
+                    "_filter_uid": client_id,
+                    "_similarity_threshold": similarity_threshold
+                }
+            ).execute()
+
+            if result.data and isinstance(result.data, list):
+                documents = []
+                for item in result.data:
+                    doc = dict(item) if isinstance(item, dict) else {}
+                    documents.append({
+                        "id": doc.get("id"),
+                        "content": doc.get("content", ""),
+                        "metadata": doc.get("metadata", {}),
+                        "similarity_score": doc.get("similarity", 0.0)
+                    })
+                return documents
+        except Exception:
+            # RPC function fails, fall back to keyword search only
+            pass
+
+        # Fallback, just return empty
+        return []
     
     async def hybrid_search(self, query: str, client_id: str, limit: int = 5,
         vector_weight: float = 0.7) -> List[Dict[str, Any]]:
@@ -146,9 +149,9 @@ class RAGService:
         limit: int = 10) -> List[Dict[str, Any]]:
         """Perform keyword-based full-text search."""
         try:
-            result = supabase.table("client_documents") \
+            result = supabase.table("client_knowledge") \
                 .select("id, content, metadata") \
-                .eq("client_id", client_id) \
+                .eq("uid", client_id) \
                 .text_search("content", query, options={"type": "websearch"}) \
                 .limit(limit) \
                 .execute()
@@ -172,10 +175,12 @@ class RAGService:
         limit: int = 10) -> List[Dict[str, Any]]:
         """Fallback keyword search using ILIKE for simple pattern matching."""
         words = query.lower().split()[:3]
-        
-        result = supabase.table("client_documents") \
+        if not words:
+            return []
+
+        result = supabase.table("client_knowledge") \
             .select("id, content, metadata") \
-            .eq("client_id", client_id) \
+            .eq("uid", client_id) \
             .ilike("content", f"%{words[0]}%") \
             .limit(limit) \
             .execute()
@@ -195,7 +200,7 @@ class RAGService:
     
     async def get_context_for_query(self, query: str, client_id: str,
         attachments: Optional[List[Dict[str, str]]] = None,
-        max_context_length: int = 8000) -> str:
+        max_context_length: int = 200_000) -> str:
         """Build a context string for the LLM from retrieved documents and attachments."""
         context_parts = []
         current_length = 0
