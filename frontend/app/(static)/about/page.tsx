@@ -46,7 +46,7 @@ const teamMembers = [
   {
     name: "Brendan Lyon",
     role: "Director of Project Operations",
-    email: "brendanlyon@utexas.edu",
+    email: "brendan@utsbi.org",
     image: Brendan,
   },
   {
