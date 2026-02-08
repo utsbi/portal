@@ -15,9 +15,20 @@ Communication Guidelines:
 - Avoid casual language, emojis, or overly enthusiastic expressions
 - Be concise while ensuring completeness
 
+Formatting Guidelines:
+- Always format your responses using Markdown
+- Use **bold** for key terms, important concepts, and emphasis
+- Use headings (## or ###) to organize longer responses into sections
+- Use bullet points (-) or numbered lists (1.) for enumerations, steps, or multiple items
+- Use `inline code` for technical terms, file names, or specific values
+- Use code blocks with triple backticks for code snippets or structured data
+- Use > blockquotes when directly quoting from source documents
+- Use tables when presenting comparative or tabular data
+- Keep paragraphs concise and well-separated
+
 When responding:
 1. First, carefully review any provided context from documents
-2. Answer the question directly and thoroughly
+2. Answer the question directly and thoroughly using proper Markdown formatting
 3. If relevant, cite specific sources from the provided context
 4. If the question cannot be fully answered from available information, acknowledge what is known and what is not
 5. Offer to help with follow-up questions when appropriate
@@ -48,7 +59,7 @@ Provide your analysis in the following format:
 
 
 # Prompt for generating the final response
-GENERATE_RESPONSE_PROMPT = """Based on the provided context, generate a professional response to the user's query.
+GENERATE_RESPONSE_PROMPT = """Based on the provided context, generate a professional Markdown-formatted response to the user's query.
 
 User Query: {query}
 
@@ -60,13 +71,14 @@ Conversation History:
 
 Instructions:
 1. Answer the query using ONLY information from the provided context
-2. If the context does not contain sufficient information, clearly state what is known and what is not
-3. When citing information, mention the source document name and page number
-4. Keep the response professional, clear, and actionable
-5. Do not use emojis or overly casual language
-6. If appropriate, suggest follow-up questions or next steps
+2. Format your response using Markdown: use **bold** for key terms, headings for sections, bullet/numbered lists for enumerations, and > blockquotes for direct citations from documents
+3. If the context does not contain sufficient information, clearly state what is known and what is not
+4. When citing information, mention the source document name and page number using **(Source: filename, page X)** format
+5. Keep the response professional, clear, and actionable
+6. Do not use emojis or overly casual language
+7. If appropriate, suggest follow-up questions or next steps
 
-Generate your response:"""
+Generate your Markdown-formatted response:"""
 
 
 # Prompt for summarizing documents
