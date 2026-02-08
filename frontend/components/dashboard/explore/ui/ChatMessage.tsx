@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Copy, Check, Pencil, MoreHorizontal, ChevronDown, ChevronUp, FileText, File } from 'lucide-react';
 import type { DisplayMessage } from '@/lib/chat/chat-context';
 import { useChat } from '@/lib/chat/chat-context';
@@ -54,7 +56,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
-  const { sendMessage, isLoading } = useChat();
+  const { editAndResend, isLoading } = useChat();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -123,7 +125,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const handleSubmitEdit = async () => {
     if (editedContent.trim() && editedContent !== message.content && !isLoading) {
       setIsEditing(false);
-      await sendMessage(editedContent.trim());
+      await editAndResend(message.id, editedContent.trim());
     }
   };
 
@@ -143,123 +145,126 @@ export function ChatMessage({ message }: ChatMessageProps) {
   // User message
   if (isUser) {
     return (
-      <div 
-        ref={containerRef} 
-        className="flex items-start justify-end gap-2 mb-6"
+      <div
+        ref={containerRef}
+        className="flex justify-end mb-6"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Action buttons appear on hover */}
-        <div className={`flex items-center gap-1 shrink-0 transition-opacity duration-200 ${isHovered && !isEditing ? 'opacity-100' : 'opacity-0'}`}>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
-            title="Copy"
-          >
-            {copied ? (
-              <Check className="w-4 h-4 text-sbi-green" />
-            ) : (
-              <Copy className="w-4 h-4" strokeWidth={1.5} />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={handleEdit}
-            className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
-            title="Edit"
-          >
-            <Pencil className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-        </div>
+        {/* Content column, right aligned, set width */}
+        <div className="flex flex-col items-end gap-2 max-w-[80%] overflow-hidden">
+          {/* Attached files, horizontal row, right-aligned */}
+          {messageAttachments.length > 0 && !isEditing && (
+            <div className="flex flex-row flex-wrap justify-end gap-2">
+              {messageAttachments.map((attachment) => {
+                const fileInfo = getFileInfo(attachment.filename);
+                return (
+                  <div
+                    key={attachment.filename}
+                    className="flex items-center gap-2 px-3 py-2 bg-sbi-dark-card/80 border border-sbi-dark-border rounded-xl"
+                  >
+                    {fileInfo.icon}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm text-white font-light truncate max-w-40">
+                        {attachment.filename.replace(/\.[^/.]+$/, '')}
+                      </span>
+                      <span className={`text-xs ${fileInfo.color}`}>
+                        {fileInfo.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-        {/* User message box */}
-        <div className="max-w-[50%]">
-          <div className="bg-sbi-dark-card/80 border border-sbi-green/20 rounded-2xl overflow-hidden relative">
-            {/* Expand/Collapse button */}
-            {isOverflowing && !isEditing && (
+          {/* Message row - on hover icons and msg bubble */}
+          <div className="flex items-start gap-2 min-w-0 w-full justify-end">
+            {/* Action buttons - left of msg bubble, aligned top */}
+            <div className={`flex items-center gap-1 shrink-0 pt-2 transition-opacity duration-200 ${isHovered && !isEditing ? 'opacity-100' : 'opacity-0'}`}>
               <button
                 type="button"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="absolute top-2 right-2 p-1 text-sbi-muted hover:text-white hover:bg-sbi-dark rounded-lg transition-colors z-10"
-                title={isExpanded ? 'Collapse' : 'Expand'}
+                onClick={handleCopy}
+                className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
+                title="Copy"
               >
-                {isExpanded ? (
-                  <ChevronUp className="w-4 h-4" strokeWidth={1.5} />
+                {copied ? (
+                  <Check className="w-4 h-4 text-sbi-green" />
                 ) : (
-                  <ChevronDown className="w-4 h-4" strokeWidth={1.5} />
+                  <Copy className="w-4 h-4" strokeWidth={1.5} />
                 )}
               </button>
-            )}
+              <button
+                type="button"
+                onClick={handleEdit}
+                className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
+                title="Edit"
+              >
+                <Pencil className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
 
-            {/* Attached files preview */}
-            {messageAttachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 px-3 pt-3">
-                {messageAttachments.map((attachment) => {
-                  const fileInfo = getFileInfo(attachment.filename);
-                  return (
-                    <div
-                      key={attachment.filename}
-                      className="flex items-center gap-2 px-3 py-2 bg-sbi-dark border border-sbi-dark-border rounded-xl"
-                    >
-                      {fileInfo.icon}
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-sm text-white font-light truncate max-w-[100px]">
-                          {attachment.filename.replace(/\.[^/.]+$/, '')}
-                        </span>
-                        <span className={`text-xs ${fileInfo.color}`}>
-                          {fileInfo.label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {isEditing ? (
-              <div className="p-3 space-y-2">
-                <textarea
-                  ref={textareaRef}
-                  value={editedContent}
-                  onChange={(e) => {
-                    setEditedContent(e.target.value);
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${e.target.scrollHeight}px`;
-                  }}
-                  onKeyDown={handleKeyDown}
-                  className="w-full bg-sbi-dark border border-sbi-green/30 rounded-xl px-3 py-2 text-white font-light text-sm leading-relaxed resize-none focus:outline-none focus:border-sbi-green/50"
-                  rows={1}
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="px-2 py-1 text-xs text-sbi-muted hover:text-white transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSubmitEdit}
-                    disabled={!editedContent.trim() || editedContent === message.content || isLoading}
-                    className="px-2 py-1 text-xs bg-sbi-green/20 text-sbi-green border border-sbi-green/30 rounded-lg hover:bg-sbi-green/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Submit
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3 pr-8">
-                {/* Message content */}
-                <div
-                  ref={contentRef}
-                  className="text-white font-light text-sm leading-relaxed whitespace-pre-wrap wrap-break-word"
+            {/* Message bubble */}
+            <div className="min-w-0 bg-sbi-dark-card/80 border border-sbi-green/20 rounded-2xl overflow-hidden relative">
+              {/* Expand/Collapse button */}
+              {isOverflowing && !isEditing && (
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="absolute top-2 right-2 p-1 text-sbi-muted hover:text-white hover:bg-sbi-dark rounded-lg transition-colors z-10"
+                  title={isExpanded ? 'Collapse' : 'Expand'}
                 >
-                  {isExpanded || !isOverflowing ? displayContent : getTruncatedContent()}
+                  {isExpanded ? (
+                    <ChevronUp className="w-4 h-4" strokeWidth={1.5} />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" strokeWidth={1.5} />
+                  )}
+                </button>
+              )}
+
+              {isEditing ? (
+                <div className="p-3 space-y-2">
+                  <textarea
+                    ref={textareaRef}
+                    value={editedContent}
+                    onChange={(e) => {
+                      setEditedContent(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${e.target.scrollHeight}px`;
+                    }}
+                    onKeyDown={handleKeyDown}
+                    className="w-full bg-sbi-dark border border-sbi-green/30 rounded-xl px-3 py-2 text-white font-light text-sm leading-relaxed resize-none focus:outline-none focus:border-sbi-green/50"
+                    rows={1}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="px-2 py-1 text-xs text-sbi-muted hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitEdit}
+                      disabled={!editedContent.trim() || editedContent === message.content || isLoading}
+                      className="px-2 py-1 text-xs bg-sbi-green/20 text-sbi-green border border-sbi-green/30 rounded-lg hover:bg-sbi-green/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Submit
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className={`p-3 ${isOverflowing ? 'pr-8' : ''}`}>
+                  <div
+                    ref={contentRef}
+                    className="text-white font-light text-sm leading-relaxed whitespace-pre-wrap wrap-break-word"
+                  >
+                    {isExpanded || !isOverflowing ? displayContent : getTruncatedContent()}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -278,8 +283,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
       {/* Message content */}
       <div className="flex-1 min-w-0 pt-1">
-        <div className="text-white font-light text-base leading-relaxed whitespace-pre-wrap wrap-break-word">
-          {displayContent}
+        <div className="prose-ai text-white font-light text-base leading-relaxed">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {displayContent}
+          </ReactMarkdown>
           {message.isStreaming && (
             <span className="inline-block w-0.5 h-4 bg-sbi-green ml-0.5 animate-pulse align-middle" />
           )}
