@@ -23,8 +23,7 @@ async def run_explore_agent(query: str, client_id: str,
 
 
 class GeminiClient:
-    
-    def __init__(self, model: str = "gemini-2.5-flash-lite"):
+    def __init__(self, model=settings.fast_model):
         self.client = genai.Client(api_key=settings.api_key)
         self.model = model
     
