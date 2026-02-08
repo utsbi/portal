@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useCallback, useRef, type ReactNod
 import { sendChatMessage, extractFileText, type ChatMessage, type SourceDocument, type AttachmentFile } from "@/lib/api/chat";
 import { createClient } from "@/lib/supabase/client";
 
-export type ModelPreference = "flash" | "thinking";
+export type ModelPreference = "fast" | "thinking";
 
 export type LoadingPhase = "idle" | "thinking" | "planning" | "searching" | "generating" | "complete" | "error";
 
