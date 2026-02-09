@@ -265,6 +265,59 @@ The frontend is now fully integrated with the backend API:
 - Copy/edit icons now appear on hover to the left of the message bubble (Gemini-style)
 - Collapse/expand chevron and "..." truncation now work correctly since text wraps properly
 
+### OpenRouter API Migration
+
+**Problem:** The backend was tightly coupled to Google's `google-genai` SDK for both LLM chat completions and embeddings. Switching to OpenRouter enables multi-provider support (Gemini, Claude, GPT, etc.) through a single OpenAI-compatible API.
+
+**Changes:**
+
+| File                      | Change                                                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `pyproject.toml`          | Replaced `google-genai` with `openai`                                                                                       |
+| `core/config.py`          | `GEMINI_API_KEY` → `OPEN_ROUTER_KEY`, added `EMBEDDING_MODEL` + `EMBEDDING_DIMENSIONS`                                      |
+| `agents/nodes.py`         | `genai.Client` → `AsyncOpenAI(base_url="https://openrouter.ai/api/v1")`, `generate_content()` → `chat.completions.create()` |
+| `services/rag_service.py` | `embed_content()` → `embeddings.create()`, configurable model + dimensions                                                  |
+| `agents/explore.py`       | `GeminiClient` → `OpenRouterClient`, proper async with `AsyncOpenAI`                                                        |
+| `.env`                    | New env vars: `OPEN_ROUTER_KEY`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`                                                  |
+
+**API Mapping:**
+
+| Gemini SDK                                            | OpenAI SDK (OpenRouter)                              |
+| ----------------------------------------------------- | ---------------------------------------------------- |
+| `client.aio.models.generate_content(model, contents)` | `client.chat.completions.create(model, messages)`    |
+| `client.aio.models.embed_content(model, contents)`    | `client.embeddings.create(model, input, dimensions)` |
+| `response.text`                                       | `response.choices[0].message.content`                |
+| `result.embeddings[0].values`                         | `result.data[0].embedding`                           |
+
+**Database Migration Required:**
+
+```sql
+-- Update vector dimension from 768 (Gemini) to 4096 (Qwen3-Embedding-8B)
+ALTER TABLE client_knowledge ALTER COLUMN embedding TYPE vector(4096);
+
+-- Update match function signature
+CREATE OR REPLACE FUNCTION match_client_knowledge(
+  _query_embedding vector(4096),
+  _match_count int DEFAULT 5,
+  _filter_uid uuid DEFAULT NULL,
+  _similarity_threshold float DEFAULT 0.5
+)
+RETURNS TABLE (id uuid, content text, metadata jsonb, similarity float)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT ck.id, ck.content, ck.metadata,
+    1 - (ck.embedding <=> _query_embedding) as similarity
+  FROM client_knowledge ck
+  WHERE (_filter_uid IS NULL OR ck.uid = _filter_uid)
+    AND 1 - (ck.embedding <=> _query_embedding) > _similarity_threshold
+  ORDER BY ck.embedding <=> _query_embedding
+  LIMIT _match_count;
+END; $$;
+```
+
+**Note:** After running the SQL migration, all existing documents must be re-uploaded/re-embedded since Gemini and OpenAI embeddings are incompatible.
+
 ## Next Steps (Phase 2)
 
 1. Action item extraction from meeting notes

@@ -15,7 +15,8 @@
 - **Database:** Supabase (PostgreSQL + pgvector)
 - **Auth:** Supabase Auth (RLS is **MANDATORY** for all queries)
 - **Orchestration:** LangGraph (Stateful agent workflows)
-- **LLM:** Gemini 3.0 Flash (Fast/RAG) & Gemini 3.0 Thinking (Complex Reasoning)
+- **LLM Provider:** OpenRouter (OpenAI-compatible API) - supports any model (Gemini, Claude, GPT, etc.)
+- **LLM SDK:** `openai` Python SDK with `base_url="https://openrouter.ai/api/v1"`
 - **Validation:** Pydantic V2
 
 ## 3. Architecture & Directory Structure
@@ -65,7 +66,7 @@ root/
 - `client_id`: uuid (FK to auth.users, Not Null)
 - `content`: text
 - `metadata`: jsonb (filename, page_num, upload_date)
-- `embedding`: vector(768) (Gemini dimension)
+- `embedding`: vector(4096) (Qwen3-Embedding-8B)
 
 - **Current Database Layout for Backend**
 - Table - clients:
@@ -88,7 +89,7 @@ root/
 - id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 - uid UUID REFERENCES auth.users(id), -- Links to Supabase Auth
 - content TEXT,
-- embedding VECTOR(768), -- For Gemini or OpenAI embeddings
+- embedding VECTOR(4096), -- Qwen3-Embedding-8B via OpenRouter
 - metadata JSONB
 
 - Table client_chat_sessions
@@ -118,7 +119,7 @@ root/
 
 - FastAPI server running at http://localhost:8000
 - Swagger UI available at http://localhost:8000/docs
-- Vector embeddings using Gemini text-embedding-004 (768-dim)
+- Vector embeddings using Qwen3-Embedding-8B via OpenRouter (4096-dim)
 - Professional, helpful tone (no emojis as requested)
 - Multi-turn conversation support
 - Source citation in responses
@@ -160,49 +161,24 @@ root/
 - In-place message editing
 - Automatic session cleanup on navigation
 
-**Recent Changes (Phase 1.5 - Frontend Integration):**
+**OpenRouter Migration (Latest):**
 
-- Fixed chat.py to pass `attachments` and `model_preference` to agent
-- Updated Gemini models to 3.0 Flash and 3.0 Thinking
-- Added `/extract-text` endpoint for session-only file extraction
-- Added `python-docx` dependency for DOCX support
-- Frontend ChatProvider now manages model state, abort controller
-- PortalInput connected to context for model selection
-- Stop button replaces loader during AI response generation
-- ChatMessage uses `editAndResend` for in-place updates
-- DashboardPortal has cleanup hooks for route changes
+- Migrated from `google-genai` SDK to `openai` SDK with OpenRouter base URL
+- All LLM calls now go through OpenRouter API (`https://openrouter.ai/api/v1`)
+- Embeddings use `qwen/qwen3-Embedding-8B` (4096-dim) via OpenRouter
+- Chat models are fully configurable via `FAST_MODEL` and `THINK_MODEL` env vars
+- Env var `GEMINI_API_KEY` replaced with `OPEN_ROUTER_KEY`
+- Added `EMBEDDING_MODEL` and `EMBEDDING_DIMENSIONS` env vars
+- `GeminiClient` class renamed to `OpenRouterClient` in `explore.py`
+- Supabase vector column must be updated from `vector(768)` to `vector(4096)`
+- Existing documents must be re-embedded after migration
 
-**Bug Fix - Large File Context Window:**
+**RAG Pipeline Debugging (Latest):**
 
-- Fixed routing: when attachments are present, always route to "attachment" path (users who upload files intend to ask about them)
-- Increased attachment context cap to 800K chars (Gemini 3 Flash supports ~1M tokens)
-- Increased RAG retrieve path `max_context_length` from 8,000 to 200,000 chars
-- Large PDFs (textbooks, reports) now work correctly as session attachments
-
-**Markdown Response Rendering:**
-
-- Added `react-markdown` and `remark-gfm` to frontend for rendering AI responses
-- Updated `ChatMessage.tsx` to render AI messages with ReactMarkdown (headings, bold, lists, code blocks, tables, blockquotes)
-- Added `.prose-ai` CSS styles in `globals.css` matching the dark SBI theme
-- Updated `prompts.py` SYSTEM_PROMPT and GENERATE_RESPONSE_PROMPT to instruct AI to format all responses using Markdown
-
-**Bug Fix - Request Cancellation (Stop Button):**
-
-- Frontend: Added `cancelledRef` guard checked after every `await` point in `sendMessage` and `editAndResend`
-- Frontend: `cancelRequest` now sets `cancelledRef`, aborts fetch, and removes any streaming assistant messages
-- Frontend: Loading animation (`animateLoadingPhases`) and text streaming (`streamText`) check `cancelledRef` each tick
-- Backend: Switched Gemini API calls from sync to async (`client.aio.models.generate_content`) in `nodes.py`
-- Backend: Switched embedding calls to async (`client.aio.models.embed_content`) in `rag_service.py`
-- Backend: `chat.py` now monitors client disconnection via `asyncio.wait` + `Request.is_disconnected()`
-- Backend: When client disconnects, the agent task is cancelled mid-execution, stopping the Gemini API call
-
-**UI Fix - User Message Component:**
-
-- Fixed user message text not wrapping (long messages overflowed horizontally)
-- Restructured layout: copy/edit icons now positioned to the left of the message bubble (not the attachments)
-- Added `min-w-0` to flex containers for proper width constraint propagation
-- `max-w-[80%]` moved to outer column to constrain both attachments and bubble
-- Collapse/expand (chevron arrow) and "..." truncation now work correctly for messages exceeding 5 lines
+- Added `logging` throughout RAG pipeline (`rag_service.py`, `nodes.py`, `main.py`)
+- Replaced silent `except Exception: pass` with logged errors in vector search and keyword search
+- Made `dimensions` parameter conditional in embedding call (only sent if `EMBEDDING_DIMENSIONS` is set in `.env`)
+- Logs now visible in server console: embedding generation, vector search results, routing decisions, retrieval counts
 
 **Next Steps:**
 
