@@ -25,7 +25,7 @@ We follow a "Service-Agent" pattern. The frontend is kept separate.
 
 ```text
 root/
-├── frontend/            # Next.js/React (Visuals only, logic incomplete)
+├── frontend/            # Next.js/React
 ├── backend/             # CURRENT WORKSPACE
 │   ├── pyproject.toml   # Managed by uv
 │   ├── uv.lock
@@ -46,9 +46,13 @@ root/
 - **Implemented Features:**
   - Chat input with Enter key submission
   - File attachment upload (PDF, DOCX, TXT) - session-only, not persisted
+  - Session-wide attachment context (all previously attached files available for follow-up questions)
   - Model selection (Fast/Thinking) passed to backend
-  - Stop/Cancel AI request functionality
-  - In-place message editing (edit updates same message, not new)
+  - Stop/Cancel AI request functionality (works during loading AND text streaming)
+  - Cancel preserves partial streamed content with "Response was cancelled" indicator
+  - In-place message editing (edit updates same message, regenerates with full session attachments)
+  - Response regeneration (redo button, re-sends with full session attachments)
+  - Markdown rendering for AI responses (react-markdown + remark-gfm)
   - Session cleanup on route change, refresh, or navigation
   - Chat history maintained within session for context
 
@@ -162,24 +166,17 @@ root/
 - In-place message editing
 - Automatic session cleanup on navigation
 
-**OpenRouter Migration (Latest):**
+**LLM & Embedding Configuration:**
 
-- Migrated from `google-genai` SDK to `openai` SDK with OpenRouter base URL
-- All LLM calls now go through OpenRouter API (`https://openrouter.ai/api/v1`)
-- Embeddings use `qwen/qwen3-Embedding-8B` (4096-dim) via OpenRouter
-- Chat models are fully configurable via `FAST_MODEL` and `THINK_MODEL` env vars
-- Env var `GEMINI_API_KEY` replaced with `OPEN_ROUTER_KEY`
-- Added `EMBEDDING_MODEL` and `EMBEDDING_DIMENSIONS` env vars
-- `GeminiClient` class renamed to `OpenRouterClient` in `explore.py`
-- Supabase vector column must be updated from `vector(768)` to `vector(4096)`
-- Existing documents must be re-embedded after migration
+- All LLM calls go through OpenRouter API (`https://openrouter.ai/api/v1`) via `openai` SDK
+- Chat models configurable via `FAST_MODEL` and `THINK_MODEL` env vars
+- Embeddings use configurable model via `EMBEDDING_MODEL` env var (default: `qwen/qwen3-Embedding-8B`, 4096-dim)
+- `EMBEDDING_DIMENSIONS` env var is optional (only sent to API if set)
 
-**RAG Pipeline Debugging (Latest):**
+**Observability:**
 
-- Added `logging` throughout RAG pipeline (`rag_service.py`, `nodes.py`, `main.py`)
-- Replaced silent `except Exception: pass` with logged errors in vector search and keyword search
-- Made `dimensions` parameter conditional in embedding call (only sent if `EMBEDDING_DIMENSIONS` is set in `.env`)
-- Logs now visible in server console: embedding generation, vector search results, routing decisions, retrieval counts
+- Logging throughout RAG pipeline (`rag_service.py`, `nodes.py`, `main.py`)
+- Server console shows: embedding generation, vector search results, routing decisions, retrieval counts
 
 **Next Steps:**
 

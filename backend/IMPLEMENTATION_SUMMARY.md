@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document summarizes the Phase 1 RAG (Retrieval-Augmented Generation) implementation and Phase 1.5 Frontend Integration for the SBI Client Portal's Explore AI Agent.
+This document summarizes the RAG (Retrieval-Augmented Generation) implementation and Frontend Integration for the SBI Client Portal's Explore AI Agent.
 
 ## File Structure
 
@@ -12,7 +12,7 @@ backend/
 │   ├── main.py                 # FastAPI entry point
 │   ├── agents/
 │   │   ├── __init__.py         # Package exports
-│   │   ├── explore.py          # Main agent entry point
+│   │   ├── explore.py          # Main agent entry point + OpenRouterClient
 │   │   ├── graph.py            # LangGraph state machine
 │   │   ├── nodes.py            # Agent workflow nodes
 │   │   └── prompts.py          # System prompts
@@ -33,7 +33,6 @@ backend/
 │   │   └── config.py           # Environment settings
 │   └── db/
 │       └── supabase.py         # Supabase client
-├── database_schema.sql         # SQL schema for Supabase
 └── claude.md                   # Project context
 ```
 
@@ -43,18 +42,19 @@ backend/
 
 The agent uses a state machine with four nodes:
 
-1. **Route Query**: Determines if the query needs document retrieval or can be answered directly
-2. **Retrieve Context**: Fetches relevant documents using hybrid search
-3. **Generate Response**: Creates the answer using Gemini LLM
+1. **Route Query**: Determines if the query needs document retrieval, attachment focus, or direct response
+2. **Retrieve Context**: Fetches relevant documents using hybrid search, or inlines session attachments
+3. **Generate Response**: Creates the answer using LLM via OpenRouter
 4. **Format Sources**: Prepares source citations for the response
 
 ### 2. RAG Service (`services/rag_service.py`)
 
 Handles all RAG operations:
 
-- **Embedding Generation**: Uses Gemini `text-embedding-004` (768 dimensions)
-- **Document Storage**: Chunks and stores documents with embeddings
-- **Hybrid Search**: Combines vector similarity with keyword matching using RRF
+- **Embedding Generation**: Configurable model via OpenRouter (default: Qwen3-Embedding-8B, 4096 dimensions)
+- **Document Storage**: Chunks and stores documents with embeddings in Supabase pgvector
+- **Hybrid Search**: Combines vector similarity with keyword matching using Reciprocal Rank Fusion (RRF)
+- **Context Building**: Assembles context from retrieved documents and session attachments (up to 200K characters)
 
 ### 3. PDF Parser (`services/pdf_parser.py`)
 
@@ -82,7 +82,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Create the vector similarity search function for client_knowledge
 CREATE OR REPLACE FUNCTION match_client_knowledge(
-  _query_embedding vector(768),
+  _query_embedding vector(4096),
   _match_count int DEFAULT 5,
   _filter_uid uuid DEFAULT NULL,
   _similarity_threshold float DEFAULT 0.5
@@ -101,13 +101,13 @@ BEGIN
     ck.id,
     ck.content,
     ck.metadata,
-    1 - (ck.embedding <=> query_embedding) as similarity
+    1 - (ck.embedding <=> _query_embedding) as similarity
   FROM client_knowledge ck
   WHERE
-    (filter_uid IS NULL OR ck.uid = filter_uid)
-    AND 1 - (ck.embedding <=> query_embedding) > similarity_threshold
-  ORDER BY ck.embedding <=> query_embedding
-  LIMIT match_count;
+    (_filter_uid IS NULL OR ck.uid = _filter_uid)
+    AND 1 - (ck.embedding <=> _query_embedding) > _similarity_threshold
+  ORDER BY ck.embedding <=> _query_embedding
+  LIMIT _match_count;
 END;
 $$;
 
@@ -125,7 +125,11 @@ CREATE POLICY IF NOT EXISTS "Users can only access their own knowledge"
 ## Environment Variables
 
 ```env
-GEMINI_API_KEY=your_gemini_api_key
+OPEN_ROUTER_KEY=sk-or-v1-...
+FAST_MODEL=google/gemini-3-flash-preview   # OpenRouter model ID for fast responses
+THINK_MODEL=google/gemini-3-pro-preview    # OpenRouter model ID for complex reasoning
+EMBEDDING_MODEL=qwen/qwen3-embedding-8b    # OpenRouter embedding model
+EMBEDDING_DIMENSIONS=4096                   # Optional, omit to use model default
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLIC_KEY=your_anon_public_key
 SUPABASE_SECRET_KEY=your_service_role_secret_key
@@ -193,145 +197,61 @@ POST /api/v1/chat/
 - **Authorization**: Row Level Security (RLS) ensures clients only access their own documents
 - **Data Isolation**: All queries are filtered by `client_id`
 
-## Frontend Integration (Phase 1.5 - Completed)
+## Frontend Integration
 
-The frontend is now fully integrated with the backend API:
+The frontend is fully integrated with the backend API:
 
 ### Key Features
 
 - **Session-Only File Uploads**: Files uploaded via chat input are extracted but NOT persisted to database
-- **Model Selection**: Users can switch between "Fast" (gemini-3-flash-preview) and "Thinking" (gemini-3-pro-preview) modes
-- **Request Cancellation**: Stop button allows canceling in-progress AI requests
-- **In-Place Message Editing**: Editing a message updates it in place and regenerates the response
+- **Session-Wide Attachment Context**: All previously attached files remain available for follow-up questions across the entire chat session without re-uploading
+- **Model Selection**: Users can switch between "Fast" and "Thinking" modes (configurable via `FAST_MODEL` and `THINK_MODEL` env vars)
+- **Request Cancellation**: Stop button allows canceling at any point - during API loading phases AND during text streaming animation
+- **Cancel Preserves Partial Content**: If cancelled mid-stream, displayed text is preserved with "Response was cancelled" appended
+- **In-Place Message Editing**: Editing a message updates it in place and regenerates the response with full session attachment context
+- **Response Regeneration**: Redo button on the latest assistant message re-sends the query with full session attachment context
+- **Markdown Rendering**: AI responses rendered with `react-markdown` + `remark-gfm` (headings, bold, lists, code blocks, tables, blockquotes)
 - **Session Cleanup**: Chat history and attachments are cleared on route change, page refresh, or navigation
 
-### Frontend Files Modified
+### Frontend Files
 
-| File                                               | Changes                                                                     |
-| -------------------------------------------------- | --------------------------------------------------------------------------- |
-| `lib/chat/chat-context.tsx`                        | Added modelPreference, cancelRequest, editAndResend, modified addAttachment |
-| `lib/api/chat.ts`                                  | Added signal parameter, extractFileText function                            |
-| `components/dashboard/explore/ui/PortalInput.tsx`  | Connected to context model, added stop button                               |
-| `components/dashboard/explore/ui/ChatMessage.tsx`  | Uses editAndResend for in-place editing                                     |
-| `components/dashboard/explore/DashboardPortal.tsx` | Added session cleanup hooks                                                 |
+| File                                               | Purpose                                                                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| `lib/chat/chat-context.tsx`                        | Central chat state: messages, attachments, loading, cancel, edit/resend |
+| `lib/api/chat.ts`                                  | API client: sendChatMessage, extractFileText, uploadDocument            |
+| `components/dashboard/explore/ui/PortalInput.tsx`  | Chat input with file upload, model picker, send/stop button             |
+| `components/dashboard/explore/ui/ChatMessage.tsx`  | Message rendering: markdown, sources, edit, copy, redo, cancel state    |
+| `components/dashboard/explore/ui/ChatMessages.tsx` | Message list container with auto-scroll                                 |
+| `components/dashboard/explore/DashboardPortal.tsx` | Page layout, GSAP animations, session cleanup hooks                     |
 
-### Backend Changes
+### Backend Endpoint Details
 
-- `chat.py`: Fixed to pass `attachments` and `model_preference` to agent
-- `chat.py`: Added `/extract-text` endpoint for session-only file extraction
-- `nodes.py`: Updated to use Gemini 2.0 models
-- `pyproject.toml`: Added `python-docx` dependency
+- `chat.py`: Runs the LangGraph agent as a cancellable `asyncio.Task`, monitors client disconnection via `asyncio.wait` to cancel and save tokens if the user navigates away or hits stop
+- `chat.py /extract-text`: Extracts text from PDF (pypdf), DOCX (python-docx), and TXT files for session-only use without persisting to database
 
-### Bug Fix - Large File Context Window
+## How Attachments Work (Frontend ↔ Backend)
 
-- `nodes.py`: Fixed query routing - when attachments are present, always route to "attachment" path instead of requiring keyword matches like "file" or "document"
-- `nodes.py`: Added 800K character cap for attachment context with graceful truncation for extremely large files
-- `rag_service.py`: Increased `max_context_length` from 8,000 to 200,000 characters for the retrieve path
+Understanding the attachment lifecycle is critical for maintaining session context:
 
-### Markdown Response Rendering
+1. **User attaches file** → Frontend calls `POST /extract-text` → backend extracts text → returns `{filename, content, file_type}`
+2. **User sends message** → Frontend stores `{filename, content}` on the `DisplayMessage` object, then sends ALL session attachments (from all previous user messages + new ones) to `POST /chat/`
+3. **After send** → `setAttachments([])` clears the input UI chips, but attachment content persists on each `DisplayMessage.attachments`
+4. **Follow-up message** → `collectSessionAttachments()` scans all user messages for their `.attachments`, deduplicates by filename, merges with any new attachments, and sends the full set to the API
+5. **Edit/Redo** → Same collection logic applies, gathering all attachments from messages up to the relevant point in the conversation
+6. **Session end** → `clearChat()` resets all state (messages, attachments, loading) on route change or page refresh
 
-- `ChatMessage.tsx`: AI responses now rendered with `react-markdown` + `remark-gfm` (supports headings, bold, lists, code blocks, tables, blockquotes)
-- `globals.css`: Added `.prose-ai` styles for markdown elements matching SBI dark theme
-- `prompts.py`: Updated SYSTEM_PROMPT and GENERATE_RESPONSE_PROMPT with Markdown formatting instructions
-- `package.json`: Added `react-markdown` and `remark-gfm` dependencies
+**Key types:**
 
-### Bug Fix - Request Cancellation (Stop Button)
+- `MessageAttachment` (frontend display): `{filename, content}` - stored on each `DisplayMessage`
+- `AttachmentFile` (API payload): `{filename, content, file_type}` - sent to backend, `file_type` inferred from extension
 
-**Problem:** Clicking the Stop button aborted the `fetch()` call but the backend continued processing (wasting Gemini tokens), and responses could still appear if the API response arrived before/during the loading animation or text streaming.
+## How Request Cancellation Works (Frontend ↔ Backend)
 
-**Frontend fixes (`chat-context.tsx`):**
-
-- Added `cancelledRef` ref checked after every `await` point in `sendMessage` and `editAndResend`
-- `cancelRequest` sets `cancelledRef.current = true`, aborts the fetch, and removes any streaming assistant messages
-- `animateLoadingPhases` and `streamText` check `cancelledRef` on each tick and resolve immediately if cancelled
-- Used local `abortController` variable to prevent null reference if cancel fires during auth
-
-**Backend fixes:**
-
-- `nodes.py`: Switched Gemini calls from sync (`client.models.generate_content`) to async (`await client.aio.models.generate_content`) making them cancellable via `asyncio.CancelledError`
-- `rag_service.py`: Switched embedding call to async (`await client.aio.models.embed_content`)
-- `chat.py`: Added `Request` parameter and `asyncio.wait` pattern to monitor client disconnection in parallel with agent execution; cancels the agent task when the client disconnects
-
-### UI Fix - User Message Component
-
-**Problem:** Long user messages overflowed horizontally instead of wrapping. Copy/edit icons appeared next to the attachment chips rather than the message bubble. Collapse/expand and "..." truncation never triggered because text didn't wrap.
-
-**Root cause:** The flex layout lacked `min-w-0` on flex containers, preventing width constraint propagation. The `max-w-[80%]` on the bubble was ineffective because its parent flex-col had no width constraint. Copy/edit icons were at the outer flex level (next to the full column including attachments) instead of specifically next to the message bubble.
-
-**Fix (`ChatMessage.tsx`):**
-
-- Restructured user message layout: outer column (`max-w-[80%]`) contains attachments row, then a sub-row with `[icons + bubble]`
-- Added `min-w-0` to the message row and bubble div for proper flex width constraint propagation
-- Copy/edit icons now appear on hover to the left of the message bubble (Gemini-style)
-- Collapse/expand chevron and "..." truncation now work correctly since text wraps properly
-
-### OpenRouter API Migration
-
-**Problem:** The backend was tightly coupled to Google's `google-genai` SDK for both LLM chat completions and embeddings. Switching to OpenRouter enables multi-provider support (Gemini, Claude, GPT, etc.) through a single OpenAI-compatible API.
-
-**Changes:**
-
-| File                      | Change                                                                                                                      |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `pyproject.toml`          | Replaced `google-genai` with `openai`                                                                                       |
-| `core/config.py`          | `GEMINI_API_KEY` → `OPEN_ROUTER_KEY`, added `EMBEDDING_MODEL` + `EMBEDDING_DIMENSIONS`                                      |
-| `agents/nodes.py`         | `genai.Client` → `AsyncOpenAI(base_url="https://openrouter.ai/api/v1")`, `generate_content()` → `chat.completions.create()` |
-| `services/rag_service.py` | `embed_content()` → `embeddings.create()`, configurable model + dimensions                                                  |
-| `agents/explore.py`       | `GeminiClient` → `OpenRouterClient`, proper async with `AsyncOpenAI`                                                        |
-| `.env`                    | New env vars: `OPEN_ROUTER_KEY`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`                                                  |
-
-**API Mapping:**
-
-| Gemini SDK                                            | OpenAI SDK (OpenRouter)                              |
-| ----------------------------------------------------- | ---------------------------------------------------- |
-| `client.aio.models.generate_content(model, contents)` | `client.chat.completions.create(model, messages)`    |
-| `client.aio.models.embed_content(model, contents)`    | `client.embeddings.create(model, input, dimensions)` |
-| `response.text`                                       | `response.choices[0].message.content`                |
-| `result.embeddings[0].values`                         | `result.data[0].embedding`                           |
-
-**Database Migration Required:**
-
-```sql
--- Update vector dimension from 768 (Gemini) to 4096 (Qwen3-Embedding-8B)
-ALTER TABLE client_knowledge ALTER COLUMN embedding TYPE vector(4096);
-
--- Update match function signature
-CREATE OR REPLACE FUNCTION match_client_knowledge(
-  _query_embedding vector(4096),
-  _match_count int DEFAULT 5,
-  _filter_uid uuid DEFAULT NULL,
-  _similarity_threshold float DEFAULT 0.5
-)
-RETURNS TABLE (id uuid, content text, metadata jsonb, similarity float)
-LANGUAGE plpgsql AS $$
-BEGIN
-  RETURN QUERY
-  SELECT ck.id, ck.content, ck.metadata,
-    1 - (ck.embedding <=> _query_embedding) as similarity
-  FROM client_knowledge ck
-  WHERE (_filter_uid IS NULL OR ck.uid = _filter_uid)
-    AND 1 - (ck.embedding <=> _query_embedding) > _similarity_threshold
-  ORDER BY ck.embedding <=> _query_embedding
-  LIMIT _match_count;
-END; $$;
-```
-
-**Note:** After running the SQL migration, all existing documents must be re-uploaded/re-embedded since Gemini and OpenAI embeddings are incompatible.
-
-### Session-Wide Attachment Context
-
-**Problem:** When a user attached files to a message, the file content was only sent with that specific request. Follow-up messages (without re-attaching the files) lost all attachment context because the global `attachments` state was cleared after each successful send via `setAttachments([])`.
-
-**Root cause:** `sendMessage`, `editAndResend`, and `regenerateResponse` each passed only the current global `attachments` state (empty after first send) to the API, ignoring attachments stored on previous user messages.
-
-**Fix (`chat-context.tsx`):**
-
-- Added `collectSessionAttachments()` helper that gathers all attachments from every user message in the conversation history, deduplicating by filename, and merging with any new attachments being sent
-- `sendMessage`: Calls `collectSessionAttachments(messages, attachments)` to include both historical and new attachments
-- `editAndResend`: Calls `collectSessionAttachments(messagesUpToEdited)` to include all attachments from the conversation up to the edited message
-- `regenerateResponse`: Calls `collectSessionAttachments(messages.slice(0, userIdx + 1))` to include all attachments up to the user message being regenerated
-
-**Result:** The AI now has access to all previously attached files across the entire chat session, enabling follow-up questions about earlier attachments without re-uploading.
+1. **Frontend**: `cancelRequest()` sets `cancelledRef.current = true`, calls `abortController.abort()`, sets loading phase to idle
+2. **Frontend**: `animateLoadingPhases` and `streamText` check `cancelledRef` on each tick and resolve immediately if cancelled
+3. **Frontend**: If streaming, preserves `displayedContent` as final content and marks message as `isCancelled`
+4. **Backend**: `chat.py` runs `asyncio.wait({agent_task, disconnect_task})` - when the client disconnects (abort), the disconnect task completes first, and the agent task is cancelled via `task.cancel()`
+5. **Backend**: All LLM calls are async (`AsyncOpenAI`), so `asyncio.CancelledError` propagates and stops token generation
 
 ## Next Steps (Phase 2)
 
