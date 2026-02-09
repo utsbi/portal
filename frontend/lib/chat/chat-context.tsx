@@ -60,6 +60,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const isLoading = loadingPhase !== "idle" && loadingPhase !== "complete" && loadingPhase !== "error";
 
+  // Collect all attachments from previous user messages in the session
+  const collectSessionAttachments = useCallback((msgs: DisplayMessage[], extraAttachments?: AttachmentFile[]): AttachmentFile[] => {
+    const seen = new Set<string>();
+    const all: AttachmentFile[] = [];
+
+    // Gather from all previous user messages
+    for (const msg of msgs) {
+      if (msg.role === "user" && msg.attachments) {
+        for (const a of msg.attachments) {
+          if (!seen.has(a.filename)) {
+            seen.add(a.filename);
+            all.push({
+              filename: a.filename,
+              content: a.content,
+              file_type: a.filename.split('.').pop()?.toLowerCase() || 'txt',
+            });
+          }
+        }
+      }
+    }
+
+    // Add any new attachments not yet on a message
+    if (extraAttachments) {
+      for (const a of extraAttachments) {
+        if (!seen.has(a.filename)) {
+          seen.add(a.filename);
+          all.push(a);
+        }
+      }
+    }
+
+    return all;
+  }, []);
+
   // Animate through loading phases
   const animateLoadingPhases = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
@@ -166,11 +200,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content: msg.content,
       }));
 
+      // Collect all session attachments (previous messages + new ones)
+      const allAttachments = collectSessionAttachments(messages, attachments);
+
       const response = await sendChatMessage(
         {
           query,
           history,
-          attachments,
+          attachments: allAttachments,
           include_sources: true,
           model_preference: modelPreference,
         },
@@ -216,7 +253,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [messages, attachments, modelPreference, animateLoadingPhases, streamText]);
+  }, [messages, attachments, modelPreference, animateLoadingPhases, streamText, collectSessionAttachments]);
 
   const addAttachment = useCallback(async (file: File) => {
     const filename = file.name;
@@ -280,12 +317,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
 
-    // Capture the original message's attachments before state changes
-    const originalAttachments: AttachmentFile[] = (messages[messageIndex].attachments || []).map(a => ({
-      filename: a.filename,
-      content: a.content,
-      file_type: a.filename.split('.').pop()?.toLowerCase() || 'txt',
-    }));
+    // Collect all session attachments from messages up to and including the edited message
+    const messagesUpToEdited = messages.slice(0, messageIndex + 1);
+    const allSessionAttachments = collectSessionAttachments(messagesUpToEdited);
 
     // Update the message content in place and remove all messages after it
     setMessages(prev => {
@@ -327,7 +361,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           {
             query: newContent,
             history,
-            attachments: originalAttachments,
+            attachments: allSessionAttachments,
             include_sources: true,
             model_preference: modelPreference,
           },
@@ -371,7 +405,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         abortControllerRef.current = null;
       }
     }, 0);
-  }, [messages, modelPreference, animateLoadingPhases, streamText]);
+  }, [messages, modelPreference, animateLoadingPhases, streamText, collectSessionAttachments]);
 
   const regenerateResponse = useCallback(async () => {
     // Find the last assistant message
@@ -397,11 +431,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const query = messages[userIdx].content;
     const historyMessages = messages.slice(0, userIdx);
     const lastAssistantId = messages[lastAssistantIdx].id;
-    const userMessageAttachments: AttachmentFile[] = (messages[userIdx].attachments || []).map(a => ({
-      filename: a.filename,
-      content: a.content,
-      file_type: a.filename.split('.').pop()?.toLowerCase() || 'txt',
-    }));
+
+    // Collect all session attachments from messages up to and including the user message
+    const allSessionAttachments = collectSessionAttachments(messages.slice(0, userIdx + 1));
 
     // Remove the last assistant message
     setMessages(prev => prev.filter(m => m.id !== lastAssistantId));
@@ -432,7 +464,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         {
           query,
           history,
-          attachments: userMessageAttachments,
+          attachments: allSessionAttachments,
           include_sources: true,
           model_preference: modelPreference,
         },
@@ -474,7 +506,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [messages, modelPreference, animateLoadingPhases, streamText]);
+  }, [messages, modelPreference, animateLoadingPhases, streamText, collectSessionAttachments]);
 
   const clearChat = useCallback(() => {
     if (abortControllerRef.current) {

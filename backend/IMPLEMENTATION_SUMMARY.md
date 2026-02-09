@@ -318,6 +318,21 @@ END; $$;
 
 **Note:** After running the SQL migration, all existing documents must be re-uploaded/re-embedded since Gemini and OpenAI embeddings are incompatible.
 
+### Session-Wide Attachment Context
+
+**Problem:** When a user attached files to a message, the file content was only sent with that specific request. Follow-up messages (without re-attaching the files) lost all attachment context because the global `attachments` state was cleared after each successful send via `setAttachments([])`.
+
+**Root cause:** `sendMessage`, `editAndResend`, and `regenerateResponse` each passed only the current global `attachments` state (empty after first send) to the API, ignoring attachments stored on previous user messages.
+
+**Fix (`chat-context.tsx`):**
+
+- Added `collectSessionAttachments()` helper that gathers all attachments from every user message in the conversation history, deduplicating by filename, and merging with any new attachments being sent
+- `sendMessage`: Calls `collectSessionAttachments(messages, attachments)` to include both historical and new attachments
+- `editAndResend`: Calls `collectSessionAttachments(messagesUpToEdited)` to include all attachments from the conversation up to the edited message
+- `regenerateResponse`: Calls `collectSessionAttachments(messages.slice(0, userIdx + 1))` to include all attachments up to the user message being regenerated
+
+**Result:** The AI now has access to all previously attached files across the entire chat session, enabling follow-up questions about earlier attachments without re-uploading.
+
 ## Next Steps (Phase 2)
 
 1. Action item extraction from meeting notes

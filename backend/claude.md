@@ -156,8 +156,9 @@ root/
 - RLS-based data isolation per client
 - Frontend-backend API integration complete
 - Session-only file attachments (not persisted)
+- Session-wide attachment context (all previously attached files available across messages)
 - Model selection (Fast/Thinking modes)
-- Request cancellation (stop button)
+- Request cancellation (stop button, works during streaming)
 - In-place message editing
 - Automatic session cleanup on navigation
 
