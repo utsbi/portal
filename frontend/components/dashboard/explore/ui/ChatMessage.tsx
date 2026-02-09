@@ -297,7 +297,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <div className="mt-4 space-y-2">
             <p className="text-xs text-sbi-muted-dark tracking-wide uppercase">Sources</p>
             <div className="flex flex-wrap gap-2">
-              {message.sources.map((source, index) => {
+              {message.sources
+                .filter((source, index, arr) => arr.findIndex(s => s.filename === source.filename) === index)
+                .map((source, index) => {
                 const fileInfo = getFileInfo(source.filename);
                 return (
                   <div
