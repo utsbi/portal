@@ -19,15 +19,28 @@ export function ChatMessages() {
     return null;
   }
 
+  // Find the last assistant message ID for redo button visibility
+  let lastAssistantId: string | undefined;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant') {
+      lastAssistantId = messages[i].id;
+      break;
+    }
+  }
+
   return (
     <div
       ref={containerRef}
       className="h-full overflow-y-auto space-y-6 py-4 pr-4 dashboard-scrollbar"
     >
       {messages.map((message) => (
-        <ChatMessage key={message.id} message={message} />
+        <ChatMessage
+          key={message.id}
+          message={message}
+          isLatestAssistant={message.id === lastAssistantId}
+        />
       ))}
-      
+
       {isLoading && <ChatLoading />}
     </div>
   );

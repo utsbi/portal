@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy, Check, Pencil, MoreHorizontal, ChevronDown, ChevronUp, FileText, File } from 'lucide-react';
+import { Copy, Check, Pencil, MoreHorizontal, ChevronDown, ChevronUp, FileText, File, RotateCw } from 'lucide-react';
 import type { DisplayMessage } from '@/lib/chat/chat-context';
 import { useChat } from '@/lib/chat/chat-context';
 
 interface ChatMessageProps {
   message: DisplayMessage;
+  isLatestAssistant?: boolean;
 }
 
 // File type icon and label helper
@@ -45,7 +46,7 @@ function getFileInfo(filename: string): { icon: React.ReactNode; label: string; 
   }
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -56,7 +57,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
-  const { editAndResend, isLoading } = useChat();
+  const { editAndResend, isLoading, regenerateResponse } = useChat();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -276,72 +277,106 @@ export function ChatMessage({ message }: ChatMessageProps) {
       {/* AI Avatar */}
       <div className="relative shrink-0 mt-1">
         <div className="w-8 h-8 rounded-full bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center">
-          <div className="w-2.5 h-2.5 bg-sbi-green rounded-full animate-pulse" />
+          {message.isCancelled ? (
+            <div className="w-2.5 h-2.5 bg-sbi-muted/60 rounded-full" />
+          ) : (
+            <div className="w-2.5 h-2.5 bg-sbi-green rounded-full animate-pulse" />
+          )}
         </div>
-        <div className="absolute inset-0 w-8 h-8 bg-sbi-green/20 rounded-full blur-md -z-10" />
+        <div className={`absolute inset-0 w-8 h-8 rounded-full blur-md -z-10 ${message.isCancelled ? 'bg-sbi-muted/10' : 'bg-sbi-green/20'}`} />
       </div>
 
       {/* Message content */}
       <div className="flex-1 min-w-0 pt-1">
-        <div className="prose-ai text-white font-light text-base leading-relaxed">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {displayContent}
-          </ReactMarkdown>
-          {message.isStreaming && (
-            <span className="inline-block w-0.5 h-4 bg-sbi-green ml-0.5 animate-pulse align-middle" />
-          )}
-        </div>
-
-        {/* Sources */}
-        {message.sources && message.sources.length > 0 && !message.isStreaming && (
-          <div className="mt-4 space-y-2">
-            <p className="text-xs text-sbi-muted-dark tracking-wide uppercase">Sources</p>
-            <div className="flex flex-wrap gap-2">
-              {message.sources
-                .filter((source, index, arr) => arr.findIndex(s => s.filename === source.filename) === index)
-                .map((source, index) => {
-                const fileInfo = getFileInfo(source.filename);
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 px-3 py-2 bg-sbi-dark-card border border-sbi-dark-border rounded-xl"
-                  >
-                    {fileInfo.icon}
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm text-white font-light truncate max-w-[150px]">
-                        {source.filename.replace(/\.[^/.]+$/, '')}
-                        {source.page_number && ` (p. ${source.page_number})`}
-                      </span>
-                      <span className={`text-xs ${fileInfo.color}`}>
-                        {fileInfo.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+        {message.isCancelled ? (
+          <>
+            {displayContent && (
+              <div className="prose-ai text-white font-light text-base leading-relaxed">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {displayContent}
+                </ReactMarkdown>
+              </div>
+            )}
+            <p className={`text-sbi-muted italic text-sm font-light ${displayContent ? 'mt-3' : ''}`}>
+              Response was cancelled
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="prose-ai text-white font-light text-base leading-relaxed">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {displayContent}
+              </ReactMarkdown>
+              {message.isStreaming && (
+                <span className="inline-block w-0.5 h-4 bg-sbi-green ml-0.5 animate-pulse align-middle" />
+              )}
             </div>
-          </div>
+
+            {/* Sources */}
+            {message.sources && message.sources.length > 0 && !message.isStreaming && (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs text-sbi-muted-dark tracking-wide uppercase">Sources</p>
+                <div className="flex flex-wrap gap-2">
+                  {message.sources
+                    .filter((source, index, arr) => arr.findIndex(s => s.filename === source.filename) === index)
+                    .map((source, index) => {
+                    const fileInfo = getFileInfo(source.filename);
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 px-3 py-2 bg-sbi-dark-card border border-sbi-dark-border rounded-xl"
+                      >
+                        {fileInfo.icon}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm text-white font-light truncate max-w-[150px]">
+                            {source.filename.replace(/\.[^/.]+$/, '')}
+                            {source.page_number && ` (p. ${source.page_number})`}
+                          </span>
+                          <span className={`text-xs ${fileInfo.color}`}>
+                            {fileInfo.label}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Action buttons */}
         {!message.isStreaming && (
-          <div className="flex items-center gap-1 mt-4">
+          <div className={`flex items-center gap-1 ${message.isCancelled ? 'mt-3' : 'mt-4'}`}>
+            {isLatestAssistant && (
+              <button
+                type="button"
+                onClick={regenerateResponse}
+                disabled={isLoading}
+                className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Redo"
+              >
+                <RotateCw className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            )}
+            {!message.isCancelled && (
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
+                title="Copy Reponse"
+              >
+                {copied ? (
+                  <Check className="w-4 h-4 text-sbi-green" />
+                ) : (
+                  <Copy className="w-4 h-4" strokeWidth={1.5} />
+                )}
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleCopy}
               className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
-              title="Copy"
-            >
-              {copied ? (
-                <Check className="w-4 h-4 text-sbi-green" />
-              ) : (
-                <Copy className="w-4 h-4" strokeWidth={1.5} />
-              )}
-            </button>
-            <button
-              type="button"
-              className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
-              title="More options"
+              title="More"
             >
               <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
             </button>
