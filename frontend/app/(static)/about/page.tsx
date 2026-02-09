@@ -58,7 +58,7 @@ const teamMembers = [
   {
     name: "Preston Vajdos",
     role: "Director of Civil Engineering",
-    email: "vajdosp@gmail.com",
+    email: "vajdosp@utsbi.org",
     image: Preston,
   },
   {
@@ -86,7 +86,7 @@ const teamMembers = [
   //   image: null,
   // },
   {
-    name: "Arianne Yude",
+    name: "Arianne Grace",
     role: "Director of Public Relations",
     email: "ariannegraceyude@utsbi.org",
     image: null,
@@ -109,7 +109,7 @@ const alumnis = [
   {
     name: "Ryan Xiong",
     role: "Alumni",
-    email: "admin@utsbi.org",
+    email: "ryan4xiong@gmail.com",
     image: null,
   },
   {
@@ -121,7 +121,7 @@ const alumnis = [
   {
     name: "Ali Akbar",
     role: "Director of Business",
-    email: "admin@utsbi.org",
+    email: "ali@utsbi.org",
     image: Ali,
   },
 ];
