@@ -77,6 +77,7 @@ export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
+    messages,
     sendMessage,
     addAttachment,
     removeAttachment,
@@ -88,8 +89,10 @@ export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
     cancelRequest,
   } = useChat();
 
+  const isStreaming = messages.some(m => m.isStreaming);
+
   const handleSubmit = async () => {
-    if (!input.trim() || isLoading || disabled) return;
+    if (!input.trim() || isBusy || disabled) return;
     
     const query = input.trim();
     setInput('');
@@ -144,7 +147,8 @@ export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
     }
   };
 
-  const isDisabled = isLoading || disabled;
+  const isBusy = isLoading || isStreaming;
+  const isDisabled = isBusy || disabled;
   const hasInput = input.trim().length > 0;
   const currentModel = modelOptions.find(m => m.id === modelPreference) || modelOptions[0];
 
@@ -312,7 +316,7 @@ export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
               </DropdownMenu>
 
               {/* Send / Stop / Mic button with transition */}
-              {isLoading ? (
+              {isBusy ? (
                 <Button
                   size="icon"
                   variant="ghost"
