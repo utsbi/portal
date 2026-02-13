@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check, Pencil, MoreHorizontal, ChevronDown, ChevronUp, FileText, File, RotateCw } from 'lucide-react';
 import type { DisplayMessage } from '@/lib/chat/chat-context';
 import { useChat } from '@/lib/chat/chat-context';
@@ -45,6 +47,73 @@ function getFileInfo(filename: string): { icon: React.ReactNode; label: string; 
       };
   }
 }
+
+// Custom code block with language label, syntax highlighting, and copy button
+function CodeBlock({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Display name for the language
+  const langLabel = language.charAt(0).toUpperCase() + language.slice(1);
+
+  return (
+    <div className="rounded-xl border border-sbi-dark-border overflow-hidden my-3">
+      <div className="flex items-center justify-between px-4 py-2 bg-sbi-dark-card/80 border-b border-sbi-dark-border">
+        <span className="text-sm text-sbi-muted font-medium">{langLabel}</span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="p-1 text-sbi-muted hover:text-white transition-colors"
+          title="Copy code"
+        >
+          {copied ? (
+            <Check className="w-4 h-4 text-sbi-green" />
+          ) : (
+            <Copy className="w-4 h-4" strokeWidth={1.5} />
+          )}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        style={oneDark}
+        language={language}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          padding: '1rem',
+          background: '#0a120c',
+          fontSize: '0.875rem',
+          borderRadius: 0,
+        }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  );
+}
+
+// Custom ReactMarkdown component overrides
+const markdownComponents: Components = {
+  // Override pre to pass through (CodeBlock handles its own wrapper)
+  pre({ children }) {
+    return <>{children}</>;
+  },
+  // Override code: fenced blocks get CodeBlock, inline code stays as <code>
+  code({ className, children, ...props }) {
+    const match = /language-(\w+)/.exec(className || '');
+    const codeString = String(children).replace(/\n$/, '');
+
+    if (match) {
+      return <CodeBlock language={match[1]} code={codeString} />;
+    }
+
+    return <code className={className} {...props}>{children}</code>;
+  },
+};
 
 export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -292,7 +361,7 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
           <>
             {displayContent && (
               <div className="prose-ai text-white font-light text-base leading-relaxed">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {displayContent}
                 </ReactMarkdown>
               </div>
@@ -304,7 +373,7 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
         ) : (
           <>
             <div className="prose-ai text-white font-light text-base leading-relaxed">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {displayContent}
               </ReactMarkdown>
               {message.isStreaming && (

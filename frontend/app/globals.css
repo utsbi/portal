@@ -543,6 +543,12 @@
   color: #d1d5db;
 }
 
+/* Strikethrough support */
+.prose-ai del {
+  text-decoration: line-through;
+  color: #8a9a93;
+}
+
 .prose-ai table {
   width: 100%;
   border-collapse: collapse;
