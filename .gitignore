@@ -2,8 +2,6 @@
 __pycache__/
 *.py[cod]
 
-# C extensions
-*.so
 
 # Distribution / packaging
 .Python
@@ -46,20 +44,15 @@ coverage.xml
 *.mo
 *.pot
 
-# Django stuff:
-*.log
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
 # DotEnv configuration
 .env
 
 # AI custom response prompt
 system_prompt.md
+
+# AI context
+claude.md
+IMPLEMENTATION_SUMMARY.md
 
 # Database
 *.db
