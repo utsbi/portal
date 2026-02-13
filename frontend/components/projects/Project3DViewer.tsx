@@ -88,6 +88,7 @@ interface AutoRotateControllerProps {
 interface SceneContentProps {
   modelUrl: string;
   cameraPresets?: CameraPreset[] | null;
+  defaultCamera?: CameraConfig;
   cameraLimits?: CameraLimits;
   modelScale?: number;
   autoRotateEnabled: boolean;
@@ -283,6 +284,27 @@ const Ground: React.FC = () => {
   );
 };
 
+/**
+ * Sets the camera to the project's default position & target on mount.
+ * Runs inside the R3F tree so CameraControls ref is guaranteed to be
+ * populated. Handles Canvas remount after visiting a non-3D project.
+ */
+const CameraInitializer: React.FC<{
+  defaultCamera?: CameraConfig;
+  cameraControlsRef: React.RefObject<CameraControls | null>;
+}> = ({ defaultCamera, cameraControlsRef }) => {
+  useEffect(() => {
+    if (defaultCamera && cameraControlsRef.current) {
+      const { position: p, target: t } = defaultCamera;
+      cameraControlsRef.current.setLookAt(
+        p[0], p[1], p[2], t[0], t[1], t[2], false,
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+};
+
 const AutoRotateController: React.FC<AutoRotateControllerProps> = ({
   enabled,
   cameraControlsRef,
@@ -440,6 +462,7 @@ function LoadProgressReporter({
 const SceneContent: React.FC<SceneContentProps> = ({
   modelUrl,
   cameraPresets,
+  defaultCamera,
   cameraLimits,
   modelScale,
   autoRotateEnabled,
@@ -508,6 +531,10 @@ const SceneContent: React.FC<SceneContentProps> = ({
         onEnd={onInteractionEnd}
       />
 
+      <CameraInitializer
+        defaultCamera={defaultCamera}
+        cameraControlsRef={cameraControlsRef}
+      />
       <CameraConstraints minHeight={5} cameraControlsRef={cameraControlsRef} />
       {modelRef && <ModelOptimizer houseRef={modelRef} />}
       <AutoRotateController
@@ -720,6 +747,7 @@ export const Project3DViewer = forwardRef<
             <SceneContent
               modelUrl={modelUrl}
               cameraPresets={cameraPresets}
+              defaultCamera={defaultCamera}
               cameraLimits={cameraLimits}
               modelScale={modelScale}
               autoRotateEnabled={autoRotateEnabled}

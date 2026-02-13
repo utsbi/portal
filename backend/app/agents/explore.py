@@ -44,4 +44,3 @@ class GeminiClient:
     async def agenerate(self, prompt: str, system_prompt: str = "") -> str:
         """Async version of generate."""
         return self.generate(prompt, system_prompt)
-

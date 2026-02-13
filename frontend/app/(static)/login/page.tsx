@@ -1,14 +1,16 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
-import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import bg from "@/assets/images/login.jpg";
-import { createClient } from "@/lib/supabase/client";
+import { loginAction, checkAuthAction } from "./actions";
+
+const portalTypes = ["Client", "Member", "Sponsor"];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,19 +19,26 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loginAttempts, setLoginAttempts] = useState(0);
+  const [portalTypeIndex, setPortalTypeIndex] = useState(0);
   const [formState, setFormState] = useState({
     email: "",
     password: "",
   });
 
+  // Cycle through portal types
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPortalTypeIndex((prev) => (prev + 1) % portalTypes.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const checkAuth = async () => {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) {
-        router.replace("/dashboard");
+      const result = await checkAuthAction();
+      
+      if (result.authenticated && result.urlSlug) {
+        router.replace(`/${result.urlSlug}/dashboard`);
       } else {
         setIsCheckingAuth(false);
       }
@@ -51,28 +60,19 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    const supabase = createClient();
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formState.email.trim().toLowerCase(),
-        password: formState.password,
-      });
+      const result = await loginAction(formState.email, formState.password);
 
-      if (error) {
-        if (error.message.includes("Invalid login credentials")) {
-          setError("Invalid email or password");
+      if (!result.success) {
+        setError(result.error || "An error occurred. Please try again.");
+        if (result.error === "Invalid email or password") {
           setLoginAttempts((prev) => prev + 1);
-        } else if (error.message.includes("Email not confirmed")) {
-          setError("Please verify your email address");
-        } else {
-          setError("An error occurred. Please try again.");
         }
         return;
       }
 
-      if (data.user) {
-        router.replace("/dashboard");
+      if (result.urlSlug) {
+        router.replace(`/${result.urlSlug}/dashboard`);
       }
     } catch {
       setError("An unexpected error occurred. Please try again.");
@@ -87,6 +87,8 @@ export default function LoginPage() {
       return;
     }
 
+    // Use a dynamic import for the client-side forgot password
+    const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(
       formState.email.trim().toLowerCase(),
@@ -157,8 +159,24 @@ export default function LoginPage() {
             {/*   </span> */}
             {/*   <div className="h-px w-0 bg-sbi-green group-hover:w-full transition-all duration-300 mx-auto" /> */}
             {/* </Link> */}
-            <p className="mt-4 text-sbi-muted text-sm tracking-wider uppercase">
-              SBI Member Portal
+            <p className="mt-4 text-sbi-muted text-sm tracking-wider uppercase flex items-center justify-center gap-[0.3em]">
+              <span>SBI</span>
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={portalTypes[portalTypeIndex]}
+                    initial={{ y: "100%", opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: "-100%", opacity: 0 }}
+                    transition={{
+                      duration: 0.4,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="inline-block uppercase text-sbi-green"
+                  >
+                    {portalTypes[portalTypeIndex]}
+                  </motion.span>
+                </AnimatePresence>
+              <span>Portal</span>
             </p>
           </motion.div>
 

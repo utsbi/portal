@@ -8,13 +8,21 @@ import { SuggestionChips } from './ui/SuggestionChips';
 import { AmbientGrid } from './ui/AmbientGrid';
 import { TimeDisplay } from './ui/TimeDisplay';
 import { FloatingNodes } from './ui/FloatingNodes';
+import { ChatMessages } from './ui/ChatMessages';
+import { ChatProvider, useChat } from '@/lib/chat/chat-context';
 
-export default function DashboardPortal() {
+interface DashboardPortalProps {
+  urlSlug?: string;
+}
+
+function DashboardPortalContent({ urlSlug }: DashboardPortalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
+  const { messages } = useChat();
+  
+  const hasMessages = messages.length > 0;
 
   useEffect(() => {
-    // Small delay to ensure DOM is ready
     const timer = setTimeout(() => setIsReady(true), 100);
     return () => clearTimeout(timer);
   }, []);
@@ -77,6 +85,7 @@ export default function DashboardPortal() {
         opacity: 1,
         y: 0,
         scale: 1,
+        visibility: 'visible',
         duration: 0.9,
         stagger: 0.1,
         ease: 'power3.out',
@@ -98,7 +107,7 @@ export default function DashboardPortal() {
       {/* Ambient Background Elements */}
       <AmbientGrid />
       
-      {/* Architectural corner accents */}
+      {/* Corner accents */}
       <div className="ambient-element absolute top-8 left-8 w-24 h-24 border-l border-t border-sbi-dark-border/40 opacity-0" />
       <div className="ambient-element absolute bottom-8 right-8 w-24 h-24 border-r border-b border-sbi-dark-border/40 opacity-0" />
       
@@ -106,18 +115,53 @@ export default function DashboardPortal() {
       <div className="ambient-element absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
       <div className="ambient-element absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
 
-      {/* Time Display - Architectural element */}
-      <TimeDisplay />
-
-      {/* Main Content */}
-      <div className="relative z-10 w-full max-w-3xl mx-auto space-y-8 px-4">
-        <PortalHero />
-        <PortalInput />
-        <SuggestionChips disableAutoAnimation />
+      {/* Time Display */}
+      <div className="fixed top-24 right-12 z-20">
+        <TimeDisplay />
       </div>
 
-      {/* Bottom architectural line */}
+      {/* Main Content */}
+      <div className={`relative z-10 w-full max-w-3xl mx-auto px-4 ${
+        hasMessages 
+          ? 'flex flex-col h-[calc(100vh-4rem)]' 
+          : 'space-y-8'
+      }`}>
+        {/* Show hero only when no messages */}
+        {!hasMessages && <PortalHero />}
+        
+        {/* Chat messages */}
+        {hasMessages && (
+          <div className="flex-1 overflow-hidden pt-6 pr-2">
+            <ChatMessages />
+          </div>
+        )}
+        
+        {/* Input section */}
+        <div className={hasMessages ? 'shrink-0 pb-4' : ''}>
+          <PortalInput />
+          
+          {/* AI Disclaimer */}
+          {hasMessages && (
+            <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
+              AI can make mistakes, so double check responses
+            </p>
+          )}
+        </div>
+        
+        {/* Show suggestion chips only when no messages */}
+        {!hasMessages && <SuggestionChips disableAutoAnimation />}
+      </div>
+
+      {/* Bottom line */}
       <div className="ambient-element absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent opacity-0" />
     </div>
+  );
+}
+
+export default function DashboardPortal({ urlSlug }: DashboardPortalProps) {
+  return (
+    <ChatProvider>
+      <DashboardPortalContent urlSlug={urlSlug} />
+    </ChatProvider>
   );
 }

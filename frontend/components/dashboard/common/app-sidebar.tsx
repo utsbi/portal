@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { useRef, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { useRef, useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Compass,
   MessageSquare,
@@ -12,310 +13,374 @@ import {
   FolderOpen,
   FileText,
   MailQuestion,
-  ChevronDown,
+  ChevronUp,
   User,
   Bell,
   Settings,
-  MessageCircleQuestionMark,
+  HelpCircle,
   LogOut,
   type LucideIcon,
-} from 'lucide-react';
-import gsap from 'gsap';
-
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from '@/components/ui/sidebar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "lucide-react";
+import gsap from "gsap";
+import { createClient } from "@/lib/supabase/client";
+import { useClient } from "@/lib/client/client-context";
+import { useSidebar } from "@/lib/sidebar/sidebar-context";
 
 interface NavItem {
   title: string;
-  url: string;
+  path: string;
   icon: LucideIcon;
 }
 
-// Updated URLs - all under /dashboard
+// Navigation paths (relative to /{url_slug}/dashboard)
 const mainItems: NavItem[] = [
-  { title: 'Explore', url: '/dashboard', icon: Compass },
-  { title: 'Messages', url: '/dashboard/messages', icon: MessageSquare },
-  { title: 'Calendar', url: '/dashboard/calendar', icon: Calendar },
-  { title: 'Finances', url: '/dashboard/finances', icon: DollarSign },
-  { title: 'Lifecycle', url: '/dashboard/lifecycle', icon: Repeat },
+  { title: "Explore", path: "", icon: Compass },
+  { title: "Messages", path: "/messages", icon: MessageSquare },
+  { title: "Calendar", path: "/calendar", icon: Calendar },
+  { title: "Finances", path: "/finances", icon: DollarSign },
+  { title: "Lifecycle", path: "/lifecycle", icon: Repeat },
 ];
 
 const documentItems: NavItem[] = [
-  { title: 'Questionnaire', url: '/dashboard/questionnaire', icon: ClipboardList },
-  { title: 'Files', url: '/dashboard/files', icon: FolderOpen },
-  { title: 'Reports', url: '/dashboard/reports', icon: FileText },
-  { title: 'Requests', url: '/dashboard/requests', icon: MailQuestion },
+  { title: "Questionnaire", path: "/questionnaire", icon: ClipboardList },
+  { title: "Files", path: "/files", icon: FolderOpen },
+  { title: "Reports", path: "/reports", icon: FileText },
+  { title: "Requests", path: "/requests", icon: MailQuestion },
 ];
 
-function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
-  const linkRef = useRef<HTMLAnchorElement>(null);
+interface NavLinkProps {
+  item: NavItem;
+  isActive: boolean;
+  baseUrl: string;
+  isCollapsed: boolean;
+}
+
+function NavLink({ item, isActive, baseUrl, isCollapsed }: NavLinkProps) {
   const indicatorRef = useRef<HTMLDivElement>(null);
+  const fullUrl = `${baseUrl}${item.path}`;
 
   useEffect(() => {
     if (!indicatorRef.current) return;
-    
+
     if (isActive) {
       gsap.to(indicatorRef.current, {
         scaleY: 1,
         opacity: 1,
         duration: 0.3,
-        ease: 'power2.out',
+        ease: "power2.out",
       });
     } else {
       gsap.to(indicatorRef.current, {
         scaleY: 0,
         opacity: 0,
         duration: 0.2,
-        ease: 'power2.in',
+        ease: "power2.in",
       });
     }
   }, [isActive]);
 
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton asChild className="relative group hover:bg-transparent">
-        <a 
-          ref={linkRef}
-          href={item.url} 
-          className={`relative flex items-center gap-3 px-2.5 py-2.5 transition-all duration-300 group-data-[collapsible=icon]:justify-center ${
-            isActive ? 'text-white' : 'text-sbi-muted hover:text-white'
+    <Link
+      href={fullUrl}
+      className={`group relative flex items-center gap-3 px-3 py-2.5 transition-all duration-300 ${
+        isCollapsed ? "justify-center" : ""
+      } ${isActive ? "text-white" : "text-sbi-muted hover:text-white"}`}
+    >
+      {/* Active indicator line */}
+      <div
+        ref={indicatorRef}
+        className={`absolute ${isCollapsed ? "left-0.5" : "left-0"} top-1/2 -translate-y-1/2 w-0.5 h-5 bg-sbi-green origin-center scale-y-0 opacity-0 rounded-full`}
+      />
+
+      {/* Icon */}
+      <div
+        className={`relative transition-all duration-300 ${isActive ? "text-sbi-green" : "group-hover:text-sbi-green"}`}
+      >
+        <item.icon className="size-[18px]" strokeWidth={1.5} />
+        {isActive && (
+          <div className="absolute inset-0 blur-md bg-sbi-green/40 rounded-full" />
+        )}
+      </div>
+
+      {/* Label */}
+      {!isCollapsed && (
+        <span
+          className={`text-sm font-light tracking-wide transition-colors duration-300 ${
+            isActive ? "text-white" : ""
           }`}
         >
-          {/* Active indicator line */}
-          <div 
-            ref={indicatorRef}
-            className="absolute left-1 group-data-[collapsible=icon]:left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-sbi-green origin-center scale-y-0 opacity-0"
-          />
-          
-          {/* Icon with glow effect on active */}
-          <div className={`relative transition-all duration-300 ${isActive ? 'text-sbi-green' : ''}`}>
-            <item.icon className="size-4" strokeWidth={1.25} />
-            {isActive && (
-              <div className="absolute inset-0 blur-sm bg-sbi-green/30 rounded-full" />
-            )}
-          </div>
-          
-          {/* Label */}
-          <span className={`font-extralight tracking-wide text-sm group-data-[collapsible=icon]:hidden ${
-            isActive ? 'text-white' : ''
-          }`}>
-            {item.title}
-          </span>
-          
-          {/* Hover background */}
-          <div className="absolute inset-0 bg-sbi-dark-card/0 group-hover:bg-sbi-dark-card/50 transition-colors duration-300 -z-10" />
-        </a>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
+          {item.title}
+        </span>
+      )}
+
+      {/* Hover glow */}
+      <div className="absolute inset-0 bg-sbi-green/0 group-hover:bg-sbi-green/5 transition-colors duration-300 rounded-lg -z-10" />
+    </Link>
   );
 }
 
-export function AppSidebar() {
-  const { state } = useSidebar();
+interface AppSidebarProps {
+  urlSlug: string;
+}
+
+export function AppSidebar({ urlSlug }: AppSidebarProps) {
+  const { state, open } = useSidebar();
   const pathname = usePathname();
-  
-  const isActive = (url: string) => {
-    if (url === '/dashboard') {
-      return pathname === '/dashboard';
+  const router = useRouter();
+  const { client } = useClient();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const isCollapsed = state === "collapsed";
+
+  // Base URL for all dashboard routes
+  const baseUrl = `/${urlSlug}/dashboard`;
+
+  // Get user display info from client context
+  const userName = client?.name || "Loading...";
+  const userEmail = client?.email || "";
+  const userInitials = client?.initials || "...";
+
+  const isActive = (path: string) => {
+    const fullPath = `${baseUrl}${path}`;
+    if (path === "") {
+      return pathname === baseUrl;
     }
-    return pathname.startsWith(url);
+    return pathname.startsWith(fullPath);
   };
 
-  return (
-    <Sidebar collapsible="icon" className="border-r border-sbi-dark-border/50 bg-sbi-dark overflow-hidden">
-      {/* Header */}
-      <SidebarHeader className="h-16 border-b border-sbi-dark-border/50 bg-sbi-dark justify-center">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              asChild
-              className="hover:bg-transparent group px-2
-                group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon))]
-                group-data-[collapsible=icon]:h-12
-                group-data-[collapsible=icon]:px-0
-                group-data-[collapsible=icon]:gap-0
-                group-data-[collapsible=icon]:justify-center"
-            >
-              <a
-                href="/dashboard"
-                className="flex items-center gap-3
-                  group-data-[collapsible=icon]:gap-0
-                  group-data-[collapsible=icon]:justify-center
-                  group-data-[collapsible=icon]:w-full"
-              >
-                {/* Logo mark */}
-                <div
-                  className="relative flex aspect-square size-7 items-center justify-center shrink-0
-                    group-data-[collapsible=icon]:mx-auto
-                    group-data-[collapsible=icon]:size-8"
-                >
-                  {/* Outer ring */}
-                  <div
-                    className="absolute inset-0 border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-500 rotate-45"
-                    style={{
-                      transform: state === 'collapsed' ? 'scale(0.7)' : 'scale(0.9)',
-                      transition: 'transform 220ms ease, border-color 500ms ease',
-                    }}
-                  />
-                  {/* Inner content */}
-                  <div className="relative flex items-center justify-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="size-4 text-sbi-green"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M12 2v20" />
-                      <path d="m4.93 4.93 14.14 14.14" />
-                    </svg>
-                  </div>
-                </div>
-                {/* Brand name */}
-                <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-                  <span className="text-sm font-extralight tracking-[0.2em] text-white uppercase">SBI</span>
-                  <span className="text-[9px] tracking-wider text-sbi-muted-dark uppercase">Client Portal</span>
-                </div>
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
-      {/* Navigation Content */}
-      <SidebarContent className="bg-sbi-dark px-2 group-data-[collapsible=icon]:px-0 py-4 overflow-x-hidden">
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <aside
+      className={`relative flex flex-col h-screen bg-sbi-dark border-r border-sbi-dark-border/30 transition-all duration-300 ease-out ${
+        isCollapsed ? "w-16" : "w-60"
+      }`}
+    >
+      {/* Architectural corner accents */}
+      <div className="absolute top-0 left-0 w-4 h-4 border-t border-l border-sbi-green/20" />
+      <div className="absolute top-0 right-0 w-4 h-4 border-t border-r border-sbi-dark-border/30" />
+      <div className="absolute bottom-0 left-0 w-4 h-4 border-b border-l border-sbi-dark-border/30" />
+      <div className="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-sbi-green/20" />
+
+      {/* Header */}
+      <div className="h-16 flex items-center border-b border-sbi-dark-border/30 px-3">
+        <Link
+          href={baseUrl}
+          className="group flex items-center gap-3 transition-all duration-300"
+        >
+          {/* Logo */}
+          <div className="relative flex items-center justify-center size-8">
+            {/* Rotating border */}
+            <div className="absolute inset-0 border border-sbi-dark-border/50 group-hover:border-sbi-green/40 transition-colors duration-500 rotate-45" />
+            {/* Icon */}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="size-4 text-sbi-green"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 2v20" />
+              <path d="m4.93 4.93 14.14 14.14" />
+            </svg>
+          </div>
+
+          {/* Brand text */}
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              <span className="text-sm font-light tracking-[0.25em] text-white uppercase">
+                SBI
+              </span>
+              <span className="text-[9px] tracking-widest text-sbi-muted uppercase">
+                Client Portal
+              </span>
+            </div>
+          )}
+        </Link>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2">
         {/* Main Navigation */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-0.5">
-              {mainItems.map((item) => (
-                <NavLink key={item.title} item={item} isActive={isActive(item.url)} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <div className="space-y-1">
+          {mainItems.map((item) => (
+            <NavLink
+              key={item.title}
+              item={item}
+              isActive={isActive(item.path)}
+              baseUrl={baseUrl}
+              isCollapsed={isCollapsed}
+            />
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="my-4 mx-3 h-px bg-linear-to-r from-transparent via-sbi-dark-border/50 to-transparent" />
 
         {/* Documents Section */}
-        <SidebarGroup className="mt-0.5">
-          <SidebarGroupLabel className="px-3 text-[9px] tracking-[0.25em] uppercase text-sbi-muted-dark font-extralight mb-2">
-            Documents
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-0.5">
-              {documentItems.map((item) => (
-                <NavLink key={item.title} item={item} isActive={isActive(item.url)} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+        <div className="space-y-1">
+          {!isCollapsed && (
+            <div className="px-3 mb-2">
+              <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted font-light">
+                Documents
+              </span>
+            </div>
+          )}
+          {documentItems.map((item) => (
+            <NavLink
+              key={item.title}
+              item={item}
+              isActive={isActive(item.path)}
+              baseUrl={baseUrl}
+              isCollapsed={isCollapsed}
+            />
+          ))}
+        </div>
+      </nav>
 
-      {/* Footer - User Profile */}
-      <SidebarFooter className="border-t border-sbi-dark-border/50 bg-sbi-dark p-3 px-3 group-data-[collapsible=icon]:px-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  className="group hover:bg-sbi-dark-card/50 transition-colors duration-300 w-full px-2
-                    group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon))]
-                    group-data-[collapsible=icon]:h-12
-                    group-data-[collapsible=icon]:px-0
-                    group-data-[collapsible=icon]:gap-0
-                    group-data-[collapsible=icon]:justify-center
-                    data-[state=open]:bg-sbi-dark-card/50"
-                >
-                  {/* Avatar */}
-                  <div
-                    className="relative flex size-9 items-center justify-center shrink-0
-                      group-data-[collapsible=icon]:size-8"
-                  >
-                    <div className="absolute inset-0 scale-90 border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-300" />
-                    <span className="text-xs font-extralight text-sbi-green tracking-wider">JD</span>
-                  </div>
-                  
-                  {/* User info */}
-                  <div className="flex-1 text-left min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-extralight text-white truncate">John Doe</p>
-                    <p className="text-[11px] text-sbi-muted-dark truncate tracking-wide">john@utsbi.com</p>
-                  </div>
-                  
-                  {/* Dropdown indicator */}
-                  <ChevronDown
-                    className="size-4 text-sbi-muted group-hover:text-sbi-green transition-colors duration-300
-                      group-data-[collapsible=icon]:hidden"
-                    strokeWidth={1.5}
-                  />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="top"
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-none bg-sbi-dark border border-sbi-dark-border p-0 shadow-xl"
-                sideOffset={13}
+      {/* User Profile Footer */}
+      <div
+        ref={userMenuRef}
+        className="relative border-t border-sbi-dark-border/30"
+      >
+        {/* User Menu Popup */}
+        {isUserMenuOpen && (
+          <div className={`absolute bottom-full mb-1 bg-sbi-dark border border-sbi-dark-border/50 rounded-lg overflow-hidden shadow-2xl shadow-black/50 z-50 ${
+            isCollapsed ? "left-full ml-2 bottom-0 w-56" : "left-0 right-0 mx-2"
+          }`}>
+            {/* User info header */}
+            <div className="px-3 py-3 border-b border-sbi-dark-border/30">
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center size-9">
+                  <div className="absolute inset-0 border border-sbi-dark-border/50 rounded-lg" />
+                  <span className="text-xs font-light text-sbi-green tracking-wider">
+                    {userInitials}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-light text-white truncate">
+                    {userName}
+                  </p>
+                  <p className="text-xs text-sbi-muted truncate">{userEmail}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Menu items */}
+            <div className="py-1">
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
               >
-                <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-2 px-2 py-2 text-left text-sm">
-                    <div className="relative flex size-8 items-center justify-center shrink-0">
-                      <div className="absolute inset-0 scale-90 border border-sbi-dark-border" />
-                      <span className="text-xs font-extralight text-sbi-green tracking-wider">JD</span>
-                    </div>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-extralight text-white">John Doe</span>
-                      <span className="truncate text-xs text-sbi-muted-dark">john@utsbi.com</span>
-                    </div>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-sbi-dark-border/50 my-0" />
-                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
-                  <User className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
-                  Account
-                </DropdownMenuItem>
-                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
-                  <Bell className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
-                  Notifications
-                </DropdownMenuItem>
-                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
-                  <Settings className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
-                  <MessageCircleQuestionMark className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
-                  Help
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-sbi-dark-border/50 my-0" />
-                <DropdownMenuItem className="rounded-none focus:bg-sbi-dark-card/50 focus:text-white text-sbi-muted font-extralight cursor-pointer group py-2.5">
-                  <LogOut className="mr-2 size-4 group-hover:text-sbi-green transition-colors" strokeWidth={1.5} />
-                  Log out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-    </Sidebar>
+                <User className="size-4" strokeWidth={1.5} />
+                <span className="text-sm font-light">Account</span>
+              </button>
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
+              >
+                <Bell className="size-4" strokeWidth={1.5} />
+                <span className="text-sm font-light">Notifications</span>
+              </button>
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
+              >
+                <Settings className="size-4" strokeWidth={1.5} />
+                <span className="text-sm font-light">Settings</span>
+              </button>
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
+              >
+                <HelpCircle className="size-4" strokeWidth={1.5} />
+                <span className="text-sm font-light">Help</span>
+              </button>
+            </div>
+
+            {/* Logout */}
+            <div className="border-t border-sbi-dark-border/30 py-1">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
+              >
+                <LogOut className="size-4" strokeWidth={1.5} />
+                <span className="text-sm font-light">Log out</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* User button */}
+        <button
+          type="button"
+          onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+          className={`w-full flex items-center gap-3 p-3 transition-all duration-300 hover:bg-sbi-green/5 ${
+            isCollapsed ? "justify-center" : ""
+          } ${isUserMenuOpen ? "bg-sbi-green/5" : ""}`}
+        >
+          {/* Avatar */}
+          <div className="relative flex items-center justify-center size-9 shrink-0">
+            <div
+              className={`absolute inset-0 border transition-colors duration-300 rounded-lg ${
+                isUserMenuOpen
+                  ? "border-sbi-green/40"
+                  : "border-sbi-dark-border/50 hover:border-sbi-green/30"
+              }`}
+            />
+            <span className="text-xs font-light text-sbi-green tracking-wider">
+              {userInitials}
+            </span>
+          </div>
+
+          {/* User info */}
+          {!isCollapsed && (
+            <>
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-light text-white truncate">
+                  {userName}
+                </p>
+                <p className="text-[11px] text-sbi-muted truncate">
+                  {userEmail}
+                </p>
+              </div>
+
+              {/* Chevron */}
+              <ChevronUp
+                className={`size-4 text-sbi-muted transition-transform duration-300 ${
+                  isUserMenuOpen ? "rotate-180" : ""
+                }`}
+                strokeWidth={1.5}
+              />
+            </>
+          )}
+        </button>
+      </div>
+    </aside>
   );
 }
