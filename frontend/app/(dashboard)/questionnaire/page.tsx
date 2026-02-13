@@ -26,7 +26,7 @@ import { formSchemas } from '@/data/formSchemas';
 import { AlertCircle } from 'lucide-react';
 
 // Updated mock data with new columns
-const initialSections = [
+const initialForms = [
   { id: 1, formName: "General Form", priority: "High", status: "In Process", questionCount: 8, team: "Architecture" },
   { id: 2, formName: "Conceptual Basics", priority: "Critical", status: "In Process", questionCount: 5, team: "Architecture" },
   { id: 3, formName: "Interior Detail", priority: "High", status: "In Process", questionCount: 6, team: "Architecture" },
@@ -42,19 +42,19 @@ type SortConfig = {
 const priorityOrder = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
 
 export default function QuestionnairePage() {
-  const [sections, setSections] = useState(initialSections);
+  const [forms, setForms] = useState(initialForms);
   const [allFormData, setAllFormData] = useState<Record<number, any>>({});
   const [open, setOpen] = useState(false);
-  const [selectedSection, setSelectedSection] = useState<typeof initialSections[0] | null>(null);
+  const [selectedForm, setSelectedForm] = useState<typeof initialForms[0] | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: 'asc' });
   const [hideCompleted, setHideCompleted] = useState(false);
 
-  const handleRowClick = (section: typeof initialSections[0]) => {
-    setSelectedSection(section);
+  const handleRowClick = (form: typeof initialForms[0]) => {
+    setSelectedForm(form);
     setOpen(true);
   };
 
-  const handleSort = (key: keyof typeof initialSections[0] | 'missingRequired') => {
+  const handleSort = (key: keyof typeof initialForms[0] | 'missingRequired') => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
@@ -63,40 +63,40 @@ export default function QuestionnairePage() {
   };
 
   const handleFormSubmit = useCallback(() => {
-    if (!selectedSection) return;
+    if (!selectedForm) return;
 
-    setSections(prev => prev.map(s =>
-      s.id === selectedSection.id ? { ...s, status: "Done" as const } : s
+    setForms(prev => prev.map(f =>
+      f.id === selectedForm.id ? { ...f, status: "Done" as const } : f
     ));
-  }, [selectedSection]);
+  }, [selectedForm]);
 
   const handleFormUpdate = useCallback((data: any) => {
-    if (!selectedSection) return;
+    if (!selectedForm) return;
 
-    // Save the data for this section
+    // Save the data for this form
     setAllFormData(prev => ({
       ...prev,
-      [selectedSection.id]: {
-        ...prev[selectedSection.id],
+      [selectedForm.id]: {
+        ...prev[selectedForm.id],
         ...data
       }
     }));
 
-    if (selectedSection?.formName === "General Form") {
+    if (selectedForm?.formName === "General Form") {
       const hasPool = data.hasPool === "yes";
 
-      setSections(prev => {
+      setForms(prev => {
         if (data.hasPool === undefined) return prev;
 
-        const existingCivil = prev.find(s => s.formName === "Pool - Civil Engineering");
+        const existingCivil = prev.find(f => f.formName === "Pool - Civil Engineering");
 
         if (hasPool && existingCivil) return prev;
         if (!hasPool && !existingCivil) return prev;
 
-        const filtered = prev.filter(s =>
-          s.formName !== "Pool - Civil Engineering" &&
-          s.formName !== "Pool - Mechanical Systems" &&
-          s.formName !== "Pool - Finance"
+        const filtered = prev.filter(f =>
+          f.formName !== "Pool - Civil Engineering" &&
+          f.formName !== "Pool - Mechanical Systems" &&
+          f.formName !== "Pool - Finance"
         );
 
         if (hasPool) {
@@ -133,11 +133,11 @@ export default function QuestionnairePage() {
       });
     }
 
-    if (selectedSection?.formName === "The Estate") {
+    if (selectedForm?.formName === "The Estate") {
       const wantsPool = data.wantsPool === "yes";
 
-      setSections(prev => {
-        const existingPoolSpec = prev.find(s => s.formName === "Pool Specifications");
+      setForms(prev => {
+        const existingPoolSpec = prev.find(f => f.formName === "Pool Specifications");
 
         if (wantsPool && existingPoolSpec) return prev;
         if (!wantsPool && !existingPoolSpec) return prev;
@@ -155,27 +155,27 @@ export default function QuestionnairePage() {
             }
           ];
         } else {
-          return prev.filter(s => s.formName !== "Pool Specifications");
+          return prev.filter(f => f.formName !== "Pool Specifications");
         }
       });
     }
-  }, [selectedSection]);
+  }, [selectedForm]);
 
-  const filteredAndSortedSections = useMemo(() => {
-    let result = sections.map(section => {
-      const schema = formSchemas[section.formName];
-      const data = allFormData[section.id] || {};
+  const filteredAndSortedForms = useMemo(() => {
+    let result = forms.map(form => {
+      const schema = formSchemas[form.formName];
+      const data = allFormData[form.id] || {};
 
       const missingRequired = schema?.fields.filter(f => f.required).some(f => {
         const val = data[f.id];
         return val === undefined || val === '' || (f.type === 'checkbox' && val === 'no');
       });
 
-      return { ...section, missingRequired };
+      return { ...form, missingRequired };
     });
 
     if (hideCompleted) {
-      result = result.filter(section => section.status !== 'Done');
+      result = result.filter(form => form.status !== 'Done');
     }
 
     if (sortConfig.key) {
@@ -202,7 +202,7 @@ export default function QuestionnairePage() {
     }
 
     return result;
-  }, [sections, sortConfig, hideCompleted, allFormData]);
+  }, [forms, sortConfig, hideCompleted, allFormData]);
 
   return (
     <div className="flex flex-col h-full w-full p-8 space-y-8">
@@ -259,19 +259,19 @@ export default function QuestionnairePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredAndSortedSections.map((section) => (
+            {filteredAndSortedForms.map((form) => (
               <TableRow
-                key={section.id}
+                key={form.id}
                 className="border-zinc-800 cursor-pointer hover:bg-zinc-900/50 transition-colors"
-                onClick={() => handleRowClick(section)}
+                onClick={() => handleRowClick(form)}
               >
                 <TableCell>
                   <div className="h-4 w-4 rounded border border-zinc-700" />
                 </TableCell>
                 <TableCell className="font-medium text-gray-200">
                   <div className="flex items-center gap-2">
-                    {section.formName}
-                    {section.missingRequired && (
+                    {form.formName}
+                    {form.missingRequired && (
                       <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/10 h-5 px-1.5 py-0 text-[10px] uppercase font-bold tracking-wider">
                         <AlertCircle className="h-3 w-3 mr-1" />
                         Missing Required
@@ -281,29 +281,29 @@ export default function QuestionnairePage() {
                 </TableCell>
                 <TableCell>
                   <span className={
-                    section.priority === 'Critical' ? 'text-red-400 font-medium' :
-                      section.priority === 'High' ? 'text-orange-400' :
+                    form.priority === 'Critical' ? 'text-red-400 font-medium' :
+                      form.priority === 'High' ? 'text-orange-400' :
                         'text-gray-400'
                   }>
-                    {section.priority}
+                    {form.priority}
                   </span>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {section.status === 'Done' ? (
+                    {form.status === 'Done' ? (
                       <div className="h-2 w-2 rounded-full bg-green-500" />
                     ) : (
                       <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
                     )}
-                    <span className={section.status === 'Done' ? 'text-green-500' : 'text-yellow-500'}>
-                      {section.status}
+                    <span className={form.status === 'Done' ? 'text-green-500' : 'text-yellow-500'}>
+                      {form.status}
                     </span>
                   </div>
                 </TableCell>
-                <TableCell className="text-right text-gray-400">{section.questionCount}</TableCell>
+                <TableCell className="text-right text-gray-400">{form.questionCount}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className="bg-zinc-900 text-gray-400 border-zinc-700 hover:bg-zinc-900">
-                    {section.team}
+                    {form.team}
                   </Badge>
                 </TableCell>
               </TableRow>
@@ -315,7 +315,7 @@ export default function QuestionnairePage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-zinc-950 border-zinc-800 animate-in fade-in zoom-in-95 duration-300">
           <DialogHeader>
-            <DialogTitle className="text-xl text-gray-100">{selectedSection?.formName}</DialogTitle>
+            <DialogTitle className="text-xl text-gray-100">{selectedForm?.formName}</DialogTitle>
             <DialogDescription className="text-gray-400">
               Provide the necessary details for this project section.
             </DialogDescription>
@@ -323,8 +323,8 @@ export default function QuestionnairePage() {
 
           <QuestionnaireForm
             onClose={() => setOpen(false)}
-            formName={selectedSection?.formName}
-            initialData={selectedSection ? allFormData[selectedSection.id] : {}}
+            formName={selectedForm?.formName}
+            initialData={selectedForm ? allFormData[selectedForm.id] : {}}
             onUpdate={handleFormUpdate}
             onSubmit={handleFormSubmit}
           />
