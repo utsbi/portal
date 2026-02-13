@@ -57,8 +57,8 @@ export function QuestionnaireForm({
         return (
             <Card className="w-full border-0 shadow-none bg-transparent">
                 <CardHeader className="px-0">
-                    <CardTitle className="text-2xl font-bold text-gray-100">{formName || 'Questionnaire'}</CardTitle>
-                    <CardDescription className="text-gray-400">
+                    <CardTitle className="text-2xl font-extralight text-white">{formName || 'Questionnaire'}</CardTitle>
+                    <CardDescription className="text-sbi-muted-dark">
                         Form definition not found.
                     </CardDescription>
                 </CardHeader>
@@ -69,8 +69,8 @@ export function QuestionnaireForm({
     return (
         <Card className="w-full border-0 shadow-none bg-transparent">
             <CardHeader className="px-0">
-                <CardTitle className="text-2xl font-bold text-gray-100">{schema.title}</CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardTitle className="text-2xl font-extralight text-white">{schema.title}</CardTitle>
+                <CardDescription className="text-sbi-muted-dark">
                     {schema.description}
                 </CardDescription>
             </CardHeader>
@@ -79,25 +79,25 @@ export function QuestionnaireForm({
                     {schema.fields.map((field) => (
                         <div key={field.id} className="space-y-2">
                             {field.type === 'section-header' ? (
-                                <div className="pt-6 pb-2 border-b border-zinc-800 mb-4 first:pt-0">
-                                    <h3 className="text-lg font-semibold text-gray-100 tracking-tight">{field.label}</h3>
-                                    {field.description && <p className="text-sm text-gray-500 mt-1">{field.description}</p>}
+                                <div className="pt-6 pb-2 border-b border-sbi-dark-border mb-4 first:pt-0">
+                                    <h3 className="text-lg font-light text-white tracking-tight">{field.label}</h3>
+                                    {field.description && <p className="text-sm text-sbi-muted-dark mt-1">{field.description}</p>}
                                 </div>
                             ) : field.type === 'checkbox' ? (
-                                <div className="flex items-start space-x-2 p-4 border border-zinc-800 rounded-md bg-zinc-900/30">
+                                <div className="flex items-start space-x-2 p-4 border border-sbi-dark-border rounded-md bg-sbi-dark-card/30">
                                     <Checkbox
                                         id={field.id}
                                         checked={formData[field.id] === 'yes'}
                                         onCheckedChange={(checked) => handleInputChange(field.id, checked ? 'yes' : 'no')}
-                                        className="mt-1 border-zinc-700 data-[state=checked]:bg-zinc-100 data-[state=checked]:text-zinc-900"
+                                        className="mt-1 border-sbi-dark-border data-[state=checked]:bg-sbi-green data-[state=checked]:text-sbi-dark"
                                     />
                                     <div className="space-y-1">
-                                        <Label htmlFor={field.id} className="text-gray-200 font-medium cursor-pointer flex items-center gap-1">
+                                        <Label htmlFor={field.id} className="text-white font-light cursor-pointer flex items-center gap-1">
                                             {field.label}
                                             {field.required && <span className="text-red-500 font-bold">*</span>}
                                         </Label>
                                         {field.description && (
-                                            <p className="text-sm text-gray-400">
+                                            <p className="text-sm text-sbi-muted-dark">
                                                 {field.description}
                                             </p>
                                         )}
@@ -105,11 +105,11 @@ export function QuestionnaireForm({
                                 </div>
                             ) : field.type === 'multi-select' ? (
                                 <div className="space-y-3">
-                                    <Label className="text-sm font-medium text-gray-200 flex items-center gap-1">
+                                    <Label className="text-sm font-light text-white flex items-center gap-1">
                                         {field.label}
                                         {field.required && <span className="text-red-500 font-bold">*</span>}
                                     </Label>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 border border-zinc-800 rounded-md bg-zinc-900/10">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 border border-sbi-dark-border rounded-md bg-sbi-dark-card/10">
                                         {field.options?.map((option) => (
                                             <div key={option} className="flex items-center space-x-2">
                                                 <Checkbox
@@ -122,11 +122,11 @@ export function QuestionnaireForm({
                                                             : current.filter((i: string) => i !== option);
                                                         handleInputChange(field.id, next);
                                                     }}
-                                                    className="border-zinc-700 data-[state=checked]:bg-zinc-100 data-[state=checked]:text-zinc-900"
+                                                    className="border-sbi-dark-border data-[state=checked]:bg-sbi-green data-[state=checked]:text-sbi-dark"
                                                 />
                                                 <Label
                                                     htmlFor={`${field.id}-${option}`}
-                                                    className="text-sm text-gray-300 font-normal cursor-pointer"
+                                                    className="text-sm text-sbi-muted font-normal cursor-pointer"
                                                 >
                                                     {option}
                                                 </Label>
@@ -134,14 +134,14 @@ export function QuestionnaireForm({
                                         ))}
                                     </div>
                                     {field.description && (
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-sbi-muted-dark">
                                             {field.description}
                                         </p>
                                     )}
                                 </div>
                             ) : (
                                 <>
-                                    <Label htmlFor={field.id} className="text-sm font-medium text-gray-200 flex items-center gap-1">
+                                    <Label htmlFor={field.id} className="text-sm font-light text-white flex items-center gap-1">
                                         {field.label}
                                         {field.required && <span className="text-red-500 font-bold">*</span>}
                                     </Label>
@@ -152,7 +152,7 @@ export function QuestionnaireForm({
                                             rows={4}
                                             value={formData[field.id] || ''}
                                             onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                            className="flex w-full rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm text-gray-100 ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:ring-offset-zinc-950 dark:focus-visible:ring-zinc-300"
+                                            className="flex w-full rounded-md border border-sbi-dark-border bg-sbi-dark-card px-3 py-2 text-sm text-white ring-offset-sbi-dark placeholder:text-sbi-muted-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sbi-green/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                         />
                                     ) : (
                                         <Input
@@ -161,11 +161,11 @@ export function QuestionnaireForm({
                                             placeholder={field.placeholder}
                                             value={formData[field.id] || ''}
                                             onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                            className="bg-zinc-950/50 border-zinc-800 text-gray-100 placeholder:text-gray-500 focus-visible:ring-zinc-700"
+                                            className="bg-sbi-dark-card border-sbi-dark-border text-white placeholder:text-sbi-muted-dark focus-visible:ring-sbi-green/30"
                                         />
                                     )}
                                     {field.description && (
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-sbi-muted-dark">
                                             {field.description}
                                         </p>
                                     )}
@@ -178,7 +178,7 @@ export function QuestionnaireForm({
             <CardFooter className="flex justify-end px-0">
                 <Button
                     onClick={handleSubmit}
-                    className="bg-white text-black hover:bg-gray-200"
+                    className="bg-sbi-green text-sbi-dark hover:bg-sbi-green/80"
                 >
                     Submit
                 </Button>

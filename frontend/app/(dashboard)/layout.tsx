@@ -1,12 +1,9 @@
-import { DM_Sans } from "next/font/google";
-import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import { AppSidebar } from "@/components/dashboard/common/app-sidebar";
+import { SidebarTriggerCustom } from "@/components/dashboard/common/SidebarTriggerCustom";
 import {
   SidebarProvider,
   SidebarInset,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
-
-const dm_sans = DM_Sans({ subsets: ["latin"] });
 
 export default function DashboardLayout({
   children,
@@ -14,14 +11,14 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`${dm_sans.className}`}>
+    <div>
       <SidebarProvider defaultOpen={false}>
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 bg-zinc-950 px-4">
-            <SidebarTrigger className="bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700/50" />
+          <header className="flex h-16 shrink-0 items-center gap-2 bg-sbi-dark border-b border-sbi-dark-border/30 px-4">
+            <SidebarTriggerCustom />
           </header>
-          <div className="flex flex-1 flex-col bg-linear-to-b from-zinc-950 via-zinc-900 to-zinc-950">
+          <div className="flex flex-1 flex-col bg-sbi-dark">
             {children}
           </div>
         </SidebarInset>
