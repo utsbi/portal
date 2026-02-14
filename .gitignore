@@ -51,8 +51,8 @@ coverage.xml
 system_prompt.md
 
 # AI context
-claude.md
-IMPLEMENTATION_SUMMARY.md
+# claude.md
+# IMPLEMENTATION_SUMMARY.md
 
 # Database
 *.db

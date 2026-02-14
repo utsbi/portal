@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import Depends, HTTPException, status, Header
-from app.db.supabase import supabase
+from app.explore.db.supabase import supabase
 
 
 async def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:

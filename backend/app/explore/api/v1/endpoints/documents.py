@@ -2,10 +2,10 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from typing import List
 from datetime import datetime
 
-from app.schemas.document import DocumentUploadResponse
-from app.services.pdf_parser import PDFParser
-from app.services.rag_service import RAGService
-from app.api.deps import get_current_user_id
+from app.explore.schemas.document import DocumentUploadResponse
+from app.explore.services.pdf_parser import PDFParser
+from app.explore.services.rag_service import RAGService
+from app.explore.api.deps import get_current_user_id
 
 
 router = APIRouter()
@@ -17,7 +17,6 @@ async def upload_document(
     user_id: str = Depends(get_current_user_id)
 ):
     """Upload a PDF document for RAG processing."""
-    # Validate file type
     if not file.filename.endswith('.pdf'):
         raise HTTPException(
             status_code=400,
@@ -72,11 +71,11 @@ async def upload_document(
 async def list_documents(user_id: str = Depends(get_current_user_id), limit: int = 50):
     """List all documents for the current user."""
     try:
-        from app.db.supabase import supabase
+        from app.explore.db.supabase import supabase
         
-        result = supabase.table("client_documents") \
+        result = supabase.table("client_knowledge") \
             .select("metadata") \
-            .eq("client_id", user_id) \
+            .eq("uid", user_id) \
             .limit(limit) \
             .execute()
         

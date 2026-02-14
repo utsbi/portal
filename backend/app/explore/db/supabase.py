@@ -1,5 +1,5 @@
 from supabase import create_client, Client
-from app.core.config import settings
+from app.explore.core.config import settings
 
 
 # Initialize client with secret key
