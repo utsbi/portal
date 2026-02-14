@@ -1,8 +1,8 @@
 from typing import Dict, Any, AsyncGenerator, List, Optional
 from openai import OpenAI, AsyncOpenAI
 
-from app.core.config import settings
-from app.agents.graph import run_graph, run_graph_streaming
+from app.explore.core.config import settings
+from app.explore.agents.graph import run_graph, run_graph_streaming
 
 
 async def run_explore_agent(query: str, client_id: str,

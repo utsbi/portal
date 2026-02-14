@@ -1,9 +1,9 @@
 import logging
 from typing import List, Dict, Any, Optional
 from openai import AsyncOpenAI
-from app.core.config import settings
-from app.db.supabase import supabase
-from app.services.pdf_parser import PDFParser
+from app.explore.core.config import settings
+from app.explore.db.supabase import supabase
+from app.explore.services.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
 

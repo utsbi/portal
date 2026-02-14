@@ -2,11 +2,11 @@ import logging
 from typing import Dict, Any, List
 from openai import AsyncOpenAI
 
-from app.core.config import settings
+from app.explore.core.config import settings
 
 logger = logging.getLogger(__name__)
-from app.services.rag_service import RAGService
-from app.agents.prompts import (
+from app.explore.services.rag_service import RAGService
+from app.explore.agents.prompts import (
     SYSTEM_PROMPT,
     GENERATE_RESPONSE_PROMPT,
     QUERY_REWRITER_PROMPT,

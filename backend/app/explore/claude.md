@@ -21,7 +21,7 @@
 
 ## 3. Architecture & Directory Structure
 
-We follow a "Service-Agent" pattern. The frontend is kept separate.
+We follow a "Service-Agent" pattern. The frontend is kept separate. All backend AI agent code lives under `app/explore/`.
 
 ```text
 root/
@@ -30,24 +30,51 @@ root/
 │   ├── pyproject.toml   # Managed by uv
 │   ├── uv.lock
 │   ├── app/
-│   │   ├── main.py      # FastAPI Entry point
-│   │   ├── api/         # Routes (Chat, Ingest)
-│   │   ├── core/        # Config (Env Vars) & Security
-│   │   ├── services/    # Deterministic Tools (PDF parsing, Embeddings)
-│   │   ├── agents/      # LangGraph State Machines (Reasoning)
-│   │   └── schemas/     # Pydantic Models (Request/Response)
+│   │   └── explore/
+│   │       ├── __init__.py      # Package init
+│   │       ├── main.py          # FastAPI Entry point
+│   │       ├── agents/          # LangGraph State Machines (Reasoning)
+│   │       │   ├── __init__.py  # Exports: run_explore_agent, run_explore_agent_streaming, OpenRouterClient
+│   │       │   ├── explore.py   # Agent entry points + OpenRouterClient
+│   │       │   ├── graph.py     # LangGraph state machine + SSE streaming generator
+│   │       │   ├── nodes.py     # Workflow nodes (rewrite, route, retrieve, generate, format)
+│   │       │   └── prompts.py   # System prompts
+│   │       ├── api/             # Routes (Chat, Documents)
+│   │       │   ├── deps.py      # Authentication dependencies
+│   │       │   └── v1/
+│   │       │       ├── router.py
+│   │       │       └── endpoints/
+│   │       │           ├── auth.py
+│   │       │           ├── calendar.py
+│   │       │           ├── chat.py
+│   │       │           └── documents.py
+│   │       ├── core/            # Config (Env Vars) & Security
+│   │       │   ├── config.py
+│   │       │   └── security.py
+│   │       ├── db/
+│   │       │   └── supabase.py  # Supabase client
+│   │       ├── schemas/         # Pydantic Models (Request/Response)
+│   │       │   ├── chat.py
+│   │       │   └── document.py
+│   │       └── services/        # Deterministic Tools (PDF parsing, Embeddings)
+│   │           ├── google_cal.py
+│   │           ├── pdf_parser.py
+│   │           └── rag_service.py
 │   └── tests/           # Integration tests
 └── claude.md            # This Context File
 ```
 
+**Import convention:** All internal imports use the `app.explore.` prefix (e.g., `from app.explore.core.config import settings`, `from app.explore.agents.explore import run_explore_agent_streaming`).
+
 ## 4. Frontend Context (Status: "Integrated")
 
-- **Current State:** Frontend is fully integrated with the backend API.
+- **Current State:** Frontend is fully integrated with the backend API via SSE streaming.
 - **Implemented Features:**
   - Chat input with Enter key submission
   - File attachment upload (PDF, DOCX, TXT) - session-only, not persisted
   - Session-wide attachment context (all previously attached files available for follow-up questions)
   - Model selection (Fast/Thinking) passed to backend
+  - SSE streaming progress: loading phases (thinking, planning, searching, generating) driven by real-time backend events
   - Stop/Cancel AI request functionality (works during loading AND text streaming)
   - Cancel preserves partial streamed content with "Response was cancelled" indicator
   - In-place message editing (edit updates same message, regenerates with full session attachments)
@@ -55,6 +82,7 @@ root/
   - Markdown rendering for AI responses (react-markdown + remark-gfm)
   - Session cleanup on route change, refresh, or navigation
   - Chat history maintained within session for context
+  - Full-width scroll container with scrollbar on far right edge
 
 - **Testing:** Can test via both frontend UI and Swagger UI at http://localhost:8000/docs
 
@@ -106,7 +134,7 @@ root/
 
 ## 6. Development Workflow (`uv`)
 
-1. **Start Dev Server:** `uv run fastapi dev app/main.py`
+1. **Start Dev Server:** `uv run python -m uvicorn app.explore.main:app --reload --port 8000`
 2. **Add Libs:** `uv add <library_name>`
 
 ## 7. Roadmap & Priorities
@@ -115,8 +143,9 @@ root/
 
 - [x] **Ingestion Endpoint:** Parse uploaded PDF/Docs -> Chunk -> Supabase Vector Store.
 - [x] **Retrieval Endpoint:** Hybrid Search (Keyword + Vector) filtered by `client_id`.
-- [x] **Chat Endpoint:** Answer queries using retrieved context + session attachments.
-- [x] **LangGraph Agent:** Stateful workflow with route (rewrite + semantic router) → retrieve → generate nodes.
+- [x] **Chat Endpoint:** Answer queries using retrieved context + session attachments (SSE streaming).
+- [x] **LangGraph Agent:** Stateful workflow with rewrite -> route -> retrieve -> generate nodes.
+- [x] **SSE Streaming:** Real-time phase events (thinking, planning, searching, generating) sent to frontend.
 - [x] **Authentication:** Supabase Auth integration with RLS filtering.
 
 **Implementation Details:**
@@ -132,7 +161,7 @@ root/
 
 - `POST /api/v1/documents/upload` - Upload PDF documents (persisted to database)
 - `GET /api/v1/documents/list` - List uploaded documents
-- `POST /api/v1/chat/` - Chat with AI agent (supports attachments, model_preference)
+- `POST /api/v1/chat/` - Chat with AI agent (SSE streaming, supports attachments, model_preference)
 - `POST /api/v1/chat/extract-text` - Extract text from file (session-only, no persistence)
 - `GET /api/v1/chat/health` - Service health check
 
@@ -148,33 +177,44 @@ root/
 
 ## 8. Immediate Context (Update Daily)
 
-**Current Status:** ✅ Phase 1 RAG + Frontend Integration Complete
+**Current Status:** Phase 1 RAG + Frontend Integration + SSE Streaming Complete
 
 **What Works:**
 
 - PDF upload, parsing, chunking, and embedding
 - Vector similarity search with Supabase pgvector
-- LangGraph agent with semantic query routing (Query Rewriter + LLM Semantic Router)
+- LangGraph agent with split routing nodes (`rewrite_query` + `semantic_route`)
+- SSE streaming of phase events from backend to frontend
 - Intelligent routing between ATTACHMENT, RAG, and HYBRID data sources
 - Multi-turn chat conversations with history context
 - Source document citation
 - RLS-based data isolation per client
-- Frontend-backend API integration complete
+- Frontend-backend SSE API integration complete
 - Session-only file attachments (not persisted)
 - Session-wide attachment context (all previously attached files available across messages)
 - Model selection (Fast/Thinking modes)
-- Request cancellation (stop button, works during streaming)
+- Request cancellation (stop button, works during SSE streaming)
 - In-place message editing
 - Automatic session cleanup on navigation
 
 **Query Routing Architecture:**
 
-The agent uses a two-step intelligent routing system in `nodes.py route_query()`:
+The agent uses a two-step intelligent routing system, split into separate functions for SSE phase granularity:
 
-1. **Query Rewriter** (LLM call, only when history exists): Rewrites vague follow-up queries into standalone search terms using conversation history. E.g., "tell me more about that" → "tell me more about the safety protocols in the project plan". Stored as `standalone_query` in state; original `query` preserved for generation and routing.
-2. **Semantic Router** (LLM call, only when attachments exist in session): Uses the **original query** (not the rewritten standalone_query) to examine intent against the file name + content preview (first 500 chars) of each attachment and the knowledge base description. Classifies: ATTACHMENT (file context only — only for explicit "summarize/explain this file" requests where content is visible in preview), RAG (knowledge base search only — query clearly unrelated to file), or HYBRID (safe default — searches both sources). Defaults to HYBRID when ambiguous. When no attachments exist, defaults to RAG without an LLM routing call. The `standalone_query` is only used for the retrieval/search step, not for routing decisions.
-3. **Fallback**: If the attachment route yields thin context (<100 chars), automatically falls back to RAG search.
-4. **Error handling**: If either LLM call fails, defaults to the safest option (original query for rewriter, hybrid for router).
+1. **`rewrite_query()`** (SSE phase: `thinking`): Greeting/help detection + query rewriting. Uses `FAST_MODEL` to rewrite vague follow-ups into standalone search terms using conversation history. Greetings and help requests are fast-pathed to direct response (skips routing and retrieval). Stored as `standalone_query` in state; original `query` preserved for generation and routing.
+2. **`semantic_route()`** (SSE phase: `planning`): Uses the **original query** (not the rewritten standalone_query) to examine intent against the file name + content preview (first 500 chars) of each attachment and the knowledge base description. Classifies: ATTACHMENT, RAG, or HYBRID. Defaults to HYBRID when ambiguous. When no attachments exist, defaults to RAG without an LLM routing call.
+3. **`route_query()`**: Combined wrapper that calls both `rewrite_query()` + `semantic_route()` for the compiled graph's non-streaming path.
+4. **Fallback**: If the attachment route yields thin context (<100 chars), automatically falls back to RAG search.
+5. **Error handling**: If either LLM call fails, defaults to the safest option (original query for rewriter, hybrid for router).
+
+**SSE Phase Mapping:**
+
+| SSE Phase    | Node Function        | Description                                  |
+| ------------ | -------------------- | -------------------------------------------- |
+| `thinking`   | `rewrite_query()`    | Greeting/help detection + query rewriting    |
+| `planning`   | `semantic_route()`   | LLM routing decision (ATTACHMENT/RAG/HYBRID) |
+| `searching`  | `retrieve_context()` | RAG search, attachment context, or hybrid    |
+| `generating` | `generate_response()`| Final LLM answer generation                 |
 
 **LLM & Embedding Configuration:**
 

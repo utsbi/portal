@@ -31,7 +31,7 @@ def create_explore_graph() -> StateGraph:
     3. generate_response: Create the response using context
     4. format_sources: Prepare source citations
     """
-    from app.agents.nodes import (
+    from app.explore.agents.nodes import (
         route_query,
         retrieve_context,
         generate_response,
@@ -131,7 +131,7 @@ async def run_graph_streaming(
 
     Final yield is a result event with the complete response.
     """
-    from app.agents.nodes import (
+    from app.explore.agents.nodes import (
         rewrite_query, semantic_route,
         retrieve_context, generate_response, format_sources
     )

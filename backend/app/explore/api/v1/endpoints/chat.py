@@ -5,10 +5,10 @@ import json
 import logging
 from datetime import datetime
 
-from app.schemas.chat import ChatRequest, ChatResponse, ChatMessage, SourceDocument
-from app.agents.explore import run_explore_agent_streaming
-from app.api.deps import get_current_user_id
-from app.services.pdf_parser import PDFParser
+from app.explore.schemas.chat import ChatRequest, ChatResponse, ChatMessage, SourceDocument
+from app.explore.agents.explore import run_explore_agent_streaming
+from app.explore.api.deps import get_current_user_id
+from app.explore.services.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
 
