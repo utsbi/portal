@@ -319,26 +319,50 @@ Feel free to ask me anything about your project, or upload documents for me to a
 
 
 async def format_sources(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Format source documents for the response."""
+    """Format source documents for the response based on the routing decision.
+
+    Routes:
+      - retrieve:   Only RAG sources
+      - attachment:  Only attached file(s)
+      - hybrid:      Both attached files and RAG sources
+      - direct:      No sources
+    """
     retrieved_docs = state.get("retrieved_docs", [])
+    attachments = state.get("attachments", [])
+    route = state.get("route", "retrieve")
 
     sources = []
     seen_files = set()
 
-    for doc in retrieved_docs:
-        metadata = doc.get("metadata", {})
-        filename = metadata.get("filename", "Unknown")
-        page = metadata.get("page_number")
+    # Add attachment sources for attachment and hybrid routes
+    if route in ("attachment", "hybrid") and attachments:
+        for att in attachments:
+            filename = att.get("filename", "unknown")
+            if filename not in seen_files:
+                seen_files.add(filename)
+                sources.append({
+                    "content": att.get("content", "")[:500],
+                    "filename": filename,
+                    "page_number": None,
+                    "relevance_score": 1.0,
+                })
 
-        source_key = f"{filename}:{page}" if page else filename
+    # Add RAG sources for retrieve and hybrid routes
+    if route in ("retrieve", "hybrid"):
+        for doc in retrieved_docs:
+            metadata = doc.get("metadata", {})
+            filename = metadata.get("filename", "Unknown")
+            page = metadata.get("page_number")
 
-        if source_key not in seen_files:
-            seen_files.add(source_key)
-            sources.append({
-                "content": doc.get("content", "")[:500],
-                "filename": filename,
-                "page_number": page,
-                "relevance_score": doc.get("similarity_score", 0.0)
-            })
+            source_key = f"{filename}:{page}" if page else filename
+
+            if source_key not in seen_files:
+                seen_files.add(source_key)
+                sources.append({
+                    "content": doc.get("content", "")[:500],
+                    "filename": filename,
+                    "page_number": page,
+                    "relevance_score": doc.get("similarity_score", 0.0)
+                })
 
     return {**state, "sources": sources}
