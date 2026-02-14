@@ -35,22 +35,14 @@ def format_history(history: List[Dict[str, str]]) -> str:
     return "\n".join(formatted)
 
 
-async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Determine the routing path using query rewriting and semantic routing
-
-    Pipeline:
-    1. Greetings/help -> direct (no LLM)
-    2. Rewrite query into standalone form (LLM, only when history exists)
-    3. No attachments -> retrieve from RAG (no LLM routing)
-    4. Attachments exist -> LLM semantic router decides ATTACHMENT / RAG / HYBRID
-    """
+async def rewrite_query(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Phase 1 (Thinking): Check greetings/help, rewrite query"""
     query = state.get("query", "")
     history = state.get("history", [])
-    attachments = state.get("attachments", [])
 
-    logger.info(f"Routing query: '{query[:100]}' (history={len(history)} msgs, attachments={len(attachments)} files)")
+    logger.info(f"Rewrite query: '{query[:100]}' (history={len(history)} msgs)")
 
-    # greetings and help (no LLM needed)
+    # Greetings and help (no LLM needed)
     query_lower = query.lower().strip()
 
     greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"]
@@ -62,9 +54,7 @@ async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("Route: direct (help request)")
         return {**state, "route": "direct", "route_reason": "Help request", "standalone_query": query}
 
-    # Step 1: Query Rewriting (conversation history exists)
-    # Turns vague questions like into complete
-    # standalone search query by incorporating conversation context
+    # Query Rewriting (conversation history exists)
     standalone_query = query
     if history:
         try:
@@ -86,7 +76,20 @@ async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Query rewriting failed, using original: {e}")
 
-    # Step 2: Routing Decision
+    return {**state, "standalone_query": standalone_query}
+
+
+async def semantic_route(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Phase 2 (Planning): Determine routing based on attachments.
+
+    No attachments -> RAG (no LLM call).
+    Attachments exist -> LLM semantic router decides ATTACHMENT / RAG / HYBRID.
+    """
+    query = state.get("query", "")
+    attachments = state.get("attachments", [])
+
+    logger.info(f"Semantic routing: '{query[:100]}' (attachments={len(attachments)} files)")
+
     # No attachments in session -> always use RAG
     if not attachments:
         logger.info("Route: retrieve (no attachments, default RAG)")
@@ -94,10 +97,9 @@ async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
             **state,
             "route": "retrieve",
             "route_reason": "No attachments, default RAG search",
-            "standalone_query": standalone_query,
         }
 
-    # Attachments exist -> use LLM semantic router to decide whether the user is asking about file, the RAG DB, or both
+    # Attachments exist -> use LLM semantic router
     try:
         attachment_info = _build_attachment_info(attachments)
         router_prompt = SEMANTIC_ROUTER_PROMPT.format(
@@ -125,13 +127,20 @@ async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
             reason = f"Semantic router returned unexpected '{decision}', defaulting to hybrid"
             logger.warning(f"Unexpected router decision: '{decision}'")
     except Exception as e:
-        # If routing LLM fails, default to hybrid
         route = "hybrid"
         reason = f"Semantic routing failed ({e}), defaulting to hybrid"
         logger.warning(f"Semantic routing LLM call failed: {e}")
 
     logger.info(f"Route: {route} ({reason})")
-    return {**state, "route": route, "route_reason": reason, "standalone_query": standalone_query}
+    return {**state, "route": route, "route_reason": reason}
+
+
+async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Combined routing: rewrite query + semantic route (used by compiled graph)."""
+    state = await rewrite_query(state)
+    if state.get("route") == "direct":
+        return state
+    return await semantic_route(state)
 
 
 def _build_attachment_info(attachments: List[Dict[str, str]]) -> str:

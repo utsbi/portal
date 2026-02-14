@@ -7,12 +7,10 @@ import { ChatLoading } from './ChatLoading';
 
 export function ChatMessages() {
   const { messages, isLoading } = useChat();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
   if (messages.length === 0 && !isLoading) {
@@ -29,10 +27,7 @@ export function ChatMessages() {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="h-full overflow-y-auto space-y-6 py-4 pr-4 dashboard-scrollbar"
-    >
+    <div className="space-y-6 py-4">
       {messages.map((message) => (
         <ChatMessage
           key={message.id}
@@ -42,6 +37,7 @@ export function ChatMessages() {
       ))}
 
       {isLoading && <ChatLoading />}
+      <div ref={bottomRef} />
     </div>
   );
 }

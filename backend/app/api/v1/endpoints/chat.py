@@ -1,94 +1,69 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi.responses import StreamingResponse
 import asyncio
+import json
+import logging
 from datetime import datetime
 
 from app.schemas.chat import ChatRequest, ChatResponse, ChatMessage, SourceDocument
-from app.agents.explore import run_explore_agent
+from app.agents.explore import run_explore_agent_streaming
 from app.api.deps import get_current_user_id
 from app.services.pdf_parser import PDFParser
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-@router.post("/", response_model=ChatResponse)
+@router.post("/")
 async def chat(request: ChatRequest, raw_request: Request, user_id: str = Depends(get_current_user_id)):
-    """Chat with the Explore AI Agent."""
-    try:
-        history = [
-            {
-                "role": msg.role,
-                "content": msg.content
-            }
-            for msg in request.history
-        ]
+    """Chat with the Explore AI Agent via SSE streaming."""
+    history = [
+        {"role": msg.role, "content": msg.content}
+        for msg in request.history
+    ]
+    attachments = [
+        {"filename": att.filename, "content": att.content, "file_type": att.file_type}
+        for att in request.attachments
+    ]
 
-        # Run agent as a cancellable task
-        agent_task = asyncio.create_task(
-            run_explore_agent(
+    async def event_generator():
+        try:
+            async for event in run_explore_agent_streaming(
                 query=request.query,
                 client_id=user_id,
                 history=history,
-                attachments=[
-                    {"filename": att.filename, "content": att.content, "file_type": att.file_type}
-                    for att in request.attachments
-                ],
+                attachments=attachments,
                 model_preference=request.model_preference or "fast"
-            )
-        )
-
-        # Monitor for client disconnection to cancel and save tokens
-        async def monitor_disconnect():
-            while True:
+            ):
                 if await raw_request.is_disconnected():
+                    logger.info("Client disconnected, stopping SSE stream")
                     return
-                await asyncio.sleep(0.5)
 
-        disconnect_task = asyncio.create_task(monitor_disconnect())
+                # Strip sources if not requested
+                if event.get("type") == "result" and not request.include_sources:
+                    event["sources"] = []
 
-        # Wait for either agent completion or client disconnect
-        done, pending = await asyncio.wait(
-            {agent_task, disconnect_task},
-            return_when=asyncio.FIRST_COMPLETED
-        )
+                yield f"data: {json.dumps(event)}\n\n"
 
-        # Clean up whichever task is still pending
-        for task in pending:
-            task.cancel()
-            try:
-                await task
-            except (asyncio.CancelledError, Exception):
-                pass
+            yield "data: [DONE]\n\n"
 
-        # If client disconnected, agent was cancelled - return empty
-        if disconnect_task in done:
-            return ChatResponse(answer="", sources=[], timestamp=datetime.now())
+        except asyncio.CancelledError:
+            logger.info("SSE stream cancelled")
+            return
+        except Exception as e:
+            logger.error(f"SSE stream error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
-        result = agent_task.result()
-
-        sources = []
-        if request.include_sources:
-            for source in result.get("sources", []):
-                sources.append(SourceDocument(
-                    content=source.get("content", ""),
-                    filename=source.get("filename", "Unknown"),
-                    page_number=source.get("page_number"),
-                    relevance_score=source.get("relevance_score")
-                ))
-
-        return ChatResponse(
-            answer=result.get("response", ""),
-            sources=sources,
-            timestamp=datetime.now()
-        )
-
-    except asyncio.CancelledError:
-        return ChatResponse(answer="", sources=[], timestamp=datetime.now())
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing chat request: {str(e)}"
-        )
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 @router.get("/health")

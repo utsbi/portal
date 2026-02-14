@@ -43,12 +43,14 @@ export interface ChatError {
 }
 
 /**
- * Send a chat message to the AI agent
+ * Send a chat message to the AI agent via SSE streaming
+ * Calls onPhase when the backend reports a new processing phase.
  */
 export async function sendChatMessage(
   request: ChatRequest,
   authToken: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onPhase?: (phase: string) => void
 ): Promise<ChatResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/chat/`, {
     method: "POST",
@@ -71,7 +73,59 @@ export async function sendChatMessage(
     throw new Error(error.detail || `HTTP ${response.status}`);
   }
 
-  return response.json();
+  // Parse SSE stream
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: ChatResponse | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Process complete SSE lines
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+      const data = trimmed.slice(6);
+      if (data === "[DONE]") continue;
+
+      try {
+        const event = JSON.parse(data);
+
+        if (event.type === "phase" && onPhase) {
+          onPhase(event.phase);
+        } else if (event.type === "result") {
+          result = {
+            answer: event.answer || "",
+            sources: event.sources || [],
+            timestamp: new Date().toISOString(),
+          };
+        } else if (event.type === "error") {
+          throw new Error(event.message || "Server error");
+        }
+      } catch (e) {
+        if (e instanceof SyntaxError) continue;
+        throw e;
+      }
+    }
+  }
+
+  if (!result) {
+    throw new Error("No result received from server");
+  }
+
+  return result;
 }
 
 /**

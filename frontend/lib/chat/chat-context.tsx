@@ -45,9 +45,6 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-const LOADING_PHASES: LoadingPhase[] = ["thinking", "planning", "searching", "generating"];
-const PHASE_DURATION = 800;
-
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
@@ -94,27 +91,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return all;
   }, []);
 
-  // Animate through loading phases
-  const animateLoadingPhases = useCallback((): Promise<void> => {
-    return new Promise((resolve) => {
-      let phaseIndex = 0;
-      
-      const advancePhase = () => {
-        if (cancelledRef.current) {
-          resolve();
-          return;
-        }
-        if (phaseIndex < LOADING_PHASES.length) {
-          setLoadingPhase(LOADING_PHASES[phaseIndex]);
-          phaseIndex++;
-          setTimeout(advancePhase, PHASE_DURATION);
-        } else {
-          resolve();
-        }
-      };
-      
-      advancePhase();
-    });
+  // SSE phase callback - updates loading phase from backend events
+  const handlePhase = useCallback((phase: string) => {
+    if (!cancelledRef.current) {
+      setLoadingPhase(phase as LoadingPhase);
+    }
   }, []);
 
   // Stream text animation for response
@@ -183,7 +164,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    const loadingPromise = animateLoadingPhases();
+    setLoadingPhase("thinking");
 
     try {
       const supabase = createClient();
@@ -212,12 +193,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           model_preference: modelPreference,
         },
         session.access_token,
-        abortController.signal
+        abortController.signal,
+        handlePhase
       );
-
-      if (cancelledRef.current) return;
-
-      await loadingPromise;
 
       if (cancelledRef.current) return;
 
@@ -245,7 +223,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      await loadingPromise;
       setLoadingPhase("error");
       setError(err instanceof Error ? err.message : "Failed to send message");
 
@@ -253,7 +230,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [messages, attachments, modelPreference, animateLoadingPhases, streamText, collectSessionAttachments]);
+  }, [messages, attachments, modelPreference, handlePhase, streamText, collectSessionAttachments]);
 
   const addAttachment = useCallback(async (file: File) => {
     const filename = file.name;
@@ -340,7 +317,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      const loadingPromise = animateLoadingPhases();
+      setLoadingPhase("thinking");
 
       try {
         const supabase = createClient();
@@ -366,12 +343,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             model_preference: modelPreference,
           },
           session.access_token,
-          abortController.signal
+          abortController.signal,
+          handlePhase
         );
-
-        if (cancelledRef.current) return;
-
-        await loadingPromise;
 
         if (cancelledRef.current) return;
 
@@ -396,7 +370,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        await loadingPromise;
         setLoadingPhase("error");
         setError(err instanceof Error ? err.message : "Failed to send message");
 
@@ -405,7 +378,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         abortControllerRef.current = null;
       }
     }, 0);
-  }, [messages, modelPreference, animateLoadingPhases, streamText, collectSessionAttachments]);
+  }, [messages, modelPreference, handlePhase, streamText, collectSessionAttachments]);
 
   const regenerateResponse = useCallback(async () => {
     // Find the last assistant message
@@ -443,7 +416,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    const loadingPromise = animateLoadingPhases();
+    setLoadingPhase("thinking");
 
     try {
       const supabase = createClient();
@@ -469,12 +442,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           model_preference: modelPreference,
         },
         session.access_token,
-        abortController.signal
+        abortController.signal,
+        handlePhase
       );
-
-      if (cancelledRef.current) return;
-
-      await loadingPromise;
 
       if (cancelledRef.current) return;
 
@@ -499,14 +469,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      await loadingPromise;
       setLoadingPhase("error");
       setError(err instanceof Error ? err.message : "Failed to send message");
       setTimeout(() => setLoadingPhase("idle"), 3000);
     } finally {
       abortControllerRef.current = null;
     }
-  }, [messages, modelPreference, animateLoadingPhases, streamText, collectSessionAttachments]);
+  }, [messages, modelPreference, handlePhase, streamText, collectSessionAttachments]);
 
   const clearChat = useCallback(() => {
     if (abortControllerRef.current) {
