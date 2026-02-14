@@ -9,13 +9,14 @@ class AgentState(TypedDict):
     history: List[Dict[str, str]]
     attachments: List[Dict[str, str]]
     model_preference: str
-    
+
+    standalone_query: str
     route: str
     route_reason: str
-    
+
     context: str
     retrieved_docs: List[Dict[str, Any]]
-    
+
     response: str
     sources: List[Dict[str, Any]]
 
@@ -95,6 +96,7 @@ async def run_graph(query: str, client_id: str,
         "history": history or [],
         "attachments": attachments or [],
         "model_preference": model_preference,
+        "standalone_query": "",
         "route": "",
         "route_reason": "",
         "context": "",

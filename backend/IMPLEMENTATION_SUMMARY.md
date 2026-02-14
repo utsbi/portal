@@ -42,10 +42,17 @@ backend/
 
 The agent uses a state machine with four nodes:
 
-1. **Route Query**: Determines if the query needs document retrieval, attachment focus, or direct response
-2. **Retrieve Context**: Fetches relevant documents using hybrid search, or inlines session attachments
-3. **Generate Response**: Creates the answer using LLM via OpenRouter
-4. **Format Sources**: Prepares source citations for the response
+1. **Route Query** (`nodes.py`): Two-step intelligent routing:
+   - **Query Rewriter** (LLM call, only when history exists): Rewrites vague follow-up queries ("tell me more about that") into standalone search terms using conversation context. Uses `FAST_MODEL`.
+   - **Semantic Router** (LLM call, only when session attachments exist): Uses the **original query** (not rewritten) to examine intent against file name + content preview (500 chars) and knowledge base description. Classifies the route as ATTACHMENT (file context only — explicit file requests where content is visible in preview), RAG (knowledge base search — query unrelated to file), or HYBRID (safe default — both sources). Defaults to HYBRID when ambiguous. Uses `FAST_MODEL`. Falls back to HYBRID on error. The rewritten `standalone_query` is only used for the retrieval step.
+   - When no attachments exist, defaults to RAG without an extra LLM call.
+   - Greetings and help requests are fast-pathed to direct response.
+2. **Retrieve Context** (`nodes.py`): Fetches context based on the routing decision:
+   - **attachment**: Builds context from session files (with automatic RAG fallback if context < 100 chars)
+   - **retrieve**: Searches Supabase vector store via hybrid search (vector + keyword with RRF)
+   - **hybrid**: Combines both attachment context and RAG results using `rag_service.get_context_for_query()`
+3. **Generate Response** (`nodes.py`): Creates the answer using LLM via OpenRouter with Markdown formatting
+4. **Format Sources** (`nodes.py`): Prepares source citations for the response
 
 ### 2. RAG Service (`services/rag_service.py`)
 
@@ -54,7 +61,7 @@ Handles all RAG operations:
 - **Embedding Generation**: Configurable model via OpenRouter (default: Qwen3-Embedding-8B, 4096 dimensions)
 - **Document Storage**: Chunks and stores documents with embeddings in Supabase pgvector
 - **Hybrid Search**: Combines vector similarity with keyword matching using Reciprocal Rank Fusion (RRF)
-- **Context Building**: Assembles context from retrieved documents and session attachments (up to 200K characters)
+- **Context Building**: Assembles context from retrieved documents and/or session attachments (up to 200K characters)
 
 ### 3. PDF Parser (`services/pdf_parser.py`)
 

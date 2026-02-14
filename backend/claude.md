@@ -116,7 +116,7 @@ root/
 - [x] **Ingestion Endpoint:** Parse uploaded PDF/Docs -> Chunk -> Supabase Vector Store.
 - [x] **Retrieval Endpoint:** Hybrid Search (Keyword + Vector) filtered by `client_id`.
 - [x] **Chat Endpoint:** Answer queries using retrieved context + session attachments.
-- [x] **LangGraph Agent:** Stateful workflow with analyze → retrieve → generate nodes.
+- [x] **LangGraph Agent:** Stateful workflow with route (rewrite + semantic router) → retrieve → generate nodes.
 - [x] **Authentication:** Supabase Auth integration with RLS filtering.
 
 **Implementation Details:**
@@ -154,7 +154,8 @@ root/
 
 - PDF upload, parsing, chunking, and embedding
 - Vector similarity search with Supabase pgvector
-- LangGraph agent with intelligent query routing
+- LangGraph agent with semantic query routing (Query Rewriter + LLM Semantic Router)
+- Intelligent routing between ATTACHMENT, RAG, and HYBRID data sources
 - Multi-turn chat conversations with history context
 - Source document citation
 - RLS-based data isolation per client
@@ -166,17 +167,27 @@ root/
 - In-place message editing
 - Automatic session cleanup on navigation
 
+**Query Routing Architecture:**
+
+The agent uses a two-step intelligent routing system in `nodes.py route_query()`:
+
+1. **Query Rewriter** (LLM call, only when history exists): Rewrites vague follow-up queries into standalone search terms using conversation history. E.g., "tell me more about that" → "tell me more about the safety protocols in the project plan". Stored as `standalone_query` in state; original `query` preserved for generation and routing.
+2. **Semantic Router** (LLM call, only when attachments exist in session): Uses the **original query** (not the rewritten standalone_query) to examine intent against the file name + content preview (first 500 chars) of each attachment and the knowledge base description. Classifies: ATTACHMENT (file context only — only for explicit "summarize/explain this file" requests where content is visible in preview), RAG (knowledge base search only — query clearly unrelated to file), or HYBRID (safe default — searches both sources). Defaults to HYBRID when ambiguous. When no attachments exist, defaults to RAG without an LLM routing call. The `standalone_query` is only used for the retrieval/search step, not for routing decisions.
+3. **Fallback**: If the attachment route yields thin context (<100 chars), automatically falls back to RAG search.
+4. **Error handling**: If either LLM call fails, defaults to the safest option (original query for rewriter, hybrid for router).
+
 **LLM & Embedding Configuration:**
 
 - All LLM calls go through OpenRouter API (`https://openrouter.ai/api/v1`) via `openai` SDK
 - Chat models configurable via `FAST_MODEL` and `THINK_MODEL` env vars
+- Query rewriting and semantic routing use `FAST_MODEL` for low latency
 - Embeddings use configurable model via `EMBEDDING_MODEL` env var (default: `qwen/qwen3-Embedding-8B`, 4096-dim)
 - `EMBEDDING_DIMENSIONS` env var is optional (only sent to API if set)
 
 **Observability:**
 
 - Logging throughout RAG pipeline (`rag_service.py`, `nodes.py`, `main.py`)
-- Server console shows: embedding generation, vector search results, routing decisions, retrieval counts
+- Server console shows: query rewriting, semantic routing decisions, embedding generation, vector search results, retrieval counts
 
 **Next Steps:**
 
