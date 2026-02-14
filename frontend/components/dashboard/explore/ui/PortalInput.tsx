@@ -71,15 +71,17 @@ interface PortalInputProps {
   onSubmit?: (query: string) => void;
   disabled?: boolean;
   animated?: boolean;
+  queueOnly?: boolean;
 }
 
-export function PortalInput({ onSubmit, disabled = false, animated = true }: PortalInputProps) {
+export function PortalInput({ onSubmit, disabled = false, animated = true, queueOnly = false }: PortalInputProps) {
   const [input, setInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
     messages,
     sendMessage,
+    queueMessage,
     addAttachment,
     removeAttachment,
     attachments,
@@ -105,8 +107,12 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
     if (onSubmit) {
       onSubmit(query);
     }
-    
-    await sendMessage(query);
+
+    if (queueOnly) {
+      queueMessage(query);
+    } else {
+      await sendMessage(query);
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

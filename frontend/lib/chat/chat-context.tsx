@@ -35,6 +35,8 @@ interface ChatContextType {
   modelPreference: ModelPreference;
   setModelPreference: (model: ModelPreference) => void;
   sendMessage: (query: string) => Promise<void>;
+  queueMessage: (query: string) => void;
+  processPendingMessage: () => Promise<void>;
   addAttachment: (file: File) => Promise<void>;
   removeAttachment: (filename: string) => void;
   clearChat: () => void;
@@ -54,6 +56,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loadingAttachments, setLoadingAttachments] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
+  const pendingQueryRef = useRef<{
+    query: string;
+    savedAttachments: AttachmentFile[];
+    history: ChatMessage[];
+  } | null>(null);
 
   const isLoading = loadingPhase !== "idle" && loadingPhase !== "complete" && loadingPhase !== "error";
 
@@ -231,6 +238,109 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       abortControllerRef.current = null;
     }
   }, [messages, attachments, modelPreference, handlePhase, streamText, collectSessionAttachments]);
+
+  // Queue a user message without making the API call 
+  // welcome -> explore transition
+  const queueMessage = useCallback((query: string) => {
+    if (!query.trim()) return;
+
+    const messageAttachments: MessageAttachment[] = attachments.map(a => ({
+      filename: a.filename,
+      content: a.content,
+    }));
+
+    const userMessage: DisplayMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: query,
+      attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
+      timestamp: new Date(),
+    };
+
+    // Capture history and attachments before adding the new message
+    const history: ChatMessage[] = messages.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+    }));
+    const allAttachments = collectSessionAttachments(messages, attachments);
+
+    pendingQueryRef.current = {
+      query,
+      savedAttachments: allAttachments,
+      history,
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setAttachments([]);
+  }, [attachments, messages, collectSessionAttachments]);
+
+  // Process a queued message
+  const processPendingMessage = useCallback(async () => {
+    const pending = pendingQueryRef.current;
+    if (!pending) return;
+    pendingQueryRef.current = null;
+
+    setError(null);
+    cancelledRef.current = false;
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    setLoadingPhase("thinking");
+
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (cancelledRef.current) return;
+
+      if (!session?.access_token) {
+        throw new Error("Not authenticated");
+      }
+
+      const response = await sendChatMessage(
+        {
+          query: pending.query,
+          history: pending.history,
+          attachments: pending.savedAttachments,
+          include_sources: true,
+          model_preference: modelPreference,
+        },
+        session.access_token,
+        abortController.signal,
+        handlePhase
+      );
+
+      if (cancelledRef.current) return;
+
+      const assistantMessage: DisplayMessage = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: response.answer,
+        sources: response.sources,
+        timestamp: new Date(response.timestamp),
+        isStreaming: true,
+        displayedContent: "",
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+      setLoadingPhase("complete");
+
+      await streamText(assistantMessage.id, response.answer);
+
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setLoadingPhase("idle");
+        return;
+      }
+
+      setLoadingPhase("error");
+      setError(err instanceof Error ? err.message : "Failed to send message");
+      setTimeout(() => setLoadingPhase("idle"), 3000);
+    } finally {
+      abortControllerRef.current = null;
+    }
+  }, [modelPreference, handlePhase, streamText]);
 
   const addAttachment = useCallback(async (file: File) => {
     const filename = file.name;
@@ -482,6 +592,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    pendingQueryRef.current = null;
     setMessages([]);
     setAttachments([]);
     setLoadingAttachments([]);
@@ -501,6 +612,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         modelPreference,
         setModelPreference,
         sendMessage,
+        queueMessage,
+        processPendingMessage,
         addAttachment,
         removeAttachment,
         clearChat,

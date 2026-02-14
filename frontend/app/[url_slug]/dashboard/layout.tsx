@@ -5,6 +5,7 @@ import { SidebarTriggerCustom } from "@/components/dashboard/common/SidebarTrigg
 import { createClient } from "@/lib/supabase/server";
 import { ClientProvider } from "@/lib/client/client-context";
 import { SidebarProvider } from "@/lib/sidebar/sidebar-context";
+import { ChatProvider } from "@/lib/chat/chat-context";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -39,6 +40,7 @@ export default async function DashboardLayout({
 
   return (
     <ClientProvider urlSlug={url_slug}>
+      <ChatProvider>
       <SidebarProvider defaultOpen={false}>
         <div className="font-urbanist bg-sbi-dark min-h-screen flex">
           <AppSidebar urlSlug={url_slug} />
@@ -57,12 +59,12 @@ export default async function DashboardLayout({
               <div className="flex-1" />
 
               {/* Right side status indicator */}
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-sbi-green/60 rounded-full animate-pulse" />
                 <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark font-light">
                   Online
                 </span>
-              </div>
+              </div> */}
             </header>
 
             {/* Main content */}
@@ -73,6 +75,7 @@ export default async function DashboardLayout({
           </div>
         </div>
       </SidebarProvider>
+      </ChatProvider>
     </ClientProvider>
   );
 }
