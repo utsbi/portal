@@ -70,9 +70,10 @@ function getFileInfo(filename: string): { icon: React.ReactNode; label: string; 
 interface PortalInputProps {
   onSubmit?: (query: string) => void;
   disabled?: boolean;
+  animated?: boolean;
 }
 
-export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
+export function PortalInput({ onSubmit, disabled = false, animated = true }: PortalInputProps) {
   const [input, setInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -153,7 +154,7 @@ export function PortalInput({ onSubmit, disabled = false }: PortalInputProps) {
   const currentModel = modelOptions.find(m => m.id === modelPreference) || modelOptions[0];
 
   return (
-    <div className="input-container opacity-0 translate-y-8 space-y-3">
+    <div className={`input-container space-y-3 ${animated ? 'opacity-0 translate-y-8' : ''}`}>
       {/* Main user input container */}
       <div className="relative group">
         {/* Hidden file input */}

@@ -149,36 +149,33 @@ function DashboardPortalContent({ urlSlug }: DashboardPortalProps) {
       </div>
 
       {/* Main Content */}
-      <div className={`relative z-10 w-full max-w-3xl mx-auto px-4 ${
-        hasMessages 
-          ? 'flex flex-col h-[calc(100vh-4rem)]' 
-          : 'space-y-8'
-      }`}>
-        {/* Show hero only when no messages */}
-        {!hasMessages && <PortalHero />}
-        
-        {/* Chat messages */}
-        {hasMessages && (
-          <div className="flex-1 overflow-hidden pt-6 pr-2">
-            <ChatMessages />
+      {hasMessages ? (
+        <div className="absolute inset-0 z-10 overflow-y-auto dashboard-scrollbar">
+          <div className="w-full max-w-3xl mx-auto px-4 min-h-full flex flex-col">
+            {/* Chat messages */}
+            <div className="flex-1 pt-6">
+              <ChatMessages />
+            </div>
+
+            {/* Input section - sticky at bottom */}
+            <div className="sticky bottom-0 bg-sbi-dark pb-4 pt-2">
+              <PortalInput animated={false} />
+              <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
+                AI can make mistakes, so double check responses
+              </p>
+            </div>
           </div>
-        )}
-        
-        {/* Input section */}
-        <div className={hasMessages ? 'shrink-0 pb-4' : ''}>
-          <PortalInput />
-          
-          {/* AI Disclaimer */}
-          {hasMessages && (
-            <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
-              AI can make mistakes, so double check responses
-            </p>
-          )}
         </div>
-        
-        {/* Show suggestion chips only when no messages */}
-        {!hasMessages && <SuggestionChips disableAutoAnimation />}
-      </div>
+      ) : (
+        /* Welcome mode: centered layout */
+        <div className="relative z-10 w-full max-w-3xl mx-auto px-4 space-y-8">
+          <PortalHero />
+          <div>
+            <PortalInput />
+          </div>
+          <SuggestionChips disableAutoAnimation />
+        </div>
+      )}
 
       {/* Bottom line */}
       <div className="ambient-element absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent opacity-0" />
