@@ -7,7 +7,6 @@ import { PortalHero } from './ui/PortalHero';
 import { PortalInput } from './ui/PortalInput';
 import { SuggestionChips } from './ui/SuggestionChips';
 import { AmbientGrid } from './ui/AmbientGrid';
-import { TimeDisplay } from './ui/TimeDisplay';
 import { FloatingNodes } from './ui/FloatingNodes';
 import { ChatMessages } from './ui/ChatMessages';
 import { useChat } from '@/lib/chat/chat-context';
@@ -48,16 +47,14 @@ export function ExploreWelcome({ urlSlug }: ExploreProps) {
       const inputElement = containerRef.current?.querySelector('.input-container');
       const ambientElements = containerRef.current?.querySelectorAll('.ambient-element');
       const chips = containerRef.current?.querySelectorAll('.suggestion-chip');
-      const timeDisplay = containerRef.current?.querySelector('.time-display');
 
-      if (!heroElements || !inputElement || !ambientElements || !chips || !timeDisplay) return;
+      if (!heroElements || !inputElement || !ambientElements || !chips) return;
 
       // Set initial states
       gsap.set(heroElements, { opacity: 0, y: 40 });
       gsap.set(inputElement, { opacity: 0, y: 30 });
       gsap.set(ambientElements, { opacity: 0 });
       gsap.set(chips, { opacity: 0, y: 15, scale: 0.95 });
-      gsap.set(timeDisplay, { opacity: 0, x: 20 });
 
       // Master timeline with refined easing
       const tl = gsap.timeline({
@@ -80,11 +77,6 @@ export function ExploreWelcome({ urlSlug }: ExploreProps) {
         duration: 2,
         stagger: 0.2,
       }, 0)
-      .to(timeDisplay, {
-        opacity: 1,
-        x: 0,
-        duration: 0.8,
-      }, 0.4)
       .to(chips, {
         opacity: 1,
         y: 0,
@@ -92,7 +84,7 @@ export function ExploreWelcome({ urlSlug }: ExploreProps) {
         visibility: 'visible',
         duration: 0.6,
         stagger: 0.05,
-      }, 0.5);
+      }, 0.4);
 
     }, containerRef);
 
@@ -117,11 +109,6 @@ export function ExploreWelcome({ urlSlug }: ExploreProps) {
       {/* Subtle gradient orbs */}
       <div className="ambient-element absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
       <div className="ambient-element absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
-
-      {/* Time Display */}
-      <div className="fixed top-24 right-12 z-20">
-        <TimeDisplay />
-      </div>
 
       {/* Welcome mode */}
       <div className="relative z-10 w-full max-w-3xl mx-auto px-4 space-y-8">
@@ -202,11 +189,6 @@ export function ExploreChat({ urlSlug }: ExploreProps) {
       {/* Subtle gradient orbs */}
       <div className="absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
-
-      {/* Time Display */}
-      <div className="fixed top-24 right-12 z-20">
-        <TimeDisplay />
-      </div>
 
       {/* Chat scrollable messages */}
       <div className="absolute inset-0 z-10 overflow-y-auto dashboard-scrollbar">
