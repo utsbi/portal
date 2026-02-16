@@ -4,13 +4,14 @@ import { Project } from './types';
 import { sortProjects } from './utils';
 import ProjectCard from './components/ProjectCard';
 import SearchBar from './components/SearchBar';
+import { MOCK_PROJECTS } from './mockData';
 
 export default function LifecyclePage() {
-  //TODO: fetch projects filtered by client ID with mock data (becaues team portal not integrated yet)
-  const projects: Project[] = [];
+  // Using mock data until team portal is integrated
+  const projects = MOCK_PROJECTS;
   
   const handleSearch = (query: string) => {
-    //TODO: filter projects by search query
+    // TODO: filter projects by search query
     console.log('Search query:', query);
   };
 
