@@ -25,6 +25,7 @@ import gsap from "gsap";
 import { createClient } from "@/lib/supabase/client";
 import { useClient } from "@/lib/client/client-context";
 import { useSidebar } from "@/lib/sidebar/sidebar-context";
+import { useChat } from "@/lib/chat/chat-context";
 
 interface NavItem {
   title: string;
@@ -128,6 +129,7 @@ export function AppSidebar({ urlSlug }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { client } = useClient();
+  const { cancelRequest, clearChat } = useChat();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -144,9 +146,25 @@ export function AppSidebar({ urlSlug }: AppSidebarProps) {
   const isActive = (path: string) => {
     const fullPath = `${baseUrl}${path}`;
     if (path === "") {
-      return pathname === baseUrl;
+      // Explore is active on both /dashboard and /dashboard/explore
+      return pathname === baseUrl || pathname.startsWith(`${baseUrl}/explore`);
     }
     return pathname.startsWith(fullPath);
+  };
+
+  const isOnDashboardRoot = pathname === baseUrl;
+
+  const handleLogoClick = () => {
+    if (isOnDashboardRoot) {
+      return;
+    }
+
+    // Clear any active chat session
+    cancelRequest();
+    clearChat();
+
+    // Navigate back to dashboard root
+    router.push(baseUrl);
   };
 
   const handleLogout = async () => {
@@ -184,9 +202,10 @@ export function AppSidebar({ urlSlug }: AppSidebarProps) {
 
       {/* Header */}
       <div className="h-16 flex items-center border-b border-sbi-dark-border/30 px-3">
-        <Link
-          href={baseUrl}
-          className="group flex items-center gap-3 transition-all duration-300"
+        <button
+          type="button"
+          onClick={handleLogoClick}
+          className="group flex items-center gap-3 transition-all duration-300 cursor-pointer"
         >
           {/* Logo */}
           <div className="relative flex items-center justify-center size-8">
@@ -211,7 +230,7 @@ export function AppSidebar({ urlSlug }: AppSidebarProps) {
 
           {/* Brand text */}
           {!isCollapsed && (
-            <div className="flex flex-col">
+            <div className="flex flex-col text-left">
               <span className="text-sm font-light tracking-[0.25em] text-white uppercase">
                 SBI
               </span>
@@ -220,7 +239,7 @@ export function AppSidebar({ urlSlug }: AppSidebarProps) {
               </span>
             </div>
           )}
-        </Link>
+        </button>
       </div>
 
       {/* Navigation */}
