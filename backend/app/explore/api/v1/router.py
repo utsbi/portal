@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 #from app.api.v1.endpoints import chat, documents
 from app.api.v1.endpoints import calendar
+from app.explore.api.v1.endpoints import chat, documents
 
 
 router = APIRouter(prefix="/v1")
