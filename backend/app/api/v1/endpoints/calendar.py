@@ -8,10 +8,9 @@ router = APIRouter(prefix="/calendar", tags=["calendar"])
 
 # @router.get("/google/connect")
 #async def google_connect():
-    # Placeholder for now — we’ll replace with the real Google OAuth URL next
+    # replace with the real Google OAuth URL 
   #  return JSONResponse({"ok": True, "redirect_uri": GOOGLE_REDIRECT_URI}) 
 
 @router.get("/google/callback")
 async def google_callback(request: Request):
-    # This will receive ?code=... from Google
     return JSONResponse({"ok": True, "query": dict(request.query_params)})

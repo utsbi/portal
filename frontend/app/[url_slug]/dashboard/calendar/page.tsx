@@ -1,37 +1,54 @@
+"use client"
 import { notFound } from "next/navigation";
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 
 export default function CalendarPage() {
   //notFound();
 
-  /* Notes from Tech Meeting:
-   * 1) Move to middle?
-   * 2) Show week view too.
-   * 3) Connect to Apple Calender (my apple device), using the same .ics file, it will just make a copy
-   * 4) Darkmode, just one parameter to change
-  */
+  const supabase = createClient()
+  const [calendarId, setCalendarId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const embedMonthSrc = "https://calendar.google.com/calendar/embed?height=500&wkst=1&ctz=America%2FChicago&showPrint=0&src=ODEzZWRkODNmYzViMzUwZDAxMDViMjc3ZmIwMjlkOGM2YTczMmRiOTFiYTU3NThlYjExNjI3YTdmODExOGM0YkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&color=%237986cb"
-  const embedWeekSrc =  "https://calendar.google.com/calendar/embed?height=500&wkst=1&ctz=America%2FChicago&showPrint=0&mode=WEEK&src=ODEzZWRkODNmYzViMzUwZDAxMDViMjc3ZmIwMjlkOGM2YTczMmRiOTFiYTU3NThlYjExNjI3YTdmODExOGM0YkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&color=%237986cb" 
+  useEffect(() => {
+    const run = async () => {
+      const { data: authData, error: authErr } = await supabase.auth.getUser()
+      if (authErr) return setError(authErr.message)
+      if (!authData.user) return setError("Not logged in.")
 
+      const { data, error } = await supabase
+        .from("clients")
+        .select("calendar_id")
+        .eq("uid", authData.user.id)
+        .single()
+      
+      if (error) return setError(error.message)
+      if (!data?.calendar_id) return setError("No calendar_id on this client.")
+
+      setCalendarId(data.calendar_id)
+    }
+
+    run()
+  }, [supabase])
+
+  if (error) return <div className="p-4">Calendar error: {error}</div>
+  if (!calendarId) return <div className="p-4">Loading calendar...</div>
+
+  const embedSrc = `https://calendar.google.com/calendar/embed?height=600&wkst=1&ctz=America%2FChicago&showPrint=0&showTitle=0&showTabs=0&src=${encodeURIComponent(
+    calendarId
+  )}`
 
   return (
-    //<div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex w-full justify center">
+    <div className="w-full flex justify-center">
+      <div className="relative h-[70vh] w-full max-w-5xl overflow-hidden rounded-xl border bg-white shadow-sm">
         <iframe
-            src={embedMonthSrc}
-            title="Calendar"
-            className="h-[500px] w-[500px] rounded-lg border border-black-400"
-            frameBorder={0}
-            scrolling="no"
-          />
-        <div className="flex w-full justify center">
-          <iframe 
-          src={embedWeekSrc}
-          title="Calendar"
-          className="h-[500px] w-[800px] rounded-lg border border-black-400"
-          />
-        </div>
+          title="Client Calendar"
+          src={embedSrc}
+          className="h-full w-full"
+          //frameBorder="0"
+          //scrolling="no"
+        />
       </div>
-    //</div>
-  );
+    </div>
+  )
 }
