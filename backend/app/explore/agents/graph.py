@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, TypedDict, Annotated, Optional
+from typing import Dict, Any, List, TypedDict, Annotated, Optional, AsyncGenerator
 from langgraph.graph import StateGraph, END
 
 
@@ -9,13 +9,14 @@ class AgentState(TypedDict):
     history: List[Dict[str, str]]
     attachments: List[Dict[str, str]]
     model_preference: str
-    
+
+    standalone_query: str
     route: str
     route_reason: str
-    
+
     context: str
     retrieved_docs: List[Dict[str, Any]]
-    
+
     response: str
     sources: List[Dict[str, Any]]
 
@@ -30,7 +31,7 @@ def create_explore_graph() -> StateGraph:
     3. generate_response: Create the response using context
     4. format_sources: Prepare source citations
     """
-    from app.agents.nodes import (
+    from app.explore.agents.nodes import (
         route_query,
         retrieve_context,
         generate_response,
@@ -84,17 +85,18 @@ def get_compiled_graph():
 async def run_graph(query: str, client_id: str,
     history: Optional[List[Dict[str, str]]] = None,
     attachments: Optional[List[Dict[str, str]]] = None,
-    model_preference: str = "flash"
+    model_preference: str = "fast"
 ) -> Dict[str, Any]:
     """Run the Explore agent graph with the given inputs."""
     graph = get_compiled_graph()
-    
+
     initial_state: AgentState = {
         "query": query,
         "client_id": client_id,
         "history": history or [],
         "attachments": attachments or [],
         "model_preference": model_preference,
+        "standalone_query": "",
         "route": "",
         "route_reason": "",
         "context": "",
@@ -102,12 +104,81 @@ async def run_graph(query: str, client_id: str,
         "response": "",
         "sources": []
     }
-    
+
     result = await graph.ainvoke(initial_state)
-    
+
     return {
         "response": result.get("response", ""),
         "sources": result.get("sources", []),
         "route": result.get("route", ""),
         "route_reason": result.get("route_reason", "")
+    }
+
+
+async def run_graph_streaming(
+    query: str, client_id: str,
+    history: Optional[List[Dict[str, str]]] = None,
+    attachments: Optional[List[Dict[str, str]]] = None,
+    model_preference: str = "fast"
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """Run the Explore agent graph, yielding SSE progress events.
+
+    Yields phase events that map to backend node execution:
+      thinking: rewrite_query (query rewriting)
+      planning: semantic_route (LLM routing)
+      searching: retrieve_context (RAG / attachment / hybrid)
+      generating: generate_response (final answer)
+
+    Final yield is a result event with the complete response.
+    """
+    from app.explore.agents.nodes import (
+        rewrite_query, semantic_route,
+        retrieve_context, generate_response, format_sources
+    )
+
+    initial_state: Dict[str, Any] = {
+        "query": query,
+        "client_id": client_id,
+        "history": history or [],
+        "attachments": attachments or [],
+        "model_preference": model_preference,
+        "standalone_query": "",
+        "route": "",
+        "route_reason": "",
+        "context": "",
+        "retrieved_docs": [],
+        "response": "",
+        "sources": []
+    }
+
+    # Phase: Thinking (query rewriting)
+    yield {"type": "phase", "phase": "thinking"}
+    state = await rewrite_query(initial_state)
+
+    if state.get("route") == "direct":
+        # Direct responses skip routing and retrieval
+        yield {"type": "phase", "phase": "generating"}
+        state = await generate_response(state)
+        state = await format_sources(state)
+    else:
+        # Phase: Planning (semantic routing)
+        yield {"type": "phase", "phase": "planning"}
+        state = await semantic_route(state)
+
+        # Phase: Searching (context retrieval)
+        yield {"type": "phase", "phase": "searching"}
+        state = await retrieve_context(state)
+
+        # Phase: Generating (final answer)
+        yield {"type": "phase", "phase": "generating"}
+        state = await generate_response(state)
+        state = await format_sources(state)
+
+    # Emit final result
+    yield {
+        "type": "result",
+        "answer": state.get("response", ""),
+        "sources": state.get("sources", []),
+        "route": state.get("route", ""),
+        "route_reason": state.get("route_reason", ""),
     }
