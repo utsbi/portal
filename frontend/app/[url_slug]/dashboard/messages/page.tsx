@@ -1,5 +1,10 @@
-import { notFound } from "next/navigation";
+import { Messages } from "@/components/dashboard/messages";
 
-export default function MessagesPage() {
-  notFound();
+interface PageProps {
+  params: Promise<{ url_slug: string }>;
+}
+
+export default async function MessagesPage({ params }: PageProps) {
+  const { url_slug } = await params;
+  return <Messages urlSlug={url_slug} />;
 }
