@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { MessageSquarePlus } from "lucide-react";
 import { ConversationList } from "./ConversationList";
 import { fakeDirectorConvo } from "./messages_dataplacholder";
+import { useCreateConversationModal } from "./CreateConversationModalContext";
 
 interface DirectorMessagesProps {
   urlSlug?: string;
@@ -11,7 +13,11 @@ interface DirectorMessagesProps {
 export function DirectorMessages({ urlSlug }: DirectorMessagesProps) {
   if (!urlSlug) return null;
 
-  const [open, setOpen] = useState(false);
+  // Same context as client flow so MessagesEmptyState "Create a new conversation" opens this modal.
+  const context = useCreateConversationModal();
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = context?.open ?? localOpen;
+  const setOpen = context?.setOpen ?? setLocalOpen;
   const [search, setSearch] = useState("");
 
   const handleNext = () => {
@@ -23,16 +29,22 @@ export function DirectorMessages({ urlSlug }: DirectorMessagesProps) {
   return (
     <div className="relative flex-1 flex flex-col min-h-0 h-full w-full">
       <div className="flex-1 flex flex-col w-full justify-start">
-        <ConversationList urlSlug={urlSlug} conversations={fakeDirectorConvo} basePath={`/${urlSlug}/dashboard/team/message`} />
+        <div className="p-4 w-full">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg text-white">Messages</h2>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="w-8 h-8 rounded-full bg-gray-600 text-white flex items-center justify-center shadow-lg"
+              aria-label="New conversation"
+            >
+              <MessageSquarePlus size={18} className="text-white" />
+            </button>
+          </div>
+        </div>
+        {/* List only; this component provides the header and director "Search for a client" modal. */}
+        <ConversationList urlSlug={urlSlug} conversations={fakeDirectorConvo} basePath={`/${urlSlug}/dashboard/team/message`} showCreateButton={false} />
       </div>
-
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-gray-600 text-white text-2xl flex items-center justify-center shadow-lg"
-      >
-        +
-      </button>
 
       {open && (
         <div

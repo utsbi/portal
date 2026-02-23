@@ -1,7 +1,6 @@
 "use client";
 
 import { ConversationList } from "./ConversationList";
-import { CreateNew } from "./CreateNew";
 import { fakeConvo } from "./messages_dataplacholder";
 
 interface MessagesProps {
@@ -17,7 +16,6 @@ export function Messages({ urlSlug }: MessagesProps) {
       <div className="flex-1 flex flex-col w-full justify-start">
         <ConversationList urlSlug={urlSlug} conversations={fakeConvo} basePath={`/${urlSlug}/dashboard/messages`} />
       </div>
-      <CreateNew />
     </div>
   );
 }

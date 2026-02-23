@@ -1,6 +1,7 @@
-import Link from "next/link";
 import { MessageThread } from "@/components/dashboard/messages/MessageThread";
+import { Messages } from "@/components/dashboard/messages";
 import { getConversationById } from "@/components/dashboard/messages/messages_dataplacholder";
+import { CreateConversationModalProvider } from "@/components/dashboard/messages/CreateConversationModalContext";
 
 interface PageProps {
   params: Promise<{ url_slug: string; conversationId: string }>;
@@ -13,19 +14,22 @@ export default async function ConversationPage({ params }: PageProps) {
   const name = conversation?.name ?? "Conversation";
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 h-full">
-      <div className="shrink-0 px-4 py-3 border-b border">
-        <Link
-          href={`/${url_slug}/dashboard/messages`}
-          className="text-sm text-white"
-        >
-          ← Back to conversations
-        </Link>
-        <p className="text-lg text-white text-center font-medium mt-1">{name}</p>
+    <CreateConversationModalProvider>
+    <div className="flex flex-1 min-h-0 h-full">
+      <div className="w-96 shrink-0 overflow-y-auto border-r border">
+        <Messages urlSlug={url_slug} />
       </div>
-      <div className="flex-1 min-h-0">
-        <MessageThread conversationId={conversationId} name={name} lastMessage={conversation?.lastMessage}/>
+      <div className="flex-1 min-h-0 flex flex-col">
+        <div className="flex flex-col flex-1 min-h-0 h-full">
+          <div className="shrink-0 px-4 py-3 border-b border">
+            <p className="text-lg text-white text-center font-medium">{name}</p>
+          </div>
+          <div className="flex-1 min-h-0">
+            <MessageThread conversationId={conversationId} name={name} lastMessage={conversation?.lastMessage}/>
+          </div>
+        </div>
       </div>
     </div>
+    </CreateConversationModalProvider>
   );
 }
