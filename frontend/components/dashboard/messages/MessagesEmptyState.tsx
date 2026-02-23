@@ -1,5 +1,6 @@
 "use client";
 
+import { Send } from "lucide-react";
 import { useCreateConversationModal } from "./CreateConversationModalContext";
 
 export function MessagesEmptyState() {
@@ -8,16 +9,21 @@ export function MessagesEmptyState() {
   return (
     <div className="flex flex-1 min-h-0 h-full flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <p className="text-medium text-gray-500">Your messages</p>
-        <p className="text-sm text-gray-500 mt-1">Select a conversation to start chatting.</p>
+        <div className="flex items-center justify-center w-12 h-12 rounded-full border border-sbi-green text-sbi-green bg-transparent">
+          <Send size={26} strokeWidth={1.5} />
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <p className="text-medium text-sbi-muted">Your messages</p>
+          <p className="text-sm text-sbi-muted">Send a message to start a chat.</p>
+        </div>
         {/* Only show button when inside CreateConversationModalProvider (opens the modal rendered by the list panel). */}
         {context && (
           <button
             type="button"
             onClick={() => context.setOpen(true)}
-            className="px-4 py-2 text-sm font-medium bg-gray-600 text-white rounded"
+            className="px-2.5 py-1 text-xs font-medium bg-sbi-green text-white rounded-md hover:bg-sbi-green/90 transition-all duration-300 cursor-pointer"
           >
-            Create a new conversation
+            Send Message
           </button>
         )}
       </div>
