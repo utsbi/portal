@@ -20,14 +20,12 @@ export default async function DirectorConversationPage({ params }: PageProps) {
         <div className="w-96 shrink-0 overflow-y-auto border-r border">
           <DirectorMessages urlSlug={url_slug} />
         </div>
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="flex flex-col flex-1 min-h-0 h-full">
-            <div className="shrink-0 px-4 py-3 border-b border">
-              <p className="text-lg text-white text-center font-medium">{name}</p>
-            </div>
-            <div className="flex-1 min-h-0">
-              <MessageThread conversationId={conversationId} name={name} lastMessage={conversation?.lastMessage} />
-            </div>
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="shrink-0 px-4 py-3 border-b border">
+            <p className="text-lg text-white text-center font-medium">{name}</p>
+          </div>
+          <div className="flex-1 min-h-0 relative">
+            <MessageThread conversationId={conversationId} name={name} lastMessage={conversation?.lastMessage} />
           </div>
         </div>
       </div>

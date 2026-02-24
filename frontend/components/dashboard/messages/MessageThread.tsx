@@ -47,9 +47,9 @@ export function MessageThread({ conversationId, name, lastMessage }: MessageThre
   const hasInput = input.trim().length > 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="absolute inset-0 flex flex-col">
       {/* Scrollable message list */}
-      <div className="flex-1 overflow-y-auto p-4 min-h-0 flex flex-col">
+      <div className="flex-1 overflow-y-auto p-4 min-h-0">
       {messages.length === 0 && !lastMessage ? (
         <div className="flex-1 flex items-center justify-center min-h-full">
           <p className="text-medium text-gray-500">Write a Message to {name ?? "..."}</p>
