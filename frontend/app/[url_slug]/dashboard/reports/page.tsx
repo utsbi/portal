@@ -1,5 +1,9 @@
-import { notFound } from "next/navigation";
+import { ReportsClient } from "@/components/dashboard/reports/reports-client";
 
 export default function ReportsPage() {
-  notFound();
+  return (
+    <div className="w-full h-full bg-sbi-dark">
+      <ReportsClient />
+    </div>
+  );
 }
