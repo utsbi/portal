@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { MessageSquarePlus } from "lucide-react";
-import type { Conversation } from "./messages_dataplacholder";
+import { departments, type Conversation } from "./messages_dataplacholder";
 import { useCreateConversationModal } from "./CreateConversationModalContext";
 
 interface ConversationListProps {
@@ -22,6 +22,12 @@ export function ConversationList({ urlSlug, conversations, basePath, showCreateB
   const open = context?.open ?? localOpen;
   const setOpen = context?.setOpen ?? setLocalOpen;
   const [selected, setSelected] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+
+  const filteredConversations =
+    selectedDepartment === ""
+      ? conversations
+      : conversations.filter((c) => c.department === selectedDepartment);
 
   const handleNext = () => {
     setOpen(false);
@@ -77,6 +83,21 @@ export function ConversationList({ urlSlug, conversations, basePath, showCreateB
             </h2>
 
             <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="w-full mb-3 rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm px-3 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"
+            >
+              <option value="" disabled>
+                Select a department
+              </option>
+              {departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
+
+            <select
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
               className="w-full rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm px-3 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"            
@@ -84,7 +105,7 @@ export function ConversationList({ urlSlug, conversations, basePath, showCreateB
               <option value="" disabled>
                 Select a director
               </option>
-              {conversations.map((c) => (
+              {filteredConversations.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
