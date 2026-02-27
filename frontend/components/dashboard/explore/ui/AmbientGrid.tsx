@@ -84,8 +84,8 @@ export function AmbientGrid() {
               left: `${10 + Math.random() * 80}%`,
             }}
           />
-        ))}
-      </div>
+        ))} 
+        </div>
 
       {/* Radial gradient overlay for depth */}
       <div className="absolute inset-0 bg-radial-[ellipse_at_center] from-transparent via-transparent to-sbi-dark/80" />
