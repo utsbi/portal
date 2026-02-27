@@ -19,6 +19,7 @@ import {
 import type { ReportItem } from "@/app/api/reports/route";
 import { cn } from "@/lib/utils";
 import { ReportsOverview } from "./reports-overview";
+
 import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
 
 const DEPARTMENTS = [
@@ -72,6 +73,9 @@ export function ReportsClient() {
     type SortColumn = 'numid' | 'status' | 'title' | 'department' | 'date' | 'director' | null;
     const [sortColumn, setSortColumn] = useState<SortColumn>("numid");
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    const ITEMS_PER_PAGE = 5;
+    const [currentPage, setCurrentPage] = useState(1);
 
     useEffect(() => {
         fetchReports();
@@ -142,6 +146,11 @@ export function ReportsClient() {
         return matchesSearch && matchesStatus && matchesTeam && matchesTimeframe;
     });
 
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, statusFilter, teamFilter, timeframeFilter]);
+
     const sortedReports = useMemo(() => {
         if (!sortColumn) return filteredReports;
 
@@ -185,6 +194,12 @@ export function ReportsClient() {
             <ChevronUp className="w-3 h-3 inline-block ml-1 text-sbi-green transition-transform" /> :
             <ChevronDown className="w-3 h-3 inline-block ml-1 text-sbi-green transition-transform" />;
     };
+
+    const totalPages = Math.ceil(sortedReports.length / ITEMS_PER_PAGE);
+    const paginatedReports = sortedReports.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -234,140 +249,134 @@ export function ReportsClient() {
 
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-sbi-dark font-urbanist text-sbi-muted overflow-hidden flex-col">
-            <main className="flex-1 overflow-auto p-4 md:p-8 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-sbi-green/30 hover:scrollbar-thumb-sbi-green/50 flex flex-col gap-8">
+            <main className="flex-1 overflow-auto p-6 md:p-10 dashboard-scrollbar flex flex-col w-full">
+
+                {/* Header Section */}
+                <div className="flex justify-between items-center mb-8">
+                    <h1 className="text-3xl font-light text-white tracking-wide">
+                        Reports
+                    </h1>
+                    <button className="bg-sbi-green hover:bg-green-500 text-black font-semibold px-4 py-2 rounded-md flex items-center gap-2 text-sm transition-colors">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
+                        New Report
+                    </button>
+                </div>
+
                 {/* Permanent Overview Section */}
-                <section>
+                <section className="mb-12">
                     <ReportsOverview reports={reports} />
                 </section>
 
-                {/* Table & Filters Section */}
-                <section className="flex flex-col gap-4">
-                    {/* Search & Filter Trigger */}
-                    <div className="flex flex-wrap items-center gap-3 w-full bg-sbi-dark p-2 rounded-xl">
-                        <div className="relative flex-grow min-w-[300px] max-w-md group bg-[#0d120e] rounded-lg border border-sbi-green/10">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sbi-green/60 group-focus-within:text-sbi-green transition-colors" />
+                {/* Sub-Header & Filters */}
+                <div className="flex flex-wrap justify-between items-end mb-6 gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-8 h-[2px] bg-sbi-green" />
+                        <h2 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold">
+                            Report History
+                        </h2>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sbi-muted-dark" />
                             <input
                                 type="text"
                                 placeholder="Search reports..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-12 py-2.5 text-sm bg-transparent rounded-lg text-white placeholder:text-sbi-muted-dark focus:outline-none focus:ring-1 focus:ring-sbi-green/30 focus:border-sbi-green/30 transition-all shadow-sm"
+                                className="pl-9 pr-4 py-2 text-sm bg-[#0a0f0c] border border-white/5 rounded-md text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/30 transition-colors w-64 shadow-sm"
                             />
-                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 bg-[#1a2e20] text-sbi-green border border-sbi-green/20 rounded-md pointer-events-none">
-                                <Filter className="w-4 h-4" />
+                        </div>
+                        <SearchableDropdown
+                            value={statusFilter}
+                            onChange={setStatusFilter}
+                            options={STATUS_OPTIONS}
+                            className="w-40"
+                        />
+                    </div>
+                </div>
+
+                {/* Table Headers */}
+                <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/5 mb-4 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark font-bold">
+                    <div className="col-span-5">Subject</div>
+                    <div className="col-span-3">Name</div>
+                    <div className="col-span-2">Date</div>
+                    <div className="col-span-2">Status</div>
+                </div>
+
+                {/* List Items */}
+                <div className="flex flex-col gap-[2px]">
+                    {paginatedReports.map((report) => (
+                        <div
+                            key={report.id}
+                            onClick={() => setSelectedReport(report)}
+                            className="group grid grid-cols-12 gap-4 px-6 py-4 bg-[#0d130f] hover:bg-[#121814] rounded-lg items-center cursor-pointer transition-colors border border-transparent hover:border-white/5"
+                        >
+                            <div className="col-span-5 flex items-center gap-4">
+                                <ChevronDown className="w-4 h-4 text-sbi-muted-dark group-hover:text-white transition-colors stretch-0 shrink-0" />
+                                <div>
+                                    <div className="text-white font-medium text-sm">{report.title}</div>
+                                    <div className="text-xs text-sbi-muted-dark mt-0.5">{report.project || "n/a"}</div>
+                                </div>
+                            </div>
+                            <div className="col-span-3 text-xs text-sbi-muted">
+                                {report.director}
+                            </div>
+                            <div className="col-span-2 text-xs text-sbi-muted">
+                                {formatDate(report.date)}
+                            </div>
+                            <div className="col-span-2 flex items-center gap-2">
+                                <div className={cn("w-1.5 h-1.5 rounded-full",
+                                    report.status === "Done" ? "bg-sbi-green" :
+                                        report.status === "Pending" ? "bg-red-500" :
+                                            report.status === "Denied" ? "bg-red-500" :
+                                                "bg-blue-400"
+                                )} />
+                                <span className={cn("text-[10px] tracking-wider uppercase font-semibold",
+                                    report.status === "Done" ? "text-sbi-green" :
+                                        report.status === "Pending" ? "text-red-500" :
+                                            report.status === "Denied" ? "text-red-500" :
+                                                "text-blue-400"
+                                )}>
+                                    {report.status}
+                                </span>
                             </div>
                         </div>
+                    ))}
+                    {sortedReports.length === 0 && (
+                        <div className="text-center py-12 text-sbi-muted-dark text-sm">
+                            No reports found.
+                        </div>
+                    )}
+                </div>
 
-                        {/* Inline Filters */}
-                        <div className="flex items-center gap-3 font-mono text-xs">
-                            <SearchableDropdown
-                                value={timeframeFilter}
-                                onChange={setTimeframeFilter}
-                                options={TIMEFRAME_OPTIONS}
-                                className="w-36 z-50"
-                            />
-
-                            {timeframeFilter === "Custom Range" && (
-                                <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200 bg-[#0d120e] border border-sbi-green/10 rounded-lg p-1 px-2">
-                                    <input
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(e) => setStartDate(e.target.value)}
-                                        className="bg-transparent text-sbi-muted text-xs focus:outline-none w-[110px]"
-                                    />
-                                    <span className="text-sbi-muted-dark">-</span>
-                                    <input
-                                        type="date"
-                                        value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
-                                        className="bg-transparent text-sbi-muted text-xs focus:outline-none w-[110px]"
-                                    />
-                                </div>
-                            )}
-
-                            <SearchableDropdown
-                                value={statusFilter}
-                                onChange={setStatusFilter}
-                                options={STATUS_OPTIONS}
-                                className="w-36 z-40"
-                            />
-
-                            <SearchableDropdown
-                                value={teamFilter}
-                                onChange={setTeamFilter}
-                                options={DEPARTMENTS}
-                                className="w-48 z-30"
-                            />
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-6 px-4">
+                        <span className="text-sm text-sbi-muted-dark">
+                            Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, sortedReports.length)} of {sortedReports.length} results
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 text-sm rounded-md bg-[#0a0f0c] border border-white/5 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/5 transition-colors"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-sm text-sbi-muted px-2">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 text-sm rounded-md bg-[#0a0f0c] border border-white/5 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/5 transition-colors"
+                            >
+                                Next
+                            </button>
                         </div>
                     </div>
-
-                    <div className="bg-sbi-dark-card rounded-xl border border-sbi-dark-border overflow-hidden">
-                        <table className="w-full text-left text-sm">
-                            <thead>
-                                <tr className="border-b border-sbi-dark-border bg-sbi-dark-btn/50">
-                                    <th onClick={() => handleSort('numid')} className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs w-24 cursor-pointer hover:text-white transition-colors group select-none">
-                                        ID {renderSortIcon('numid')}
-                                    </th>
-                                    <th onClick={() => handleSort('status')} className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs w-48 cursor-pointer hover:text-white transition-colors group select-none">
-                                        Status {renderSortIcon('status')}
-                                    </th>
-                                    <th onClick={() => handleSort('title')} className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors group select-none">
-                                        Report Task {renderSortIcon('title')}
-                                    </th>
-                                    <th onClick={() => handleSort('department')} className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors group select-none">
-                                        Team {renderSortIcon('department')}
-                                    </th>
-                                    <th onClick={() => handleSort('date')} className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors group select-none">
-                                        Date {renderSortIcon('date')}
-                                    </th>
-                                    <th onClick={() => handleSort('director')} className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors group select-none">
-                                        Director {renderSortIcon('director')}
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-sbi-dark-border">
-                                {sortedReports.map((report) => (
-                                    <tr
-                                        key={report.id}
-                                        onClick={() => setSelectedReport(report)}
-                                        className="hover:bg-white/[0.02] cursor-pointer transition-colors group"
-                                    >
-                                        <td className="px-6 py-5 text-sbi-muted font-mono text-xs">#{report.numid}</td>
-                                        <td className="px-6 py-5">
-                                            <span className={cn(
-                                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-sm",
-                                                getStatusColor(report.status)
-                                            )}>
-                                                {getStatusIcon(report.status)}
-                                                {report.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-5 font-medium text-white group-hover:text-sbi-green transition-colors text-base">
-                                            {report.title}
-                                        </td>
-                                        <td className="px-6 py-5 text-sbi-muted">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full border border-sbi-dark-border bg-transparent" />
-                                                {report.department}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-5 text-sbi-muted text-xs font-mono">
-                                            {formatDate(report.date)}
-                                        </td>
-                                        <td className="px-6 py-5 text-sbi-muted">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-7 h-7 rounded-full bg-sbi-dark-btn border border-sbi-dark-border flex items-center justify-center text-xs font-medium text-white shadow-sm">
-                                                    {report.director.charAt(0)}
-                                                </div>
-                                                {report.director}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                )}
             </main>
 
             {/* Detail View Modal (Legal Document Style - Dark Mode) */}

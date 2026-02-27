@@ -32,11 +32,12 @@ function getInitials(name: string): string {
 interface ClientProviderProps {
   children: ReactNode;
   urlSlug: string;
+  initialClientData?: ClientData | null;
 }
 
-export function ClientProvider({ children, urlSlug }: ClientProviderProps) {
-  const [client, setClient] = useState<ClientData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function ClientProvider({ children, urlSlug, initialClientData }: ClientProviderProps) {
+  const [client, setClient] = useState<ClientData | null>(initialClientData || null);
+  const [isLoading, setIsLoading] = useState(!initialClientData);
   const [error, setError] = useState<string | null>(null);
 
   const fetchClientData = async () => {
@@ -45,9 +46,9 @@ export function ClientProvider({ children, urlSlug }: ClientProviderProps) {
 
     try {
       const supabase = createClient();
-      
+
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
+
       if (userError || !user) {
         setError('Not authenticated');
         setIsLoading(false);
@@ -87,7 +88,11 @@ export function ClientProvider({ children, urlSlug }: ClientProviderProps) {
   };
 
   useEffect(() => {
-    fetchClientData();
+    // Only fetch if no initial data was provided, or if urlSlug changed AFTER initial mount
+    // For now, let's just use initial data if available
+    if (!initialClientData) {
+      fetchClientData();
+    }
   }, [urlSlug]);
 
   return (

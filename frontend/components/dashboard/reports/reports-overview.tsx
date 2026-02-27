@@ -142,11 +142,13 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
 
     return (
         <div className="space-y-6 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="flex items-center justify-between pb-4 border-b border-sbi-dark-border">
-                <h2 className="text-lg font-semibold text-white tracking-tight flex items-center gap-2">
-                    <BarChart2 className="w-5 h-5 text-sbi-green" />
-                    Analytics Overview
-                </h2>
+            <div className="flex items-center justify-between pb-4 border-b border-white/5">
+                <div className="flex items-center gap-4">
+                    <div className="w-8 h-[2px] bg-sbi-green" />
+                    <h2 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold">
+                        Analytics Overview
+                    </h2>
+                </div>
                 <div className="flex gap-2">
                     <SearchableDropdown
                         value={filterTime}
@@ -199,7 +201,7 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-80">
                 {/* Status Distribution */}
                 <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-xl p-5 flex flex-col">
-                    <h3 className="text-sm font-semibold text-sbi-muted-dark uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <h3 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold mb-4 flex items-center gap-2">
                         <PieChartIcon className="w-4 h-4" /> Status Breakdown
                     </h3>
                     <div className="flex-1 min-h-0">
@@ -229,7 +231,7 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
 
                 {/* Department Activity */}
                 <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-xl p-5 flex flex-col">
-                    <h3 className="text-sm font-semibold text-sbi-muted-dark uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <h3 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold mb-4 flex items-center gap-2">
                         <BarChart2 className="w-4 h-4" /> Top Departments
                     </h3>
                     <div className="flex-1 min-h-0">
@@ -237,7 +239,7 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                             <BarChart data={departmentData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false} />
                                 <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" width={100} tick={{ fill: "#666", fontSize: 10 }} />
+                                <YAxis dataKey="name" type="category" width={100} tick={{ fill: "#a3a3a3", fontSize: 10, fontFamily: "Urbanist, sans-serif", letterSpacing: "0.1em" }} />
                                 <Tooltip
                                     cursor={{ fill: 'transparent' }}
                                     contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333", borderRadius: "8px" }}
@@ -251,7 +253,7 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
 
                 {/* Timeline */}
                 <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-xl p-5 flex flex-col">
-                    <h3 className="text-sm font-semibold text-sbi-muted-dark uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <h3 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold mb-4 flex items-center gap-2">
                         <TrendingUp className="w-4 h-4" /> Submission Trend
                     </h3>
                     <div className="flex-1 min-h-0">
@@ -264,7 +266,7 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                                <XAxis dataKey="date" tick={{ fill: "#666", fontSize: 10 }} axisLine={false} tickLine={false} />
+                                <XAxis dataKey="date" tick={{ fill: "#a3a3a3", fontSize: 10, fontFamily: "Urbanist, sans-serif", letterSpacing: "0.1em" }} axisLine={false} tickLine={false} />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333", borderRadius: "8px" }}
                                     itemStyle={{ color: "#fff" }}
@@ -286,8 +288,8 @@ function SummaryCard({ title, value, icon: Icon, color, bg }: any) {
                 <Icon className="w-6 h-6" />
             </div>
             <div>
-                <p className="text-xs text-sbi-muted-dark uppercase tracking-wider font-semibold">{title}</p>
-                <p className="text-2xl font-bold text-white font-urbanist">{value}</p>
+                <p className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold">{title}</p>
+                <p className="text-2xl tracking-[0.1em] font-bold text-white font-urbanist">{value}</p>
             </div>
         </div>
     );

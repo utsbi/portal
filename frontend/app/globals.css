@@ -364,12 +364,12 @@
 }
 
 .dashboard-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.7);
   border-radius: 3px;
 }
 
 .dashboard-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 1);
 }
 
 /* Architectural grid pattern for backgrounds */
