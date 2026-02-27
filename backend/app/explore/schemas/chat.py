@@ -25,7 +25,7 @@ class ChatRequest(BaseModel):
     include_sources: bool = Field(default=True, description="Whether to include source documents in response")
     model_preference: Optional[str] = Field(
         default=None, 
-        description="LLM model preference: 'flash' for speed, 'thinking' for complex reasoning"
+        description="LLM model preference: 'fast' for speed, 'thinking' for complex reasoning"
     )
 
 
