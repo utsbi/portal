@@ -17,10 +17,10 @@ export default async function DashboardLayout({
 }: DashboardLayoutProps) {
   const { url_slug } = await params;
   const supabase = await createClient();
-  
+
   // Check if user is authenticated
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) {
     redirect("/login");
   }
@@ -32,7 +32,7 @@ export default async function DashboardLayout({
     .eq("uid", user.id)
     .eq("url_slug", url_slug)
     .single();
-  
+
   if (!client) {
     notFound();
   }
