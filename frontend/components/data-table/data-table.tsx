@@ -180,10 +180,10 @@ export function DataTable<T extends Record<string, any>>({
     toggleFilter ??
     (hideCompletedToggle && hideCompletedKey
       ? {
-          key: hideCompletedKey,
-          value: hideCompletedValue,
-          label: hideCompletedLabel ?? "Hide Done",
-        }
+        key: hideCompletedKey,
+        value: hideCompletedValue,
+        label: hideCompletedLabel ?? "Hide Done",
+      }
       : undefined);
 
   const expandable = !!renderExpandedRow;
@@ -447,43 +447,43 @@ export function DataTable<T extends Record<string, any>>({
         filters.length > 0 ||
         resolvedToggle ||
         columnToggle) && (
-        <div className="flex flex-col gap-3">
-          {title && (
-            <div>
-              <h2 className="text-2xl font-extralight tracking-tight text-white">
-                {title}
-              </h2>
-              {description && (
-                <p className="text-sbi-muted-dark mt-1 text-sm">
-                  {description}
-                </p>
-              )}
-            </div>
-          )}
-          <DataTableFilters
-            searchable={searchable}
-            searchQuery={searchQuery}
-            onSearchChange={handleSearchChange}
-            searchPlaceholder={searchPlaceholder}
-            filters={filters}
-            filterValues={filterValues}
-            onFilterChange={handleFilterChange}
-            toggleFilter={
-              resolvedToggle
-                ? {
+          <div className="flex flex-col gap-3">
+            {title && (
+              <div>
+                <h2 className="text-2xl font-extralight tracking-tight text-white">
+                  {title}
+                </h2>
+                {description && (
+                  <p className="text-sbi-muted-dark mt-1 text-sm">
+                    {description}
+                  </p>
+                )}
+              </div>
+            )}
+            <DataTableFilters
+              searchable={searchable}
+              searchQuery={searchQuery}
+              onSearchChange={handleSearchChange}
+              searchPlaceholder={searchPlaceholder}
+              filters={filters}
+              filterValues={filterValues}
+              onFilterChange={handleFilterChange}
+              toggleFilter={
+                resolvedToggle
+                  ? {
                     key: resolvedToggle.key as string,
                     value: resolvedToggle.value,
                     label: resolvedToggle.label,
                   }
-                : undefined
-            }
-            toggleActive={toggleActive}
-            onToggleChange={setToggleActive}
-            columnToggleSlot={columnToggleSlot}
-            disabled={loading}
-          />
-        </div>
-      )}
+                  : undefined
+              }
+              toggleActive={toggleActive}
+              onToggleChange={setToggleActive}
+              columnToggleSlot={columnToggleSlot}
+              disabled={loading}
+            />
+          </div>
+        )}
 
       {/* Table */}
       <div className="rounded-lg border border-white/[0.06] bg-sbi-dark-card overflow-hidden">
@@ -712,7 +712,7 @@ export function DataTable<T extends Record<string, any>>({
                                   col.width,
                                   alignClass(col.align),
                                   isPrimary &&
-                                    "font-medium text-white group-hover:text-sbi-green transition-colors text-sm",
+                                  "font-medium text-white group-hover:text-sbi-green transition-colors text-sm",
                                   !isPrimary && "text-sbi-muted text-sm",
                                   col.className,
                                 )}
