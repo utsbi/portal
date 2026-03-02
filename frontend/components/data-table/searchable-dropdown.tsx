@@ -126,10 +126,10 @@ export function SearchableDropdown({
                               setSearch("");
                             }}
                             className={cn(
-                              "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                              "w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors truncate",
                               value === opt.value
                                 ? "bg-sbi-green/10 text-sbi-green"
-                                : "text-sbi-muted hover:bg-white/[0.04] hover:text-white",
+                                : "text-sbi-muted hover:text-white hover:bg-sbi-dark-border/50",
                             )}
                           >
                             {opt.label}
@@ -139,15 +139,15 @@ export function SearchableDropdown({
                     ) : (
                       <button
                         onClick={() => {
-                          onChange(group!.value as string);
+                          onChange(group!.value!);
                           setIsOpen(false);
                           setSearch("");
                         }}
                         className={cn(
-                          "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                          "w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors truncate mb-0.5",
                           value === group!.value
                             ? "bg-sbi-green/10 text-sbi-green"
-                            : "text-sbi-muted hover:bg-white/[0.04] hover:text-white",
+                            : "text-sbi-muted hover:text-white hover:bg-sbi-dark-border/50",
                         )}
                       >
                         {group!.label}
