@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import {
-    Loader2,
-    X,
-    FileText,
-} from "lucide-react";
+import { X, FileText } from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { cn } from "@/lib/utils";
 import { ReportsOverview } from "./reports-overview";
@@ -95,38 +91,9 @@ const COLUMNS: ColumnDef<ReportItem>[] = [
     },
 ];
 
-export function ReportsClient() {
-    const [reports, setReports] = useState<ReportItem[]>([]);
-    const [loading, setLoading] = useState(true);
+export function ReportsClient({ initialReports }: { initialReports: ReportItem[] }) {
+    const [reports] = useState<ReportItem[]>(initialReports);
     const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
-
-    useEffect(() => {
-        fetchReports();
-    }, []);
-
-    const fetchReports = async () => {
-        try {
-            const response = await fetch(`/api/reports?t=${Date.now()}`, {
-                cache: "no-store",
-                headers: { Pragma: "no-cache" },
-            });
-            if (!response.ok) throw new Error("Failed to fetch reports");
-            const data = await response.json();
-            setReports(data);
-        } catch (error) {
-            console.error("Error fetching reports:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px] bg-sbi-dark text-sbi-muted">
-                <Loader2 className="w-8 h-8 text-sbi-green animate-spin" />
-            </div>
-        );
-    }
 
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-sbi-dark font-urbanist text-sbi-muted overflow-hidden flex-col">
