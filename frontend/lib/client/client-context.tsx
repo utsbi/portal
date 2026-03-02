@@ -54,30 +54,49 @@ export function ClientProvider({ children, urlSlug }: ClientProviderProps) {
         return;
       }
 
-      const { data: clientData, error: clientError } = await supabase
+      // Try clients first
+      const { data: clientData } = await supabase
         .from('clients')
         .select('id, name, company_name, url_slug')
         .eq('uid', user.id)
         .eq('url_slug', urlSlug)
         .single();
 
-      if (clientError || !clientData) {
-        setError('Client not found');
-        setIsLoading(false);
+      if (clientData) {
+        const displayName = clientData.name || clientData.company_name || user.email?.split('@')[0] || 'User';
+        setClient({
+          id: clientData.id,
+          name: displayName,
+          email: user.email || '',
+          companyName: clientData.company_name ?? '',
+          urlSlug: clientData.url_slug,
+          initials: getInitials(displayName),
+        });
         return;
       }
 
-      // Use name if available, otherwise use company_name or email
-      const displayName = clientData.name || clientData.company_name || user.email?.split('@')[0] || 'User';
+      // Fallback: members (e.g. directors)
+      const { data: memberData } = await supabase
+        .from('members')
+        .select('id, name, url_slug')
+        .eq('uid', user.id)
+        .eq('url_slug', urlSlug)
+        .single();
 
-      setClient({
-        id: clientData.id,
-        name: displayName,
-        email: user.email || '',
-        companyName: clientData.company_name,
-        urlSlug: clientData.url_slug,
-        initials: getInitials(displayName),
-      });
+      if (memberData) {
+        const displayName = memberData.name || user.email?.split('@')[0] || 'User';
+        setClient({
+          id: memberData.id,
+          name: displayName,
+          email: user.email || '',
+          companyName: '',
+          urlSlug: memberData.url_slug,
+          initials: getInitials(displayName),
+        });
+        return;
+      }
+
+      setError('Client not found');
     } catch (err) {
       setError('Failed to fetch client data');
       console.error('Client data fetch error:', err);
