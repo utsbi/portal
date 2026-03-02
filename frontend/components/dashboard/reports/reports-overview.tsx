@@ -110,15 +110,18 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
 
     const stats = useMemo(() => {
         const total = filteredReports.length;
+        const normalize = (s: string) => s?.toLowerCase().replace(/[\s_-]+/g, "");
         const inProgress = filteredReports.filter(
-            (r) => r.status === "In Progress",
+            (r) => normalize(r.status) === "inprogress" || normalize(r.status) === "inprocess",
         ).length;
-        const done = filteredReports.filter((r) => r.status === "Done").length;
+        const done = filteredReports.filter(
+            (r) => normalize(r.status) === "done" || normalize(r.status) === "complete" || normalize(r.status) === "completed",
+        ).length;
         const denied = filteredReports.filter(
-            (r) => r.status === "Denied",
+            (r) => normalize(r.status) === "denied" || normalize(r.status) === "rejected",
         ).length;
         const pending = filteredReports.filter(
-            (r) => r.status === "Pending",
+            (r) => normalize(r.status) === "pending",
         ).length;
         return { total, inProgress, done, denied, pending };
     }, [filteredReports]);
@@ -137,7 +140,9 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
     const departmentData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach((r) => {
-            counts[r.department] = (counts[r.department] || 0) + 1;
+            const dept = r.department?.trim();
+            if (!dept || dept === "n/a" || dept === "null") return;
+            counts[dept] = (counts[dept] || 0) + 1;
         });
         return Object.entries(counts)
             .map(([name, count]) => ({ name, count }))
@@ -224,37 +229,52 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                     <h3 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold mb-4 flex items-center gap-2">
                         <PieChartIcon className="w-4 h-4" /> Status Breakdown
                     </h3>
-                    <div className="flex-1 min-h-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={statusData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {statusData.map((entry, index) => (
-                                        <Cell
-                                            key={`cell-${index}`}
-                                            fill={entry.color}
-                                            stroke="none"
-                                        />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: "#1a1a1a",
-                                        border: "1px solid #333",
-                                        borderRadius: "8px",
-                                    }}
-                                    itemStyle={{ color: "#fff" }}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
+                    {statusData.length === 0 ? (
+                        <div className="flex-1 flex items-center justify-center text-sbi-muted-dark text-xs">No data</div>
+                    ) : (
+                        <div className="flex flex-col gap-3 flex-1">
+                            <ResponsiveContainer width="100%" height={160}>
+                                <PieChart>
+                                    <Pie
+                                        data={statusData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={50}
+                                        outerRadius={72}
+                                        paddingAngle={4}
+                                        dataKey="value"
+                                    >
+                                        {statusData.map((entry, index) => (
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={entry.color}
+                                                stroke="none"
+                                            />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: "#1a1a1a",
+                                            border: "1px solid #333",
+                                            borderRadius: "8px",
+                                            fontSize: "12px",
+                                        }}
+                                        itemStyle={{ color: "#fff" }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            {/* Legend */}
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                                {statusData.map((entry) => (
+                                    <div key={entry.name} className="flex items-center gap-2">
+                                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                                        <span className="text-xs text-sbi-muted truncate">{entry.name}</span>
+                                        <span className="text-xs text-white font-semibold ml-auto">{entry.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Department Activity */}

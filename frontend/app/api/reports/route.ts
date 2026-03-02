@@ -4,6 +4,14 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+function normalizeStatus(status: string | null | undefined): "Pending" | "In Progress" | "Done" | "Denied" {
+    const s = (status || "").toLowerCase().replace(/[\s_-]+/g, "");
+    if (s === "done" || s === "complete" || s === "completed") return "Done";
+    if (s === "inprogress" || s === "inprocess" || s === "active") return "In Progress";
+    if (s === "denied" || s === "rejected") return "Denied";
+    return "Pending";
+}
+
 export interface ReportItem {
     id: string;
     uuid: string;
@@ -78,7 +86,7 @@ export async function GET() {
             director: item.director || item.assign_to || "Unassigned",
             assign_to: item.assign_to,
             project: item.project,
-            status: item.status || "Pending",
+            status: normalizeStatus(item.status),
             message: item.message,
             date: item.created_at
                 ? new Date(item.created_at).toISOString().split("T")[0]
