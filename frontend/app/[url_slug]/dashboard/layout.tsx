@@ -27,16 +27,25 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Verify the user has access to this url_slug by checking the clients table
+  // Allow access if user has this url_slug in clients or members (e.g. directors)
   const { data: client } = await supabase
     .from("clients")
     .select("url_slug")
     .eq("uid", user.id)
     .eq("url_slug", url_slug)
     .single();
-  
+
   if (!client) {
-    notFound();
+    const { data: member } = await supabase
+      .from("members")
+      .select("url_slug")
+      .eq("uid", user.id)
+      .eq("url_slug", url_slug)
+      .single();
+
+    if (!member) {
+      notFound();
+    }
   }
 
   return (
