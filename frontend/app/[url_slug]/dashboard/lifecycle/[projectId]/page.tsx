@@ -1,5 +1,3 @@
-// frontend/app/(dashboard)/dashboard/lifecycle/[projectId]/page.tsx
-
 'use client';
 
 import { getProjectById } from '../mockData';
@@ -7,15 +5,16 @@ import TaskCard from '../components/TaskCard';
 import SearchBar from '../components/SearchBar';
 import FilterDropdown from '../components/FilterDropdown';
 import Link from 'next/link';
-import { use } from 'react'; // ← Import use
+import { use, useState } from 'react';
 
 export default function ProjectDetailPage({ 
   params 
 }: { 
-  params: Promise<{ projectId: string }> // ← Changed to Promise
+  params: Promise<{ projectId: string }> 
 }) {
-  const { projectId } = use(params); // ← Unwrap the promise
-  const project = getProjectById(projectId); // ← Use projectId, not params.projectId
+  const { projectId } = use(params);
+  const project = getProjectById(projectId);
+  const [searchQuery, setSearchQuery] = useState('');
   
   if (!project) {
     return (
@@ -24,12 +23,22 @@ export default function ProjectDetailPage({
       </div>
     );
   }
+
+  // Filter tasks based on search (searches both title and description)
+  const filteredTasks = project.tasks.filter(task =>
+    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    task.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+  };
   
   return (
     <div className="container mx-auto p-6">
       {/* Back Button */}
       <Link 
-        href="client-test/dashboard/lifecycle" 
+        href="/client-test/dashboard/lifecycle" 
         className="inline-flex items-center gap-2 text-sbi-green hover:text-sbi-green/80 
                    transition-colors mb-6 font-light tracking-wide"
       >
@@ -63,7 +72,7 @@ export default function ProjectDetailPage({
             Task Status Overview
           </p>
           <div className="flex items-center justify-center h-full text-sbi-muted-dark font-light tracking-wide">
-            Pie chart placeholder
+            Pie chart placeholder - PM will add graph component
           </div>
         </div>
       </div>
@@ -72,7 +81,7 @@ export default function ProjectDetailPage({
       <div className="flex gap-4 mb-6">
         <SearchBar 
           placeholder="Search tasks..."
-          onSearch={(query) => console.log('Search:', query)}
+          onSearch={handleSearch}
         />
         <FilterDropdown 
           onFilterChange={(filters) => console.log('Filters:', filters)}
@@ -81,26 +90,29 @@ export default function ProjectDetailPage({
       
       {/* Task List */}
       <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg overflow-hidden">
+        {/* Task List Header */}
         <div className="flex items-center gap-4 p-4 border-b border-sbi-dark-border/30 text-xs uppercase tracking-[0.15em] text-sbi-muted-dark font-light">
-          <div className="w-2"></div>
+          <div className="w-2"></div> {/* Priority dot space */}
           <div className="flex-1">Task</div>
-          <div className="w-32">Team</div>
-          <div className="w-24 text-right">Due Date</div>
-          <div className="w-6"></div>
+          <div className="w-32 text-center">Status</div>
+          <div className="w-32 text-center">Team</div>
+          <div className="w-24 text-center">Due Date</div>
+          <div className="w-6"></div> {/* Chevron space */}
         </div>
         
-        {project.tasks.length > 0 ? (
+        {/* Task List Items */}
+        {filteredTasks.length > 0 ? (
           <div>
-            {project.tasks.map((task) => (
+            {filteredTasks.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="text-4xl mb-3">📋</div>
-            <h3 className="text-lg font-light text-white mb-2">No Tasks Yet</h3>
+            <div className="text-4xl mb-3">🔍</div>
+            <h3 className="text-lg font-light text-white mb-2">No Tasks Found</h3>
             <p className="text-sbi-muted-dark font-light tracking-wide">
-              Tasks will appear here when they're created.
+              {searchQuery ? 'Try a different search term' : 'No tasks in this project'}
             </p>
           </div>
         )}
