@@ -1,16 +1,22 @@
-//project detail page or task list
-import { Project, Task } from '../types';
+// frontend/app/(dashboard)/dashboard/lifecycle/[projectId]/page.tsx
+
+'use client';
+
+import { getProjectById } from '../mockData';
 import TaskCard from '../components/TaskCard';
 import SearchBar from '../components/SearchBar';
 import FilterDropdown from '../components/FilterDropdown';
 import Link from 'next/link';
-import { getProjectById } from '../mockData';
+import { use } from 'react'; // ← Import use
 
-export default function ProjectDetailPage({ params }: { params: { projectId: string } }) {
-  const project = getProjectById(params.projectId);
-  //TODO: fetch project by ID using params.projectId
-  //const project: Project | null = null;
-  //css is vibecode here again
+export default function ProjectDetailPage({ 
+  params 
+}: { 
+  params: Promise<{ projectId: string }> // ← Changed to Promise
+}) {
+  const { projectId } = use(params); // ← Unwrap the promise
+  const project = getProjectById(projectId); // ← Use projectId, not params.projectId
+  
   if (!project) {
     return (
       <div className="container mx-auto p-6">
@@ -23,7 +29,7 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
     <div className="container mx-auto p-6">
       {/* Back Button */}
       <Link 
-        href="/dashboard/lifecycle" 
+        href="client-test/dashboard/lifecycle" 
         className="inline-flex items-center gap-2 text-sbi-green hover:text-sbi-green/80 
                    transition-colors mb-6 font-light tracking-wide"
       >
@@ -50,15 +56,14 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
         </p>
       </div>
 
-      {/* Task Status Pie Chart - Blank section */}
+      {/* Task Status Pie Chart */}
       <div className="mb-8">
         <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg p-6 h-64">
           <p className="text-sm uppercase tracking-[0.15em] text-sbi-muted-dark mb-4 font-light">
             Task Status Overview
           </p>
-          {/* TODO: Add pie chart showing completed/in progress/not started tasks */}
           <div className="flex items-center justify-center h-full text-sbi-muted-dark font-light tracking-wide">
-            Pie chart placeholder - PM will add graph component
+            Pie chart placeholder
           </div>
         </div>
       </div>
@@ -76,16 +81,14 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
       
       {/* Task List */}
       <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg overflow-hidden">
-        {/* Task List Header */}
         <div className="flex items-center gap-4 p-4 border-b border-sbi-dark-border/30 text-xs uppercase tracking-[0.15em] text-sbi-muted-dark font-light">
-          <div className="w-2"></div> {/* Priority dot space */}
+          <div className="w-2"></div>
           <div className="flex-1">Task</div>
           <div className="w-32">Team</div>
           <div className="w-24 text-right">Due Date</div>
-          <div className="w-6"></div> {/* Chevron space */}
+          <div className="w-6"></div>
         </div>
         
-        {/* Task List Items */}
         {project.tasks.length > 0 ? (
           <div>
             {project.tasks.map((task) => (
@@ -93,7 +96,6 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
             ))}
           </div>
         ) : (
-          // Empty state
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="text-4xl mb-3">📋</div>
             <h3 className="text-lg font-light text-white mb-2">No Tasks Yet</h3>

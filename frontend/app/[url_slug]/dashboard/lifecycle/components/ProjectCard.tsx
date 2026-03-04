@@ -11,12 +11,13 @@ type ProjectCardProps = {
 
 export default function ProjectCard({ project }: ProjectCardProps) {
   // Circle progress calculation
-  const radius = 54;
+  const radius = 44;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (project.progress_percent / 100) * circumference;
 
   return (
-    <Link href={`/dashboard/lifecycle/${project.id}`}>
+
+  <Link href={`/client-test/dashboard/lifecycle/${project.id}`}>
       <div className="group relative border border-sbi-dark-border/30 rounded-lg overflow-hidden 
                       bg-sbi-dark-card hover:border-sbi-green/40 
                       transition-all duration-300 cursor-pointer
@@ -40,11 +41,11 @@ export default function ProjectCard({ project }: ProjectCardProps) {
           
           {/* Progress Circle - Top Right */}
           <div className="absolute top-4 right-4 flex items-center justify-center">
-            <svg className="w-28 h-28 transform -rotate-90">
+            <svg className="w-24 h-24 transform -rotate-90">
               {/* Background circle */}
               <circle
-                cx="56"
-                cy="56"
+                cx="48"
+                cy="48"
                 r={radius}
                 stroke="currentColor"
                 strokeWidth="8"
@@ -53,11 +54,11 @@ export default function ProjectCard({ project }: ProjectCardProps) {
               />
               {/* Progress circle */}
               <circle
-                cx="56"
-                cy="56"
+                cx="48"
+                cy="48"
                 r={radius}
                 stroke="currentColor"
-                strokeWidth="8"
+                strokeWidth="6"
                 fill="none"
                 strokeDasharray={circumference}
                 strokeDashoffset={offset}

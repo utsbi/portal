@@ -52,7 +52,7 @@ export default function TaskPopUp({ task, onClose }: TaskPopUpProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/8 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-sbi-dark-card border-b border-sbi-dark-border/30 p-6 flex justify-between items-start">
@@ -95,24 +95,34 @@ export default function TaskPopUp({ task, onClose }: TaskPopUpProps) {
 
             {/* Priority - Editable */}
             <div>
-              <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-2 font-light">
-                Priority <span className="text-sbi-green text-[10px]">(Editable)</span>
-              </p>
-              <select
-                value={priority}
-                onChange={(e) => handlePriorityChange(e.target.value as Priority)}
-                className={`w-full px-3 py-1.5 rounded text-sm font-light tracking-wide border-none 
-                           focus:outline-none focus:ring-1 focus:ring-sbi-green/50 ${getPriorityBadgeColor(priority)}`}
-              >
-                <option value="Extremely High Priority">Extremely High Priority</option>
-                <option value="High Priority">High Priority</option>
-                <option value="Medium Priority">Medium Priority</option>
-                <option value="Low Priority">Low Priority</option>
-                <option value="Stretch Feature">Stretch Feature</option>
-              </select>
-            </div>
+            <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-2 font-light">
+              Priority <span className="text-sbi-green text-[10px]">(Editable)</span>
+            </p>
+            <select
+              value={priority}
+              onChange={(e) => handlePriorityChange(e.target.value as Priority)}
+              className="w-full px-3 py-2 rounded text-sm font-light tracking-wide border border-sbi-green/50 
+               bg-sbi-dark-card text-white focus:outline-none focus:ring-1 focus:ring-sbi-green"
+            >
+              
+              <option value="Extremely High Priority" style={{ color: '#22c55e' }}>
+                Extremely High Priority
+            </option>
+            <option value="High Priority" style={{ color: '#16a34a' }}>
+                High Priority
+              </option>
+                <option value="Medium Priority" style={{ color: '#15803d' }}>
+                Medium Priority
+              </option>
+              <option value="Low Priority" style={{ color: '#166534' }}>
+                Low Priority
+              </option>
+              <option value="Stretch Feature" style={{ color: '#14532d' }}>
+                Stretch Feature
+              </option>
+            </select>
           </div>
-
+          </div>
           {/* Description */}
           <div>
             <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-3 font-light">Description</p>
