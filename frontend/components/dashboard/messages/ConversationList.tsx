@@ -1,10 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MessageSquarePlus } from "lucide-react";
-import { departments, type Conversation } from "./messages_dataplacholder";
 import { useCreateConversationModal } from "./CreateConversationModalContext";
+import { createClient } from "@/lib/supabase/client";
+
+interface DirectorOption {
+  id: number;
+  name: string;
+  department: string;
+}
+
+// Minimal conversation shape required by the list UI.
+export interface Conversation {
+  id: string;
+  department?: string;
+  name: string;
+  lastMessage: string;
+  timestamp: string;
+}
+
+// Static department list for the "Select a department" filter.
+const departments = [
+  "Presidents",
+  "Project Operations",
+  "Civil Engineering",
+  "Tech",
+  "Business",
+  "Public Relations",
+  "Architecture",
+  "Legal",
+];
 
 interface ConversationListProps {
   urlSlug: string;
@@ -12,10 +40,12 @@ interface ConversationListProps {
   basePath: string;
   /** When false, header and create modal are omitted so the parent (e.g. DirectorMessages) can render its own header and modal. */
   showCreateButton?: boolean;
+  onConversationCreated?: (conversation: Conversation) => void;
 }
 
 // display conversations in a list that have a latest message
-export function ConversationList({ urlSlug, conversations, basePath, showCreateButton = true }: ConversationListProps) {
+export function ConversationList({ urlSlug, conversations, basePath, showCreateButton = true, onConversationCreated }: ConversationListProps) {
+  const router = useRouter();
   // Use shared context when inside CreateConversationModalProvider so the empty-state button can open this modal; otherwise use local state.
   const context = useCreateConversationModal();
   const [localOpen, setLocalOpen] = useState(false);
@@ -23,15 +53,93 @@ export function ConversationList({ urlSlug, conversations, basePath, showCreateB
   const setOpen = context?.setOpen ?? setLocalOpen;
   const [selected, setSelected] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [directors, setDirectors] = useState<DirectorOption[]>([]);
 
-  const filteredConversations =
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchDirectors = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("members")
+        .select("id, name, department")
+        .eq("role", "director")
+        .not("uid", "is", null);
+
+      if (data) setDirectors(data as DirectorOption[]);
+    };
+
+    fetchDirectors();
+  }, [open]);
+
+  const filteredDirectors =
     selectedDepartment === ""
-      ? conversations
-      : conversations.filter((c) => c.department === selectedDepartment);
+      ? directors
+      : directors.filter((d) => d.department === selectedDepartment);
 
-  const handleNext = () => {
-    setOpen(false);
-    setSelected("");
+  const handleNext = async () => {
+    if (!selected) return;
+
+    try {
+      const supabase = createClient();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        // eslint-disable-next-line no-console
+        console.error("Not authenticated:", userError);
+        return;
+      }
+
+      const { data: clientRow, error: clientError } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("uid", user.id)
+        .single();
+
+      if (clientError || !clientRow) {
+        // eslint-disable-next-line no-console
+        console.error("Client record not found:", clientError);
+        return;
+      }
+
+      const { data: conversation, error: convoError } = await supabase
+        .from("conversations")
+        .insert({
+          client_id: clientRow.id,
+          director_id: Number(selected),
+        })
+        .select("id")
+        .single();
+
+      if (convoError || !conversation) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to create conversation:", convoError);
+        return;
+      }
+
+      const conversationId = conversation.id as number;
+      const director = directors.find((d) => d.id === Number(selected));
+
+      onConversationCreated?.({
+        id: String(conversationId),
+        name: director?.name ?? "Director",
+        lastMessage: "",
+        timestamp: new Date().toLocaleTimeString(),
+      });
+
+      router.push(`${basePath}/${conversationId}`);
+
+      setOpen(false);
+      setSelected("");
+      setSelectedDepartment("");
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Unexpected error creating conversation:", err);
+    }
   };
 
   return (
@@ -84,7 +192,10 @@ export function ConversationList({ urlSlug, conversations, basePath, showCreateB
 
             <select
               value={selectedDepartment}
-              onChange={(e) => setSelectedDepartment(e.target.value)}
+              onChange={(e) => {
+                setSelectedDepartment(e.target.value);
+                setSelected("");
+              }}
               className="w-full mb-3 rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm px-3 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"
             >
               <option value="" disabled>
@@ -105,9 +216,9 @@ export function ConversationList({ urlSlug, conversations, basePath, showCreateB
               <option value="" disabled>
                 Select a director
               </option>
-              {filteredConversations.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+              {filteredDirectors.map((d) => (
+                <option key={d.id} value={String(d.id)}>
+                  {d.name}
                 </option>
               ))}
             </select>
