@@ -1,196 +1,322 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
+import { Search, CalendarDays } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-type CalendarEvent = {
-  id: string;
-  summary: string;
-  start: string | null;
-  end: string | null;
-  location: string | null;
-  description: string | null;
-  htmlLink: string | null;
-};
+const supabase = createClient();
+
+const monthNames = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function buildMonthDays(currentMonth: Date) {
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+
+  const daysInMonth = lastDay.getDate();
+  const startOffset = firstDay.getDay();
+
+  const cells: Array<{ date: Date; inMonth: boolean }> = [];
+
+  for (let i = startOffset - 1; i >= 0; i--) {
+    cells.push({ date: new Date(year, month, -i), inMonth: false });
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ date: new Date(year, month, d), inMonth: true });
+  }
+
+  while (cells.length % 7 !== 0) {
+    const next = new Date(year, month + 1, cells.length - (startOffset + daysInMonth) + 1);
+    cells.push({ date: next, inMonth: false });
+  }
+
+  return cells;
+}
+
+function formatDateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatGoogleDate(dateString?: string | null) {
+  if (!dateString) return "";
+
+  const date = new Date(dateString);
+
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  const h = String(date.getUTCHours()).padStart(2, "0");
+  const min = String(date.getUTCMinutes()).padStart(2, "0");
+  const s = String(date.getUTCSeconds()).padStart(2, "0");
+
+  return `${y}${m}${d}T${h}${min}${s}Z`;
+}
+
+function safeTime(dateString?: string | null) {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function CalendarPage() {
-  const supabase = useMemo(() => createClient(), []);
-
-  const [clientId, setClientId] = useState<number | null>(null);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const loadEvents = async (cid: number) => {
-    setRefreshing(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/contact/calendar/client-events?client_id=${cid}`);
-      const json = await res.json();
-
-      if (!res.ok) {
-        setEvents([]);
-        setError(json?.error ?? "Failed to load events.");
-        return;
-      }
-
-      setEvents(Array.isArray(json?.events) ? json.events : []);
-    } catch (e: any) {
-      setEvents([]);
-      setError(e?.message ?? "Failed to load events.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  const [search, setSearch] = useState("");
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
-    const run = async () => {
-      setLoading(true);
-      setError(null);
+    const loadEvents = async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
 
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
-      if (authErr) {
-        setError(authErr.message);
+        if (!auth?.user) {
+          setLoading(false);
+          return;
+        }
+
+        const { data: client } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("uid", auth.user.id)
+          .single();
+
+        if (!client?.id) {
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetch(`/api/contact/calendar/client-events?client_id=${client.id}`);
+        const json = await res.json();
+
+        if (res.ok) {
+          setEvents(json.events || []);
+        }
+      } catch (error) {
+        console.error("Failed to load calendar events:", error);
+      } finally {
         setLoading(false);
-        return;
       }
-      if (!authData.user) {
-        setError("Not logged in.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: clientRow, error: clientErr } = await supabase
-        .from("clients")
-        .select("id, email")
-        .eq("uid", authData.user.id)
-        .single();
-
-      if (clientErr) {
-        setError(clientErr.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!clientRow?.id) {
-        setError("No client record found for this login (clients.uid not linked).");
-        setLoading(false);
-        return;
-      }
-
-      if (!clientRow?.email) {
-        setError("Your client record is missing an email. Ask an admin to add it.");
-        setLoading(false);
-        return;
-      }
-
-      setClientId(clientRow.id);
-
-      await loadEvents(clientRow.id);
-
-      setLoading(false);
     };
 
-    run();
-  }, [supabase]);
+    loadEvents();
+  }, []);
 
-  if (loading)
-    return (
-      <div className="min-h-screen bg-black text-white p-6">
-        Loading your events…
-      </div>
-    );
+  const calendarEvents = useMemo(() => {
+    return events.map((e) => ({
+      id: e.id,
+      title: e.summary ?? "Untitled Event",
+      date: e.start?.split("T")[0] ?? "",
+      time: safeTime(e.start),
+      endTime: safeTime(e.end),
+      director: "SBI Director",
+      department: "Meeting Name",
+    }));
+  }, [events]);
 
-  if (error)
-    return (
-      <div className="min-h-screen bg-black text-white p-6">
-        <span className="text-green-400">Calendar error:</span> {error}
-      </div>
-    );
+  const eventsByDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+
+    calendarEvents.forEach((ev) => {
+      if (!ev.date) return;
+      if (!map[ev.date]) map[ev.date] = [];
+      map[ev.date].push(ev);
+    });
+
+    return map;
+  }, [calendarEvents]);
+
+  const filteredEvents = useMemo(() => {
+    return calendarEvents.filter((ev) => {
+      const searchMatch = ev.title.toLowerCase().includes(search.toLowerCase());
+      const dateMatch = !selectedDate || ev.date === selectedDate;
+      return searchMatch && dateMatch;
+    });
+  }, [calendarEvents, search, selectedDate]);
+
+  const monthCells = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
+
+  const selectedEvents = selectedDate
+    ? filteredEvents.filter((e) => e.date === selectedDate)
+    : filteredEvents;
+
+  if (loading) {
+    return <div className="p-6 text-white">Loading calendar...</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white flex justify-center py-10">
-      <div className="w-full max-w-5xl px-2">
-        <div className="rounded-2xl border border-green-500 bg-zinc-950 p-5 shadow-lg shadow-green-500/10">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-semibold tracking-wide text-green-400">
-              Your upcoming SBI events
-            </h1>
-
-            {clientId !== null && (
-              <button
-                className="text-sm text-green-400 hover:text-green-300 underline underline-offset-4 disabled:opacity-60"
-                onClick={() => loadEvents(clientId)}
-                disabled={refreshing}
-              >
-                {refreshing ? "Refreshing…" : "Refresh"}
-              </button>
-            )}
+    <div className="min-h-screen bg-[#020806] p-6 text-white">
+      <div className="mx-auto max-w-7xl">
+        <div className="rounded-3xl border border-emerald-900 bg-[#04110c]">
+          <div className="flex gap-3 border-b border-emerald-900 p-4">
+            <Search className="text-emerald-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search events..."
+              className="flex-1 bg-transparent outline-none"
+            />
           </div>
 
-          {events.length === 0 ? (
-            <div className="mt-3 text-sm text-zinc-300">
-              No events found yet. If you were just scheduled, make sure the director added your
-              email as a guest on the Google Calendar event.
-            </div>
-          ) : (
-            <ul className="mt-4 space-y-3">
-              {events.map((event) => {
-                const icsUrl =
-                  `/api/contact/calendar/client-events/ics?` +
-                  new URLSearchParams({
-                    summary: event.summary ?? "SBI Event",
-                    start: event.start ?? "",
-                    end: event.end ?? "",
-                    location: event.location ?? "",
-                    description: event.description ?? "",
-                  }).toString();
+          <div className="grid xl:grid-cols-[1.4fr_0.9fr]">
+            <section className="border-r border-emerald-900 p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h1 className="text-2xl font-semibold">
+                  {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                </h1>
+              </div>
 
-                return (
-                  <li
-                    key={event.id}
-                    className="rounded-xl border border-green-500/80 bg-zinc-900 p-4"
-                  >
-                    <div className="flex flex-col gap-1">
-                      <div className="font-medium text-white">{event.summary}</div>
+              <div className="grid grid-cols-7 overflow-hidden rounded-xl border border-emerald-900">
+                {dayNames.map((d) => (
+                  <div key={d} className="border-b border-emerald-900 py-2 text-center text-sm">
+                    {d}
+                  </div>
+                ))}
 
-                      <div className="text-sm text-zinc-300">
-                        {event.start ?? "—"} {event.end ? `→ ${event.end}` : ""}
-                      </div>
+                {monthCells.map(({ date, inMonth }, i) => {
+                  const key = formatDateKey(date);
+                  const dayEvents = eventsByDate[key] ?? [];
 
-                      {event.location && (
-                        <div className="text-sm text-zinc-200">{event.location}</div>
-                      )}
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setSelectedDate((prev) => (prev === key ? null : key))}
+                      className="min-h-[110px] border-b border-r border-emerald-900 p-2 text-left hover:bg-emerald-900/20 flex flex-col"
+                    >
+                      <div className="flex items-start justify-between">
+                        <span className={`text-sm font-medium ${inMonth ? "text-white" : "text-white/30"}`}>
+                          {date.getDate()}
+                        </span>
 
-                      <div className="mt-2 flex flex-wrap gap-4 text-sm">
-                        <a
-                          href={icsUrl}
-                          className="text-green-400 hover:text-green-300 underline underline-offset-4"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Add to Calendar (.ics)
-                        </a>
-
-                        {event.htmlLink && (
-                          <a
-                            href={event.htmlLink}
-                            className="text-green-400 hover:text-green-300 underline underline-offset-4"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Open in Google Calendar
-                          </a>
+                        {dayEvents.length > 0 && (
+                          <span className="text-xs text-emerald-400">{dayEvents.length}</span>
                         )}
                       </div>
+
+                      <div className="mt-1">
+                        {dayEvents.slice(0, 2).map((ev) => (
+                          <div key={ev.id} className="mt-1 truncate text-xs text-emerald-300">
+                            {ev.title}
+                          </div>
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <aside className="p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <CalendarDays />
+                <h2 className="text-lg font-semibold">Appointments</h2>
+              </div>
+
+              <div className="space-y-3">
+                {selectedEvents.map((ev) => {
+                  const originalEvent = events.find((item) => item.id === ev.id);
+
+                  const icsUrl =
+                    `/api/contact/calendar/client-events/ics?` +
+                    new URLSearchParams({
+                      summary: originalEvent?.summary ?? ev.title ?? "SBI Event",
+                      start: originalEvent?.start ?? "",
+                      end: originalEvent?.end ?? "",
+                      location: originalEvent?.location ?? "",
+                      description: originalEvent?.description ?? "",
+                    }).toString();
+
+                  const googleCalendarUrl =
+                    `https://calendar.google.com/calendar/render?action=TEMPLATE` +
+                    `&text=${encodeURIComponent(originalEvent?.summary ?? ev.title ?? "SBI Event")}` +
+                    `&dates=${formatGoogleDate(originalEvent?.start)}/${formatGoogleDate(
+                      originalEvent?.end
+                    )}` +
+                    `&location=${encodeURIComponent(originalEvent?.location ?? "")}` +
+                    `&details=${encodeURIComponent(originalEvent?.description ?? "")}`;
+
+                  return (
+                    <div
+                      key={ev.id}
+                      className="rounded-2xl border border-emerald-900/40 bg-black/20 p-4 transition hover:border-emerald-700/50 hover:bg-black/30"
+                    >
+                      <div className="mb-3">
+                        <h3 className="font-medium text-white">{ev.title}</h3>
+                        <p className="mt-1 text-sm text-emerald-100/50">{ev.department}</p>
+                      </div>
+
+                      <div className="grid gap-3 text-sm text-emerald-50/80 sm:grid-cols-2">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/35">
+                            Time
+                          </div>
+                          <div className="mt-1">
+                            {ev.time} - {ev.endTime}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/35">
+                            Director
+                          </div>
+                          <div className="mt-1">{ev.director}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <a
+                          href={googleCalendarUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-emerald-700/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300 transition hover:bg-emerald-500/20"
+                        >
+                          Add to Google Calendar
+                        </a>
+
+                        <a
+                          href={icsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-emerald-700/40 bg-black/30 px-3 py-2 text-sm text-white transition hover:bg-black/50"
+                        >
+                          Download .ics
+                        </a>
+                      </div>
                     </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                  );
+                })}
+
+                {selectedEvents.length === 0 && (
+                  <div className="text-sm opacity-50">No events</div>
+                )}
+              </div>
+            </aside>
+          </div>
         </div>
       </div>
     </div>
