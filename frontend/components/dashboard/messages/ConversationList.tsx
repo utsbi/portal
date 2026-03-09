@@ -128,7 +128,7 @@ export function ConversationList({ urlSlug, conversations, basePath, showCreateB
         id: String(conversationId),
         name: director?.name ?? "Director",
         lastMessage: "",
-        timestamp: new Date().toLocaleTimeString(),
+        timestamp: new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
       });
 
       router.push(`${basePath}/${conversationId}`);

@@ -85,7 +85,7 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
           id: String(convo.id),
           name: clientName,
           lastMessage: latest?.content ?? "",
-          timestamp: latest ? new Date(latest.created_at).toLocaleTimeString() : "",
+          timestamp: latest ? new Date(latest.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "",
         };
       });
 
@@ -196,7 +196,7 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
           id: String(conversationId),
           name: selectedClient.company_name,
           lastMessage: "",
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
         },
         ...prev,
       ]);

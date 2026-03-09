@@ -77,7 +77,7 @@ export function Messages({ urlSlug }: MessagesProps) {
           id: String(convo.id),
           name: directorName,
           lastMessage: latest?.content ?? "",
-          timestamp: latest ? new Date(latest.created_at).toLocaleTimeString() : "",
+          timestamp: latest ? new Date(latest.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "",
         };
       });
 
