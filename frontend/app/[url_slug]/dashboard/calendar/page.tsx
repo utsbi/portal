@@ -81,6 +81,21 @@ function safeTime(dateString?: string | null) {
   });
 }
 
+function prettyDate(dateString?: string | null) {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleDateString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function isPastEvent(end?: string | null) {
+  if (!end) return false;
+  return new Date(end) < new Date();
+}
+
 export default function CalendarPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +103,14 @@ export default function CalendarPage() {
   const [search, setSearch] = useState("");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const goToPreviousMonth = () => {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -131,10 +154,13 @@ export default function CalendarPage() {
       id: e.id,
       title: e.summary ?? "Untitled Event",
       date: e.start?.split("T")[0] ?? "",
+      prettyDate: prettyDate(e.start),
       time: safeTime(e.start),
       endTime: safeTime(e.end),
-      director: "SBI Director",
+      director: e.organizer?.displayName ?? e.creator?.displayName ?? "SBI Director",
       department: "Meeting Name",
+      start: e.start,
+      end: e.end,
     }));
   }, [events]);
 
@@ -158,11 +184,31 @@ export default function CalendarPage() {
     });
   }, [calendarEvents, search, selectedDate]);
 
-  const monthCells = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
+  const selectedEvents = useMemo(() => {
+    return selectedDate
+      ? filteredEvents.filter((e) => e.date === selectedDate)
+      : filteredEvents;
+  }, [filteredEvents, selectedDate]);
 
-  const selectedEvents = selectedDate
-    ? filteredEvents.filter((e) => e.date === selectedDate)
-    : filteredEvents;
+  const rightPanelEvents = useMemo(() => {
+    const now = new Date();
+
+    if (selectedDate) {
+      return [...selectedEvents].sort(
+        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      );
+    }
+
+    return calendarEvents
+      .filter((ev) => {
+        if (!ev.end) return false;
+        return new Date(ev.end) >= now;
+      })
+      .filter((ev) => ev.title.toLowerCase().includes(search.toLowerCase()))
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  }, [calendarEvents, selectedEvents, selectedDate, search]);
+
+  const monthCells = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
 
   if (loading) {
     return <div className="p-6 text-white">Loading calendar...</div>;
@@ -188,6 +234,23 @@ export default function CalendarPage() {
                 <h1 className="text-2xl font-semibold">
                   {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </h1>
+                <div className="flex items-center gap-3 text-xl font-semibold">
+                  <button
+                    type="button"
+                    onClick={goToPreviousMonth}
+                    className="px-2 text-emerald-200 transition hover:text-emerald-400"
+                  >
+                    {"<"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={goToNextMonth}
+                    className="px-2 text-emerald-200 transition hover:text-emerald-400"
+                  >
+                    {">"}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-7 overflow-hidden rounded-xl border border-emerald-900">
@@ -206,24 +269,29 @@ export default function CalendarPage() {
                       key={i}
                       type="button"
                       onClick={() => setSelectedDate((prev) => (prev === key ? null : key))}
-                      className="min-h-[110px] border-b border-r border-emerald-900 p-2 text-left hover:bg-emerald-900/20 flex flex-col"
+                      className="flex min-h-[110px] flex-col border-b border-r border-emerald-900 p-2 text-left hover:bg-emerald-900/20"
                     >
                       <div className="flex items-start justify-between">
                         <span className={`text-sm font-medium ${inMonth ? "text-white" : "text-white/30"}`}>
                           {date.getDate()}
                         </span>
-
-                        {dayEvents.length > 0 && (
-                          <span className="text-xs text-emerald-400">{dayEvents.length}</span>
-                        )}
                       </div>
 
                       <div className="mt-1">
-                        {dayEvents.slice(0, 2).map((ev) => (
-                          <div key={ev.id} className="mt-1 truncate text-xs text-emerald-300">
-                            {ev.title}
-                          </div>
-                        ))}
+                        {dayEvents.slice(0, 2).map((ev) => {
+                          const past = isPastEvent(ev.end);
+
+                          return (
+                            <div
+                              key={ev.id}
+                              className={`mt-1 truncate text-xs ${
+                                past ? "text-zinc-500" : "text-emerald-300"
+                              }`}
+                            >
+                              {ev.title}
+                            </div>
+                          );
+                        })}
                       </div>
                     </button>
                   );
@@ -238,8 +306,9 @@ export default function CalendarPage() {
               </div>
 
               <div className="space-y-3">
-                {selectedEvents.map((ev) => {
+                {rightPanelEvents.map((ev) => {
                   const originalEvent = events.find((item) => item.id === ev.id);
+                  const past = isPastEvent(ev.end);
 
                   const icsUrl =
                     `/api/contact/calendar/client-events/ics?` +
@@ -263,28 +332,59 @@ export default function CalendarPage() {
                   return (
                     <div
                       key={ev.id}
-                      className="rounded-2xl border border-emerald-900/40 bg-black/20 p-4 transition hover:border-emerald-700/50 hover:bg-black/30"
+                      className={`rounded-2xl border p-4 transition ${
+                        past
+                          ? "border-zinc-800 bg-zinc-900/30 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900/40"
+                          : "border-emerald-900/40 bg-black/20 text-white hover:border-emerald-700/50 hover:bg-black/30"
+                      }`}
                     >
                       <div className="mb-3">
-                        <h3 className="font-medium text-white">{ev.title}</h3>
-                        <p className="mt-1 text-sm text-emerald-100/50">{ev.department}</p>
+                        <h3 className={past ? "font-medium text-zinc-300" : "font-medium text-white"}>
+                          {ev.title}
+                        </h3>
+                        <p className={past ? "mt-1 text-sm text-zinc-500" : "mt-1 text-sm text-emerald-100/50"}>
+                          {ev.department}
+                        </p>
                       </div>
 
-                      <div className="grid gap-3 text-sm text-emerald-50/80 sm:grid-cols-2">
+                      <div className="grid gap-3 text-sm sm:grid-cols-2">
                         <div>
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/35">
+                          <div
+                            className={`text-[11px] uppercase tracking-[0.18em] ${
+                              past ? "text-zinc-600" : "text-emerald-200/35"
+                            }`}
+                          >
+                            Date
+                          </div>
+                          <div className={`mt-1 ${past ? "text-zinc-400" : "text-emerald-50/80"}`}>
+                            {ev.prettyDate}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div
+                            className={`text-[11px] uppercase tracking-[0.18em] ${
+                              past ? "text-zinc-600" : "text-emerald-200/35"
+                            }`}
+                          >
                             Time
                           </div>
-                          <div className="mt-1">
+                          <div className={`mt-1 ${past ? "text-zinc-400" : "text-emerald-50/80"}`}>
                             {ev.time} - {ev.endTime}
                           </div>
                         </div>
 
                         <div>
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/35">
+                          <div
+                            className={`text-[11px] uppercase tracking-[0.18em] ${
+                              past ? "text-zinc-600" : "text-emerald-200/35"
+                            }`}
+                          >
                             Director
                           </div>
-                          <div className="mt-1">{ev.director}</div>
+                          <div className={`mt-1 ${past ? "text-zinc-400" : "text-emerald-50/80"}`}>
+                            {ev.director}
+                          </div>
                         </div>
                       </div>
 
@@ -293,7 +393,11 @@ export default function CalendarPage() {
                           href={googleCalendarUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-lg border border-emerald-700/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300 transition hover:bg-emerald-500/20"
+                          className={`rounded-lg border px-3 py-2 text-sm transition ${
+                            past
+                              ? "border-zinc-700/40 bg-zinc-800/40 text-zinc-400 hover:bg-zinc-800/60"
+                              : "border-emerald-700/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                          }`}
                         >
                           Add to Google Calendar
                         </a>
@@ -302,7 +406,11 @@ export default function CalendarPage() {
                           href={icsUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-lg border border-emerald-700/40 bg-black/30 px-3 py-2 text-sm text-white transition hover:bg-black/50"
+                          className={`rounded-lg border px-3 py-2 text-sm transition ${
+                            past
+                              ? "border-zinc-700/40 bg-zinc-900/40 text-zinc-400 hover:bg-zinc-800/60"
+                              : "border-emerald-700/40 bg-black/30 text-white hover:bg-black/50"
+                          }`}
                         >
                           Download .ics
                         </a>
@@ -311,8 +419,10 @@ export default function CalendarPage() {
                   );
                 })}
 
-                {selectedEvents.length === 0 && (
-                  <div className="text-sm opacity-50">No events</div>
+                {rightPanelEvents.length === 0 && (
+                  <div className="text-sm opacity-50">
+                    {selectedDate ? "No events for this date" : "No upcoming events"}
+                  </div>
                 )}
               </div>
             </aside>
