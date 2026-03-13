@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { SearchableDropdown } from "@/components/data-table/searchable-dropdown";
 import {
@@ -23,6 +24,8 @@ import {
     Clock,
     AlertCircle,
     TrendingUp,
+    PieChart as PieChartIcon,
+    BarChart2 as BarChart2Icon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -174,13 +177,23 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                         Analytics Overview
                     </h2>
                 </div>
-                <div className="flex gap-2">
-                    <SearchableDropdown
-                        value={filterTime}
-                        onChange={setFilterTime}
-                        options={TIMEFRAME_OPTIONS}
-                        className="w-32"
-                    />
+                <div className="flex gap-4 items-center">
+                    <div className="flex bg-white/5 p-1 rounded-lg">
+                        {TIMEFRAME_OPTIONS.map((opt) => (
+                            <button
+                                key={opt.value}
+                                onClick={() => setFilterTime(opt.value)}
+                                className={cn(
+                                    "px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all",
+                                    filterTime === opt.value 
+                                        ? "bg-sbi-green text-black" 
+                                        : "text-sbi-muted-dark hover:text-white"
+                                )}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
                     <SearchableDropdown
                         value={filterDept}
                         onChange={setFilterDept}
@@ -198,13 +211,21 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                     icon={FileText}
                     color="text-white"
                     bg="bg-white/5"
+                    trend="+12.5%"
+                    trendUp={true}
+                    description="Trending up this month"
+                    subtitle="Reports for the last 6 months"
                 />
                 <SummaryCard
                     title="In Progress"
                     value={stats.inProgress}
                     icon={Clock}
-                    color="text-blue-400"
-                    bg="bg-blue-400/10"
+                    color="text-sbi-yellow"
+                    bg="bg-sbi-yellow/10"
+                    trend="+5.2%"
+                    trendUp={true}
+                    description="Steady progress maintained"
+                    subtitle="Currently active tasks"
                 />
                 <SummaryCard
                     title="Done"
@@ -212,169 +233,65 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                     icon={CheckCircle2}
                     color="text-sbi-green"
                     bg="bg-sbi-green/10"
+                    trend="+18.3%"
+                    trendUp={true}
+                    description="Completion rate increased"
+                    subtitle="Finalized deliverables"
                 />
                 <SummaryCard
                     title="Needs Attention"
                     value={stats.denied + stats.pending}
                     icon={AlertCircle}
-                    color="text-amber-400"
-                    bg="bg-amber-400/10"
+                    color="text-sbi-yellow"
+                    bg="bg-sbi-yellow/10"
+                    trend="-2.4%"
+                    trendUp={false}
+                    description="Review required for 5 items"
+                    subtitle="Flagged or pending items"
                 />
             </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-80">
-                {/* Status Distribution */}
-                <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-xl p-5 flex flex-col">
-                    <h3 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold mb-4 flex items-center gap-2">
-                        <PieChartIcon className="w-4 h-4" /> Status Breakdown
-                    </h3>
-                    {statusData.length === 0 ? (
-                        <div className="flex-1 flex items-center justify-center text-sbi-muted-dark text-xs">No data</div>
-                    ) : (
-                        <div className="flex flex-col gap-3 flex-1">
-                            <ResponsiveContainer width="100%" height={160}>
-                                <PieChart>
-                                    <Pie
-                                        data={statusData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={50}
-                                        outerRadius={72}
-                                        paddingAngle={4}
-                                        dataKey="value"
-                                    >
-                                        {statusData.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={entry.color}
-                                                stroke="none"
-                                            />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: "#1a1a1a",
-                                            border: "1px solid #333",
-                                            borderRadius: "8px",
-                                            fontSize: "12px",
-                                        }}
-                                        itemStyle={{ color: "#fff" }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                            {/* Legend */}
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                                {statusData.map((entry) => (
-                                    <div key={entry.name} className="flex items-center gap-2">
-                                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-                                        <span className="text-xs text-sbi-muted truncate">{entry.name}</span>
-                                        <span className="text-xs text-white font-semibold ml-auto">{entry.value}</span>
-                                    </div>
-                                ))}
-                            </div>
+            {/* Bento Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Submission Trend - Large Bento Box (2/3) */}
+                <div className="lg:col-span-2 bento-card p-6 flex flex-col h-[400px]">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h3 className="metric-label flex items-center gap-2 mb-1">
+                                <TrendingUp className="w-4 h-4 text-sbi-green" /> Submission Trend
+                            </h3>
+                            <p className="text-[10px] text-sbi-muted-dark uppercase tracking-widest font-medium">
+                                Growth tracking for the selected period
+                            </p>
                         </div>
-                    )}
-                </div>
-
-                {/* Department Activity */}
-                <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-xl p-5 flex flex-col">
-                    <h3 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold mb-4 flex items-center gap-2">
-                        <BarChart2Icon className="w-4 h-4" /> Top Departments
-                    </h3>
-                    <div className="flex-1 min-h-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart
-                                data={departmentData}
-                                layout="vertical"
-                                margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                            >
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    stroke="#333"
-                                    horizontal={false}
-                                />
-                                <XAxis type="number" hide />
-                                <YAxis
-                                    dataKey="name"
-                                    type="category"
-                                    width={100}
-                                    tick={{
-                                        fill: "#a3a3a3",
-                                        fontSize: 10,
-                                        fontFamily: "Urbanist, sans-serif",
-                                        letterSpacing: "0.1em",
-                                    }}
-                                />
-                                <Tooltip
-                                    cursor={{ fill: "transparent" }}
-                                    contentStyle={{
-                                        backgroundColor: "#1a1a1a",
-                                        border: "1px solid #333",
-                                        borderRadius: "8px",
-                                    }}
-                                    itemStyle={{ color: "#fff" }}
-                                />
-                                <Bar
-                                    dataKey="count"
-                                    fill="#22c55e"
-                                    radius={[0, 4, 4, 0]}
-                                    barSize={20}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <div className="text-right">
+                            <span className="text-[20px] font-bold text-white block leading-none">{stats.total}</span>
+                            <span className="text-[8px] uppercase tracking-[0.2em] text-sbi-green font-bold">Total Reports</span>
+                        </div>
                     </div>
-                </div>
-
-                {/* Timeline */}
-                <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-xl p-5 flex flex-col">
-                    <h3 className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold mb-4 flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4" /> Submission Trend
-                    </h3>
                     <div className="flex-1 min-h-0">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={timelineData}>
+                            <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <defs>
-                                    <linearGradient
-                                        id="colorCount"
-                                        x1="0"
-                                        y1="0"
-                                        x2="0"
-                                        y2="1"
-                                    >
-                                        <stop
-                                            offset="5%"
-                                            stopColor="#22c55e"
-                                            stopOpacity={0.3}
-                                        />
-                                        <stop
-                                            offset="95%"
-                                            stopColor="#22c55e"
-                                            stopOpacity={0}
-                                        />
+                                    <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+                                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    stroke="#333"
-                                    vertical={false}
-                                />
-                                <XAxis
-                                    dataKey="date"
-                                    tick={{
-                                        fill: "#a3a3a3",
-                                        fontSize: 10,
-                                        fontFamily: "Urbanist, sans-serif",
-                                        letterSpacing: "0.1em",
-                                    }}
+                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                                <XAxis 
+                                    dataKey="date" 
+                                    tick={{ fill: "#8a9a93", fontSize: 10, letterSpacing: "0.05em" }}
                                     axisLine={false}
                                     tickLine={false}
+                                    dy={10}
                                 />
                                 <Tooltip
                                     contentStyle={{
-                                        backgroundColor: "#1a1a1a",
-                                        border: "1px solid #333",
-                                        borderRadius: "8px",
+                                        backgroundColor: "#0A0A0A",
+                                        border: "0.5px solid rgba(34, 197, 94, 0.3)",
+                                        borderRadius: "12px",
+                                        boxShadow: "0 10px 20px rgba(0,0,0,0.5)",
                                     }}
                                     itemStyle={{ color: "#fff" }}
                                 />
@@ -382,12 +299,85 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                                     type="monotone"
                                     dataKey="count"
                                     stroke="#22c55e"
+                                    strokeWidth={3}
                                     fillOpacity={1}
-                                    fill="url(#colorCount)"
-                                    strokeWidth={2}
+                                    fill="url(#trendGradient)"
+                                    dot={false}
+                                    activeDot={{ r: 6, strokeWidth: 0, fill: '#22c55e' }}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="count"
+                                    stroke="transparent"
+                                    fillOpacity={0.1}
+                                    fill="#22c55e"
+                                    baseLine={8}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Right Column Bento Boxes (1/3 each) */}
+                <div className="flex flex-col gap-6 h-[400px]">
+                    {/* Status Breakdown - Mini Bento */}
+                    <div className="flex-1 bento-card p-6 flex flex-col">
+                        <h3 className="metric-label mb-4 flex items-center gap-2">
+                            <PieChartIcon className="w-4 h-4 text-sbi-yellow" /> Status Gauge
+                        </h3>
+                        <div className="flex-1 relative flex items-center justify-center">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={statusData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={65}
+                                        outerRadius={70}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        stroke="none"
+                                        startAngle={225}
+                                        endAngle={-45}
+                                    >
+                                        {statusData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color === '#22c55e' ? '#22c55e' : '#fbbf24'} />
+                                        ))}
+                                    </Pie>
+                                </PieChart>
+                            </ResponsiveContainer>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="metric-value text-4xl text-white">{stats.total}</span>
+                                <span className="text-[8px] uppercase tracking-[0.3em] text-sbi-muted-dark">Reports</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Top Departments - Mini Bento */}
+                    <div className="flex-1 bento-card p-6 flex flex-col">
+                        <h3 className="metric-label mb-4 flex items-center gap-2">
+                            <BarChart2Icon className="w-4 h-4 text-sbi-green" /> Key Metrics
+                        </h3>
+                        <div className="flex-1 flex flex-col justify-center gap-4">
+                            {departmentData.slice(0, 3).map((dept, i) => (
+                                <div key={dept.name} className="space-y-1.5">
+                                    <div className="flex justify-between text-[10px] uppercase tracking-wider text-sbi-muted-dark px-0.5">
+                                        <span>{dept.name}</span>
+                                        <span className="text-white font-medium">{dept.count}</span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                        <motion.div 
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${(dept.count / stats.total) * 100}%` }}
+                                            className="h-full rounded-full"
+                                            style={{ 
+                                                background: 'linear-gradient(90deg, #22c55e 0%, #16301d 100%)'
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -401,69 +391,55 @@ function SummaryCard({
     icon: Icon,
     color,
     bg,
+    trend,
+    trendUp,
+    description,
+    subtitle,
 }: {
     title: string;
     value: number;
     icon: React.ComponentType<{ className?: string }>;
     color: string;
     bg: string;
+    trend?: string;
+    trendUp?: boolean;
+    description?: string;
+    subtitle?: string;
 }) {
     return (
-        <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-xl p-4 flex items-center gap-4">
-            <div
-                className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
-                    bg,
-                    color,
+        <div className="bento-card p-6 flex flex-col gap-4 group h-full">
+            <div className="flex justify-between items-start">
+                <span className="metric-label opacity-70">{title}</span>
+                {trend && (
+                    <div className={cn(
+                        "flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full",
+                        trendUp ? "text-sbi-green bg-sbi-green/10" : "text-sbi-yellow bg-sbi-yellow/10"
+                    )}>
+                        {trendUp ? "↑" : "↓"} {trend}
+                    </div>
                 )}
-            >
-                <Icon className="w-6 h-6" />
             </div>
+            
             <div>
-                <p className="text-[11px] tracking-[0.2em] uppercase text-sbi-muted font-bold">
-                    {title}
-                </p>
-                <p className="text-2xl tracking-[0.1em] font-bold text-white font-urbanist">
-                    {value}
-                </p>
+                <div className="metric-value text-3xl text-white">
+                    {typeof value === 'number' && title.includes('Total Reports') ? value.toLocaleString() : value}
+                </div>
+            </div>
+
+            <div className="space-y-1 mt-auto">
+                {description && (
+                    <div className="flex items-center gap-2 text-[10px] text-white/90">
+                        {description}
+                        <TrendingUp className="w-3 h-3 text-sbi-green" />
+                    </div>
+                )}
+                {subtitle && (
+                    <div className="text-[10px] text-sbi-muted-dark font-medium uppercase tracking-wider">
+                        {subtitle}
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
-function PieChartIcon(props: React.SVGProps<SVGSVGElement>) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
-            <path d="M22 12A10 10 0 0 0 12 2v10z" />
-        </svg>
-    );
-}
-
-function BarChart2Icon(props: React.SVGProps<SVGSVGElement>) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <line x1="18" x2="18" y1="20" y2="10" />
-            <line x1="12" x2="12" y1="20" y2="4" />
-            <line x1="6" x2="6" y1="20" y2="14" />
-        </svg>
-    );
-}
