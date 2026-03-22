@@ -35,7 +35,7 @@ export default function LifecyclePage() {
         {/* Left Side - Graphs */}
         <div>
           <h2 className="text-xl font-light text-white mb-4 tracking-wide">Project Metrics</h2>
-          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 scrollbar">
             <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg p-6 h-64">
               <p className="text-sm uppercase tracking-[0.15em] text-sbi-muted-dark mb-4 font-light">
                 Overall Progress
@@ -76,7 +76,7 @@ export default function LifecyclePage() {
           </div>
 
           {/* Projects List - Scrollable */}
-          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 scrollbar">
             {filteredProjects.length > 0 ? (
               filteredProjects.map((project) => (
                 <ProjectCard key={project.id} project={project} />

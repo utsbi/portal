@@ -89,7 +89,7 @@ export default function ProjectDetailPage({
       </div>
       
       {/* Task List */}
-      <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg overflow-hidden">
+      <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg overflow-hidden scrollbar">
         {/* Task List Header */}
         <div className="flex items-center gap-4 p-4 border-b border-sbi-dark-border/30 text-xs uppercase tracking-[0.15em] text-sbi-muted-dark font-light">
           <div className="w-2"></div> {/* Priority dot space */}
@@ -109,7 +109,6 @@ export default function ProjectDetailPage({
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="text-4xl mb-3">🔍</div>
             <h3 className="text-lg font-light text-white mb-2">No Tasks Found</h3>
             <p className="text-sbi-muted-dark font-light tracking-wide">
               {searchQuery ? 'Try a different search term' : 'No tasks in this project'}
