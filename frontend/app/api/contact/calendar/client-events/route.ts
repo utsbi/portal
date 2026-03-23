@@ -94,17 +94,18 @@ export async function GET(req: Request) {
 
     // 5) Return minimal payload
     const events = matched.map((ev) => ({
-    id: ev.id,
-    summary: ev.summary ?? "(No title)",
-    start: ev.start?.dateTime ?? ev.start?.date ?? null,
-    end: ev.end?.dateTime ?? ev.end?.date ?? null,
-    location: ev.location ?? null,
-    description: ev.description ?? null,
-    htmlLink: ev.htmlLink ?? null,
-    organizerName: ev.organizer?.displayName ?? null,
-    organizerEmail: ev.organizer?.email ?? null,
-    creatorEmail: ev.creator?.email ?? null,
-  }));
+      id: ev.id,
+      summary: ev.summary ?? "(No title)",
+      start: ev.start?.dateTime ?? ev.start?.date ?? null,
+      end: ev.end?.dateTime ?? ev.end?.date ?? null,
+      location: ev.location ?? null,
+      description: ev.description ?? null,
+      htmlLink: ev.htmlLink ?? null,
+      organizerName: ev.organizer?.displayName ?? null,
+      organizerEmail: ev.organizer?.email ?? null,
+      creatorName: ev.creator?.displayName ?? null,
+      creatorEmail: ev.creator?.email ?? null,
+    }));
 
     return NextResponse.json({ ok: true, client_email: client.email, calendarId, events });
   } catch (e: any) {
