@@ -335,30 +335,38 @@ export function MessageThread({
                       <Pencil className="w-3 h-3" strokeWidth={1.5} />
                     </button>
                   )}
-                  <div className={`inline-block rounded-lg border ${isMine ? "border-sbi-green/20 bg-sbi-dark-card/80" : "bg-sbi-green"} ${msg.signedUrl && !msg.text ? "p-1" : "px-3 py-2"}`}>
-                    {msg.signedUrl && msg.attachmentName?.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
-                      <img
-                        src={msg.signedUrl}
-                        alt={msg.attachmentName}
-                        className="max-w-[240px] max-h-[240px] rounded object-cover"
-                      />
-                    ) : msg.signedUrl ? (
-                      <a
-                        href={msg.signedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-xs text-white underline underline-offset-2 px-2 py-1"
-                      >
-                        <FileText className="w-4 h-4 shrink-0" strokeWidth={1.5} />
-                        {msg.attachmentName}
-                      </a>
-                    ) : msg.attachmentName ? (
-                      <div className="flex items-center gap-2 px-2 py-1">
-                        <FileText className="w-4 h-4 shrink-0 text-sbi-muted" strokeWidth={1.5} />
-                        <span className="text-xs text-sbi-muted">{msg.attachmentName}</span>
+                  <div className={`flex flex-col gap-1 ${isMine ? "items-end" : "items-start"}`}>
+                    {(msg.signedUrl || msg.attachmentName) && (
+                      <div className={`inline-block rounded-lg border p-1 ${isMine ? "border-sbi-green/20 bg-sbi-dark-card/80" : "bg-sbi-green"}`}>
+                        {msg.signedUrl && msg.attachmentName?.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                          <img
+                            src={msg.signedUrl}
+                            alt={msg.attachmentName}
+                            className="max-w-[240px] max-h-[240px] rounded object-cover"
+                          />
+                        ) : msg.signedUrl ? (
+                          <a
+                            href={msg.signedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-xs text-white underline underline-offset-2 px-2 py-1"
+                          >
+                            <FileText className="w-4 h-4 shrink-0" strokeWidth={1.5} />
+                            {msg.attachmentName}
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-2 px-2 py-1">
+                            <FileText className="w-4 h-4 shrink-0 text-sbi-muted" strokeWidth={1.5} />
+                            <span className="text-xs text-sbi-muted">{msg.attachmentName}</span>
+                          </div>
+                        )}
                       </div>
-                    ) : null}
-                    {msg.text && <p className="text-sm text-white">{msg.text}</p>}
+                    )}
+                    {msg.text && (
+                      <div className={`inline-block rounded-lg border px-3 py-2 ${isMine ? "border-sbi-green/20 bg-sbi-dark-card/80" : "bg-sbi-green"}`}>
+                        <p className="text-sm text-white">{msg.text}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
