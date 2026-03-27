@@ -50,7 +50,7 @@ export async function GET() {
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
             {
-                db: { schema: "Reports" },
+                db: { schema: "public" },
                 cookies: {
                     getAll() { return cookieStore.getAll(); },
                     setAll(cookiesToSet) {
@@ -65,7 +65,7 @@ export async function GET() {
         );
 
         const { data, error } = await supabase
-            .from("requests")
+            .from("reports")
             .select("*")
             .order("created_at", { ascending: false });
 
