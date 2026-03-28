@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Task } from '../types';
@@ -15,19 +14,30 @@ export default function TaskCard({ task }: TaskCardProps) {
   // Priority dot color
   const getPriorityDotColor = () => {
     switch (task.priority) {
-      case 'Extremely High Priority':
-        return 'bg-red-500';
-      case 'High Priority':
-        return 'bg-orange-500';
-      case 'Medium Priority':
-        return 'bg-yellow-500';
-      case 'Low Priority':
-        return 'bg-blue-400';
-      case 'Stretch Feature':
-        return 'bg-gray-400';
-      default:
-        return 'bg-gray-400';
+      case 'Extremely High Priority': return 'bg-red-500';
+      case 'High Priority': return 'bg-orange-500';
+      case 'Medium Priority': return 'bg-yellow-500';
+      case 'Low Priority': return 'bg-blue-400';
+      case 'Stretch Feature': return 'bg-gray-400';
+      default: return 'bg-gray-400';
     }
+  };
+
+  // Status dot color
+  const getStatusDotColor = () => {
+    switch (task.status) {
+      case 'Not Started': return 'bg-gray-400';
+      case 'In Progress': return 'bg-blue-400';
+      case 'Pending Approval': return 'bg-yellow-400';
+      case 'Completed': return 'bg-sbi-green';
+      default: return 'bg-gray-400';
+    }
+  };
+
+  // Format team name
+  const formatTeamName = (team: string) => {
+    if (team === 'Public Relations Team') return 'Public Relations';
+    return team.replace(' Team', ''); // Remove "Team" from others
   };
 
   return (
@@ -47,16 +57,27 @@ export default function TaskCard({ task }: TaskCardProps) {
           </h4>
         </div>
 
-        {/* Team Badge */}
-        <div className="text-xs text-sbi-muted-dark font-light tracking-wide px-3 py-1 
-                        bg-sbi-dark-border/20 rounded-full">
-          {task.team.split(' ')[0]} {/* Just show first word like "Technology" */}
+        {/* Status - CENTERED */}
+<div className="w-32 flex items-center justify-center gap-2">
+  <div className={`w-2 h-2 rounded-full ${getStatusDotColor()}`} />
+  <span className="text-xs text-sbi-muted-dark font-light tracking-wide">
+    {task.status}
+  </span>
+</div>
+
+        {/* Team - CENTERED */}
+        <div className="w-32 flex items-center justify-center">
+          <span className="text-xs text-sbi-muted-dark font-light tracking-wide text-center">
+            {formatTeamName(task.team)}
+          </span>
         </div>
 
-        {/* Due Date */}
-        <div className="text-sm text-sbi-muted-dark font-light tracking-wide min-w-[100px] text-right">
-          {task.tentative && <span className="text-yellow-500 mr-1">~</span>}
-          {task.due_date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        {/* Due Date - CENTERED */}
+        <div className="w-24 flex items-center justify-center">
+          <span className="text-sm text-sbi-muted-dark font-light tracking-wide text-center">
+            {task.tentative && <span className="text-yellow-500 mr-1">~</span>}
+            {task.due_date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
         </div>
 
         {/* Chevron */}

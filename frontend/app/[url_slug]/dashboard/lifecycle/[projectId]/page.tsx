@@ -89,7 +89,7 @@ export default function ProjectDetailPage({
       </div>
       
       {/* Task List */}
-      <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg overflow-hidden scrollbar">
+      <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg overflow-hidden">
         {/* Task List Header */}
         <div className="flex items-center gap-4 p-4 border-b border-sbi-dark-border/30 text-xs uppercase tracking-[0.15em] text-sbi-muted-dark font-light">
           <div className="w-2"></div> {/* Priority dot space */}
