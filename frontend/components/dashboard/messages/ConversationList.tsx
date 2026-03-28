@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus, ChevronDown } from "lucide-react";
 import { useCreateConversationModal } from "./CreateConversationModalContext";
 import { createClient } from "@/lib/supabase/client";
 
@@ -191,38 +191,44 @@ export function ConversationList({ urlSlug, conversations, basePath, showCreateB
               Send a Message
             </h2>
 
-            <select
-              value={selectedDepartment}
-              onChange={(e) => {
-                setSelectedDepartment(e.target.value);
-                setSelected("");
-              }}
-              className="w-full mb-3 rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm px-3 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"
-            >
-              <option value="" disabled>
-                Select a department
-              </option>
-              {departments.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
+            <div className="relative w-full mb-3">
+              <select
+                value={selectedDepartment}
+                onChange={(e) => {
+                  setSelectedDepartment(e.target.value);
+                  setSelected("");
+                }}
+                className="w-full appearance-none rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm pl-3 pr-10 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"
+              >
+                <option value="" disabled>
+                  Select a department
                 </option>
-              ))}
-            </select>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white" size={16} />
+            </div>
 
-            <select
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              className="w-full rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm px-3 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"            
-            >
-              <option value="" disabled>
-                Select a director
-              </option>
-              {filteredDirectors.map((d) => (
-                <option key={d.id} value={String(d.id)}>
-                  {d.name}
+            <div className="relative w-full">
+              <select
+                value={selected}
+                onChange={(e) => setSelected(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm pl-3 pr-10 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"
+              >
+                <option value="" disabled>
+                  Select a director
                 </option>
-              ))}
-            </select>
+                {filteredDirectors.map((d) => (
+                  <option key={d.id} value={String(d.id)}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white" size={16} />
+            </div>
 
             <div className="flex justify-end mt-6">
               <button
