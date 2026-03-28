@@ -103,43 +103,30 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
   const open = context?.open ?? localOpen;
   const setOpen = context?.setOpen ?? setLocalOpen;
   const [search, setSearch] = useState("");
-  const [matches, setMatches] = useState<ClientMatch[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [allClients, setAllClients] = useState<ClientMatch[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientMatch | null>(null);
 
   useEffect(() => {
-    const runSearch = async () => {
-      const query = search.trim();
+    if (!open) return;
 
-      if (query.length < 2) {
-        setMatches([]);
-        return;
-      }
-
-      setIsSearching(true);
+    const fetchAllClients = async () => {
       const supabase = createClient();
-
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("clients")
         .select("id, company_name, url_slug")
-        .ilike("company_name", `%${query}%`)
-        .order("company_name", { ascending: true })
-        .limit(10);
+        .order("company_name", { ascending: true });
 
-      if (error || !data) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to search clients:", error);
-        setMatches([]);
-        setIsSearching(false);
-        return;
-      }
-
-      setMatches(data as ClientMatch[]);
-      setIsSearching(false);
+      if (data) setAllClients(data as ClientMatch[]);
     };
 
-    void runSearch();
-  }, [search]);
+    fetchAllClients();
+  }, [open]);
+
+  const filteredClients = search.trim().length > 0
+    ? allClients.filter((c) =>
+        c.company_name.toLowerCase().includes(search.trim().toLowerCase())
+      )
+    : allClients;
 
   const handleNext = async () => {
     if (!urlSlug || !selectedClient) {
@@ -207,7 +194,6 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
       // Reset modal state
       setOpen(false);
       setSearch("");
-      setMatches([]);
       setSelectedClient(null);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -263,33 +249,27 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
               className="w-full rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm px-3 py-2 placeholder:text-sbi-muted focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"
             />
 
-            {search.trim().length >= 2 && (
-              <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-sbi-dark-border bg-sbi-dark-card/95">
-                {isSearching && (
-                  <p className="px-3 py-2 text-xs text-sbi-muted">Searching…</p>
-                )}
+            <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-sbi-dark-border bg-sbi-dark-card/95">
+              {filteredClients.map((client) => (
+                <button
+                  key={client.id}
+                  type="button"
+                  onClick={() => {
+                    setSearch(client.company_name);
+                    setSelectedClient(client);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm text-white hover:bg-sbi-dark ${selectedClient?.id === client.id ? "bg-sbi-dark" : ""}`}
+                >
+                  {client.company_name}
+                </button>
+              ))}
 
-                {matches.map((client) => (
-                  <button
-                    key={client.id}
-                    type="button"
-                    onClick={() => {
-                      setSearch(client.company_name);
-                      setSelectedClient(client);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-white hover:bg-sbi-dark"
-                  >
-                    {client.company_name}
-                  </button>
-                ))}
-
-                {!isSearching && matches.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-sbi-muted">
-                    No clients found
-                  </p>
-                )}
-              </div>
-            )}
+              {filteredClients.length === 0 && (
+                <p className="px-3 py-2 text-xs text-sbi-muted">
+                  No clients found
+                </p>
+              )}
+            </div>
 
             <div className="flex justify-end mt-6">
               <button
