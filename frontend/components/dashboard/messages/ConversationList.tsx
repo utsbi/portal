@@ -24,9 +24,10 @@ export interface Conversation {
 
 // Static department list for the "Select a department" filter.
 const departments = [
-  "Presidents",
+  "President",
+  "Vice President",
   "Project Operations",
-  "Civil Engineering",
+  "Engineering",
   "Tech",
   "Business",
   "Public Relations",
