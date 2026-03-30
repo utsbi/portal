@@ -55,7 +55,6 @@ function rowToRequest(row: RequestRow): Request {
 export async function fetchRequests(customerId?: string): Promise<Request[]> {
     const supabase = createClient();
     let query = supabase
-        .schema("Reports")
         .from("requests")
         .select("*")
         .order("created_at", { ascending: false });
@@ -118,7 +117,6 @@ export async function createRequest(payload: {
 
     // 1. Insert the request row first (get the ID)
     const { data: inserted, error: insertError } = await supabase
-        .schema("Reports")
         .from("requests")
         .insert({
             customer_id: payload.customerId ?? null,
@@ -149,7 +147,6 @@ export async function createRequest(payload: {
         if (attachmentMeta.length > 0) {
             // 3. Update the row with the attachment metadata
             const { error: updateError } = await supabase
-                .schema("Reports")
                 .from("requests")
                 .update({ attachments: attachmentMeta })
                 .eq("id", row.id);
@@ -172,7 +169,6 @@ export async function updateRequestStatus(
 ): Promise<boolean> {
     const supabase = createClient();
     const { error } = await supabase
-        .schema("Reports")
         .from("requests")
         .update({ status })
         .eq("id", requestId);
