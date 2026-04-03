@@ -17,6 +17,7 @@
   --color-sbi-muted-dark: #6b7c74;
   --font-urbanist: var(--font-urbanist);
   --font-old-standard: var(--font-old-standard);
+  --font-jetbrains-mono: var(--font-jetbrains-mono);
 }
 
 @layer base {

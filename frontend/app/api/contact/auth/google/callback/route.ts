@@ -11,7 +11,10 @@ function must(name: string) {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
-  if (!code) return NextResponse.json({ error: "Missing code" }, { status: 400 });
+
+  if (!code) {
+    return NextResponse.json({ error: "Missing code" }, { status: 400 });
+  }
 
   const oauth2 = new google.auth.OAuth2(
     must("GOOGLE_CLIENT_ID"),
@@ -25,24 +28,28 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         error:
-          "No refresh_token returned. Go to myaccount.google.com/permissions, remove your app access, then try /api/auth/google again.",
+          "No refresh_token returned. Remove the app from Google permissions, then reconnect.",
       },
       { status: 400 }
     );
   }
 
-  const supabaseAdmin = createClient(must("NEXT_PUBLIC_SUPABASE_URL"), must("SUPABASE_SERVICE_ROLE_KEY"));
+  const supabaseAdmin = createClient(
+    must("NEXT_PUBLIC_SUPABASE_URL"),
+    must("SUPABASE_SERVICE_ROLE_KEY")
+  );
 
-  const directorId = must("DIRECTOR_CLIENT_ID");
+  const directorId = must("DIRECTOR_ID");
 
-  // Get existing config so we merge instead of overwrite
   const { data: director, error: readErr } = await supabaseAdmin
-    .from("clients")
+    .from("directors")
     .select("config")
     .eq("id", directorId)
     .single();
 
-  if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
+  if (readErr) {
+    return NextResponse.json({ error: readErr.message }, { status: 500 });
+  }
 
   const existingConfig = (director?.config ?? {}) as Record<string, any>;
 
@@ -50,20 +57,25 @@ export async function GET(req: Request) {
     ...existingConfig,
     google: {
       ...(existingConfig.google ?? {}),
-      calendar_id: "primary",
       refresh_token: tokens.refresh_token,
+      access_token: tokens.access_token ?? null,
+      scope: tokens.scope ?? null,
+      token_type: tokens.token_type ?? null,
+      expiry_date: tokens.expiry_date ?? null,
     },
   };
 
   const { error: writeErr } = await supabaseAdmin
-    .from("clients")
+    .from("directors")
     .update({ config: newConfig })
     .eq("id", directorId);
 
-  if (writeErr) return NextResponse.json({ error: writeErr.message }, { status: 500 });
+  if (writeErr) {
+    return NextResponse.json({ error: writeErr.message }, { status: 500 });
+  }
 
   return NextResponse.json({
     ok: true,
-    message: "Google connected. Refresh token saved into clients.config.google on your director row.",
+    message: "Google connected. Refresh token saved. Next step is calendar selection.",
   });
 }

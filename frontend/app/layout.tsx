@@ -9,7 +9,7 @@ import "@/app/globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-import { Old_Standard_TT, Urbanist } from "next/font/google";
+import { Old_Standard_TT, Urbanist, JetBrains_Mono } from "next/font/google";
 import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -26,6 +26,12 @@ const urbanist = Urbanist({
   display: "swap",
   variable: "--font-urbanist",
 });
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-jetbrains-mono"
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://utsbi.org"),
@@ -114,7 +120,7 @@ export default function RootLayout({
       lang="en"
       {...mantineHtmlProps}
       suppressHydrationWarning
-      className={`${urbanist.variable} ${oldStandardTT.variable}`}
+      className={`${urbanist.variable} ${oldStandardTT.variable} ${jetbrainsMono.variable}`}
     >
       <head>
         <ColorSchemeScript />

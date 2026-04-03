@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   CalendarDays,
@@ -29,6 +29,13 @@ const monthNames = [
 ];
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const CALENDAR_EVENTS_API =
+  process.env.NEXT_PUBLIC_CALENDAR_EVENTS_API || "";
+const CALENDAR_ICS_API =
+  process.env.NEXT_PUBLIC_CALENDAR_ICS_API || "";
+const GOOGLE_CALENDAR_RENDER_URL =
+  process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_URL || "";
 
 function buildMonthDays(currentMonth: Date) {
   const year = currentMonth.getFullYear();
@@ -100,6 +107,52 @@ function isPastEvent(end?: string | null) {
   return new Date(end) < new Date();
 }
 
+function buildInternalUrl(pathname: string, params?: Record<string, string>) {
+  const searchParams = new URLSearchParams(params);
+  return searchParams.toString()
+    ? `${pathname}?${searchParams.toString()}`
+    : pathname;
+}
+
+function buildGoogleCalendarUrl(event: {
+  summary?: string | null;
+  start?: string | null;
+  end?: string | null;
+  location?: string | null;
+  description?: string | null;
+}) {
+  if (!GOOGLE_CALENDAR_RENDER_URL) return "#";
+
+  const url = new URL(GOOGLE_CALENDAR_RENDER_URL);
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", event.summary ?? "Event");
+  url.searchParams.set(
+    "dates",
+    `${formatGoogleDate(event.start)}/${formatGoogleDate(event.end)}`
+  );
+  url.searchParams.set("location", event.location ?? "");
+  url.searchParams.set("details", event.description ?? "");
+  return url.toString();
+}
+
+function buildIcsUrl(event: {
+  summary?: string | null;
+  start?: string | null;
+  end?: string | null;
+  location?: string | null;
+  description?: string | null;
+}) {
+  if (!CALENDAR_ICS_API) return "#";
+
+  return buildInternalUrl(CALENDAR_ICS_API, {
+    summary: event.summary ?? "Event",
+    start: event.start ?? "",
+    end: event.end ?? "",
+    location: event.location ?? "",
+    description: event.description ?? "",
+  });
+}
+
 function UrbanistWords({ text }: { text?: string | null }) {
   if (!text) return null;
 
@@ -127,32 +180,8 @@ function StatusBadge({
 }) {
   if (isToday) {
     return (
-      <span
-        className="font-urbanist"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 5,
-          padding: "3px 10px",
-          borderRadius: 999,
-          border: "1px solid #1d4ed8",
-          background: "rgba(29,78,216,0.12)",
-          fontSize: 11,
-          fontWeight: 600,
-          color: "#60a5fa",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-        }}
-      >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: "#60a5fa",
-            display: "inline-block",
-          }}
-        />
+      <span className="font-urbanist inline-flex items-center gap-1.5 rounded-full border border-blue-700 bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-300">
+        <span className="inline-block size-1.5 rounded-full bg-blue-300" />
         Today
       </span>
     );
@@ -160,66 +189,47 @@ function StatusBadge({
 
   if (past) {
     return (
-      <span
-        className="font-urbanist"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 5,
-          padding: "3px 10px",
-          borderRadius: 999,
-          border: "1px solid #3f3f46",
-          background: "rgba(63,63,70,0.2)",
-          fontSize: 11,
-          fontWeight: 600,
-          color: "#71717a",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-        }}
-      >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: "#71717a",
-            display: "inline-block",
-          }}
-        />
+      <span className="font-urbanist inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-700/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+        <span className="inline-block size-1.5 rounded-full bg-zinc-500" />
         Past
       </span>
     );
   }
 
   return (
-    <span
-      className="font-urbanist"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 5,
-        padding: "3px 10px",
-        borderRadius: 999,
-        border: "1px solid #166534",
-        background: "rgba(22,101,52,0.15)",
-        fontSize: 11,
-        fontWeight: 600,
-        color: "#4ade80",
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-      }}
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "#4ade80",
-          display: "inline-block",
-        }}
-      />
+    <span className="font-urbanist inline-flex items-center gap-1.5 rounded-full border border-sbi-dark-border bg-sbi-green/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-sbi-green">
+      <span className="inline-block size-1.5 rounded-full bg-sbi-green" />
       Upcoming
     </span>
+  );
+}
+
+function NavButton({
+  onClick,
+  disabled,
+  ariaLabel,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  ariaLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={[
+        "inline-flex h-7 w-7 items-center justify-center rounded-md border transition",
+        disabled
+          ? "cursor-not-allowed border-sbi-dark-border text-white/10"
+          : "border-sbi-dark-border text-sbi-green hover:bg-sbi-green/5",
+      ].join(" ")}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -253,14 +263,16 @@ export default function CalendarPage() {
           .eq("uid", auth.user.id)
           .single();
 
-        if (!client?.id) {
+        if (!client?.id || !CALENDAR_EVENTS_API) {
           setLoading(false);
           return;
         }
 
-        const res = await fetch(
-          `/api/contact/calendar/client-events?client_id=${client.id}`
-        );
+        const eventsUrl = buildInternalUrl(CALENDAR_EVENTS_API, {
+          client_id: client.id,
+        });
+
+        const res = await fetch(eventsUrl);
         const json = await res.json();
 
         if (res.ok) setEvents(json.events || []);
@@ -294,10 +306,7 @@ export default function CalendarPage() {
           year: startDate ? String(startDate.getFullYear()) : "",
           time: safeTime(e.start),
           endTime: safeTime(e.end),
-          director:
-            e.creatorName ??
-            e.creatorEmail ??
-            "Unknown Organizer",
+          director: e.creatorName ?? e.creatorEmail ?? "Unknown Organizer",
           start: e.start,
           end: e.end,
         };
@@ -337,7 +346,7 @@ export default function CalendarPage() {
         .toLowerCase();
 
       const searchTerms = searchValue.split(/\s+/);
-      return searchTerms.every((term) => searchableText.includes(term));
+      return searchTerms.every((term: string) => searchableText.includes(term));
     };
 
     let filteredEvents = calendarEvents;
@@ -348,9 +357,25 @@ export default function CalendarPage() {
       filteredEvents = filteredEvents.filter((e) => e.date === selectedDate);
     }
 
-    return filteredEvents.sort(
-      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
-    );
+    return filteredEvents.sort((a, b) => {
+      const now = Date.now();
+
+      const aStart = new Date(a.start).getTime();
+      const bStart = new Date(b.start).getTime();
+
+      const aPast = aStart < now;
+      const bPast = bStart < now;
+
+      if (aPast !== bPast) {
+        return aPast ? 1 : -1;
+      }
+
+      if (!aPast && !bPast) {
+        return aStart - bStart;
+      }
+
+      return bStart - aStart;
+    });
   }, [calendarEvents, selectedDate, search]);
 
   const totalPages = Math.ceil(rightPanelEvents.length / appointmentsPerPage);
@@ -364,146 +389,61 @@ export default function CalendarPage() {
     setAppointmentsPage(0);
   }, [search, selectedDate, currentMonth]);
 
-  const monthCells = useMemo(
-    () => buildMonthDays(currentMonth),
-    [currentMonth]
-  );
+  const monthCells = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
 
   const todayKey = formatDateKey(new Date());
 
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#020806",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div
-          style={{
-            color: "#4ade80",
-            fontSize: 14,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-          }}
-        >
+      <div className="flex min-h-screen items-center justify-center bg-sbi-dark text-sbi-green">
+        <div className="text-sm uppercase tracking-[0.1em]">
           <UrbanistWords text="Loading calendar..." />
         </div>
       </div>
     );
   }
 
-  const colHeaderStyle: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#4ade8066",
-    letterSpacing: "0.18em",
-    textTransform: "uppercase",
-    padding: "10px 16px",
-    textAlign: "left",
-    whiteSpace: "nowrap",
-  };
-
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#020806",
-        padding: 24,
-        color: "#fff",
-        fontFamily: "'DM Mono', 'Fira Mono', monospace",
-      }}
-    >
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 20,
-            background: "#04110c",
-            border: "1px solid #052e16",
-            borderRadius: 14,
-            padding: "10px 16px",
-          }}
-        >
-          <Search size={16} color="#4ade80" />
+    <div className="min-h-screen bg-sbi-dark px-6 py-6 text-white">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-5 flex items-center gap-3 rounded-[14px] border border-sbi-dark-border bg-sbi-dark-card px-4 py-2.5">
+          <Search className="h-4 w-4 text-sbi-green" />
 
           <div className="flex-1">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search events..."
-              className="w-full bg-transparent outline-none text-white text-sm"
+              className="font-jetbrains-mono w-full bg-transparent text-sm text-white outline-none placeholder:text-white/40"
             />
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setSelectedDate(null)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "#04110c",
-                border: "1px solid #052e16",
-                borderRadius: 8,
-                padding: "6px 14px",
-                color: selectedDate ? "#4ade80" : "#ffffff60",
-                fontSize: 12,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                letterSpacing: "0.05em",
-                transition: "all 0.15s",
-              }}
+              className={[
+                "inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs tracking-[0.05em] transition",
+                selectedDate
+                  ? "border-sbi-dark-border bg-sbi-dark-card text-sbi-green hover:bg-sbi-green/5"
+                  : "border-sbi-dark-border bg-sbi-dark-card text-white/60 hover:text-white/80",
+              ].join(" ")}
             >
-              <Filter size={12} />
+              <Filter className="h-3 w-3" />
               {selectedDate
-                ? prettyDate(selectedDate + "T00:00:00")
+                ? prettyDate(`${selectedDate}T00:00:00`)
                 : "All Dates"}
             </button>
           </div>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "55% 45%",
-            gap: 16,
-            alignItems: "start",
-          }}
-        >
-          <div
-            style={{
-              background: "#04110c",
-              border: "1px solid #052e16",
-              borderRadius: 16,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "16px 20px",
-                borderBottom: "1px solid #052e16",
-              }}
-            >
+        <div className="grid items-start gap-4 lg:grid-cols-[55%_45%]">
+          <div className="overflow-hidden rounded-2xl border border-sbi-dark-border bg-sbi-dark-card">
+            <div className="flex items-center justify-between border-b border-sbi-dark-border px-5 py-4">
               <div className="flex-1">
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <CalendarDays size={16} color="#4ade80" />
-                  <span
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 500,
-                      letterSpacing: "0.04em",
-                      textTransform: "uppercase",
-                    }}
-                  >
+                <div className="flex items-center gap-2.5">
+                  <CalendarDays className="h-4 w-4 text-sbi-green" />
+                  <span className="text-lg font-medium uppercase tracking-[0.04em]">
                     <UrbanistWords
                       text={`${monthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`}
                     />
@@ -511,79 +451,28 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 4 }}>
-                <button
-                  onClick={goToPreviousMonth}
-                  aria-label="Previous month"
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #052e16",
-                    borderRadius: 6,
-                    width: 28,
-                    height: 28,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#4ade80",
-                    cursor: "pointer",
-                  }}
-                >
-                  <ChevronLeft size={14} />
-                </button>
-
-                <button
-                  onClick={goToNextMonth}
-                  aria-label="Next month"
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #052e16",
-                    borderRadius: 6,
-                    width: 28,
-                    height: 28,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#4ade80",
-                    cursor: "pointer",
-                  }}
-                >
-                  <ChevronRight size={14} />
-                </button>
+              <div className="flex gap-1">
+                <NavButton onClick={goToPreviousMonth} ariaLabel="Previous month">
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </NavButton>
+                <NavButton onClick={goToNextMonth} ariaLabel="Next month">
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </NavButton>
               </div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7,1fr)",
-                borderBottom: "1px solid #052e16",
-                padding: "0 16px",
-                boxSizing: "border-box",
-              }}
-            >
+            <div className="grid grid-cols-7 border-b border-sbi-dark-border px-4">
               {dayNames.map((d) => (
                 <div
                   key={d}
-                  className="font-urbanist"
-                  style={{
-                    padding: "10px 0",
-                    textAlign: "center",
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: "#4ade8066",
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    boxSizing: "border-box",
-                  }}
+                  className="font-urbanist box-border py-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-sbi-green/40"
                 >
                   {d}
                 </div>
               ))}
             </div>
 
-            <div
-              style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}
-            >
+            <div className="grid grid-cols-7">
               {monthCells.map(({ date, inMonth }, i) => {
                 const key = formatDateKey(date);
                 const dayEvs = eventsByDate[key] ?? [];
@@ -593,86 +482,56 @@ export default function CalendarPage() {
                 return (
                   <button
                     key={i}
+                    type="button"
                     onClick={() =>
                       setSelectedDate((prev) => (prev === key ? null : key))
                     }
-                    style={{
-                      minHeight: 80,
-                      display: "flex",
-                      flexDirection: "column",
-                      padding: "6px 8px",
-                      textAlign: "left",
-                      borderRight: "1px solid #052e16",
-                      borderBottom: "1px solid #052e16",
-                      background: isSelected
-                        ? "rgba(74,222,128,0.08)"
-                        : "transparent",
-                      cursor: "pointer",
-                      transition: "background 0.15s",
-                      position: "relative",
-                    }}
+                    className={[
+                      "relative flex min-h-20 flex-col border-r border-b border-sbi-dark-border px-2 py-1.5 text-left transition",
+                      isSelected
+                        ? "bg-sbi-green/10"
+                        : "bg-transparent hover:bg-white/5",
+                    ].join(" ")}
                   >
                     {isToday && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 5,
-                          right: 5,
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          background: "#4ade80",
-                        }}
-                      />
+                      <div className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-sbi-green" />
                     )}
 
                     <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: isToday ? 700 : 400,
-                        color: !inMonth
-                          ? "#ffffff18"
-                          : isSelected
-                          ? "#4ade80"
-                          : isToday
-                          ? "#4ade80"
-                          : "#ffffff99",
-                      }}
+                      className={[
+                        "text-xs",
+                        isToday ? "font-bold" : "font-normal",
+                        !inMonth
+                          ? "text-white/10"
+                          : isSelected || isToday
+                            ? "text-sbi-green"
+                            : "text-white/60",
+                      ].join(" ")}
                     >
                       {date.getDate()}
                     </span>
 
-                    <div
-                      style={{
-                        marginTop: 4,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 2,
-                      }}
-                    >
-                      {dayEvs.slice(0, 2).map((ev) => (
-                        <div
-                          key={ev.id}
-                          style={{
-                            fontSize: 9,
-                            color: isPastEvent(ev.end) ? "#3f3f46" : "#4ade80",
-                            background: isPastEvent(ev.end)
-                              ? "rgba(63,63,70,0.2)"
-                              : "rgba(74,222,128,0.1)",
-                            borderRadius: 3,
-                            padding: "1px 4px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            maxWidth: "100%",
-                          }}
-                        >
-                          <UrbanistWords text={ev.title} />
-                        </div>
-                      ))}
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      {dayEvs.slice(0, 2).map((ev) => {
+                        const past = isPastEvent(ev.end);
+
+                        return (
+                          <div
+                            key={ev.id}
+                            className={[
+                              "max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded px-1 py-px text-[9px]",
+                              past
+                                ? "bg-zinc-700/20 text-zinc-600"
+                                : "bg-sbi-green/10 text-sbi-green",
+                            ].join(" ")}
+                          >
+                            <UrbanistWords text={ev.title} />
+                          </div>
+                        );
+                      })}
 
                       {dayEvs.length > 2 && (
-                        <div style={{ fontSize: 9, color: "#4ade8066" }}>
+                        <div className="text-[9px] text-sbi-green/40">
                           +{dayEvs.length - 2} more
                         </div>
                       )}
@@ -683,235 +542,95 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          <div
-            style={{
-              background: "#04110c",
-              border: "1px solid #052e16",
-              borderRadius: 16,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "16px 20px",
-                borderBottom: "1px solid #052e16",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 500,
-                    letterSpacing: "0.04em",
-                    textTransform: "uppercase",
-                  }}
-                >
+          <div className="overflow-hidden rounded-2xl border border-sbi-dark-border bg-sbi-dark-card">
+            <div className="flex items-center justify-between border-b border-sbi-dark-border px-5 py-4">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg font-medium uppercase tracking-[0.04em]">
                   <UrbanistWords
                     text={
                       selectedDate
-                        ? prettyDate(selectedDate + "T00:00:00")
+                        ? prettyDate(`${selectedDate}T00:00:00`)
                         : "Appointments"
                     }
                   />
                 </span>
 
-                <span
-                  style={{
-                    fontSize: 11,
-                    padding: "2px 8px",
-                    borderRadius: 99,
-                    background: "rgba(74,222,128,0.1)",
-                    border: "1px solid #166534",
-                    color: "#4ade80",
-                    fontWeight: 600,
-                  }}
-                >
+                <span className="rounded-full border border-sbi-dark-border bg-sbi-green/10 px-2 py-0.5 text-[11px] font-semibold text-sbi-green">
                   {rightPanelEvents.length}
                 </span>
               </div>
 
-              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "#ffffff30",
-                    marginRight: 4,
-                  }}
-                >
+              <div className="flex items-center gap-1">
+                <span className="mr-1 text-[11px] text-white/20">
                   {appointmentsPage + 1} / {Math.max(totalPages, 1)}
                 </span>
 
-                <button
-                  onClick={() =>
-                    setAppointmentsPage((p) => Math.max(0, p - 1))
-                  }
+                <NavButton
+                  onClick={() => setAppointmentsPage((p) => Math.max(0, p - 1))}
                   disabled={appointmentsPage === 0}
-                  aria-label="Previous appointments page"
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #052e16",
-                    borderRadius: 6,
-                    width: 28,
-                    height: 28,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: appointmentsPage === 0 ? "#ffffff18" : "#4ade80",
-                    cursor:
-                      appointmentsPage === 0 ? "not-allowed" : "pointer",
-                  }}
+                  ariaLabel="Previous appointments page"
                 >
-                  <ChevronLeft size={14} />
-                </button>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </NavButton>
 
-                <button
+                <NavButton
                   onClick={() =>
-                    setAppointmentsPage((p) =>
-                      Math.min(totalPages - 1, p + 1)
-                    )
+                    setAppointmentsPage((p) => Math.min(totalPages - 1, p + 1))
                   }
                   disabled={appointmentsPage >= totalPages - 1}
-                  aria-label="Next appointments page"
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #052e16",
-                    borderRadius: 6,
-                    width: 28,
-                    height: 28,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color:
-                      appointmentsPage >= totalPages - 1
-                        ? "#ffffff18"
-                        : "#4ade80",
-                    cursor:
-                      appointmentsPage >= totalPages - 1
-                        ? "not-allowed"
-                        : "pointer",
-                  }}
+                  ariaLabel="Next appointments page"
                 >
-                  <ChevronRight size={14} />
-                </button>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </NavButton>
               </div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr auto",
-                borderBottom: "1px solid #052e16",
-                width: "100%",
-              }}
-            >
-              <div className="font-urbanist" style={colHeaderStyle}>
+            <div className="grid w-full grid-cols-[1fr_auto] border-b border-sbi-dark-border">
+              <div className="font-urbanist whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-sbi-green/40">
                 Event
               </div>
-              <div className="font-urbanist" style={colHeaderStyle}>
+              <div className="font-urbanist whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-sbi-green/40">
                 Add To Calendar
               </div>
             </div>
 
             <div>
               {paginatedEvents.length === 0 ? (
-                <div
-                  style={{
-                    padding: "32px 20px",
-                    textAlign: "center",
-                    color: "#ffffff30",
-                    fontSize: 13,
-                  }}
-                >
+                <div className="px-5 py-8 text-center text-[13px] text-white/20">
                   <div className="font-urbanist">
-                    {selectedDate
-                      ? "No events for this date"
-                      : "No events found"}
+                    {selectedDate ? "No events for this date" : "No events found"}
                   </div>
                 </div>
               ) : (
                 paginatedEvents.map((ev) => {
                   const past = isPastEvent(ev.end);
                   const isToday = ev.date === todayKey;
-                  const originalEvent = events.find(
-                    (item) => item.id === ev.id
-                  );
+                  const originalEvent = events.find((item) => item.id === ev.id);
+
+                  const calendarSource = {
+                    summary: originalEvent?.summary ?? ev.title ?? "Event",
+                    start: originalEvent?.start ?? "",
+                    end: originalEvent?.end ?? "",
+                    location: originalEvent?.location ?? "",
+                    description: originalEvent?.description ?? "",
+                  };
 
                   const googleCalendarUrl =
-                    `https://calendar.google.com/calendar/render?action=TEMPLATE` +
-                    `&text=${encodeURIComponent(
-                      originalEvent?.summary ?? ev.title ?? "Event"
-                    )}` +
-                    `&dates=${formatGoogleDate(
-                      originalEvent?.start
-                    )}/${formatGoogleDate(originalEvent?.end)}` +
-                    `&location=${encodeURIComponent(
-                      originalEvent?.location ?? ""
-                    )}` +
-                    `&details=${encodeURIComponent(
-                      originalEvent?.description ?? ""
-                    )}`;
-
-                  const icsUrl =
-                    `/api/contact/calendar/client-events/ics?` +
-                    new URLSearchParams({
-                      summary: originalEvent?.summary ?? ev.title ?? "Event",
-                      start: originalEvent?.start ?? "",
-                      end: originalEvent?.end ?? "",
-                      location: originalEvent?.location ?? "",
-                      description: originalEvent?.description ?? "",
-                    }).toString();
+                    buildGoogleCalendarUrl(calendarSource);
+                  const icsUrl = buildIcsUrl(calendarSource);
 
                   return (
                     <div
                       key={ev.id}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr auto",
-                        alignItems: "center",
-                        gap: 16,
-                        padding: "16px",
-                        margin: "10px 12px",
-                        border: "1px solid #052e16",
-                        borderRadius: 12,
-                        background: "#03100b",
-                        transition: "background 0.15s, border-color 0.15s",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background =
-                          "rgba(74,222,128,0.04)";
-                        e.currentTarget.style.borderColor = "#166534";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "#03100b";
-                        e.currentTarget.style.borderColor = "#052e16";
-                      }}
+                      className="mx-3 my-2.5 grid grid-cols-[1fr_auto] items-center gap-4 rounded-xl border border-sbi-dark-border bg-sbi-dark px-4 py-4 transition hover:border-sbi-green/40 hover:bg-sbi-green/5"
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 8,
-                          minWidth: 0,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "flex-start",
-                            gap: 6,
-                          }}
-                        >
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <div className="flex flex-col items-start gap-1.5">
                           <div
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: past ? "#71717a" : "#ffffff",
-                              minWidth: 0,
-                            }}
+                            className={[
+                              "min-w-0 text-sm font-semibold",
+                              past ? "text-zinc-500" : "text-white",
+                            ].join(" ")}
                           >
                             <UrbanistWords text={ev.title} />
                           </div>
@@ -920,13 +639,10 @@ export default function CalendarPage() {
                         </div>
 
                         <div
-                          style={{
-                            fontSize: 12,
-                            color: past ? "#52525b" : "#ffffff70",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 4,
-                          }}
+                          className={[
+                            "flex flex-col gap-1 text-xs",
+                            past ? "text-zinc-600" : "text-white/50",
+                          ].join(" ")}
                         >
                           <div>
                             <UrbanistWords
@@ -936,22 +652,15 @@ export default function CalendarPage() {
                             />
                           </div>
 
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
+                          <div className="flex items-center gap-1.5">
                             <Mail
-                              size={13}
-                              color={past ? "#52525b" : "#4ade80"}
+                              className={[
+                                "h-[13px] w-[13px]",
+                                past ? "text-zinc-600" : "text-sbi-green",
+                              ].join(" ")}
                             />
                             <span
-                              style={{
-                                color: past ? "#52525b" : "#ffffff80",
-                                wordBreak: "break-word",
-                              }}
+                              className={past ? "text-zinc-600" : "text-white/60"}
                             >
                               <UrbanistWords text={ev.director} />
                             </span>
@@ -959,36 +668,17 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          justifySelf: "end",
-                          flexWrap: "wrap",
-                        }}
-                      >
+                      <div className="flex flex-wrap items-center justify-self-end gap-2">
                         <a
                           href={googleCalendarUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-urbanist"
-                          style={{
-                            fontSize: 11,
-                            color: past ? "#52525b" : "#4ade80",
-                            textDecoration: "none",
-                            border: `1px solid ${
-                              past ? "#3f3f46" : "#166534"
-                            }`,
-                            background: past
-                              ? "rgba(39,39,42,0.35)"
-                              : "rgba(74,222,128,0.08)",
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            fontWeight: 600,
-                            letterSpacing: "0.03em",
-                            whiteSpace: "nowrap",
-                          }}
+                          className={[
+                            "font-urbanist whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.03em] no-underline transition",
+                            past
+                              ? "border-zinc-700 bg-zinc-700/30 text-zinc-600"
+                              : "border-sbi-dark-border bg-sbi-green/10 text-sbi-green hover:bg-sbi-green/15",
+                          ].join(" ")}
                         >
                           Google Calendar
                         </a>
@@ -997,19 +687,12 @@ export default function CalendarPage() {
                           href={icsUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-urbanist"
-                          style={{
-                            fontSize: 11,
-                            color: past ? "#71717a" : "#ffffff80",
-                            textDecoration: "none",
-                            border: "1px solid #052e16",
-                            background: "transparent",
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            fontWeight: 600,
-                            letterSpacing: "0.03em",
-                            whiteSpace: "nowrap",
-                          }}
+                          className={[
+                            "font-urbanist whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.03em] no-underline transition",
+                            past
+                              ? "border-zinc-800 bg-transparent text-zinc-500"
+                              : "border-sbi-dark-border bg-transparent text-white/60 hover:bg-white/5",
+                          ].join(" ")}
                         >
                           Add .ics
                         </a>
