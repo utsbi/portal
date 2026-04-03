@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -80,11 +79,6 @@ export default function FilterDropdown({ onFilterChange }: FilterDropdownProps) 
           />
         </svg>
         Filter
-        {activeFilterCount > 0 && (
-          <span className="bg-sbi-green text-white text-xs px-2 py-0.5 rounded-full">
-            {activeFilterCount}
-          </span>
-        )}
       </button>
 
       {isOpen && (
@@ -97,7 +91,7 @@ export default function FilterDropdown({ onFilterChange }: FilterDropdownProps) 
           
           {/* Dropdown */}
           <div className="absolute right-0 mt-2 w-80 bg-sbi-dark-card border border-sbi-dark-border/30 
-                          rounded-lg shadow-xl z-50 p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+                          rounded-lg shadow-xl z-50 p-4 space-y-4 max-h-[70vh] overflow-y-auto scrollbar">
             
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-sbi-dark-border/30">
@@ -123,7 +117,7 @@ export default function FilterDropdown({ onFilterChange }: FilterDropdownProps) 
                       checked={filters.status.includes(status)}
                       onChange={() => handleCheckbox('status', status)}
                       className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
-                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark"
+                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
                     />
                     <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
                       {status}
@@ -144,7 +138,7 @@ export default function FilterDropdown({ onFilterChange }: FilterDropdownProps) 
                       checked={filters.priority.includes(priority)}
                       onChange={() => handleCheckbox('priority', priority)}
                       className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
-                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark"
+                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
                     />
                     <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
                       {priority}
@@ -165,7 +159,7 @@ export default function FilterDropdown({ onFilterChange }: FilterDropdownProps) 
                       checked={filters.team.includes(team)}
                       onChange={() => handleCheckbox('team', team)}
                       className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
-                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark"
+                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
                     />
                     <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
                       {team}
@@ -183,7 +177,7 @@ export default function FilterDropdown({ onFilterChange }: FilterDropdownProps) 
                   checked={filters.includeTentative}
                   onChange={handleTentativeToggle}
                   className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
-                             focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark"
+                             focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
                 />
                 <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
                   Include Tentative Dates

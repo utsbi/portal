@@ -51,13 +51,16 @@ export default function LifecyclePage() {
       </div>
 
       {/* Main Content - Side by Side Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        
         {/* Left Side - Graphs Carousel */}
         <div className="flex flex-col">
           <h2 className="text-xl font-light text-white mb-4 tracking-wide">Project Metrics</h2>
           
-          {/* Graph Carousel - Fixed Height */}
-          <div className="relative flex items-center h-80">
+          {/* Graph Carousel - Fixed aspect ratio to match ProjectCard */}
+          <div className="relative flex items-center" style={{ height: '280px' }}>
+            {/* ↑ Changed to fixed pixel height matching ProjectCard */}
+            
             {/* Previous Button */}
             <button
               onClick={prevGraph}
@@ -80,14 +83,15 @@ export default function LifecyclePage() {
               </svg>
             </button>
 
-            {/* Graph Card */}
-            <div className="flex-1 px-12 h-full">
-              <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg p-6 h-full flex flex-col">
-                <p className="text-sm uppercase tracking-[0.15em] text-sbi-muted-dark mb-4 font-light">
-                  {graphs[currentGraphIndex].title}
-                </p>
-                <div className="flex items-center justify-center flex-1 text-sbi-muted-dark font-light tracking-wide">
-                  {graphs[currentGraphIndex].content}
+            {/* Graph Card - Remove internal padding/title */}
+            <div className="w-full px-12 h-full">
+              <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg h-full flex items-center justify-center">
+                {/* ↑ Removed p-6, removed flex-col, removed title */}
+                <div className="text-sbi-muted-dark font-light tracking-wide text-center">
+                  <p className="text-xs uppercase tracking-[0.15em] mb-2 opacity-60">
+                    {graphs[currentGraphIndex].title}
+                  </p>
+                  <p>{graphs[currentGraphIndex].content}</p>
                 </div>
               </div>
             </div>
@@ -136,8 +140,10 @@ export default function LifecyclePage() {
         <div className="flex flex-col">
           <h2 className="text-xl font-light text-white mb-4 tracking-wide">Your Projects</h2>
           
-          {/* Project Carousel - Fixed Height matching graphs */}
-          <div className="relative flex items-center h-80">
+          {/* Project Carousel */}
+          <div className="relative flex items-center" style={{ height: '280px' }}>
+            {/* ↑ Same fixed height */}
+            
             {/* Previous Button */}
             <button
               onClick={prevProject}
@@ -161,7 +167,7 @@ export default function LifecyclePage() {
             </button>
 
             {/* Project Card */}
-            <div className="flex-1 px-12 h-full flex items-center">
+            <div className="w-full px-12 h-full flex items-center">
               <div className="w-full">
                 <ProjectCard project={MOCK_PROJECTS[currentProjectIndex]} />
               </div>
