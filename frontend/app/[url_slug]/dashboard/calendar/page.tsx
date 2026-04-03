@@ -465,7 +465,7 @@ export default function CalendarPage() {
               {dayNames.map((d) => (
                 <div
                   key={d}
-                  className="font-urbanist box-border py-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-sbi-green/40"
+                  className="font-urbanist box-border py-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-sbi-green/40"
                 >
                   {d}
                 </div>
@@ -487,7 +487,9 @@ export default function CalendarPage() {
                       setSelectedDate((prev) => (prev === key ? null : key))
                     }
                     className={[
-                      "relative flex min-h-20 flex-col border-r border-b border-sbi-dark-border px-2 py-1.5 text-left transition",
+                      "relative flex min-h-20 flex-col border-sbi-dark-border px-2 py-1.5 text-left transition",
+                      i % 7 !== 6 ? "border-r" : "",
+                      i < monthCells.length - 7 ? "border-b" : "",
                       isSelected
                         ? "bg-sbi-green/10"
                         : "bg-transparent hover:bg-white/5",
@@ -586,10 +588,10 @@ export default function CalendarPage() {
             </div>
 
             <div className="grid w-full grid-cols-[1fr_auto] border-b border-sbi-dark-border">
-              <div className="font-urbanist whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-sbi-green/40">
+              <div className="font-urbanist whitespace-nowrap px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-sbi-green/40">
                 Event
               </div>
-              <div className="font-urbanist whitespace-nowrap px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-sbi-green/40">
+              <div className="font-urbanist whitespace-nowrap px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-sbi-green/40">
                 Add To Calendar
               </div>
             </div>
