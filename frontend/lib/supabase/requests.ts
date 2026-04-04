@@ -13,8 +13,9 @@ function normalizeStatus(raw: string | null | undefined): RequestStatus {
 import type { Request } from "@/components/dashboard/requests/RequestHistory";
 
 // Row shape coming from Supabase (snake_case)
+// Note: id is bigint in the DB so it comes back as a number
 interface RequestRow {
-    id: string;
+    id: number;
     customer_id: string | null;
     name: string;
     email: string;
@@ -32,7 +33,7 @@ interface RequestRow {
 // Map DB row → frontend Request interface
 function rowToRequest(row: RequestRow): Request {
     return {
-        id: row.id,
+        id: String(row.id), // bigint → string for the frontend
         name: row.name,
         email: row.email,
         subject: row.subject,
@@ -116,6 +117,9 @@ export async function createRequest(payload: {
     const supabase = createClient();
 
     // 1. Insert the request row first (get the ID)
+    // updated_at is NOT NULL with no DB default, so we send it explicitly.
+    // attachments is nullable, omit from insert to avoid jsonb type issues.
+    const now = new Date().toISOString();
     const { data: inserted, error: insertError } = await supabase
         .from("requests")
         .insert({
@@ -128,7 +132,7 @@ export async function createRequest(payload: {
             subject: payload.subject,
             message: payload.message ?? null,
             status: "pending",
-            attachments: [],
+            updated_at: now,
         })
         .select()
         .single();
@@ -142,7 +146,7 @@ export async function createRequest(payload: {
 
     // 2. Upload files if any
     if (payload.files && payload.files.length > 0) {
-        const attachmentMeta = await uploadFiles(row.id, payload.files);
+        const attachmentMeta = await uploadFiles(String(row.id), payload.files);
 
         if (attachmentMeta.length > 0) {
             // 3. Update the row with the attachment metadata
