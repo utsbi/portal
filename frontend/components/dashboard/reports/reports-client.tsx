@@ -9,6 +9,20 @@ import { ReportsOverview } from "./reports-overview";
 import { DataTable, type ColumnDef, StatusPill } from "@/components/data-table";
 import type { FilterDef } from "@/components/data-table";
 
+const DIRECTORS = [
+    { name: "Pedro Guzman",     title: "President",                         email: "pedro@utsbi.org" },
+    { name: "Sam Moran",        title: "Vice President",                    email: "sam@utsbi.org" },
+    { name: "Brendan Lyon",     title: "Director of Project Operations",    email: "brendan@utsbi.org" },
+    { name: "Kabir Muzumdar",   title: "Director of Civil Engineering",     email: "kabir@utsbi.org" },
+    { name: "Preston Vajdos",   title: "Director of Civil Engineering",     email: "vajdosp@utsbi.org" },
+    { name: "Enoch Zhu",        title: "Director of External Technologies", email: "enoch@utsbi.org" },
+    { name: "Daniel Lam",       title: "Director of Internal Technologies", email: "daniel@utsbi.org" },
+    { name: "Dev Shroff",       title: "Director of Business",              email: "dev@utsbi.org" },
+    { name: "Arianne Grace",    title: "Director of Public Relations",      email: "ariannegraceyude@utsbi.org" },
+    { name: "Christian Butler", title: "Director of Architecture",          email: "christian.butler@utsbi.org" },
+    { name: "Alim Makanov",     title: "Director of Legal",                 email: "alim.makanov@utsbi.org" },
+];
+
 const STATUS_FILTER: FilterDef = {
     key: "status",
     label: "Status",
@@ -22,6 +36,7 @@ const STATUS_FILTER: FilterDef = {
         { value: "Denied", label: "Denied" },
     ],
 };
+
 
 const DEPT_FILTER: FilterDef = {
     key: "department",
@@ -432,26 +447,38 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
                                         </div>
                                         <div>
                                             <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold mb-2">Assigned Director *</label>
-                                            <input 
+                                            <select 
                                                 required 
                                                 value={newReportForm.director}
                                                 onChange={e => setNewReportForm(prev => ({ ...prev, director: e.target.value }))}
                                                 disabled={isSubmitting}
-                                                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm"
-                                                placeholder="L. Jenkins" 
-                                            />
+                                                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors text-sm appearance-none"
+                                            >
+                                                <option value="" disabled>Select a director...</option>
+                                                {DIRECTORS.map(d => (
+                                                    <option key={d.email} value={d.name}>{d.name} — {d.title}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
 
                                     <div>
                                         <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold mb-2">Project ID / Reference</label>
-                                        <input 
+                                        <input
+                                            list="recent-projects"
                                             value={newReportForm.project}
                                             onChange={e => setNewReportForm(prev => ({ ...prev, project: e.target.value }))}
                                             disabled={isSubmitting}
                                             className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm font-mono"
-                                            placeholder="PRJ-2026-X" 
+                                            placeholder="Select recent or type new..."
                                         />
+                                        <datalist id="recent-projects">
+                                            {Array.from(new Set(
+                                                reports.map(r => r.project).filter((p): p is string => Boolean(p))
+                                            )).slice(0, 10).map(p => (
+                                                <option key={p} value={p} />
+                                            ))}
+                                        </datalist>
                                     </div>
 
                                     <div>
