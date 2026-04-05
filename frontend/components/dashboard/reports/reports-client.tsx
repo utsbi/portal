@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { X, FileText } from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
@@ -92,8 +92,23 @@ const COLUMNS: ColumnDef<ReportItem>[] = [
 ];
 
 export function ReportsClient({ initialReports }: { initialReports: ReportItem[] }) {
-    const [reports] = useState<ReportItem[]>(initialReports);
+    const [reports, setReports] = useState<ReportItem[]>(initialReports);
+    const [loading, setLoading] = useState(initialReports.length === 0);
     const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
+    const [isCreatingModalOpen, setIsCreatingModalOpen] = useState(false);
+    
+    // New Report Form State
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [newReportForm, setNewReportForm] = useState({ title: "", department: "Engineering General", director: "", project: "", message: "" });
+
+    // If no initial data (server didn't preload), fetch client-side for fast render
+    useEffect(() => {
+        if (initialReports.length > 0) return;
+        fetch("/api/reports", { cache: "no-store" })
+            .then((r) => r.json())
+            .then((data) => { setReports(data); setLoading(false); })
+            .catch(() => setLoading(false));
+    }, [initialReports.length]);
 
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-sbi-dark font-urbanist text-sbi-muted overflow-hidden flex-col">
@@ -104,7 +119,10 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
                     <h1 className="text-3xl font-light text-white tracking-wide">
                         Reports
                     </h1>
-                    <button className="bg-sbi-green hover:bg-green-500 text-black font-semibold px-4 py-2 rounded-md flex items-center gap-2 text-sm transition-colors">
+                    <button 
+                        onClick={() => setIsCreatingModalOpen(true)}
+                        className="bg-sbi-green hover:bg-green-500 text-black font-semibold px-4 py-2 rounded-md flex items-center gap-2 text-sm transition-colors"
+                    >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M5 12h14" /><path d="M12 5v14" />
                         </svg>
@@ -113,7 +131,20 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
                 </div>
 
                 {/* Analytics Overview */}
-                <ReportsOverview reports={reports} />
+                {loading ? (
+                    <div className="animate-pulse space-y-6">
+                        <div className="h-8 bg-white/5 rounded w-48" />
+                        <div className="grid grid-cols-4 gap-4">
+                            {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-white/5 rounded-xl" />)}
+                        </div>
+                        <div className="grid grid-cols-3 gap-6">
+                            <div className="col-span-2 h-64 bg-white/5 rounded-xl" />
+                            <div className="h-64 bg-white/5 rounded-xl" />
+                        </div>
+                    </div>
+                ) : (
+                    <ReportsOverview reports={reports} />
+                )}
 
                 {/* Report History Table */}
                 <div>
@@ -132,7 +163,7 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
                         searchKeys={["title", "director", "numid", "department"]}
                         searchPlaceholder="Search reports..."
                         filters={[STATUS_FILTER, DEPT_FILTER]}
-                        pageSize={10}
+                        pageSize={5}
                         primaryColumn="title"
                         onRowClick={setSelectedReport}
                         columnToggle
@@ -302,6 +333,165 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
                                     </button>
                                 </div>
                             </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* New Report Modal */}
+            <AnimatePresence>
+                {isCreatingModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => !isSubmitting && setIsCreatingModalOpen(false)}
+                            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                            className="relative w-full max-w-2xl bg-sbi-dark shadow-2xl flex flex-col z-10 border border-sbi-dark-border rounded-xl overflow-hidden font-urbanist"
+                        >
+                            <div className="flex items-center justify-between p-6 border-b border-sbi-dark-border bg-sbi-dark">
+                                <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                                    <FileText className="w-5 h-5 text-sbi-green" /> Create New Report
+                                </h2>
+                                <button
+                                    onClick={() => setIsCreatingModalOpen(false)}
+                                    disabled={isSubmitting}
+                                    className="p-2 text-sbi-muted hover:text-white rounded-full hover:bg-sbi-dark-card transition-colors disabled:opacity-50"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            
+                            <form 
+                                onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    setIsSubmitting(true);
+                                    try {
+                                        const res = await fetch("/api/reports", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify(newReportForm),
+                                        });
+                                        if (res.ok) {
+                                            const newReport = await res.json();
+                                            // unshift adds it to the top
+                                            setReports(prev => [newReport, ...prev]);
+                                            setIsCreatingModalOpen(false);
+                                            setNewReportForm({ title: "", department: "Engineering General", director: "", project: "", message: "" });
+                                        } else {
+                                            alert("Failed to submit report. Please try again.");
+                                        }
+                                    } catch (err) {
+                                        alert("An error occurred while submitting.");
+                                    } finally {
+                                        setIsSubmitting(false);
+                                    }
+                                }} 
+                                className="p-6 space-y-6 bg-sbi-dark-card"
+                            >
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold mb-2">Subject / Title *</label>
+                                        <input 
+                                            required 
+                                            value={newReportForm.title}
+                                            onChange={e => setNewReportForm(prev => ({ ...prev, title: e.target.value }))}
+                                            disabled={isSubmitting}
+                                            className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm"
+                                            placeholder="Quarterly Earnings Review" 
+                                        />
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold mb-2">Department *</label>
+                                            <select 
+                                                required
+                                                value={newReportForm.department}
+                                                onChange={e => setNewReportForm(prev => ({ ...prev, department: e.target.value }))}
+                                                disabled={isSubmitting}
+                                                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors text-sm appearance-none"
+                                            >
+                                                {DEPT_FILTER.options?.map(opt => {
+                                                    if ('options' in opt && opt.options) {
+                                                        return opt.options.map(sub => (
+                                                            <option key={sub.value} value={sub.value}>{sub.label}</option>
+                                                        ));
+                                                    }
+                                                    if (opt.value === "All Depts") return null;
+                                                    return <option key={opt.value} value={opt.value}>{opt.label}</option>;
+                                                })}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold mb-2">Assigned Director *</label>
+                                            <input 
+                                                required 
+                                                value={newReportForm.director}
+                                                onChange={e => setNewReportForm(prev => ({ ...prev, director: e.target.value }))}
+                                                disabled={isSubmitting}
+                                                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm"
+                                                placeholder="L. Jenkins" 
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold mb-2">Project ID / Reference</label>
+                                        <input 
+                                            value={newReportForm.project}
+                                            onChange={e => setNewReportForm(prev => ({ ...prev, project: e.target.value }))}
+                                            disabled={isSubmitting}
+                                            className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm font-mono"
+                                            placeholder="PRJ-2026-X" 
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold mb-2">Report Message / Notes</label>
+                                        <textarea 
+                                            value={newReportForm.message}
+                                            onChange={e => setNewReportForm(prev => ({ ...prev, message: e.target.value }))}
+                                            disabled={isSubmitting}
+                                            rows={4}
+                                            className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm resize-none"
+                                            placeholder="Include any preliminary context regarding this record..." 
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className="border-t border-sbi-dark-border pt-6 flex justify-end gap-3 mt-4">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setIsCreatingModalOpen(false)}
+                                        disabled={isSubmitting}
+                                        className="px-5 py-2.5 text-sm font-medium text-sbi-muted hover:text-white hover:bg-sbi-dark rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                        className="px-6 py-2.5 text-sm font-bold text-black bg-sbi-green hover:bg-green-400 rounded-lg transition-colors shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:shadow-[0_0_20px_rgba(34,197,94,0.5)] disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                                                Transmitting...
+                                            </>
+                                        ) : (
+                                            "Submit Report"
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
                         </motion.div>
                     </div>
                 )}

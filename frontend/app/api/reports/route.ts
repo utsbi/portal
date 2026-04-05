@@ -106,3 +106,92 @@ export async function GET() {
         );
     }
 }
+
+export async function POST(request: Request) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+        return NextResponse.json(
+            { error: "Missing Supabase environment variables" },
+            { status: 500 },
+        );
+    }
+
+    try {
+        const body = await request.json();
+        
+        // Basic validation
+        if (!body.title || !body.department || !body.director) {
+            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        }
+
+        const cookieStore = await cookies();
+        const supabase = createServerClient(
+            supabaseUrl,
+            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+            {
+                db: { schema: "public" },
+                cookies: {
+                    getAll() { return cookieStore.getAll(); },
+                    setAll() { /* server side read-only */ },
+                },
+            },
+        );
+
+        // Map frontend fields to database schema
+        const newRecord = {
+            title: body.title,
+            subject: body.title, // mirror subject to title just in case
+            department: body.department,
+            director: body.director,
+            assign_to: body.director, // alias
+            project: body.project || "N/A",
+            message: body.message || "",
+            status: "Pending", // Default new runs to Pending
+            customer_id: body.customer_id || null,
+        };
+
+        const { data, error } = await supabase
+            .from("reports")
+            .insert([newRecord])
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Supabase insert error:", error);
+            return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        const report: ReportItem = {
+            id: data.id,
+            uuid: data.uuid || data.id,
+            numid: String(data.numid || data.id).padStart(4, "0"),
+            title: data.title || data.subject || "Untitled Report",
+            subject: data.subject,
+            name: data.name,
+            email: data.email,
+            department: data.department || "General",
+            director: data.director || data.assign_to || "Unassigned",
+            assign_to: data.assign_to,
+            project: data.project,
+            status: normalizeStatus(data.status),
+            message: data.message,
+            date: data.created_at
+                ? new Date(data.created_at).toISOString().split("T")[0]
+                : new Date().toISOString().split("T")[0],
+            customer_id: data.customer_id,
+            attachments: data.attachments,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+        };
+
+        return NextResponse.json(report, { status: 201 });
+    } catch (error) {
+        console.error("Unexpected POST error:", error);
+        return NextResponse.json(
+            { error: "Internal server error" },
+            { status: 500 },
+        );
+    }
+}

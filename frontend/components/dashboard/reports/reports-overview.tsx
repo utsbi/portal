@@ -1,22 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { SearchableDropdown } from "@/components/data-table/searchable-dropdown";
 import {
     BarChart,
     Bar,
     XAxis,
-    YAxis,
-    CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
     AreaChart,
     Area,
+    CartesianGrid,
 } from "recharts";
 import {
     FileText,
@@ -28,6 +24,58 @@ import {
     BarChart2 as BarChart2Icon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Pure-SVG donut gauge — avoids recharts clipping
+function SvgGauge({ segments, total }: { segments: { value: number; color: string }[]; total: number }) {
+    const R = 40;
+    const C = 2 * Math.PI * R; // circumference ≈ 251.3
+    const GAP = total > 1 ? 4 : 0; // px gap between segments
+
+    // Build arcs
+    const arcs: { offset: number; dash: number; color: string }[] = [];
+    let used = 0;
+    const totalGap = GAP * (segments.length > 1 ? segments.length : 0);
+    const available = C - totalGap;
+
+    segments.forEach((seg) => {
+        const dash = (seg.value / Math.max(total, 1)) * available;
+        arcs.push({ offset: used, dash, color: seg.color });
+        used += dash + GAP;
+    });
+
+    return (
+        <svg viewBox="-8 -8 116 116" className="w-full h-full">
+            {/* Background track */}
+            <circle
+                cx="50" cy="50" r={R}
+                fill="none"
+                stroke="rgba(255,255,255,0.07)"
+                strokeWidth="7"
+            />
+            {/* Colored segments */}
+            {arcs.map((arc, i) => (
+                <circle
+                    key={i}
+                    cx="50" cy="50" r={R}
+                    fill="none"
+                    stroke={arc.color}
+                    strokeWidth="7"
+                    strokeLinecap="round"
+                    strokeDasharray={`${arc.dash} ${C - arc.dash}`}
+                    strokeDashoffset={-(arc.offset) + C / 4 /* start at top */}
+                    style={{ transition: "stroke-dasharray 0.6s ease" }}
+                />
+            ))}
+            {/* Center label */}
+            <text x="50" y="46" textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="26" fontWeight="700">
+                {total}
+            </text>
+            <text x="50" y="64" textAnchor="middle" dominantBaseline="middle" fill="#6b7c73" fontSize="9" letterSpacing="1.5">
+                REPORTS
+            </text>
+        </svg>
+    );
+}
 
 interface ReportsOverviewProps {
     reports: ReportItem[];
@@ -185,8 +233,8 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                                 onClick={() => setFilterTime(opt.value)}
                                 className={cn(
                                     "px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all",
-                                    filterTime === opt.value 
-                                        ? "bg-sbi-green text-black" 
+                                    filterTime === opt.value
+                                        ? "bg-sbi-green text-black"
                                         : "text-sbi-muted-dark hover:text-white"
                                 )}
                             >
@@ -279,8 +327,8 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                                <XAxis 
-                                    dataKey="date" 
+                                <XAxis
+                                    dataKey="date"
                                     tick={{ fill: "#8a9a93", fontSize: 10, letterSpacing: "0.05em" }}
                                     axisLine={false}
                                     tickLine={false}
@@ -319,36 +367,18 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                 </div>
 
                 {/* Right Column Bento Boxes (1/3 each) */}
-                <div className="flex flex-col gap-6 h-[400px]">
+                <div className="flex flex-col gap-6 h-[520px]">
                     {/* Status Breakdown - Mini Bento */}
-                    <div className="flex-1 bento-card p-6 flex flex-col">
-                        <h3 className="metric-label mb-4 flex items-center gap-2">
+                    <div className="flex-1 bento-card p-6 flex flex-col min-h-0">
+                        <h3 className="metric-label mb-4 flex items-center gap-2 shrink-0">
                             <PieChartIcon className="w-4 h-4 text-sbi-yellow" /> Status Gauge
                         </h3>
-                        <div className="flex-1 relative flex items-center justify-center">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={statusData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={65}
-                                        outerRadius={70}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                        stroke="none"
-                                        startAngle={225}
-                                        endAngle={-45}
-                                    >
-                                        {statusData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color === '#22c55e' ? '#22c55e' : '#fbbf24'} />
-                                        ))}
-                                    </Pie>
-                                </PieChart>
-                            </ResponsiveContainer>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="metric-value text-4xl text-white">{stats.total}</span>
-                                <span className="text-[8px] uppercase tracking-[0.3em] text-sbi-muted-dark">Reports</span>
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="w-44 h-44">
+                                <SvgGauge
+                                    segments={statusData.length > 0 ? statusData : [{ value: 1, color: "#333" }]}
+                                    total={stats.total}
+                                />
                             </div>
                         </div>
                     </div>
@@ -366,11 +396,11 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                                         <span className="text-white font-medium">{dept.count}</span>
                                     </div>
                                     <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                        <motion.div 
+                                        <motion.div
                                             initial={{ width: 0 }}
                                             animate={{ width: `${(dept.count / stats.total) * 100}%` }}
                                             className="h-full rounded-full"
-                                            style={{ 
+                                            style={{
                                                 background: 'linear-gradient(90deg, #22c55e 0%, #16301d 100%)'
                                             }}
                                         />
@@ -419,7 +449,7 @@ function SummaryCard({
                     </div>
                 )}
             </div>
-            
+
             <div>
                 <div className="metric-value text-3xl text-white">
                     {typeof value === 'number' && title.includes('Total Reports') ? value.toLocaleString() : value}
