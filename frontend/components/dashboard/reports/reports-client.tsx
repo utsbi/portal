@@ -114,6 +114,7 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
     
     // New Report Form State
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCustomProject, setIsCustomProject] = useState(false);
     const [newReportForm, setNewReportForm] = useState({ title: "", department: "Engineering General", director: "", project: "", message: "" });
 
     // If no initial data (server didn't preload), fetch client-side for fast render
@@ -463,22 +464,46 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
                                     </div>
 
                                     <div>
-                                        <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold mb-2">Project ID / Reference</label>
-                                        <input
-                                            list="recent-projects"
-                                            value={newReportForm.project}
-                                            onChange={e => setNewReportForm(prev => ({ ...prev, project: e.target.value }))}
-                                            disabled={isSubmitting}
-                                            className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm font-mono"
-                                            placeholder="Select recent or type new..."
-                                        />
-                                        <datalist id="recent-projects">
-                                            {Array.from(new Set(
-                                                reports.map(r => r.project).filter((p): p is string => Boolean(p))
-                                            )).slice(0, 10).map(p => (
-                                                <option key={p} value={p} />
-                                            ))}
-                                        </datalist>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="block text-[11px] uppercase tracking-widest text-sbi-muted-dark font-bold">Project ID / Reference</label>
+                                            {isCustomProject && (
+                                                <button type="button" onClick={() => { setIsCustomProject(false); setNewReportForm(prev => ({ ...prev, project: "" })); }} className="text-[10px] text-sbi-green hover:underline">Select Existing</button>
+                                            )}
+                                        </div>
+                                        {isCustomProject ? (
+                                            <input
+                                                required
+                                                value={newReportForm.project}
+                                                onChange={e => setNewReportForm(prev => ({ ...prev, project: e.target.value }))}
+                                                disabled={isSubmitting}
+                                                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm font-mono"
+                                                placeholder="Enter new Project ID..."
+                                                autoFocus
+                                            />
+                                        ) : (
+                                            <select
+                                                required
+                                                value={newReportForm.project}
+                                                onChange={e => {
+                                                    if (e.target.value === "__NEW__") {
+                                                        setIsCustomProject(true);
+                                                        setNewReportForm(prev => ({ ...prev, project: "" }));
+                                                    } else {
+                                                        setNewReportForm(prev => ({ ...prev, project: e.target.value }));
+                                                    }
+                                                }}
+                                                disabled={isSubmitting}
+                                                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors text-sm appearance-none font-mono"
+                                            >
+                                                <option value="" disabled>Select an existing project...</option>
+                                                <option value="__NEW__" className="text-sbi-green font-bold bg-sbi-dark-card">+ Enter New Project ID</option>
+                                                {Array.from(new Set(
+                                                    reports.map(r => r.project).filter((p): p is string => Boolean(p))
+                                                )).slice(0, 10).map(p => (
+                                                    <option key={p} value={p}>{p}</option>
+                                                ))}
+                                            </select>
+                                        )}
                                     </div>
 
                                     <div>
