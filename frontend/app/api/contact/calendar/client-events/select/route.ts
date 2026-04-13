@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     const supabaseAdmin = createClient(
       must("NEXT_PUBLIC_SUPABASE_URL"),
-      must("SUPABASE_SERVICE_ROLE_KEY")
+      must("SUPABASE_SECRET_KEY")
     );
 
     const directorId = must("DIRECTOR_ID");

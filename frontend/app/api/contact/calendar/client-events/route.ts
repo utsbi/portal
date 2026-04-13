@@ -32,7 +32,7 @@ export async function GET(req: Request) {
 
     const supabaseAdmin = createClient(
       must("NEXT_PUBLIC_SUPABASE_URL"),
-      must("SUPABASE_SERVICE_ROLE_KEY")
+      must("SUPABASE_SECRET_KEY")
     );
 
     // 1) Load the project to get company info
