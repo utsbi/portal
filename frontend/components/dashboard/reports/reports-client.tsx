@@ -278,7 +278,7 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
                                         <section>
                                             <h3 className="font-sans text-xs font-bold uppercase text-sbi-muted-dark tracking-widest mb-4">4.0 Database Record</h3>
                                             <div className="bg-sbi-dark border border-sbi-dark-border p-6 rounded font-mono text-sm grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                                                <div><span className="text-sbi-muted-dark">uuid:</span> <span className="text-gray-300 break-all">{selectedReport.uuid}</span></div>
+                                                <div><span className="text-sbi-muted-dark">id:</span> <span className="text-gray-300 break-all">{selectedReport.id}</span></div>
                                                 <div><span className="text-sbi-muted-dark">customer_id:</span> <span className="text-gray-300">{selectedReport.customer_id || "null"}</span></div>
                                                 <div><span className="text-sbi-muted-dark">name:</span> <span className="text-gray-300">{selectedReport.name || "null"}</span></div>
                                                 <div><span className="text-sbi-muted-dark">email:</span> <span className="text-gray-300">{selectedReport.email || "null"}</span></div>

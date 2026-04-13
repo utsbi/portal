@@ -11,37 +11,23 @@ function must(name: string) {
 type GoogleEventItem = {
   id?: string | null;
   summary?: string | null;
-  start?: {
-    dateTime?: string | null;
-    date?: string | null;
-  } | null;
-  end?: {
-    dateTime?: string | null;
-    date?: string | null;
-  } | null;
+  start?: { dateTime?: string | null; date?: string | null } | null;
+  end?: { dateTime?: string | null; date?: string | null } | null;
   location?: string | null;
   description?: string | null;
   htmlLink?: string | null;
-  organizer?: {
-    displayName?: string | null;
-    email?: string | null;
-  } | null;
-  creator?: {
-    displayName?: string | null;
-    email?: string | null;
-  } | null;
-  attendees?: Array<{
-    email?: string | null;
-  }> | null;
+  organizer?: { displayName?: string | null; email?: string | null } | null;
+  creator?: { displayName?: string | null; email?: string | null } | null;
+  attendees?: Array<{ email?: string | null }> | null;
 };
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const clientId = searchParams.get("client_id");
+    const projectId = searchParams.get("project_id");
 
-    if (!clientId) {
-      return NextResponse.json({ error: "Missing client_id" }, { status: 400 });
+    if (!projectId) {
+      return NextResponse.json({ error: "Missing project_id" }, { status: 400 });
     }
 
     const supabaseAdmin = createClient(
@@ -49,55 +35,57 @@ export async function GET(req: Request) {
       must("SUPABASE_SERVICE_ROLE_KEY")
     );
 
-    // 1) Load requested client email
-    const { data: client, error: clientErr } = await supabaseAdmin
-      .from("clients")
-      .select("id, email")
-      .eq("id", clientId)
+    // 1) Load the project to get company info
+    const { data: project, error: projectErr } = await supabaseAdmin
+      .from("projects")
+      .select("id, url_slug, company_name")
+      .eq("id", projectId)
       .single();
 
-    if (clientErr) {
-      return NextResponse.json({ error: clientErr.message }, { status: 500 });
+    if (projectErr || !project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    if (!client?.email) {
-      return NextResponse.json({ error: "Client email is missing" }, { status: 400 });
+    // 2) Find all directors assigned to this project via project_members
+    const { data: directorMembers, error: membersErr } = await supabaseAdmin
+      .from("project_members")
+      .select("profile_id")
+      .eq("project_id", projectId)
+      .eq("role", "director");
+
+    if (membersErr) {
+      return NextResponse.json({ error: membersErr.message }, { status: 500 });
     }
 
-    const clientEmail = String(client.email).trim().toLowerCase();
+    const directorProfileIds = (directorMembers ?? []).map((m) => m.profile_id);
 
-    // 2) Find all linked directors for this client
-    const { data: clientDirectorLinks, error: linksErr } = await supabaseAdmin
-      .from("client_directors")
-      .select("director_id")
-      .eq("client_id", clientId);
-
-    if (linksErr) {
-      return NextResponse.json({ error: linksErr.message }, { status: 500 });
-    }
-
-    const directorIds = (clientDirectorLinks ?? [])
-      .map((row) => row.director_id)
-      .filter(Boolean);
-
-    if (directorIds.length === 0) {
+    if (directorProfileIds.length === 0) {
       return NextResponse.json({
         ok: true,
-        client_email: client.email,
         events: [],
-        message: "No directors linked to this client.",
+        message: "No directors linked to this project.",
       });
     }
 
-    // 3) Load all linked directors
+    // 3) Load director profiles with their Google config
     const { data: directors, error: directorsErr } = await supabaseAdmin
-      .from("directors")
-      .select("id, email, name, config, calendar_id")
-      .in("id", directorIds);
+      .from("profiles")
+      .select("id, email, name, config")
+      .in("id", directorProfileIds);
 
     if (directorsErr) {
       return NextResponse.json({ error: directorsErr.message }, { status: 500 });
     }
+
+    // 4) Also get the client/owner email for attendee filtering
+    const { data: ownerMember } = await supabaseAdmin
+      .from("project_members")
+      .select("profile_id, profiles(email)")
+      .eq("project_id", projectId)
+      .eq("role", "owner")
+      .single();
+
+    const clientEmail = (ownerMember?.profiles as any)?.email?.trim().toLowerCase() ?? "";
 
     const oauth2 = new google.auth.OAuth2(
       must("GOOGLE_CLIENT_ID"),
@@ -125,20 +113,17 @@ export async function GET(req: Request) {
       sourceCalendarId: string | null;
     }> = [];
 
-    // 4) Fetch events from each linked director calendar
+    // 5) Fetch events from each director's Google Calendar
     for (const director of directors ?? []) {
-      const refreshToken = (director.config as any)?.google?.refresh_token as
-        | string
-        | undefined;
+      const config = director.config as any;
+      const refreshToken = config?.google?.refresh_token as string | undefined;
+      const calendarId = config?.google?.calendar_id as string | undefined
+        // Fallback: check old directors table for calendar_id
+        || await getOldCalendarId(supabaseAdmin, director.email);
 
-      const calendarId = director.calendar_id as string | null;
-
-      if (!refreshToken || !calendarId) {
-        continue;
-      }
+      if (!refreshToken || !calendarId) continue;
 
       oauth2.setCredentials({ refresh_token: refreshToken });
-
       const cal = google.calendar({ version: "v3", auth: oauth2 });
 
       const res = await cal.events.list({
@@ -152,14 +137,15 @@ export async function GET(req: Request) {
 
       const items = (res.data.items ?? []) as GoogleEventItem[];
 
-      // 5) Filter events where the client is an attendee
-      const matched = items.filter((ev) => {
-        const attendees = (ev.attendees ?? [])
-          .map((a) => a.email?.trim().toLowerCase())
-          .filter(Boolean) as string[];
-
-        return attendees.includes(clientEmail);
-      });
+      // Filter events where the client is an attendee (if we have their email)
+      const matched = clientEmail
+        ? items.filter((ev) => {
+            const attendees = (ev.attendees ?? [])
+              .map((a) => a.email?.trim().toLowerCase())
+              .filter(Boolean) as string[];
+            return attendees.includes(clientEmail);
+          })
+        : items;
 
       const normalized = matched.map((ev) => ({
         id: ev.id ?? null,
@@ -181,17 +167,11 @@ export async function GET(req: Request) {
       allMatchedEvents.push(...normalized);
     }
 
-    // 6) Deduplicate in case the same event appears more than once
+    // 6) Deduplicate
     const dedupedMap = new Map<string, (typeof allMatchedEvents)[number]>();
-
     for (const ev of allMatchedEvents) {
-      const key =
-        ev.id ??
-        `${ev.summary}-${ev.start ?? "no-start"}-${ev.sourceCalendarId ?? "no-calendar"}`;
-
-      if (!dedupedMap.has(key)) {
-        dedupedMap.set(key, ev);
-      }
+      const key = ev.id ?? `${ev.summary}-${ev.start ?? "no-start"}-${ev.sourceCalendarId ?? "no-calendar"}`;
+      if (!dedupedMap.has(key)) dedupedMap.set(key, ev);
     }
 
     const events = Array.from(dedupedMap.values()).sort((a, b) => {
@@ -200,16 +180,22 @@ export async function GET(req: Request) {
       return aTime - bTime;
     });
 
-    return NextResponse.json({
-      ok: true,
-      client_email: client.email,
-      director_ids: directorIds,
-      events,
-    });
+    return NextResponse.json({ ok: true, events });
   } catch (e: any) {
     return NextResponse.json(
       { error: "Route crashed", message: e?.message ?? String(e) },
       { status: 500 }
     );
   }
+}
+
+// Temporary: fetch calendar_id from old directors table during migration
+async function getOldCalendarId(supabase: any, email: string | null): Promise<string | undefined> {
+  if (!email) return undefined;
+  const { data } = await supabase
+    .from("directors")
+    .select("calendar_id")
+    .eq("email", email)
+    .single();
+  return data?.calendar_id ?? undefined;
 }

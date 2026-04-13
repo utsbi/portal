@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 function must(name: string) {
   const v = process.env[name];
@@ -16,6 +17,30 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing code" }, { status: 400 });
   }
 
+  // Get the authenticated user to determine which director this is
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  // Look up the director's profile
+  const supabaseAdmin = createClient(
+    must("NEXT_PUBLIC_SUPABASE_URL"),
+    must("SUPABASE_SERVICE_ROLE_KEY")
+  );
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, role, config")
+    .eq("uid", user.id)
+    .single();
+
+  if (!profile || profile.role !== "director") {
+    return NextResponse.json({ error: "Only directors can connect Google Calendar" }, { status: 403 });
+  }
+
   const oauth2 = new google.auth.OAuth2(
     must("GOOGLE_CLIENT_ID"),
     must("GOOGLE_CLIENT_SECRET"),
@@ -26,32 +51,12 @@ export async function GET(req: Request) {
 
   if (!tokens.refresh_token) {
     return NextResponse.json(
-      {
-        error:
-          "No refresh_token returned. Remove the app from Google permissions, then reconnect.",
-      },
+      { error: "No refresh_token returned. Remove the app from Google permissions, then reconnect." },
       { status: 400 }
     );
   }
 
-  const supabaseAdmin = createClient(
-    must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SERVICE_ROLE_KEY")
-  );
-
-  const directorId = must("DIRECTOR_ID");
-
-  const { data: director, error: readErr } = await supabaseAdmin
-    .from("directors")
-    .select("config")
-    .eq("id", directorId)
-    .single();
-
-  if (readErr) {
-    return NextResponse.json({ error: readErr.message }, { status: 500 });
-  }
-
-  const existingConfig = (director?.config ?? {}) as Record<string, any>;
+  const existingConfig = (profile.config ?? {}) as Record<string, any>;
 
   const newConfig = {
     ...existingConfig,
@@ -65,17 +70,32 @@ export async function GET(req: Request) {
     },
   };
 
+  // Save to profiles table (new identity model)
   const { error: writeErr } = await supabaseAdmin
-    .from("directors")
+    .from("profiles")
     .update({ config: newConfig })
-    .eq("id", directorId);
+    .eq("id", profile.id);
 
   if (writeErr) {
     return NextResponse.json({ error: writeErr.message }, { status: 500 });
   }
 
+  // Also update the old directors table for backward compat during migration
+  const { data: directorRow } = await supabaseAdmin
+    .from("directors")
+    .select("id")
+    .eq("uid", user.id)
+    .single();
+
+  if (directorRow) {
+    await supabaseAdmin
+      .from("directors")
+      .update({ config: newConfig })
+      .eq("id", directorRow.id);
+  }
+
   return NextResponse.json({
     ok: true,
-    message: "Google connected. Refresh token saved. Next step is calendar selection.",
+    message: "Google connected. Refresh token saved.",
   });
 }

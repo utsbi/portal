@@ -1,21 +1,19 @@
 import { createClient } from "./client";
 import type { RequestStatus } from "@/components/dashboard/requests/StatusBadge";
 
-// Normalise whatever the DB stores → a valid RequestStatus slug
 function normalizeStatus(raw: string | null | undefined): RequestStatus {
     if (!raw) return "pending";
     const s = raw.toLowerCase().replace(/[\s_]+/g, "-");
     if (s === "in-progress") return "in-progress";
     if (s === "done") return "done";
     if (s === "denied") return "denied";
-    return "pending"; // safe fallback
+    return "pending";
 }
 import type { Request } from "@/components/dashboard/requests/RequestHistory";
 
-// Row shape coming from Supabase (snake_case)
-// Note: id is bigint in the DB so it comes back as a number
-interface RequestRow {
+interface TicketRow {
     id: number;
+    ticket_type: string;
     customer_id: string | null;
     name: string;
     email: string;
@@ -30,10 +28,9 @@ interface RequestRow {
     updated_at: string;
 }
 
-// Map DB row → frontend Request interface
-function rowToRequest(row: RequestRow): Request {
+function rowToRequest(row: TicketRow): Request {
     return {
-        id: String(row.id), // bigint → string for the frontend
+        id: String(row.id),
         name: row.name,
         email: row.email,
         subject: row.subject,
@@ -52,12 +49,12 @@ function rowToRequest(row: RequestRow): Request {
     };
 }
 
-// Fetch all requests (optionally filtered by customer_id)
 export async function fetchRequests(customerId?: string): Promise<Request[]> {
     const supabase = createClient();
     let query = supabase
-        .from("requests")
+        .from("tickets")
         .select("*")
+        .eq("ticket_type", "request")
         .order("created_at", { ascending: false });
 
     if (customerId) {
@@ -70,10 +67,9 @@ export async function fetchRequests(customerId?: string): Promise<Request[]> {
         return [];
     }
 
-    return (data as RequestRow[]).map(rowToRequest);
+    return (data as TicketRow[]).map(rowToRequest);
 }
 
-// Upload files to Supabase Storage and return their metadata
 async function uploadFiles(
     requestId: string,
     files: File[]
@@ -102,7 +98,6 @@ async function uploadFiles(
     return results;
 }
 
-// Create a new request row, upload attachments, and save their paths to DB
 export async function createRequest(payload: {
     customerId?: string;
     name: string;
@@ -116,13 +111,10 @@ export async function createRequest(payload: {
 }): Promise<Request | null> {
     const supabase = createClient();
 
-    // 1. Insert the request row first (get the ID)
-    // updated_at is NOT NULL with no DB default, so we send it explicitly.
-    // attachments is nullable, omit from insert to avoid jsonb type issues.
-    const now = new Date().toISOString();
     const { data: inserted, error: insertError } = await supabase
-        .from("requests")
+        .from("tickets")
         .insert({
+            ticket_type: "request" as const,
             customer_id: payload.customerId ?? null,
             name: payload.name,
             email: payload.email,
@@ -130,9 +122,8 @@ export async function createRequest(payload: {
             assign_to: payload.assignTo ?? null,
             project: payload.project ?? null,
             subject: payload.subject,
-            message: payload.message ?? null,
+            message: payload.message ?? "",
             status: "pending",
-            updated_at: now,
         })
         .select()
         .single();
@@ -142,16 +133,14 @@ export async function createRequest(payload: {
         return null;
     }
 
-    const row = inserted as RequestRow;
+    const row = inserted as TicketRow;
 
-    // 2. Upload files if any
     if (payload.files && payload.files.length > 0) {
         const attachmentMeta = await uploadFiles(String(row.id), payload.files);
 
         if (attachmentMeta.length > 0) {
-            // 3. Update the row with the attachment metadata
             const { error: updateError } = await supabase
-                .from("requests")
+                .from("tickets")
                 .update({ attachments: attachmentMeta })
                 .eq("id", row.id);
 
@@ -166,14 +155,13 @@ export async function createRequest(payload: {
     return rowToRequest(row);
 }
 
-// Update the status of a request (updated_at is auto-set by the DB trigger)
 export async function updateRequestStatus(
     requestId: string,
     status: string
 ): Promise<boolean> {
     const supabase = createClient();
     const { error } = await supabase
-        .from("requests")
+        .from("tickets")
         .update({ status })
         .eq("id", requestId);
 

@@ -14,7 +14,6 @@ function normalizeStatus(status: string | null | undefined): "Pending" | "In Pro
 
 export interface ReportItem {
     id: string;
-    uuid: string;
     numid: string;
     title: string;
     subject?: string;
@@ -35,9 +34,9 @@ export interface ReportItem {
 
 export async function GET() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseKey) {
         return NextResponse.json(
             { error: "Missing Supabase environment variables" },
             { status: 500 },
@@ -46,27 +45,24 @@ export async function GET() {
 
     try {
         const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-            {
-                db: { schema: "public" },
-                cookies: {
-                    getAll() { return cookieStore.getAll(); },
-                    setAll(cookiesToSet) {
-                        try {
-                            cookiesToSet.forEach(({ name, value, options }) =>
-                                cookieStore.set(name, value, options),
-                            );
-                        } catch { /* Server Component — safe to ignore */ }
-                    },
+        const supabase = createServerClient(supabaseUrl, supabaseKey, {
+            db: { schema: "public" },
+            cookies: {
+                getAll() { return cookieStore.getAll(); },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options),
+                        );
+                    } catch { /* Server Component — safe to ignore */ }
                 },
             },
-        );
+        });
 
         const { data, error } = await supabase
-            .from("reports")
+            .from("tickets")
             .select("*")
+            .eq("ticket_type", "report")
             .order("created_at", { ascending: false });
 
         if (error) {
@@ -76,7 +72,6 @@ export async function GET() {
 
         const reports: ReportItem[] = (data || []).map((item: any) => ({
             id: item.id,
-            uuid: item.uuid || item.id,
             numid: String(item.numid || item.id).padStart(4, "0"),
             title: item.title || item.subject || "Untitled Report",
             subject: item.subject,
@@ -109,9 +104,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseKey) {
         return NextResponse.json(
             { error: "Missing Supabase environment variables" },
             { status: 500 },
@@ -120,40 +115,35 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        
-        // Basic validation
+
         if (!body.title || !body.department || !body.director) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
         const cookieStore = await cookies();
-        const supabase = createServerClient(
-            supabaseUrl,
-            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-            {
-                db: { schema: "public" },
-                cookies: {
-                    getAll() { return cookieStore.getAll(); },
-                    setAll() { /* server side read-only */ },
-                },
+        const supabase = createServerClient(supabaseUrl, supabaseKey, {
+            db: { schema: "public" },
+            cookies: {
+                getAll() { return cookieStore.getAll(); },
+                setAll() { /* server side read-only */ },
             },
-        );
+        });
 
-        // Map frontend fields to database schema
         const newRecord = {
+            ticket_type: "report" as const,
             title: body.title,
-            subject: body.title, // mirror subject to title just in case
+            subject: body.title,
             department: body.department,
             director: body.director,
-            assign_to: body.director, // alias
+            assign_to: body.director,
             project: body.project || "N/A",
             message: body.message || "",
-            status: "Pending", // Default new runs to Pending
+            status: "pending" as const,
             customer_id: body.customer_id || null,
         };
 
         const { data, error } = await supabase
-            .from("reports")
+            .from("tickets")
             .insert([newRecord])
             .select()
             .single();
@@ -165,7 +155,6 @@ export async function POST(request: Request) {
 
         const report: ReportItem = {
             id: data.id,
-            uuid: data.uuid || data.id,
             numid: String(data.numid || data.id).padStart(4, "0"),
             title: data.title || data.subject || "Untitled Report",
             subject: data.subject,
