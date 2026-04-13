@@ -31,21 +31,30 @@ export async function loginAction(email: string, password: string): Promise<Logi
     return { success: false, error: 'An error occurred. Please try again.' };
   }
 
-  // Check if user is a registered client
-  // Using server-side client ensures proper auth context for RLS
-  const { data: clientData, error: clientError } = await supabase
+  // Check clients first, then members (e.g. directors)
+  const { data: clientData } = await supabase
     .from('clients')
     .select('url_slug')
     .eq('uid', data.user.id)
     .single();
 
-  if (clientError || !clientData?.url_slug) {
-    // User is not a registered client - sign them out
-    await supabase.auth.signOut();
-    return { success: false, error: 'Invalid email or password' };
+  if (clientData?.url_slug) {
+    return { success: true, urlSlug: clientData.url_slug };
   }
 
-  return { success: true, urlSlug: clientData.url_slug };
+  const { data: memberData } = await supabase
+    .from('members')
+    .select('url_slug')
+    .eq('uid', data.user.id)
+    .single();
+
+  if (memberData?.url_slug) {
+    return { success: true, urlSlug: memberData.url_slug };
+  }
+
+  // Not in clients or members - sign out and reject
+  await supabase.auth.signOut();
+  return { success: false, error: 'Invalid email or password' };
 }
 
 export async function checkAuthAction(): Promise<{ authenticated: boolean; urlSlug?: string }> {
@@ -57,7 +66,7 @@ export async function checkAuthAction(): Promise<{ authenticated: boolean; urlSl
     return { authenticated: false };
   }
 
-  // Check if user is a registered client
+  // Check clients first, then members (e.g. directors)
   const { data: clientData } = await supabase
     .from('clients')
     .select('url_slug')
@@ -68,7 +77,16 @@ export async function checkAuthAction(): Promise<{ authenticated: boolean; urlSl
     return { authenticated: true, urlSlug: clientData.url_slug };
   }
 
-  // User is authenticated but not a client - sign them out
+  const { data: memberData } = await supabase
+    .from('members')
+    .select('url_slug')
+    .eq('uid', user.id)
+    .single();
+
+  if (memberData?.url_slug) {
+    return { authenticated: true, urlSlug: memberData.url_slug };
+  }
+
   await supabase.auth.signOut();
   return { authenticated: false };
 }
