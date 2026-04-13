@@ -16,15 +16,15 @@ export default function RequestsPage() {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const slug = activeProject?.projectSlug ?? "";
+  const projectId = activeProject?.projectId;
 
   const loadRequests = useCallback(async () => {
-    if (!slug) return;
+    if (!projectId) return;
     setLoading(true);
-    const data = await fetchRequests(slug);
+    const data = await fetchRequests(projectId);
     setRequests(data);
     setLoading(false);
-  }, [slug]);
+  }, [projectId]);
 
   useEffect(() => {
     loadRequests();
@@ -32,7 +32,7 @@ export default function RequestsPage() {
 
   const handleNewRequest = async (data: any) => {
     const newRequest = await createRequest({
-      customerId: slug,
+      projectId: projectId,
       name: data.name,
       email: data.email,
       department: data.department,

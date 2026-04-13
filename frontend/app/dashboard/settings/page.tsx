@@ -1,7 +1,8 @@
 "use client";
 
-import { Calendar, Users, Shield, Plus, Trash2, UserPlus, ChevronDown } from "lucide-react";
+import { Calendar, Users, Shield, Plus, Trash2, UserPlus, ChevronDown, Check, Loader2 } from "lucide-react";
 import { useProject } from "@/lib/project/project-context";
+import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import {
@@ -45,6 +46,13 @@ interface UnassignedMember {
   department: string | null;
 }
 
+interface GoogleCalendar {
+  id: string;
+  summary: string;
+  primary: boolean;
+  accessRole: string;
+}
+
 export default function SettingsPage() {
   const { user, isLoading } = useProject();
   const router = useRouter();
@@ -55,6 +63,14 @@ export default function SettingsPage() {
   const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", role: "member" as "client" | "director" | "member", companyName: "", department: "" });
   const [createError, setCreateError] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
+
+  // Calendar state
+  const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>("");
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarSaving, setCalendarSaving] = useState(false);
+  const [calendarError, setCalendarError] = useState("");
+  const [calendarSuccess, setCalendarSuccess] = useState("");
 
   // Team state
   const [projects, setProjects] = useState<Project[]>([]);
@@ -68,6 +84,61 @@ export default function SettingsPage() {
       router.replace("/dashboard");
     }
   }, [user, isLoading, router]);
+
+  const loadCalendars = useCallback(async () => {
+    setCalendarLoading(true);
+    setCalendarError("");
+    try {
+      // Fetch saved calendar_id from profile config
+      const supabase = createClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("config")
+          .eq("uid", authUser.id)
+          .single();
+        const savedId = (profile?.config as Record<string, any>)?.google?.calendar_id;
+        if (savedId) setSelectedCalendarId(savedId);
+      }
+
+      // Fetch available calendars
+      const res = await fetch("/api/contact/calendar/client-events/list");
+      const data = await res.json();
+      if (res.ok && data.calendars) {
+        setCalendars(data.calendars);
+      }
+    } catch {
+      // No OAuth token or network error — just leave calendars empty
+    } finally {
+      setCalendarLoading(false);
+    }
+  }, []);
+
+  const handleSelectCalendar = async (calendarId: string) => {
+    setCalendarSaving(true);
+    setCalendarError("");
+    setCalendarSuccess("");
+    try {
+      const res = await fetch("/api/contact/calendar/client-events/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendarId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setSelectedCalendarId(calendarId);
+        setCalendarSuccess("Calendar saved successfully.");
+        setTimeout(() => setCalendarSuccess(""), 3000);
+      } else {
+        setCalendarError(data.error || "Failed to save calendar.");
+      }
+    } catch {
+      setCalendarError("Failed to save calendar.");
+    } finally {
+      setCalendarSaving(false);
+    }
+  };
 
   const loadAccounts = useCallback(async () => {
     const result = await listAccounts();
@@ -88,8 +159,9 @@ export default function SettingsPage() {
     if (user?.role === "director") {
       loadAccounts();
       loadProjects();
+      loadCalendars();
     }
-  }, [user, loadAccounts, loadProjects]);
+  }, [user, loadAccounts, loadProjects, loadCalendars]);
 
   const loadProjectMembers = useCallback(async (projectId: number) => {
     const [membersResult, unassignedResult] = await Promise.all([
@@ -173,8 +245,52 @@ export default function SettingsPage() {
               href="/api/contact/auth/google"
               className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-sbi-green/10 text-sbi-green border border-sbi-green/30 hover:bg-sbi-green hover:text-sbi-dark transition-all duration-300 rounded"
             >
-              Connect Google Calendar
+              {calendars.length > 0 ? "Reconnect Google Calendar" : "Connect Google Calendar"}
             </a>
+
+            {calendarLoading && (
+              <div className="flex items-center gap-2 mt-4 text-sbi-muted text-sm">
+                <Loader2 className="size-4 animate-spin" />
+                Loading calendars...
+              </div>
+            )}
+
+            {calendars.length > 0 && !calendarLoading && (
+              <div className="mt-4">
+                <label className="text-xs tracking-widest uppercase text-sbi-muted mb-2 block">
+                  Select Calendar for Client Events
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedCalendarId}
+                    onChange={(e) => handleSelectCalendar(e.target.value)}
+                    disabled={calendarSaving}
+                    className="w-full bg-sbi-dark border border-sbi-dark-border/50 text-white text-sm rounded px-3 py-2 appearance-none cursor-pointer focus:outline-none focus:border-sbi-green/50 disabled:opacity-50"
+                  >
+                    <option value="">Choose a calendar...</option>
+                    {calendars.map((cal) => (
+                      <option key={cal.id} value={cal.id}>
+                        {cal.summary}{cal.primary ? " (Primary)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted pointer-events-none" />
+                </div>
+                {selectedCalendarId && (
+                  <div className="flex items-center gap-2 mt-2 text-sbi-green text-sm">
+                    <Check className="size-4" />
+                    Using: {calendars.find((c) => c.id === selectedCalendarId)?.summary ?? selectedCalendarId}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {calendarSuccess && (
+              <p className="text-sbi-green text-sm mt-2">{calendarSuccess}</p>
+            )}
+            {calendarError && (
+              <p className="text-red-400 text-sm mt-2">{calendarError}</p>
+            )}
           </section>
 
           {/* Team Management */}

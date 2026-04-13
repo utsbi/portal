@@ -49,7 +49,7 @@ function rowToRequest(row: TicketRow): Request {
     };
 }
 
-export async function fetchRequests(customerId?: string): Promise<Request[]> {
+export async function fetchRequests(projectId?: number): Promise<Request[]> {
     const supabase = createClient();
     let query = supabase
         .from("tickets")
@@ -57,8 +57,8 @@ export async function fetchRequests(customerId?: string): Promise<Request[]> {
         .eq("ticket_type", "request")
         .order("created_at", { ascending: false });
 
-    if (customerId) {
-        query = query.eq("customer_id", customerId);
+    if (projectId) {
+        query = query.eq("project_id", projectId);
     }
 
     const { data, error } = await query;
@@ -99,7 +99,7 @@ async function uploadFiles(
 }
 
 export async function createRequest(payload: {
-    customerId?: string;
+    projectId?: number;
     name: string;
     email: string;
     department?: string;
@@ -115,7 +115,7 @@ export async function createRequest(payload: {
         .from("tickets")
         .insert({
             ticket_type: "request" as const,
-            customer_id: payload.customerId ?? null,
+            project_id: payload.projectId ?? null,
             name: payload.name,
             email: payload.email,
             department: payload.department ?? null,

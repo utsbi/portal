@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { ReportsOverview } from "./reports-overview";
 import { DataTable, type ColumnDef, StatusPill } from "@/components/data-table";
 import type { FilterDef } from "@/components/data-table";
+import { useProject } from "@/lib/project/project-context";
 
 const DIRECTORS = [
     { name: "Pedro Guzman",     title: "President",                         email: "pedro@utsbi.org" },
@@ -107,11 +108,12 @@ const COLUMNS: ColumnDef<ReportItem>[] = [
 ];
 
 export function ReportsClient({ initialReports }: { initialReports: ReportItem[] }) {
+    const { activeProject } = useProject();
     const [reports, setReports] = useState<ReportItem[]>(initialReports);
     const [loading, setLoading] = useState(initialReports.length === 0);
     const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
     const [isCreatingModalOpen, setIsCreatingModalOpen] = useState(false);
-    
+
     // New Report Form State
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCustomProject, setIsCustomProject] = useState(false);
@@ -120,11 +122,13 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
     // If no initial data (server didn't preload), fetch client-side for fast render
     useEffect(() => {
         if (initialReports.length > 0) return;
-        fetch("/api/reports", { cache: "no-store" })
+        const projectId = activeProject?.projectId;
+        const url = projectId ? `/api/reports?project_id=${projectId}` : "/api/reports";
+        fetch(url, { cache: "no-store" })
             .then((r) => r.json())
             .then((data) => { setReports(data); setLoading(false); })
             .catch(() => setLoading(false));
-    }, [initialReports.length]);
+    }, [initialReports.length, activeProject?.projectId]);
 
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-sbi-dark font-urbanist text-sbi-muted overflow-hidden flex-col">
@@ -393,7 +397,7 @@ export function ReportsClient({ initialReports }: { initialReports: ReportItem[]
                                         const res = await fetch("/api/reports", {
                                             method: "POST",
                                             headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify(newReportForm),
+                                            body: JSON.stringify({ ...newReportForm, project_id: activeProject?.projectId ?? null }),
                                         });
                                         if (res.ok) {
                                             const newReport = await res.json();

@@ -32,7 +32,7 @@ export interface ReportItem {
     updated_at?: string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -42,6 +42,9 @@ export async function GET() {
             { status: 500 },
         );
     }
+
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get("project_id");
 
     try {
         const cookieStore = await cookies();
@@ -59,11 +62,17 @@ export async function GET() {
             },
         });
 
-        const { data, error } = await supabase
+        let query = supabase
             .from("tickets")
             .select("*")
             .eq("ticket_type", "report")
             .order("created_at", { ascending: false });
+
+        if (projectId) {
+            query = query.eq("project_id", Number(projectId));
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             console.error("Supabase error:", error);
@@ -140,6 +149,7 @@ export async function POST(request: Request) {
             message: body.message || "",
             status: "pending" as const,
             customer_id: body.customer_id || null,
+            project_id: body.project_id ? Number(body.project_id) : null,
         };
 
         const { data, error } = await supabase
