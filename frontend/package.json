@@ -55,6 +55,7 @@
     "dayjs": "^1.11.19",
     "embla-carousel": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
+    "googleapis": "^171.4.0",
     "gsap": "^3.13.0",
     "lucide-react": "^0.555.0",
     "motion": "^12.23.25",
