@@ -89,12 +89,13 @@ export default function FilterDropdown({ onFilterChange }: FilterDropdownProps) 
             onClick={() => setIsOpen(false)}
           />
           
-          {/* Dropdown */}
-          <div className="absolute right-0 mt-2 w-80 bg-sbi-dark-card border border-sbi-dark-border/30 
-                          rounded-lg shadow-xl z-50 p-4 space-y-4 max-h-[70vh] overflow-y-auto scrollbar">
+          {/* Dropdown - Wide horizontal layout, opens to LEFT */}
+          <div className="absolute left-0 mt-2 w-[720px] bg-sbi-dark-card border border-sbi-dark-border/30 
+                          rounded-lg shadow-xl z-50 overflow-hidden">
+            {/* ↑ Changed from right-0 to left-0 */}
             
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-sbi-dark-border/30">
+            {/* Header - Fixed */}
+            <div className="flex items-center justify-between p-4 border-b border-sbi-dark-border/30 bg-sbi-dark-card">
               <h3 className="text-sm uppercase tracking-[0.15em] text-white font-light">Filters</h3>
               {activeFilterCount > 0 && (
                 <button 
@@ -106,83 +107,96 @@ export default function FilterDropdown({ onFilterChange }: FilterDropdownProps) 
               )}
             </div>
 
-            {/* Status Filter */}
-            <div>
-              <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-2 font-light">Status</p>
-              <div className="space-y-2">
-                {Object.values(TaskStatus).map((status) => (
-                  <label key={status} className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={filters.status.includes(status)}
-                      onChange={() => handleCheckbox('status', status)}
-                      className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
-                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
-                    />
-                    <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
-                      {status}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
+            {/* Scrollable content */}
+            <div className="max-h-[400px] overflow-y-auto scrollbar">
+              {/* Table grid - 3 columns */}
+              <div className="grid grid-cols-3 gap-6 p-6">
+                
+                {/* Status Column */}
+                <div>
+                  <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-3 font-light">
+                    Status
+                  </p>
+                  <div className="space-y-2">
+                    {Object.values(TaskStatus).map((status) => (
+                      <label key={status} className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={filters.status.includes(status)}
+                          onChange={() => handleCheckbox('status', status)}
+                          className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
+                                     focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
+                        />
+                        <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
+                          {status}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Priority Filter */}
-            <div className="pt-3 border-t border-sbi-dark-border/30">
-              <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-2 font-light">Priority</p>
-              <div className="space-y-2">
-                {Object.values(Priority).map((priority) => (
-                  <label key={priority} className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={filters.priority.includes(priority)}
-                      onChange={() => handleCheckbox('priority', priority)}
-                      className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
-                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
-                    />
-                    <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
-                      {priority}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
+                {/* Priority Column */}
+                <div>
+                  <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-3 font-light">
+                    Priority
+                  </p>
+                  <div className="space-y-2">
+                    {Object.values(Priority).map((priority) => (
+                      <label key={priority} className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={filters.priority.includes(priority)}
+                          onChange={() => handleCheckbox('priority', priority)}
+                          className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
+                                     focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
+                        />
+                        <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
+                          {priority}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Team Filter */}
-            <div className="pt-3 border-t border-sbi-dark-border/30">
-              <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-2 font-light">Team</p>
-              <div className="space-y-2">
-                {Object.values(TeamName).map((team) => (
-                  <label key={team} className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={filters.team.includes(team)}
-                      onChange={() => handleCheckbox('team', team)}
-                      className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
-                                 focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
-                    />
-                    <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
-                      {team}
-                    </span>
-                  </label>
-                ))}
+                {/* Team Column */}
+                <div>
+                  <p className="text-xs uppercase tracking-[0.15em] text-sbi-muted-dark mb-3 font-light">
+                    Team
+                  </p>
+                  <div className="space-y-2">
+                    {Object.values(TeamName).map((team) => (
+                      <label key={team} className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={filters.team.includes(team)}
+                          onChange={() => handleCheckbox('team', team)}
+                          className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
+                                     focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
+                        />
+                        <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
+                          {team.replace(' Team', '')}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Tentative Toggle */}
-            <div className="pt-3 border-t border-sbi-dark-border/30">
-              <label className="flex items-center gap-2 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={filters.includeTentative}
-                  onChange={handleTentativeToggle}
-                  className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
-                             focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
-                />
-                <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
-                  Include Tentative Dates
-                </span>
-              </label>
+              {/* Tentative Toggle - Full width at bottom */}
+              <div className="px-6 pb-6 pt-2 border-t border-sbi-dark-border/30 bg-sbi-dark-card">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={filters.includeTentative}
+                    onChange={handleTentativeToggle}
+                    className="w-4 h-4 rounded border-sbi-dark-border/30 text-sbi-green 
+                               focus:ring-sbi-green/50 focus:ring-offset-0 bg-sbi-dark cursor-pointer"
+                  />
+                  <span className="text-sm text-white/80 group-hover:text-white font-light tracking-wide">
+                    Include Tentative Dates
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
         </>
