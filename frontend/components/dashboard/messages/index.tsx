@@ -56,27 +56,26 @@ export function Messages() {
         }
       }
 
-      // Batch-fetch latest message per conversation
+      // Fetch latest message per conversation (parallel, limit 1 each)
       const convoIds = convos.map((c) => c.id);
       const latestMessageMap = new Map<number, { content: string; created_at: string }>();
 
-      const { data: messages } = await supabase
-        .from("messages")
-        .select("conversation_id, content, created_at")
-        .in("conversation_id", convoIds)
-        .order("created_at", { ascending: false });
+      await Promise.all(convoIds.map(async (cid) => {
+        const { data: latest } = await supabase
+          .from("messages")
+          .select("content, created_at")
+          .eq("conversation_id", cid)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (messages) {
-        for (const msg of messages) {
-          const cid = msg.conversation_id as number;
-          if (!latestMessageMap.has(cid)) {
-            latestMessageMap.set(cid, {
-              content: msg.content,
-              created_at: msg.created_at as string,
-            });
-          }
+        if (latest) {
+          latestMessageMap.set(cid as number, {
+            content: latest.content ?? "",
+            created_at: latest.created_at as string,
+          });
         }
-      }
+      }));
 
       const result: Conversation[] = convos.map((convo) => {
         const directorName = directorMap.get(convo.director_id as number) || "Director";

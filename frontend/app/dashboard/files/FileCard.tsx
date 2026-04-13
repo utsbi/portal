@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // Create Supabase client with custom storage
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!)
 
-const FileCard = ({ name, folderPath }: { name: string; folderPath: string | null }) => {
+const FileCard = ({ name, folderPath, lastModified }: { name: string; folderPath: string | null; lastModified?: string | null }) => {
     const handleDownload = async () => {
 
         const fullPath = folderPath ? `${folderPath}/${name}` : name; // Construct the full path
@@ -33,7 +33,7 @@ const FileCard = ({ name, folderPath }: { name: string; folderPath: string | nul
                 {name}
             </div>
             <div className="text-xs text-sbi-muted-dark">
-                Last modified: Feb 20, 2026
+                {lastModified ? `Last modified: ${new Date(lastModified).toLocaleDateString()}` : ""}
             </div>
         </div>
     );

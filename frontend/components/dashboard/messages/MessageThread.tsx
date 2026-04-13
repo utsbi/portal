@@ -82,6 +82,43 @@ export function MessageThread({
     };
 
     loadMessages();
+
+    // Subscribe to new messages in this conversation via Realtime
+    if (!conversationId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`messages:conversation:${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
+          const newMsg: ThreadMessage = {
+            id: row.id,
+            text: row.content ?? null,
+            senderRole: (row.sender_role as "client" | "director") ?? "client",
+            attachmentPath: row.attachment_path ?? null,
+            attachmentName: row.attachment_name ?? null,
+            signedUrl: null,
+          };
+          // Only add if we don't already have this message (from optimistic update)
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [clientId, conversationId]);
 
   useEffect(() => {

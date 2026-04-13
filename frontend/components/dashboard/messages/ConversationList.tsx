@@ -160,7 +160,7 @@ export function ConversationList({ conversations, basePath, showCreateButton = t
           </button>
         </div>
       )}
-      {conversations.filter((convo) => convo.lastMessage !== "").map((convo) => (
+      {conversations.map((convo) => (
         <Link
           key={convo.id}
           href={`${basePath}/${convo.id}`}
@@ -170,7 +170,7 @@ export function ConversationList({ conversations, basePath, showCreateButton = t
             <span className="text-white text-sm">{convo.name}</span>
             <span className="text-white text-sm">{convo.timestamp}</span>
           </div>
-          <p className="text-white text-xs mt-1">{convo.lastMessage}</p>
+          <p className="text-white text-xs mt-1">{convo.lastMessage || "No messages yet"}</p>
           {/* Green underline on hover */}
           <div className="absolute bottom-0 left-0 right-0 h-px bg-sbi-green scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-center" />
         </Link>

@@ -308,7 +308,7 @@ export default function SettingsPage() {
                   <div>
                     <label className="text-xs tracking-widest uppercase text-sbi-muted mb-1 block">Password</label>
                     <input
-                      type="text"
+                      type="password"
                       required
                       value={createForm.password}
                       onChange={(e) => setCreateForm(f => ({ ...f, password: e.target.value }))}

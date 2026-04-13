@@ -80,7 +80,7 @@ const FilesPage = () => {
                                       
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {data.map((item) => (
-                            <FileCard key={item.id} name={item.name} folderPath={selectedFolder} /> // Pass folderPath to FileCard
+                            <FileCard key={item.id} name={item.name} folderPath={selectedFolder} lastModified={item.updated_at} />
                         ))}
                     </div>
                 </main>

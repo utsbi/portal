@@ -137,15 +137,15 @@ export async function GET(req: Request) {
 
       const items = (res.data.items ?? []) as GoogleEventItem[];
 
-      // Filter events where the client is an attendee (if we have their email)
-      const matched = clientEmail
-        ? items.filter((ev) => {
-            const attendees = (ev.attendees ?? [])
-              .map((a) => a.email?.trim().toLowerCase())
-              .filter(Boolean) as string[];
-            return attendees.includes(clientEmail);
-          })
-        : items;
+      // Filter events where the client is an attendee (skip if no client email)
+      if (!clientEmail) continue;
+
+      const matched = items.filter((ev) => {
+        const attendees = (ev.attendees ?? [])
+          .map((a) => a.email?.trim().toLowerCase())
+          .filter(Boolean) as string[];
+        return attendees.includes(clientEmail);
+      });
 
       const normalized = matched.map((ev) => ({
         id: ev.id ?? null,

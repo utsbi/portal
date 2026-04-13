@@ -10,6 +10,25 @@ function getAdminClient() {
   );
 }
 
+async function requireDirector() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" as const, admin: null, uid: null };
+
+  const admin = getAdminClient();
+  const { data: caller } = await admin
+    .from("profiles")
+    .select("id, role")
+    .eq("uid", user.id)
+    .single();
+
+  if (!caller || caller.role !== "director") {
+    return { error: "Not authorized" as const, admin: null, uid: null };
+  }
+
+  return { error: null, admin, uid: user.id, profileId: caller.id };
+}
+
 // ============================================================
 // Account Management
 // ============================================================
@@ -22,21 +41,12 @@ export async function createAccount(data: {
   companyName?: string;
   department?: string;
 }) {
-  const supabase = await createClient();
-  const { data: { user: currentUser } } = await supabase.auth.getUser();
-  if (!currentUser) return { error: "Not authenticated" };
-
-  // Verify caller is a director
-  const admin = getAdminClient();
-  const { data: callerProfile } = await admin
-    .from("profiles")
-    .select("id, role")
-    .eq("uid", currentUser.id)
-    .single();
-
-  if (!callerProfile || callerProfile.role !== "director") {
-    return { error: "Only directors can create accounts" };
+  if (data.password.length < 8) {
+    return { error: "Password must be at least 8 characters" };
   }
+
+  const { error: authzError, admin } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized" };
 
   // Create auth user
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
@@ -65,6 +75,7 @@ export async function createAccount(data: {
     .single();
 
   if (profileError) {
+    await admin.auth.admin.deleteUser(uid);
     return { error: profileError.message };
   }
 
@@ -96,7 +107,8 @@ export async function createAccount(data: {
 }
 
 export async function listAccounts() {
-  const admin = getAdminClient();
+  const { error: authzError, admin } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized", accounts: [] };
 
   const { data: profiles, error } = await admin
     .from("profiles")
@@ -108,20 +120,8 @@ export async function listAccounts() {
 }
 
 export async function deleteAccount(profileId: number) {
-  const supabase = await createClient();
-  const { data: { user: currentUser } } = await supabase.auth.getUser();
-  if (!currentUser) return { error: "Not authenticated" };
-
-  const admin = getAdminClient();
-
-  // Verify caller is director
-  const { data: caller } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("uid", currentUser.id)
-    .single();
-
-  if (caller?.role !== "director") return { error: "Not authorized" };
+  const { error: authzError, admin, uid } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized" };
 
   // Get the profile to delete
   const { data: profile } = await admin
@@ -131,6 +131,8 @@ export async function deleteAccount(profileId: number) {
     .single();
 
   if (!profile) return { error: "Profile not found" };
+
+  if (profile.uid === uid) return { error: "Cannot delete your own account" };
 
   // Delete auth user (cascades to profile via FK)
   const { error } = await admin.auth.admin.deleteUser(profile.uid);
@@ -144,7 +146,8 @@ export async function deleteAccount(profileId: number) {
 // ============================================================
 
 export async function listProjects() {
-  const admin = getAdminClient();
+  const { error: authzError, admin } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized", projects: [] };
   const { data, error } = await admin
     .from("projects")
     .select("id, url_slug, company_name")
@@ -155,7 +158,8 @@ export async function listProjects() {
 }
 
 export async function listProjectMembers(projectId: number) {
-  const admin = getAdminClient();
+  const { error: authzError, admin } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized", members: [] };
   const { data, error } = await admin
     .from("project_members")
     .select("id, role, profile_id, profiles(id, name, email, role)")
@@ -167,11 +171,8 @@ export async function listProjectMembers(projectId: number) {
 }
 
 export async function assignMemberToProject(profileId: number, projectId: number) {
-  const supabase = await createClient();
-  const { data: { user: currentUser } } = await supabase.auth.getUser();
-  if (!currentUser) return { error: "Not authenticated" };
-
-  const admin = getAdminClient();
+  const { error: authzError, admin } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized" };
 
   const { error } = await admin
     .from("project_members")
@@ -190,11 +191,9 @@ export async function assignMemberToProject(profileId: number, projectId: number
 }
 
 export async function removeMemberFromProject(membershipId: number) {
-  const supabase = await createClient();
-  const { data: { user: currentUser } } = await supabase.auth.getUser();
-  if (!currentUser) return { error: "Not authenticated" };
+  const { error: authzError, admin } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized" };
 
-  const admin = getAdminClient();
   const { error } = await admin
     .from("project_members")
     .delete()
@@ -205,7 +204,8 @@ export async function removeMemberFromProject(membershipId: number) {
 }
 
 export async function listUnassignedMembers(projectId: number) {
-  const admin = getAdminClient();
+  const { error: authzError, admin } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized", members: [] };
 
   // Get all members not already in this project
   const { data: existingIds } = await admin

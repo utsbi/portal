@@ -14,7 +14,7 @@ config({ path: resolve(__dirname, "../.env") });
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY;
-const TEST_PASSWORD = process.env.SEED_TEST_PASSWORD;
+const TEST_PASSWORD = process.env.SEED_TEST_PASSWORD!;
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in .env");
