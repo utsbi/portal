@@ -11,16 +11,12 @@ import { FloatingNodes } from './ui/FloatingNodes';
 import { ChatMessages } from './ui/ChatMessages';
 import { useChat } from '@/lib/chat/chat-context';
 
-interface ExploreProps {
-  urlSlug?: string;
-}
-
 /**
- * Welcome state rendered on the dashboard (/{slug}/dashboard).
+ * Welcome state rendered on the dashboard (/dashboard).
  * Shows hero, input, and suggestion chips.
  * When the user sends a message, routes to /dashboard/explore.
  */
-export function ExploreWelcome({ urlSlug }: ExploreProps) {
+export function ExploreWelcome() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
   const router = useRouter();
@@ -34,9 +30,9 @@ export function ExploreWelcome({ urlSlug }: ExploreProps) {
   // When user submits message, route to the explore page
   useEffect(() => {
     if (messages.length > 0) {
-      router.push(`/${urlSlug}/dashboard/explore`);
+      router.push('/dashboard/explore');
     }
-  }, [messages.length, router, urlSlug]);
+  }, [messages.length, router]);
 
   // GSAP entrance animations
   useEffect(() => {
@@ -126,10 +122,10 @@ export function ExploreWelcome({ urlSlug }: ExploreProps) {
 }
 
 /**
- * Chat state rendered on the explore route (/{slug}/dashboard/explore)
+ * Chat state rendered on the explore route (/dashboard/explore)
  * Shows the active chat session with messages and input.
  */
-export function ExploreChat({ urlSlug }: ExploreProps) {
+export function ExploreChat() {
   const router = useRouter();
   const { messages, clearChat, cancelRequest, processPendingMessage } = useChat();
   const mountedRef = useRef(false);
@@ -137,7 +133,7 @@ export function ExploreChat({ urlSlug }: ExploreProps) {
   // If no messages (direct navigation or page reload), redirect to dashboard
   useEffect(() => {
     if (messages.length === 0) {
-      router.replace(`/${urlSlug}/dashboard`);
+      router.replace('/dashboard');
     }
   }, []);
 

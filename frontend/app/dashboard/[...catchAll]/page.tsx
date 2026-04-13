@@ -3,12 +3,9 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 
 export default function CatchAllPage() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const params = useParams();
-  const urlSlug = (params.url_slug as string) || "dev_test";
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -68,7 +65,7 @@ export default function CatchAllPage() {
         {/* Return button */}
         <div className="animate-in opacity-0 translate-y-5">
           <Link
-            href={`/${urlSlug}/dashboard`}
+            href="/dashboard"
             className="group relative inline-flex items-center gap-3 px-8 py-4 overflow-hidden rounded-full"
           >
             {/* Background layers */}

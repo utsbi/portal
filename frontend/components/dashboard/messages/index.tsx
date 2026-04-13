@@ -3,27 +3,35 @@
 import { useEffect, useState } from "react";
 import { ConversationList, type Conversation } from "./ConversationList";
 import { createClient } from "@/lib/supabase/client";
-import { useClient } from "@/lib/client/client-context";
-
-interface MessagesProps {
-  urlSlug?: string;
-}
+import { useProject } from "@/lib/project/project-context";
 
 /** List of conversations only; shown in the middle. Click navigates to /messages/[id]. */
-export function Messages({ urlSlug }: MessagesProps) {
-  const { client } = useClient();
+export function Messages() {
+  const { user } = useProject();
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
   useEffect(() => {
     const loadConversations = async () => {
-      if (!client) return;
+      if (!user) return;
 
       const supabase = createClient();
+
+      // Get the old clients.id for this user (conversations table still uses old FKs)
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      const { data: clientRow } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("uid", authUser.id)
+        .single();
+
+      if (!clientRow) return;
 
       const { data: convos, error: convoError } = await supabase
         .from("conversations")
         .select("id, director_id")
-        .eq("client_id", client.id)
+        .eq("client_id", clientRow.id)
         .order("created_at", { ascending: false });
 
       if (convoError || !convos || convos.length === 0) {
@@ -85,17 +93,14 @@ export function Messages({ urlSlug }: MessagesProps) {
     };
 
     loadConversations();
-  }, [client]);
-
-  if (!urlSlug) return null;
+  }, [user]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full w-full">
       <div className="flex-1 flex flex-col w-full justify-start">
         <ConversationList
-          urlSlug={urlSlug}
           conversations={conversations}
-          basePath={`/${urlSlug}/dashboard/messages`}
+          basePath="/dashboard/messages"
           onConversationCreated={(convo) => setConversations((prev) => [convo, ...prev])}
         />
       </div>

@@ -14,8 +14,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Match /{url_slug}/dashboard routes (new format)
-    "/:slug/dashboard/:path*",
+    // Match dashboard routes (session-based, no slug)
+    "/dashboard/:path*",
     // Match auth routes
     "/auth/:path*",
   ],

@@ -8,28 +8,23 @@ import { RequestForm } from "@/components/dashboard/requests/RequestForm";
 import { RequestHistory } from "@/components/dashboard/requests/RequestHistory";
 import { fetchRequests, createRequest } from "@/lib/supabase/requests";
 import type { Request } from "@/components/dashboard/requests/RequestHistory";
+import { useProject } from "@/lib/project/project-context";
 
-interface RequestsPageProps {
-  params: Promise<{ url_slug: string }>;
-}
-
-export default function RequestsPage({ params }: RequestsPageProps) {
+export default function RequestsPage() {
+  const { activeProject } = useProject();
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(false);
-  const [urlSlug, setUrlSlug] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    params.then((p) => setUrlSlug(p.url_slug));
-  }, [params]);
+  const slug = activeProject?.projectSlug ?? "";
 
   const loadRequests = useCallback(async () => {
-    if (!urlSlug) return;
+    if (!slug) return;
     setLoading(true);
-    const data = await fetchRequests(urlSlug);
+    const data = await fetchRequests(slug);
     setRequests(data);
     setLoading(false);
-  }, [urlSlug]);
+  }, [slug]);
 
   useEffect(() => {
     loadRequests();
@@ -37,7 +32,7 @@ export default function RequestsPage({ params }: RequestsPageProps) {
 
   const handleNewRequest = async (data: any) => {
     const newRequest = await createRequest({
-      customerId: urlSlug,
+      customerId: slug,
       name: data.name,
       email: data.email,
       department: data.department,

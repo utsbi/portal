@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import gsap from "gsap";
 import { createClient } from "@/lib/supabase/client";
-import { useClient } from "@/lib/client/client-context";
+import { useProject } from "@/lib/project/project-context";
 import { useSidebar } from "@/lib/sidebar/sidebar-context";
 import { useChat } from "@/lib/chat/chat-context";
 
@@ -120,15 +120,11 @@ function NavLink({ item, isActive, baseUrl, isCollapsed }: NavLinkProps) {
   );
 }
 
-interface AppSidebarProps {
-  urlSlug: string;
-}
-
-export function AppSidebar({ urlSlug }: AppSidebarProps) {
+export function AppSidebar() {
   const { state, open } = useSidebar();
   const pathname = usePathname();
   const router = useRouter();
-  const { client } = useClient();
+  const { user, activeProject } = useProject();
   const { cancelRequest, clearChat } = useChat();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -136,12 +132,12 @@ export function AppSidebar({ urlSlug }: AppSidebarProps) {
   const isCollapsed = state === "collapsed";
 
   // Base URL for all dashboard routes
-  const baseUrl = `/${urlSlug}/dashboard`;
+  const baseUrl = "/dashboard";
 
-  // Get user display info from client context
-  const userName = client?.name || "Loading...";
-  const userEmail = client?.email || "";
-  const userInitials = client?.initials || "...";
+  // Get user display info from project context
+  const userName = user?.name || "Loading...";
+  const userEmail = user?.email || "";
+  const userInitials = user?.initials || "...";
 
   const isActive = (path: string) => {
     const fullPath = `${baseUrl}${path}`;
@@ -235,7 +231,7 @@ export function AppSidebar({ urlSlug }: AppSidebarProps) {
                 SBI
               </span>
               <span className="text-[9px] tracking-widest text-sbi-muted uppercase">
-                Client Portal
+                {user?.role === 'director' ? 'Director Portal' : user?.role === 'member' ? 'Member Portal' : 'Client Portal'}
               </span>
             </div>
           )}

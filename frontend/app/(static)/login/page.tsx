@@ -37,8 +37,8 @@ export default function LoginPage() {
     const checkAuth = async () => {
       const result = await checkAuthAction();
       
-      if (result.authenticated && result.urlSlug) {
-        router.replace(`/${result.urlSlug}/dashboard`);
+      if (result.authenticated) {
+        router.replace('/dashboard');
       } else {
         setIsCheckingAuth(false);
       }
@@ -71,8 +71,8 @@ export default function LoginPage() {
         return;
       }
 
-      if (result.urlSlug) {
-        router.replace(`/${result.urlSlug}/dashboard`);
+      if (result.success) {
+        router.replace('/dashboard');
       }
     } catch {
       setError("An unexpected error occurred. Please try again.");

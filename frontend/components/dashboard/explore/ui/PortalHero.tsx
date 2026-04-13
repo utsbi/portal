@@ -1,12 +1,12 @@
 'use client';
 
-import { useClient } from '@/lib/client/client-context';
+import { useProject } from '@/lib/project/project-context';
 
 export function PortalHero() {
-  const { client, isLoading } = useClient();
-  
+  const { user, isLoading } = useProject();
+
   // Get first name from full name
-  const firstName = client?.name?.split(' ')[0] || '';
+  const firstName = user?.name?.split(' ')[0] || '';
 
   return (
     <div className="flex flex-col items-center text-center space-y-6">

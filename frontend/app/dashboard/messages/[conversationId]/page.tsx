@@ -3,33 +3,31 @@ import { MessageThread } from "@/components/dashboard/messages/MessageThread";
 import { Messages } from "@/components/dashboard/messages";
 import { DirectorMessages } from "@/components/dashboard/messages/DirectorMessages";
 import { CreateConversationModalProvider } from "@/components/dashboard/messages/CreateConversationModalContext";
+import { resolveActor } from "@/lib/project/resolve-actor";
 import { createClient } from "@/lib/supabase/server";
 
 interface PageProps {
-  params: Promise<{ url_slug: string; conversationId: string }>;
+  params: Promise<{ conversationId: string }>;
 }
 
 export default async function ConversationPage({ params }: PageProps) {
-  const { url_slug, conversationId } = await params;
+  const { conversationId } = await params;
+  const actor = await resolveActor();
+  if (!actor) return null;
+
   const supabase = await createClient();
+  const isDirector = actor.profile.role === "director";
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    // Dashboard layout should already handle redirect, but bail out defensively.
-    return null;
+  // For directors, get their member ID
+  let directorMemberId: number | undefined;
+  if (isDirector) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("member_id")
+      .eq("id", actor.profile.id)
+      .single();
+    directorMemberId = profile?.member_id ?? undefined;
   }
-
-  const { data: member } = await supabase
-    .from("members")
-    .select("id, role, url_slug")
-    .eq("uid", user.id)
-    .eq("url_slug", url_slug)
-    .single();
-
-  const isDirector = member?.role === "director";
 
   const numericConversationId = Number(conversationId);
 
@@ -71,10 +69,10 @@ export default async function ConversationPage({ params }: PageProps) {
     <CreateConversationModalProvider>
       <div className="flex flex-1 min-h-0 h-full">
         <div className="w-96 shrink-0 overflow-y-auto border-r border">
-          {isDirector ? (
-            <DirectorMessages urlSlug={url_slug} directorId={member!.id} />
+          {isDirector && directorMemberId ? (
+            <DirectorMessages directorId={directorMemberId} />
           ) : (
-            <Messages urlSlug={url_slug} />
+            <Messages />
           )}
         </div>
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">

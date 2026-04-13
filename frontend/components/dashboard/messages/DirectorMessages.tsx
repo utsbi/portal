@@ -8,7 +8,6 @@ import { useCreateConversationModal } from "./CreateConversationModalContext";
 import { createClient } from "@/lib/supabase/client";
 
 interface DirectorMessagesProps {
-  urlSlug?: string;
   directorId?: number;
 }
 
@@ -18,7 +17,7 @@ interface ClientMatch {
   url_slug: string;
 }
 
-export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps) {
+export function DirectorMessages({ directorId }: DirectorMessagesProps) {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
@@ -95,8 +94,6 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
     loadConversations();
   }, [directorId]);
 
-  if (!urlSlug) return null;
-
   // Same context as client flow so MessagesEmptyState "Create a new conversation" opens this modal.
   const context = useCreateConversationModal();
   const [localOpen, setLocalOpen] = useState(false);
@@ -129,7 +126,7 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
     : allClients;
 
   const handleNext = async () => {
-    if (!urlSlug || !selectedClient) {
+    if (!selectedClient) {
       return;
     }
 
@@ -189,7 +186,7 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
       ]);
 
       // Navigate to the new conversation thread
-      router.push(`/${urlSlug}/dashboard/messages/${conversationId}`);
+      router.push(`/dashboard/messages/${conversationId}`);
 
       // Reset modal state
       setOpen(false);
@@ -221,9 +218,8 @@ export function DirectorMessages({ urlSlug, directorId }: DirectorMessagesProps)
         </div>
         {/* List only; this component provides the header and director "Search for a client" modal. */}
         <ConversationList
-          urlSlug={urlSlug}
           conversations={conversations}
-          basePath={`/${urlSlug}/dashboard/messages`}
+          basePath="/dashboard/messages"
           showCreateButton={false}
         />
       </div>

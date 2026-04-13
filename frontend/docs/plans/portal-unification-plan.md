@@ -342,6 +342,18 @@ Per Codex recommendation — not "pick one pattern" but define clear boundaries:
 
 ---
 
+## Temporary Workarounds (Must Clean Up)
+
+| File | Workaround | Clean Up When |
+|------|-----------|---------------|
+| `components/dashboard/messages/index.tsx` | Queries old `clients` table to get `client.id` for conversation lookups | When `conversations` table FKs migrate to `profiles`/`projects` |
+| `components/dashboard/messages/DirectorMessages.tsx` | Queries old `clients` table for client search | Same as above |
+| `app/dashboard/messages/page.tsx` | Queries `profiles.member_id` to get old `members.id` for director conversations | Same as above |
+| `app/dashboard/messages/[conversationId]/page.tsx` | Same pattern — needs old member ID for conversation queries | Same as above |
+| `components/dashboard/explore/ui/AmbientGrid.tsx` | Pre-existing: uses `Math.random()` causing hydration mismatch | Move random generation to `useMemo` with seed or `useEffect` |
+
+---
+
 ## Open Questions
 
 1. ~~Should `reports` and `requests` merge into a single `tickets` table?~~ **DECIDED: Yes**

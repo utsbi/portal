@@ -1,17 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 
 export interface LoginResult {
   success: boolean;
   error?: string;
-  urlSlug?: string;
 }
 
 export async function loginAction(email: string, password: string): Promise<LoginResult> {
   const supabase = await createClient();
 
-  // Attempt to sign in
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email.trim().toLowerCase(),
     password,
@@ -31,71 +30,65 @@ export async function loginAction(email: string, password: string): Promise<Logi
     return { success: false, error: 'An error occurred. Please try again.' };
   }
 
-  // Check clients first, then members (e.g. directors)
-  const { data: clientData } = await supabase
-    .from('clients')
-    .select('url_slug')
+  // Verify user has a profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
     .eq('uid', data.user.id)
     .single();
 
-  if (clientData?.url_slug) {
-    return { success: true, urlSlug: clientData.url_slug };
+  if (!profile) {
+    await supabase.auth.signOut();
+    return { success: false, error: 'Invalid email or password' };
   }
 
-  const { data: memberData } = await supabase
-    .from('members')
-    .select('url_slug')
-    .eq('uid', data.user.id)
+  // Set active project from first membership
+  const { data: membership } = await supabase
+    .from('project_members')
+    .select('project_id')
+    .eq('profile_id', profile.id)
+    .limit(1)
     .single();
 
-  if (memberData?.url_slug) {
-    return { success: true, urlSlug: memberData.url_slug };
+  if (membership) {
+    const cookieStore = await cookies();
+    cookieStore.set('active_project_id', String(membership.project_id), {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: 'lax',
+    });
   }
 
-  // Not in clients or members - sign out and reject
-  await supabase.auth.signOut();
-  return { success: false, error: 'Invalid email or password' };
+  return { success: true };
 }
 
-export async function checkAuthAction(): Promise<{ authenticated: boolean; urlSlug?: string }> {
+export async function checkAuthAction(): Promise<{ authenticated: boolean }> {
   const supabase = await createClient();
-  
+
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) {
     return { authenticated: false };
   }
 
-  // Check clients first, then members (e.g. directors)
-  const { data: clientData } = await supabase
-    .from('clients')
-    .select('url_slug')
+  // Verify user has a profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
     .eq('uid', user.id)
     .single();
 
-  if (clientData?.url_slug) {
-    return { authenticated: true, urlSlug: clientData.url_slug };
+  if (!profile) {
+    await supabase.auth.signOut();
+    return { authenticated: false };
   }
 
-  const { data: memberData } = await supabase
-    .from('members')
-    .select('url_slug')
-    .eq('uid', user.id)
-    .single();
-
-  if (memberData?.url_slug) {
-    return { authenticated: true, urlSlug: memberData.url_slug };
-  }
-
-  await supabase.auth.signOut();
-  return { authenticated: false };
+  return { authenticated: true };
 }
 
 export async function signup(formData: FormData) {
   const supabase = await createClient();
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
   const data = {
     email: formData.get("email") as string,
     password: formData.get("password") as string,

@@ -36,7 +36,6 @@ const departments = [
 ];
 
 interface ConversationListProps {
-  urlSlug: string;
   conversations: Conversation[];
   basePath: string;
   /** When false, header and create modal are omitted so the parent (e.g. DirectorMessages) can render its own header and modal. */
@@ -45,7 +44,7 @@ interface ConversationListProps {
 }
 
 // display conversations in a list that have a latest message
-export function ConversationList({ urlSlug, conversations, basePath, showCreateButton = true, onConversationCreated }: ConversationListProps) {
+export function ConversationList({ conversations, basePath, showCreateButton = true, onConversationCreated }: ConversationListProps) {
   const router = useRouter();
   // Use shared context when inside CreateConversationModalProvider so the empty-state button can open this modal; otherwise use local state.
   const context = useCreateConversationModal();
