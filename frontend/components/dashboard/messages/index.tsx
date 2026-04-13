@@ -16,22 +16,10 @@ export function Messages() {
 
       const supabase = createClient();
 
-      // Get the old clients.id for this user (conversations table still uses old FKs)
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-
-      const { data: clientRow } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("uid", authUser.id)
-        .single();
-
-      if (!clientRow) return;
-
       const { data: convos, error: convoError } = await supabase
         .from("conversations")
-        .select("id, director_id")
-        .eq("client_id", clientRow.id)
+        .select("id, director_profile_id")
+        .eq("client_profile_id", user.id)
         .order("created_at", { ascending: false });
 
       if (convoError || !convos || convos.length === 0) {
@@ -39,19 +27,19 @@ export function Messages() {
         return;
       }
 
-      // Batch-fetch director names from members
-      const directorIds = [...new Set(convos.map((c) => c.director_id).filter(Boolean))] as number[];
+      // Batch-fetch director names from profiles
+      const directorProfileIds = [...new Set(convos.map((c) => c.director_profile_id).filter(Boolean))] as number[];
       const directorMap = new Map<number, string>();
 
-      if (directorIds.length > 0) {
-        const { data: members } = await supabase
-          .from("members")
+      if (directorProfileIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
           .select("id, name")
-          .in("id", directorIds);
+          .in("id", directorProfileIds);
 
-        if (members) {
-          for (const m of members) {
-            directorMap.set(m.id, m.name ?? "");
+        if (profiles) {
+          for (const p of profiles) {
+            directorMap.set(p.id, p.name ?? "");
           }
         }
       }
@@ -78,7 +66,7 @@ export function Messages() {
       }));
 
       const result: Conversation[] = convos.map((convo) => {
-        const directorName = directorMap.get(convo.director_id as number) || "Director";
+        const directorName = directorMap.get(convo.director_profile_id as number) || "Director";
         const latest = latestMessageMap.get(convo.id as number);
         return {
           id: String(convo.id),

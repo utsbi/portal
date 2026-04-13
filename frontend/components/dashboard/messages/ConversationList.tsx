@@ -6,6 +6,7 @@ import Link from "next/link";
 import { MessageSquarePlus, ChevronDown } from "lucide-react";
 import { useCreateConversationModal } from "./CreateConversationModalContext";
 import { createClient } from "@/lib/supabase/client";
+import { useProject } from "@/lib/project/project-context";
 
 interface DirectorOption {
   id: number;
@@ -46,6 +47,7 @@ interface ConversationListProps {
 // display conversations in a list that have a latest message
 export function ConversationList({ conversations, basePath, showCreateButton = true, onConversationCreated }: ConversationListProps) {
   const router = useRouter();
+  const { user, activeProject } = useProject();
   // Use shared context when inside CreateConversationModalProvider so the empty-state button can open this modal; otherwise use local state.
   const context = useCreateConversationModal();
   const [localOpen, setLocalOpen] = useState(false);
@@ -84,33 +86,49 @@ export function ConversationList({ conversations, basePath, showCreateButton = t
       const supabase = createClient();
 
       const {
-        data: { user },
+        data: { user: authUser },
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError || !user) {
+      if (userError || !authUser) {
         // eslint-disable-next-line no-console
         console.error("Not authenticated:", userError);
         return;
       }
 
-      const { data: clientRow, error: clientError } = await supabase
+      // Get old client.id for backward compat
+      const { data: clientRow } = await supabase
         .from("clients")
         .select("id")
-        .eq("uid", user.id)
+        .eq("uid", authUser.id)
         .single();
 
-      if (clientError || !clientRow) {
-        // eslint-disable-next-line no-console
-        console.error("Client record not found:", clientError);
-        return;
+      // Look up director's profile id
+      const selectedDirectorId = Number(selected);
+      const { data: directorMember } = await supabase
+        .from("members")
+        .select("uid")
+        .eq("id", selectedDirectorId)
+        .single();
+
+      let directorProfileId: number | null = null;
+      if (directorMember?.uid) {
+        const { data: dirProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("uid", directorMember.uid)
+          .single();
+        directorProfileId = dirProfile?.id ?? null;
       }
 
       const { data: conversation, error: convoError } = await supabase
         .from("conversations")
         .insert({
-          client_id: clientRow.id,
-          director_id: Number(selected),
+          client_id: clientRow?.id ?? null,
+          director_id: selectedDirectorId,
+          client_profile_id: user?.id ?? null,
+          director_profile_id: directorProfileId,
+          project_id: activeProject?.projectId ?? null,
         })
         .select("id")
         .single();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 function must(name: string) {
   const v = process.env[name];
@@ -9,24 +10,38 @@ function must(name: string) {
 }
 
 export async function GET() {
-  const supabaseAdmin = createClient(
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabaseAdmin = createAdminClient(
     must("NEXT_PUBLIC_SUPABASE_URL"),
     must("SUPABASE_SECRET_KEY")
   );
 
-  const directorId = must("DIRECTOR_ID");
-
-  const { data: director, error } = await supabaseAdmin
-    .from("directors")
-    .select("config")
-    .eq("id", directorId)
+  const { data: profile, error: profileErr } = await supabaseAdmin
+    .from("profiles")
+    .select("id, role, config")
+    .eq("uid", user.id)
     .single();
 
-  if (error || !director) {
-    return NextResponse.json({ error: "Director not found" }, { status: 404 });
+  if (profileErr || !profile) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
-  const refreshToken = director.config?.google?.refresh_token;
+  if (profile.role !== "director") {
+    return NextResponse.json({ error: "Not a director" }, { status: 403 });
+  }
+
+  const config = profile.config as any;
+  const refreshToken = config?.google?.refresh_token;
 
   if (!refreshToken) {
     return NextResponse.json({ error: "No refresh token found" }, { status: 400 });

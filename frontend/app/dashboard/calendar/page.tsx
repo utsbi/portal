@@ -9,9 +9,7 @@ import {
   Filter,
   Mail,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-
-const supabase = createClient();
+import { useProject } from "@/lib/project/project-context";
 
 const monthNames = [
   "January",
@@ -234,6 +232,7 @@ function NavButton({
 }
 
 export default function CalendarPage() {
+  const { activeProject } = useProject();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -251,25 +250,13 @@ export default function CalendarPage() {
   useEffect(() => {
     const loadEvents = async () => {
       try {
-        const { data: auth } = await supabase.auth.getUser();
-        if (!auth?.user) {
-          setLoading(false);
-          return;
-        }
-
-        const { data: client } = await supabase
-          .from("clients")
-          .select("id")
-          .eq("uid", auth.user.id)
-          .single();
-
-        if (!client?.id || !CALENDAR_EVENTS_API) {
+        if (!activeProject?.projectId || !CALENDAR_EVENTS_API) {
           setLoading(false);
           return;
         }
 
         const eventsUrl = buildInternalUrl(CALENDAR_EVENTS_API, {
-          client_id: client.id,
+          project_id: String(activeProject.projectId),
         });
 
         const res = await fetch(eventsUrl);
@@ -284,7 +271,7 @@ export default function CalendarPage() {
     };
 
     loadEvents();
-  }, []);
+  }, [activeProject?.projectId]);
 
   const calendarEvents = useMemo(
     () =>

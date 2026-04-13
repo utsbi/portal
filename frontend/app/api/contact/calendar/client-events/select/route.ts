@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 function must(name: string) {
   const v = process.env[name];
@@ -19,18 +20,50 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabaseAdmin = createClient(
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supabaseAdmin = createAdminClient(
       must("NEXT_PUBLIC_SUPABASE_URL"),
       must("SUPABASE_SECRET_KEY")
     );
 
-    const directorId = must("DIRECTOR_ID");
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id, role, config")
+      .eq("uid", user.id)
+      .single();
+
+    if (profileErr || !profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    if (profile.role !== "director") {
+      return NextResponse.json({ error: "Not a director" }, { status: 403 });
+    }
+
+    const config = (profile.config as any) ?? {};
+    const updatedConfig = {
+      ...config,
+      google: {
+        ...config.google,
+        calendar_id: calendarId,
+      },
+    };
 
     const { data, error } = await supabaseAdmin
-      .from("directors")
-      .update({ calendar_id: calendarId })
-      .eq("id", directorId)
-      .select("id, calendar_id")
+      .from("profiles")
+      .update({ config: updatedConfig })
+      .eq("id", profile.id)
+      .select("id, config")
       .single();
 
     if (error) {
@@ -40,7 +73,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       message: "Calendar saved successfully.",
-      director: data,
+      profile: data,
     });
   } catch (err) {
     return NextResponse.json(

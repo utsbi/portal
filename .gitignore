@@ -92,3 +92,4 @@ system_prompt.md
 
 # exclude lancedb from source control by default
 lancedb/
+.omc/

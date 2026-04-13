@@ -17,23 +17,13 @@ export default async function ConversationPage({ params }: PageProps) {
 
   const supabase = await createClient();
   const isDirector = actor.profile.role === "director";
-
-  // For directors, get their member ID
-  let directorMemberId: number | undefined;
-  if (isDirector) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("member_id")
-      .eq("id", actor.profile.id)
-      .single();
-    directorMemberId = profile?.member_id ?? undefined;
-  }
+  const profileId = actor.profile.id;
 
   const numericConversationId = Number(conversationId);
 
   const { data: conversation, error: convoError } = await supabase
     .from("conversations")
-    .select("id, client_id, director_id")
+    .select("id, client_profile_id, director_profile_id")
     .eq("id", numericConversationId)
     .maybeSingle();
 
@@ -43,25 +33,26 @@ export default async function ConversationPage({ params }: PageProps) {
 
   let name = `Conversation ${conversationId}`;
 
-  if (isDirector && conversation.client_id) {
-    const { data: client } = await supabase
-      .from("clients")
-      .select("company_name")
-      .eq("id", conversation.client_id)
-      .maybeSingle();
-
-    if (client?.company_name) {
-      name = client.company_name;
-    }
-  } else if (!isDirector && conversation.director_id) {
-    const { data: directorMember } = await supabase
-      .from("members")
+  // Look up the other party's name from profiles
+  if (isDirector && conversation.client_profile_id) {
+    const { data: clientProfile } = await supabase
+      .from("profiles")
       .select("name")
-      .eq("id", conversation.director_id)
+      .eq("id", conversation.client_profile_id)
       .maybeSingle();
 
-    if (directorMember?.name) {
-      name = directorMember.name;
+    if (clientProfile?.name) {
+      name = clientProfile.name;
+    }
+  } else if (!isDirector && conversation.director_profile_id) {
+    const { data: directorProfile } = await supabase
+      .from("profiles")
+      .select("name")
+      .eq("id", conversation.director_profile_id)
+      .maybeSingle();
+
+    if (directorProfile?.name) {
+      name = directorProfile.name;
     }
   }
 
@@ -69,8 +60,8 @@ export default async function ConversationPage({ params }: PageProps) {
     <CreateConversationModalProvider>
       <div className="flex flex-1 min-h-0 h-full">
         <div className="w-96 shrink-0 overflow-y-auto border-r border">
-          {isDirector && directorMemberId ? (
-            <DirectorMessages directorId={directorMemberId} />
+          {isDirector ? (
+            <DirectorMessages profileId={profileId} />
           ) : (
             <Messages />
           )}
@@ -84,7 +75,6 @@ export default async function ConversationPage({ params }: PageProps) {
           <div className="flex-1 min-h-0 relative">
             <MessageThread
               conversationId={conversationId}
-              clientId={conversation.client_id}
               senderRole={isDirector ? "director" : "client"}
               name={name}
             />

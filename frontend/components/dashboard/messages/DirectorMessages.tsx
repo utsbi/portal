@@ -8,7 +8,7 @@ import { useCreateConversationModal } from "./CreateConversationModalContext";
 import { createClient } from "@/lib/supabase/client";
 
 interface DirectorMessagesProps {
-  directorId?: number;
+  profileId?: number;
 }
 
 interface ClientMatch {
@@ -17,20 +17,20 @@ interface ClientMatch {
   url_slug: string;
 }
 
-export function DirectorMessages({ directorId }: DirectorMessagesProps) {
+export function DirectorMessages({ profileId }: DirectorMessagesProps) {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
   useEffect(() => {
     const loadConversations = async () => {
-      if (!directorId) return;
+      if (!profileId) return;
 
       const supabase = createClient();
 
       const { data: convos, error: convoError } = await supabase
         .from("conversations")
-        .select("id, client_id")
-        .eq("director_id", directorId)
+        .select("id, client_profile_id")
+        .eq("director_profile_id", profileId)
         .order("created_at", { ascending: false });
 
       if (convoError || !convos || convos.length === 0) {
@@ -38,19 +38,19 @@ export function DirectorMessages({ directorId }: DirectorMessagesProps) {
         return;
       }
 
-      // Batch-fetch client company names
-      const clientIds = [...new Set(convos.map((c) => c.client_id).filter(Boolean))] as number[];
+      // Batch-fetch client names from profiles
+      const clientProfileIds = [...new Set(convos.map((c) => c.client_profile_id).filter(Boolean))] as number[];
       const clientMap = new Map<number, string>();
 
-      if (clientIds.length > 0) {
-        const { data: clients } = await supabase
-          .from("clients")
-          .select("id, company_name")
-          .in("id", clientIds);
+      if (clientProfileIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, name")
+          .in("id", clientProfileIds);
 
-        if (clients) {
-          for (const c of clients) {
-            clientMap.set(c.id, c.company_name ?? "");
+        if (profiles) {
+          for (const p of profiles) {
+            clientMap.set(p.id, p.name ?? "");
           }
         }
       }
@@ -77,7 +77,7 @@ export function DirectorMessages({ directorId }: DirectorMessagesProps) {
       }));
 
       const result: Conversation[] = convos.map((convo) => {
-        const clientName = clientMap.get(convo.client_id as number) || `Client ${convo.client_id}`;
+        const clientName = clientMap.get(convo.client_profile_id as number) || "Client";
         const latest = latestMessageMap.get(convo.id as number);
         return {
           id: String(convo.id),
@@ -91,7 +91,7 @@ export function DirectorMessages({ directorId }: DirectorMessagesProps) {
     };
 
     loadConversations();
-  }, [directorId]);
+  }, [profileId]);
 
   // Same context as client flow so MessagesEmptyState "Create a new conversation" opens this modal.
   const context = useCreateConversationModal();
@@ -125,7 +125,7 @@ export function DirectorMessages({ directorId }: DirectorMessagesProps) {
     : allClients;
 
   const handleNext = async () => {
-    if (!selectedClient) {
+    if (!selectedClient || !profileId) {
       return;
     }
 
@@ -143,24 +143,28 @@ export function DirectorMessages({ directorId }: DirectorMessagesProps) {
         return;
       }
 
-      const { data: member, error: memberError } = await supabase
+      // Look up old member.id for backward compat
+      const { data: member } = await supabase
         .from("members")
         .select("id")
         .eq("uid", user.id)
         .eq("role", "director")
         .single();
 
-      if (memberError || !member) {
-        // eslint-disable-next-line no-console
-        console.error("Director member record not found:", memberError);
-        return;
-      }
+      // Look up client's profile id
+      const { data: clientProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("uid", (await supabase.from("clients").select("uid").eq("id", selectedClient.id).single()).data?.uid ?? "")
+        .maybeSingle();
 
       const { data: conversation, error: convoError } = await supabase
         .from("conversations")
         .insert({
           client_id: selectedClient.id,
-          director_id: member.id,
+          director_id: member?.id ?? null,
+          client_profile_id: clientProfile?.id ?? null,
+          director_profile_id: profileId,
         })
         .select("id")
         .single();

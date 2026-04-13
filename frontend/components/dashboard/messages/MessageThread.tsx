@@ -22,7 +22,6 @@ interface ThreadMessage {
 
 interface MessageThreadProps {
   conversationId?: string | null;
-  clientId?: number | null;
   senderRole?: "client" | "director";
   name?: string;
 }
@@ -30,7 +29,6 @@ interface MessageThreadProps {
 // message thread ui for when the user clicks on a specific conversation
 export function MessageThread({
   conversationId,
-  clientId,
   senderRole = "client",
   name,
 }: MessageThreadProps) {
@@ -45,13 +43,12 @@ export function MessageThread({
 
   useEffect(() => {
     const loadMessages = async () => {
-      if (!clientId || !conversationId) return;
+      if (!conversationId) return;
 
       const supabase = createClient();
       const { data, error } = await supabase
         .from("messages")
         .select("id, content, sender_role, created_at, attachment_path, attachment_name")
-        .eq("client_id", clientId)
         .eq("conversation_id", Number(conversationId))
         .order("created_at", { ascending: true });
 
@@ -119,7 +116,7 @@ export function MessageThread({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [clientId, conversationId]);
+  }, [conversationId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -155,18 +152,11 @@ export function MessageThread({
         ),
       );
 
-      if (!clientId) {
-        setEditingMessageId(null);
-        setHoveredMessageId(null);
-        return;
-      }
-
       const supabase = createClient();
       const { error } = await supabase
         .from("messages")
         .update({ content: query })
-        .eq("id", editingMessageId)
-        .eq("client_id", clientId);
+        .eq("id", editingMessageId);
 
       if (error) {
         // eslint-disable-next-line no-console
@@ -179,7 +169,7 @@ export function MessageThread({
       return;
     }
 
-    if (!clientId || !conversationId) return;
+    if (!conversationId) return;
 
     const supabase = createClient();
     const {
@@ -192,6 +182,13 @@ export function MessageThread({
       console.error("Failed to resolve authenticated user for message send:", userError);
       return;
     }
+
+    // Look up sender's profile id
+    const { data: senderProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("uid", user.id)
+      .single();
 
     // --- Attachment send ---
     if (hasFile && pendingAttachment) {
@@ -227,8 +224,8 @@ export function MessageThread({
       const { data: msgData, error: msgError } = await supabase
         .from("messages")
         .insert({
-          client_id: clientId,
           sender_uid: user.id,
+          sender_profile_id: senderProfile?.id ?? null,
           sender_role: senderRole,
           content: hasText ? query : null,
           attachment_path: storagePath,
@@ -266,8 +263,8 @@ export function MessageThread({
     const { data, error } = await supabase
       .from("messages")
       .insert({
-        client_id: clientId,
         sender_uid: user.id,
+        sender_profile_id: senderProfile?.id ?? null,
         sender_role: senderRole,
         content: query,
         conversation_id: Number(conversationId),
