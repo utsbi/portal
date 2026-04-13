@@ -9,8 +9,9 @@
 
 @theme {
   --color-sbi-green: #22c55e;
+  --color-sbi-yellow: #fbbf24;
   --color-sbi-dark: #050807;
-  --color-sbi-dark-card: #0a120c;
+  --color-sbi-dark-card: #0A0A0A;
   --color-sbi-dark-border: #16301d;
   --color-sbi-dark-btn: #0f1a12;
   --color-sbi-muted: #8a9a93;
@@ -338,7 +339,37 @@
   }
 }
 
-/* Line draw animation */
+/* Bento Box Card Styles */
+.bento-card {
+  background-color: #0A0A0A;
+  border: 0.5px solid rgba(34, 197, 94, 0.15);
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.bento-card:hover {
+  border-color: rgba(34, 197, 94, 0.3);
+  box-shadow: 0 0 20px -5px rgba(34, 197, 94, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Bespoke Typography */
+.metric-value {
+  font-family: 'Inter', var(--font-urbanist), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.metric-label {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: #8a9a93;
+  text-transform: uppercase;
+}
+
 @keyframes line-draw {
   from {
     transform: scaleX(0);
