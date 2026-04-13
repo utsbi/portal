@@ -31,9 +31,9 @@ interface NavItem {
   title: string;
   path: string;
   icon: LucideIcon;
+  roles?: Array<"client" | "director" | "member">; // if undefined, shown to all
 }
 
-// Navigation paths (relative to /{url_slug}/dashboard)
 const mainItems: NavItem[] = [
   { title: "Explore", path: "", icon: Compass },
   { title: "Messages", path: "/messages", icon: MessageSquare },
@@ -43,10 +43,14 @@ const mainItems: NavItem[] = [
 ];
 
 const documentItems: NavItem[] = [
-  { title: "Questionnaire", path: "/questionnaire", icon: ClipboardList },
+  { title: "Questionnaire", path: "/questionnaire", icon: ClipboardList, roles: ["client"] },
   { title: "Files", path: "/files", icon: FolderOpen },
   { title: "Reports", path: "/reports", icon: FileText },
   { title: "Requests", path: "/requests", icon: MailQuestion },
+];
+
+const adminItems: NavItem[] = [
+  { title: "Settings", path: "/settings", icon: Settings, roles: ["director"] },
 ];
 
 interface NavLinkProps {
@@ -124,10 +128,12 @@ export function AppSidebar() {
   const { state, open } = useSidebar();
   const pathname = usePathname();
   const router = useRouter();
-  const { user, activeProject } = useProject();
+  const { user, activeProject, projects, switchProject } = useProject();
   const { cancelRequest, clearChat } = useChat();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
 
   const isCollapsed = state === "collapsed";
 
@@ -184,6 +190,22 @@ export function AppSidebar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Close project menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target as Node)) {
+        setIsProjectMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const userRole = user?.role;
+  const filterByRole = (items: NavItem[]) =>
+    items.filter((item) => !item.roles || (userRole && item.roles.includes(userRole)));
+  const showProjectSwitcher = userRole === "director" || userRole === "member";
+
   return (
     <aside
       className={`relative flex flex-col h-screen bg-sbi-dark border-r border-sbi-dark-border/30 transition-all duration-300 ease-out ${
@@ -238,11 +260,59 @@ export function AppSidebar() {
         </button>
       </div>
 
+      {/* Project Switcher (directors/members only) */}
+      {showProjectSwitcher && !isCollapsed && (
+        <div ref={projectMenuRef} className="relative px-3 py-3 border-b border-sbi-dark-border/30">
+          <button
+            type="button"
+            onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-sbi-dark-card/40 border border-sbi-dark-border/30 hover:border-sbi-green/30 transition-colors cursor-pointer"
+          >
+            <div className="flex flex-col text-left min-w-0">
+              <span className="text-[10px] tracking-widest uppercase text-sbi-muted">Project</span>
+              <span className="text-sm text-white truncate">{activeProject?.companyName || "Select project"}</span>
+            </div>
+            <ChevronUp className={`size-4 text-sbi-muted transition-transform ${isProjectMenuOpen ? "" : "rotate-180"}`} />
+          </button>
+          {isProjectMenuOpen && (
+            <div className="absolute bottom-full left-3 right-3 mb-1 bg-sbi-dark border border-sbi-dark-border/50 rounded-lg overflow-hidden shadow-2xl shadow-black/50 z-50">
+              {projects.map((project) => (
+                <button
+                  key={project.projectId}
+                  type="button"
+                  onClick={() => {
+                    switchProject(project.projectId);
+                    setIsProjectMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors cursor-pointer ${
+                    activeProject?.projectId === project.projectId
+                      ? "text-sbi-green bg-sbi-green/5"
+                      : "text-white/70 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {project.companyName}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Client project label (clients only) */}
+      {!showProjectSwitcher && !isCollapsed && activeProject && (
+        <div className="px-3 py-3 border-b border-sbi-dark-border/30">
+          <div className="px-3 py-2">
+            <span className="text-[10px] tracking-widest uppercase text-sbi-muted">Project</span>
+            <p className="text-sm text-white truncate">{activeProject.companyName}</p>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2">
         {/* Main Navigation */}
         <div className="space-y-1">
-          {mainItems.map((item) => (
+          {filterByRole(mainItems).map((item) => (
             <NavLink
               key={item.title}
               item={item}
@@ -265,7 +335,7 @@ export function AppSidebar() {
               </span>
             </div>
           )}
-          {documentItems.map((item) => (
+          {filterByRole(documentItems).map((item) => (
             <NavLink
               key={item.title}
               item={item}
@@ -275,6 +345,31 @@ export function AppSidebar() {
             />
           ))}
         </div>
+
+        {/* Admin Section (directors only) */}
+        {filterByRole(adminItems).length > 0 && (
+          <>
+            <div className="my-4 mx-3 h-px bg-linear-to-r from-transparent via-sbi-dark-border/50 to-transparent" />
+            <div className="space-y-1">
+              {!isCollapsed && (
+                <div className="px-3 mb-2">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted font-light">
+                    Admin
+                  </span>
+                </div>
+              )}
+              {filterByRole(adminItems).map((item) => (
+                <NavLink
+                  key={item.title}
+                  item={item}
+                  isActive={isActive(item.path)}
+                  baseUrl={baseUrl}
+                  isCollapsed={isCollapsed}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </nav>
 
       {/* User Profile Footer */}
