@@ -8,7 +8,7 @@ export async function updateSession(request: NextRequest) {
 
 	const supabase = createServerClient(
 		process.env.NEXT_PUBLIC_SUPABASE_URL!,
-		process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 		{
 			cookies: {
 				getAll() {
@@ -41,25 +41,27 @@ export async function updateSession(request: NextRequest) {
 
 	// Define protected routes that require authentication
 	// Match patterns like /client-slug/dashboard, etc.
-	const dashboardPattern = /^\/[^\/]+\/dashboard/;
-	const isProtectedRoute = dashboardPattern.test(request.nextUrl.pathname);
+	// const dashboardPattern = /^\/[^\/]+\/dashboard/;
+	// const isProtectedRoute = dashboardPattern.test(request.nextUrl.pathname);
 
-	// Only redirect to login if:
-	// 1. User is not authenticated
-	// 2. Route is protected
-	// 3. Not already on login, auth, or error pages
-	if (
-		!user &&
-		isProtectedRoute &&
-		!request.nextUrl.pathname.startsWith("/login") &&
-		!request.nextUrl.pathname.startsWith("/auth") &&
-		!request.nextUrl.pathname.startsWith("/error")
-	) {
-		// no user, potentially respond by redirecting the user to the login page
-		const url = request.nextUrl.clone();
-		url.pathname = "/login";
-		return NextResponse.redirect(url);
-	}
+	// // Only redirect to login if:
+	// // 1. User is not authenticated
+	// // 2. Route is protected
+	// // 3. Not already on login, auth, or error pages
+	// if (
+	// 	!user &&
+	// 	isProtectedRoute &&
+	// 	!request.nextUrl.pathname.startsWith("/login") &&
+	// 	!request.nextUrl.pathname.startsWith("/auth") &&
+	// 	!request.nextUrl.pathname.startsWith("/error")
+	// ) {
+	// 	// no user, potentially respond by redirecting the user to the login page
+	// 	const url = request.nextUrl.clone();
+	// 	url.pathname = "/login";
+	// 	return NextResponse.redirect(url);
+	// }
+
+	// LOCAL DEV BYPASS - Auth middleware disabled above
 
 	// IMPORTANT: You *must* return the supabaseResponse object as it is.
 	// If you're creating a new response object with NextResponse.next() make sure to:

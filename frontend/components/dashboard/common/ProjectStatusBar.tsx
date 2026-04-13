@@ -41,7 +41,7 @@ export function StatusIndicator({ label, value, status = 'active' }: StatusIndic
           <div className={`absolute inset-0 w-1.5 h-1.5 rounded-full ${statusColors[status]} animate-ping opacity-75`} />
         )}
       </div>
-      
+
       {/* Content */}
       <div className="flex flex-col">
         <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark font-medium">
@@ -51,7 +51,7 @@ export function StatusIndicator({ label, value, status = 'active' }: StatusIndic
           {value}
         </span>
       </div>
-      
+
       {/* Hover line */}
       <div className="absolute bottom-0 left-0 right-0 h-px bg-sbi-green/0 group-hover:bg-sbi-green/20 transition-colors duration-300" />
     </div>
