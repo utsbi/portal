@@ -30,38 +30,24 @@ export async function updateSession(request: NextRequest) {
 	);
 
 	// Do not run code between createServerClient and
-	// supabase.auth.getUser(). A simple mistake could make it very hard to debug
+	// supabase.auth.getClaims(). A simple mistake could make it very hard to debug
 	// issues with users being randomly logged out.
 
-	// IMPORTANT: DO NOT REMOVE auth.getUser()
+	// getClaims() validates the JWT locally (faster than getUser() network call)
+	const { data } = await supabase.auth.getClaims();
+	const user = data?.claims;
 
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-
-	// Define protected routes that require authentication
-	// Match patterns like /client-slug/dashboard, etc.
-	// const dashboardPattern = /^\/[^\/]+\/dashboard/;
-	// const isProtectedRoute = dashboardPattern.test(request.nextUrl.pathname);
-
-	// // Only redirect to login if:
-	// // 1. User is not authenticated
-	// // 2. Route is protected
-	// // 3. Not already on login, auth, or error pages
-	// if (
-	// 	!user &&
-	// 	isProtectedRoute &&
-	// 	!request.nextUrl.pathname.startsWith("/login") &&
-	// 	!request.nextUrl.pathname.startsWith("/auth") &&
-	// 	!request.nextUrl.pathname.startsWith("/error")
-	// ) {
-	// 	// no user, potentially respond by redirecting the user to the login page
-	// 	const url = request.nextUrl.clone();
-	// 	url.pathname = "/login";
-	// 	return NextResponse.redirect(url);
-	// }
-
-	// LOCAL DEV BYPASS - Auth middleware disabled above
+	// Redirect to login if not authenticated and on a protected route
+	if (
+		!user &&
+		request.nextUrl.pathname.startsWith("/dashboard") &&
+		!request.nextUrl.pathname.startsWith("/login") &&
+		!request.nextUrl.pathname.startsWith("/auth")
+	) {
+		const url = request.nextUrl.clone();
+		url.pathname = "/login";
+		return NextResponse.redirect(url);
+	}
 
 	// IMPORTANT: You *must* return the supabaseResponse object as it is.
 	// If you're creating a new response object with NextResponse.next() make sure to:
