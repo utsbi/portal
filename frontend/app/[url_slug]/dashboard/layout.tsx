@@ -49,18 +49,18 @@ export default async function DashboardLayout({
   }
 
   // Calculate initials for the user
-  const displayName = client.name || client.company_name || user.email?.split('@')[0] || 'User';
+  const displayName = client?.name || client?.company_name || user.email?.split('@')[0] || 'User';
   const nameParts = displayName.trim().split(/\s+/);
   const initials = nameParts.length >= 2
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
     : nameParts[0]?.substring(0, 2).toUpperCase() || '??';
 
   const initialClientData = {
-    id: client.id,
+    id: client?.id ?? 0,
     name: displayName,
     email: user.email || '',
-    companyName: client.company_name,
-    urlSlug: client.url_slug,
+    companyName: client?.company_name ?? '',
+    urlSlug: url_slug,
     initials,
   };
 
