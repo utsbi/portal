@@ -49,9 +49,7 @@ const documentItems: NavItem[] = [
   { title: "Requests", path: "/requests", icon: MailQuestion },
 ];
 
-const adminItems: NavItem[] = [
-  { title: "Settings", path: "/settings", icon: Settings, roles: ["director"] },
-];
+// Settings is accessed from the user profile menu, not the nav
 
 interface NavLinkProps {
   item: NavItem;
@@ -346,30 +344,6 @@ export function AppSidebar() {
           ))}
         </div>
 
-        {/* Admin Section (directors only) */}
-        {filterByRole(adminItems).length > 0 && (
-          <>
-            <div className="my-4 mx-3 h-px bg-linear-to-r from-transparent via-sbi-dark-border/50 to-transparent" />
-            <div className="space-y-1">
-              {!isCollapsed && (
-                <div className="px-3 mb-2">
-                  <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted font-light">
-                    Admin
-                  </span>
-                </div>
-              )}
-              {filterByRole(adminItems).map((item) => (
-                <NavLink
-                  key={item.title}
-                  item={item}
-                  isActive={isActive(item.path)}
-                  baseUrl={baseUrl}
-                  isCollapsed={isCollapsed}
-                />
-              ))}
-            </div>
-          </>
-        )}
       </nav>
 
       {/* User Profile Footer */}
@@ -416,13 +390,16 @@ export function AppSidebar() {
                 <Bell className="size-4" strokeWidth={1.5} />
                 <span className="text-sm font-light">Notifications</span>
               </button>
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
-              >
-                <Settings className="size-4" strokeWidth={1.5} />
-                <span className="text-sm font-light">Settings</span>
-              </button>
+              {userRole === "director" && (
+                <button
+                  type="button"
+                  onClick={() => { router.push("/dashboard/settings"); setIsUserMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
+                >
+                  <Settings className="size-4" strokeWidth={1.5} />
+                  <span className="text-sm font-light">Settings</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
