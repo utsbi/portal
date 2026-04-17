@@ -86,3 +86,29 @@ export enum TeamName {
     EXEC = "Executive Board",
 }
 
+export type ProjectDB = {
+  id: string;
+  title: string;
+  client: string;
+  completed: boolean;
+  image?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskDB = {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  status: string;
+  team: string;
+  due_date: string;
+  tentative: boolean;
+  assigned_by: string;
+  assignees: string[];
+  priority: string;
+  created_at: string;
+  updated_at: string;
+};
+
