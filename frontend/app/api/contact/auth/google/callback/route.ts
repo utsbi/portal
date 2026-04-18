@@ -80,20 +80,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: writeErr.message }, { status: 500 });
   }
 
-  // Also update the old directors table for backward compat during migration
-  const { data: directorRow } = await supabaseAdmin
-    .from("directors")
-    .select("id")
-    .eq("uid", user.id)
-    .single();
-
-  if (directorRow) {
-    await supabaseAdmin
-      .from("directors")
-      .update({ config: newConfig })
-      .eq("id", directorRow.id);
-  }
-
   return NextResponse.json({
     ok: true,
     message: "Google connected. Refresh token saved.",

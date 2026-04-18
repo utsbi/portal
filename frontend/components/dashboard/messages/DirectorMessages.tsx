@@ -14,7 +14,6 @@ interface DirectorMessagesProps {
 interface ClientMatch {
   id: number;
   company_name: string;
-  url_slug: string;
 }
 
 export function DirectorMessages({ profileId }: DirectorMessagesProps) {
@@ -108,8 +107,8 @@ export function DirectorMessages({ profileId }: DirectorMessagesProps) {
     const fetchAllClients = async () => {
       const supabase = createClient();
       const { data } = await supabase
-        .from("clients")
-        .select("id, company_name, url_slug")
+        .from("projects")
+        .select("id, company_name")
         .order("company_name", { ascending: true });
 
       if (data) setAllClients(data as ClientMatch[]);
@@ -143,28 +142,20 @@ export function DirectorMessages({ profileId }: DirectorMessagesProps) {
         return;
       }
 
-      // Look up old member.id for backward compat
-      const { data: member } = await supabase
-        .from("members")
-        .select("id")
-        .eq("uid", user.id)
-        .eq("role", "director")
-        .single();
-
-      // Look up client's profile id
-      const { data: clientProfile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("uid", (await supabase.from("clients").select("uid").eq("id", selectedClient.id).single()).data?.uid ?? "")
+      // Look up the client/owner profile for this project
+      const { data: ownerMembership } = await supabase
+        .from("project_members")
+        .select("profile_id")
+        .eq("project_id", selectedClient.id)
+        .eq("role", "owner")
         .maybeSingle();
 
       const { data: conversation, error: convoError } = await supabase
         .from("conversations")
         .insert({
-          client_id: selectedClient.id,
-          director_id: member?.id ?? null,
-          client_profile_id: clientProfile?.id ?? null,
+          client_profile_id: ownerMembership?.profile_id ?? null,
           director_profile_id: profileId,
+          project_id: selectedClient.id,
         })
         .select("id")
         .single();

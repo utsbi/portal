@@ -117,9 +117,7 @@ export async function GET(req: Request) {
     for (const director of directors ?? []) {
       const config = director.config as any;
       const refreshToken = config?.google?.refresh_token as string | undefined;
-      const calendarId = config?.google?.calendar_id as string | undefined
-        // Fallback: check old directors table for calendar_id
-        || await getOldCalendarId(supabaseAdmin, director.email);
+      const calendarId = config?.google?.calendar_id as string | undefined;
 
       if (!refreshToken || !calendarId) continue;
 
@@ -187,15 +185,4 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
-
-// Temporary: fetch calendar_id from old directors table during migration
-async function getOldCalendarId(supabase: any, email: string | null): Promise<string | undefined> {
-  if (!email) return undefined;
-  const { data } = await supabase
-    .from("directors")
-    .select("calendar_id")
-    .eq("email", email)
-    .single();
-  return data?.calendar_id ?? undefined;
 }

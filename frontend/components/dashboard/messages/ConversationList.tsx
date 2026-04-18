@@ -63,10 +63,9 @@ export function ConversationList({ conversations, basePath, showCreateButton = t
     const fetchDirectors = async () => {
       const supabase = createClient();
       const { data } = await supabase
-        .from("members")
+        .from("profiles")
         .select("id, name, department")
-        .eq("role", "director")
-        .not("uid", "is", null);
+        .eq("role", "director");
 
       if (data) setDirectors(data as DirectorOption[]);
     };
@@ -96,38 +95,13 @@ export function ConversationList({ conversations, basePath, showCreateButton = t
         return;
       }
 
-      // Get old client.id for backward compat
-      const { data: clientRow } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("uid", authUser.id)
-        .single();
-
-      // Look up director's profile id
-      const selectedDirectorId = Number(selected);
-      const { data: directorMember } = await supabase
-        .from("members")
-        .select("uid")
-        .eq("id", selectedDirectorId)
-        .single();
-
-      let directorProfileId: number | null = null;
-      if (directorMember?.uid) {
-        const { data: dirProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("uid", directorMember.uid)
-          .single();
-        directorProfileId = dirProfile?.id ?? null;
-      }
+      const selectedDirectorProfileId = Number(selected);
 
       const { data: conversation, error: convoError } = await supabase
         .from("conversations")
         .insert({
-          client_id: clientRow?.id ?? null,
-          director_id: selectedDirectorId,
           client_profile_id: user?.id ?? null,
-          director_profile_id: directorProfileId,
+          director_profile_id: selectedDirectorProfileId,
           project_id: activeProject?.projectId ?? null,
         })
         .select("id")
