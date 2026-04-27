@@ -1,42 +1,86 @@
-// components/FileCard.tsx
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-// Create Supabase client with custom storage
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!)
+interface FileCardProps {
+    name: string;
+    folderPath: string;
+    updatedAt?: string | null;
+}
 
-const FileCard = ({ name, folderPath, lastModified }: { name: string; folderPath: string | null; lastModified?: string | null }) => {
-    const handleDownload = async () => {
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+);
 
-        const fullPath = folderPath ? `${folderPath}/${name}` : name; // Construct the full path
-
+export default function FileCard({ name, folderPath, updatedAt }: FileCardProps) {
+    const getSignedUrl = async () => {
+        const fullPath = folderPath ? `${folderPath}/${name}` : name;
         const { data, error } = await supabase.storage
             .from("Files")
-            .createSignedUrl(fullPath, 60); // URL valid for 60 seconds
+            .createSignedUrl(fullPath, 60);
 
         if (error) {
-            console.error("Download error:", error);
+            console.error("File URL error:", error);
+            return null;
+        }
+
+        return data.signedUrl;
+    };
+
+    const handlePreview = async () => {
+        const signedUrl = await getSignedUrl();
+        if (!signedUrl) {
             return;
         }
 
-        // Trigger browser download
+        window.open(signedUrl, "_blank", "noopener,noreferrer");
+    };
+
+    const handleDownload = async () => {
+        const signedUrl = await getSignedUrl();
+        if (!signedUrl) {
+            return;
+        }
+        // Append the download parameter to the signed URL
+        const downloadUrl = `${signedUrl}?download`;
+        
         const link = document.createElement("a");
-        link.href = data.signedUrl;
+        link.href = downloadUrl;
         link.download = name;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
 
+    const formattedDate = updatedAt
+        ? new Date(updatedAt).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+          })
+        : "Unknown";
+
     return (
-        <div className="border border-sbi-dark-border rounded-lg p-6 hover:border-sbi-green transition cursor-pointer bg-sbi-dark-secondary">
-            <div className="text-sm font-medium mb-2" onClick={handleDownload}>
-                {name}
+        <div className="border border-sbi-dark-border rounded-lg p-6 hover:border-sbi-green transition bg-sbi-dark-secondary">
+            <div className="text-sm font-medium mb-2 truncate">{name}</div>
+            <div className="text-xs text-sbi-muted-dark mb-5">
+                Last modified: {formattedDate}
             </div>
-            <div className="text-xs text-sbi-muted-dark">
-                {lastModified ? `Last modified: ${new Date(lastModified).toLocaleDateString()}` : ""}
+            <div className="flex items-center gap-3">
+                <button
+                    type="button"
+                    onClick={handlePreview}
+                    className="px-3 py-1.5 text-xs rounded border border-sbi-dark-border hover:border-sbi-green hover:text-sbi-green transition"
+                >
+                    Preview
+                </button>
+                <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="px-3 py-1.5 text-xs rounded border border-sbi-dark-border hover:border-sbi-green hover:text-sbi-green transition"
+                >
+                    Download
+                </button>
             </div>
         </div>
     );
-};
-
-export default FileCard;
+}
