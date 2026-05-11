@@ -339,6 +339,13 @@ Per Codex recommendation — not "pick one pattern" but define clear boundaries:
 | 2026-04-13 | Session-based routing | Drop `[url_slug]` from URLs. Active project resolved from session/cookie. Directors get project switcher. `projects.url_slug` kept in DB only. |
 | 2026-04-13 | Member assignment model | Members NOT auto-linked. Directors manage member assignments via role management UI. |
 | 2026-04-13 | Calendar: .ics subscription feed | Approach B selected. Director OAuth stays. Add .ics subscription URL per project for clients. |
+| 2026-04-22 | Old tables dropped | `clients`, `directors`, `members`, `client_directors`, `reports`, `requests` all dropped from Supabase. Code migrated to use `profiles`/`projects`/`project_members`/`tickets` exclusively. |
+| 2026-04-22 | Conversations/messages RLS migrated | RLS policies rewritten to use `profiles` via `user_profile_id()` instead of old `clients`/`members` joins. Old FK columns (`conversations.client_id`, `conversations.director_id`, `messages.client_id`, `profiles.member_id`) dropped. |
+| 2026-04-22 | Dashboard branch merged | Lifecycle feature integrated at `app/dashboard/lifecycle/`. Fixed routing, params, back button href. |
+| 2026-04-22 | DB cleanup pass | Dropped duplicate index `conversations_id_key`, orphaned functions `link_new_client/director_to_all_*`, fixed `client_chat_sessions.uid` default, added PK to `client_files`, renamed misleading FK constraints. |
+| 2026-04-22 | `custom_form_submissions.url_slug` → `project_id` | Replaced with `bigint FK → projects`. Updated unique constraint and RLS policy. |
+| 2026-04-22 | Lifecycle tables redesigned | Recreated with `bigint` IDs, FKs to `projects`/`profiles`, Postgres enums (`task_status`, `task_priority`, `team_name`), junction table for assignees, RLS policies, `updated_at` triggers. Frontend types/components updated to match. |
+| 2026-04-22 | Self-hosting plan created | See `docs/plans/self-hosting-plan.md`. Key gaps: no `supabase/` dir, no `.env.example`, no setup docs. |
 
 ---
 
@@ -346,10 +353,10 @@ Per Codex recommendation — not "pick one pattern" but define clear boundaries:
 
 | File | Workaround | Clean Up When |
 |------|-----------|---------------|
-| `components/dashboard/messages/index.tsx` | Queries old `clients` table to get `client.id` for conversation lookups | When `conversations` table FKs migrate to `profiles`/`projects` |
-| `components/dashboard/messages/DirectorMessages.tsx` | Queries old `clients` table for client search | Same as above |
-| `app/dashboard/messages/page.tsx` | Queries `profiles.member_id` to get old `members.id` for director conversations | Same as above |
-| `app/dashboard/messages/[conversationId]/page.tsx` | Same pattern — needs old member ID for conversation queries | Same as above |
+| ~~`components/dashboard/messages/index.tsx`~~ | ~~Queries old `clients` table~~ | **DONE 2026-04-22** — migrated to `profiles`/`projects` |
+| ~~`components/dashboard/messages/DirectorMessages.tsx`~~ | ~~Queries old `clients` table for client search~~ | **DONE 2026-04-22** — queries `projects` table now |
+| ~~`app/dashboard/messages/page.tsx`~~ | ~~Queries `profiles.member_id`~~ | **DONE 2026-04-22** — `member_id` column dropped |
+| ~~`app/dashboard/messages/[conversationId]/page.tsx`~~ | ~~Needs old member ID~~ | **DONE 2026-04-22** — uses `profiles` only |
 | `components/dashboard/explore/ui/AmbientGrid.tsx` | Pre-existing: uses `Math.random()` causing hydration mismatch | Move random generation to `useMemo` with seed or `useEffect` |
 
 ---

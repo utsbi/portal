@@ -216,7 +216,7 @@ export default function FilesPage() {
         });
     };
 
-    const renderTree = (nodes: FolderNode[], level = 0): JSX.Element => {
+    const renderTree = (nodes: FolderNode[], level = 0) => {
         return (
             <ul className={level === 0 ? "space-y-2 text-sm" : "space-y-1 mt-1"}>
                 {nodes.map((node) => {

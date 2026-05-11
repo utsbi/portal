@@ -1,114 +1,103 @@
+// DB enum values (must match Postgres enums exactly)
+export type TaskStatusDB = 'not_started' | 'in_progress' | 'pending_approval' | 'completed';
+export type TaskPriorityDB = 'extreme' | 'high' | 'medium' | 'low' | 'stretch';
+export type TeamNameDB = 'technology' | 'architecture' | 'public_relations' | 'engineering' | 'finance' | 'research' | 'legal' | 'executive';
 
-//definitions of structs/types involved in the lifecycle page
-//and enums for struct/type settings, mostly specific to SBI
+// Display labels
+export const TASK_STATUS_LABELS: Record<TaskStatusDB, string> = {
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  pending_approval: 'Pending Approval',
+  completed: 'Completed',
+};
 
-//task struct/type -- "child" to project, main source of information
+export const TASK_PRIORITY_LABELS: Record<TaskPriorityDB, string> = {
+  extreme: 'Extremely High',
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+  stretch: 'Stretch',
+};
+
+export const TEAM_NAME_LABELS: Record<TeamNameDB, string> = {
+  technology: 'Technology',
+  architecture: 'Architecture',
+  public_relations: 'Public Relations',
+  engineering: 'Engineering',
+  finance: 'Finance',
+  research: 'Research & Development',
+  legal: 'Legal',
+  executive: 'Executive Board',
+};
+
+// Ordering for sorting
+export const TASK_STATUS_ORDER: Record<TaskStatusDB, number> = {
+  not_started: 0,
+  in_progress: 1,
+  pending_approval: 2,
+  completed: 3,
+};
+
+export const TASK_PRIORITY_ORDER: Record<TaskPriorityDB, number> = {
+  stretch: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  extreme: 4,
+};
+
+// Frontend types (used by components)
 export type Task = {
-    id: string; //or number
-    title: string;
-    description: string;
-    status: TaskStatus; //tag
-    team: TeamName; //tag
-    due_date: Date;
-    tentative: boolean;
-    assigned_by: string;
-    assignees: string[];
-    priority: Priority; //tag
-    project_id: string; //to set up a 2 way association/mapping
-    //good to track for both client and team
-    created_at: Date;
-    last_updated: Date;
-};
-
-//project struct/type -- "parent" to the tasks
-export type Project = {
-    id: string; //in the case that there are duplicate project names which there shouldn't be
-    title: string;
-    client: string; //check if this project is accessible to them
-    //can possibly be a tag, or an id string instead i need to check database
-    completed: boolean;
-    progress_percent: number; //out of 100, taken from each of the task's
-    //task status, not sure if it should be stored in this struct or just updated
-    //in the a function that will set the tast status because all of them will start
-    //off with not started which we know is == 0, and can update to its associated project
-    tasks: Task[];
-    //optional image to project card, from civil team -> file path reference
-    image?: string;
-};
-export enum TaskStatus {
-    NOT_STARTED = "Not Started",
-    IN_PROGRESS = "In Progress",
-    PENDING = "Pending Approval",
-    //thinking about adding another status here, where the client can also approve
-    //themselves or also request more information, or like just an intermediate stage
-    //where the client gets the final say in whether a specific task is completed or not
-    //although this depends on how many tasks will be made and because they are assigned
-    //by internal team members, clients might not be fully aware of the tasks and may
-    //instead get bogged down with too many notifications on things they dont care about
-    COMPLETED = "Completed",
-}
-
-//having ordering to TaskStatus enums so that they can be sorted in a particular way
-export const TASK_STATUS_ORDER: Record<TaskStatus, number> = {
-    [TaskStatus.NOT_STARTED]: 0,
-    [TaskStatus.IN_PROGRESS]: 1,
-    [TaskStatus.PENDING]: 2,
-    [TaskStatus.COMPLETED]: 3,
-};
-
-//possibly adjustable by the client? but initially set by who it was made by
-export enum Priority {
-    EX_HIGH = "Extremely High Priority",
-    HIGH = "High Priority",
-    MED = "Medium Priority",
-    LOW = "Low Priority",
-    STRETCH = "Stretch Feature",
-}
-
-//having ordering to Priority enums so that they can be sorted in a particular way
-export const PRIORITY_ORDER: Record<Priority, number> = {
-    [Priority.STRETCH]: 0,
-    [Priority.LOW]: 1,
-    [Priority.MED]: 2,
-    [Priority.HIGH]: 3,
-    [Priority.EX_HIGH]: 4,
-};
-
-//all of the teams in SBI
-export enum TeamName {
-    TECH = "Technology Team",
-    ARCH = "Architecture Team",
-    PR = "Public Relations Team",
-    ENG = "Engineering Team",
-    FIN = "Finance Team",
-    RD = "Research and Development Team",
-    LEGAL = "Legal Team",
-    EXEC = "Executive Board",
-}
-
-export type ProjectDB = {
-  id: string;
-  title: string;
-  client: string;
-  completed: boolean;
-  image?: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type TaskDB = {
-  id: string;
-  project_id: string;
+  id: number;
   title: string;
   description: string;
-  status: string;
-  team: string;
-  due_date: string;
+  status: TaskStatusDB;
+  team: TeamNameDB;
+  due_date: Date;
   tentative: boolean;
   assigned_by: string;
   assignees: string[];
-  priority: string;
-  created_at: string;
-  updated_at: string;
+  priority: TaskPriorityDB;
+  lifecycle_project_id: number;
+  created_at: Date;
+  updated_at: Date;
 };
 
+export type Project = {
+  id: number;
+  project_id: number;
+  title: string;
+  completed: boolean;
+  progress_percent: number;
+  tasks: Task[];
+  image?: string;
+};
+
+// Sort options
+export type SortOption =
+  | 'dueDate-asc'
+  | 'dueDate-desc'
+  | 'status-asc'
+  | 'status-desc'
+  | 'priority-asc'
+  | 'priority-desc';
+
+export function sortTasks(tasks: Task[], sortOption: SortOption): Task[] {
+  const sorted = [...tasks];
+  switch (sortOption) {
+    case 'dueDate-asc':
+      return sorted.sort((a, b) => a.due_date.getTime() - b.due_date.getTime());
+    case 'dueDate-desc':
+      return sorted.sort((a, b) => b.due_date.getTime() - a.due_date.getTime());
+    case 'status-asc':
+      return sorted.sort((a, b) => TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status]);
+    case 'status-desc':
+      return sorted.sort((a, b) => TASK_STATUS_ORDER[b.status] - TASK_STATUS_ORDER[a.status]);
+    case 'priority-asc':
+      return sorted.sort((a, b) => TASK_PRIORITY_ORDER[a.priority] - TASK_PRIORITY_ORDER[b.priority]);
+    case 'priority-desc':
+      return sorted.sort((a, b) => TASK_PRIORITY_ORDER[b.priority] - TASK_PRIORITY_ORDER[a.priority]);
+    default:
+      return sorted;
+  }
+}

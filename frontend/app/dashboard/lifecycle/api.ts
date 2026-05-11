@@ -1,111 +1,111 @@
 import { createClient } from '@/lib/supabase/client';
-import { Project, Task, ProjectDB, TaskDB } from './types';
+import { Project, Task, type TaskStatusDB, type TaskPriorityDB, type TeamNameDB } from './types';
 
-// Convert DB task to frontend Task type
-function taskFromDB(taskDB: TaskDB): Task {
-  return {
-    id: taskDB.id,
-    title: taskDB.title,
-    description: taskDB.description,
-    status: taskDB.status as any,
-    team: taskDB.team as any,
-    due_date: new Date(taskDB.due_date),
-    tentative: taskDB.tentative,
-    assigned_by: taskDB.assigned_by,
-    assignees: taskDB.assignees,
-    priority: taskDB.priority as any,
-    project_id: taskDB.project_id,
-    created_at: new Date(taskDB.created_at),
-    last_updated: new Date(taskDB.updated_at),
-  };
-}
-
-// Calculate progress based on tasks
 function calculateProgress(tasks: Task[]): number {
   if (tasks.length === 0) return 0;
-  const completedTasks = tasks.filter(task => task.status === 'Completed').length;
+  const completedTasks = tasks.filter(task => task.status === 'completed').length;
   return Math.round((completedTasks / tasks.length) * 100);
 }
 
-// Fetch all projects with their tasks
 export async function fetchProjects(): Promise<Project[]> {
   const supabase = createClient();
-  
-  // Fetch projects
+
   const { data: projectsData, error: projectsError } = await supabase
     .from('lifecycle_projects')
     .select('*')
     .order('created_at', { ascending: false });
 
-  if (projectsError) {
-    console.error('Error fetching projects:', projectsError);
+  if (projectsError || !projectsData) {
+    console.error('Error fetching lifecycle projects:', projectsError);
     return [];
   }
 
-  // Fetch all tasks
   const { data: tasksData, error: tasksError } = await supabase
     .from('lifecycle_tasks')
-    .select('*');
+    .select('*, assignees:lifecycle_task_assignees(profile_id, profiles(id, name))');
 
   if (tasksError) {
-    console.error('Error fetching tasks:', tasksError);
+    console.error('Error fetching lifecycle tasks:', tasksError);
     return [];
   }
 
-  // Convert to frontend types
-  const tasks = tasksData.map(taskFromDB);
+  const tasks: Task[] = (tasksData ?? []).map((t: any) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description ?? '',
+    status: t.status as TaskStatusDB,
+    team: t.team as TeamNameDB,
+    due_date: new Date(t.due_date),
+    tentative: t.tentative,
+    assigned_by: '', // resolved below if needed
+    assignees: (t.assignees ?? []).map((a: any) => a.profiles?.name ?? 'Unknown'),
+    priority: t.priority as TaskPriorityDB,
+    lifecycle_project_id: t.lifecycle_project_id,
+    created_at: new Date(t.created_at),
+    updated_at: new Date(t.updated_at),
+  }));
 
-  // Combine projects with their tasks
-  const projects: Project[] = projectsData.map((projectDB: ProjectDB) => {
-    const projectTasks = tasks.filter(task => task.project_id === projectDB.id);
+  return projectsData.map((p: any) => {
+    const projectTasks = tasks.filter(t => t.lifecycle_project_id === p.id);
     return {
-      id: projectDB.id,
-      title: projectDB.title,
-      client: projectDB.client,
-      completed: projectDB.completed,
+      id: p.id,
+      project_id: p.project_id,
+      title: p.title,
+      completed: p.completed,
       progress_percent: calculateProgress(projectTasks),
-      image: projectDB.image,
+      image: p.image,
       tasks: projectTasks,
     };
   });
-
-  return projects;
 }
 
-// Fetch single project by ID
-export async function fetchProjectById(id: string): Promise<Project | null> {
+export async function fetchProjectById(id: number): Promise<Project | null> {
   const supabase = createClient();
-  
-  const { data: projectDB, error: projectError } = await supabase
+
+  const { data: p, error: projectError } = await supabase
     .from('lifecycle_projects')
     .select('*')
     .eq('id', id)
     .single();
 
-  if (projectError || !projectDB) {
-    console.error('Error fetching project:', projectError);
+  if (projectError || !p) {
+    console.error('Error fetching lifecycle project:', projectError);
     return null;
   }
 
   const { data: tasksData, error: tasksError } = await supabase
     .from('lifecycle_tasks')
-    .select('*')
-    .eq('project_id', id);
+    .select('*, assignees:lifecycle_task_assignees(profile_id, profiles(id, name))')
+    .eq('lifecycle_project_id', id);
 
   if (tasksError) {
-    console.error('Error fetching tasks:', tasksError);
+    console.error('Error fetching lifecycle tasks:', tasksError);
     return null;
   }
 
-  const tasks = tasksData.map(taskFromDB);
+  const tasks: Task[] = (tasksData ?? []).map((t: any) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description ?? '',
+    status: t.status as TaskStatusDB,
+    team: t.team as TeamNameDB,
+    due_date: new Date(t.due_date),
+    tentative: t.tentative,
+    assigned_by: '',
+    assignees: (t.assignees ?? []).map((a: any) => a.profiles?.name ?? 'Unknown'),
+    priority: t.priority as TaskPriorityDB,
+    lifecycle_project_id: t.lifecycle_project_id,
+    created_at: new Date(t.created_at),
+    updated_at: new Date(t.updated_at),
+  }));
 
   return {
-    id: projectDB.id,
-    title: projectDB.title,
-    client: projectDB.client,
-    completed: projectDB.completed,
+    id: p.id,
+    project_id: p.project_id,
+    title: p.title,
+    completed: p.completed,
     progress_percent: calculateProgress(tasks),
-    image: projectDB.image,
+    image: p.image,
     tasks,
   };
 }

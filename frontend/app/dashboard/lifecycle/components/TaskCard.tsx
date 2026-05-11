@@ -1,6 +1,6 @@
 'use client';
 
-import { Task } from '../types';
+import { Task, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, TEAM_NAME_LABELS } from '../types';
 import { useState } from 'react';
 import TaskPopUp from './TaskPopUp';
 
@@ -8,47 +8,33 @@ type TaskCardProps = {
   task: Task;
 };
 
+const PRIORITY_DOT_COLOR: Record<string, string> = {
+  extreme: 'bg-red-500',
+  high: 'bg-orange-500',
+  medium: 'bg-yellow-500',
+  low: 'bg-blue-400',
+  stretch: 'bg-gray-400',
+};
+
+const STATUS_DOT_COLOR: Record<string, string> = {
+  not_started: 'bg-gray-400',
+  in_progress: 'bg-blue-400',
+  pending_approval: 'bg-yellow-400',
+  completed: 'bg-sbi-green',
+};
+
 export default function TaskCard({ task }: TaskCardProps) {
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
 
-  // Priority dot color
-  const getPriorityDotColor = () => {
-    switch (task.priority) {
-      case 'Extremely High Priority': return 'bg-red-500';
-      case 'High Priority': return 'bg-orange-500';
-      case 'Medium Priority': return 'bg-yellow-500';
-      case 'Low Priority': return 'bg-blue-400';
-      case 'Stretch Feature': return 'bg-gray-400';
-      default: return 'bg-gray-400';
-    }
-  };
-
-  // Status dot color
-  const getStatusDotColor = () => {
-    switch (task.status) {
-      case 'Not Started': return 'bg-gray-400';
-      case 'In Progress': return 'bg-blue-400';
-      case 'Pending Approval': return 'bg-yellow-400';
-      case 'Completed': return 'bg-sbi-green';
-      default: return 'bg-gray-400';
-    }
-  };
-
-  // Format team name
-  const formatTeamName = (team: string) => {
-    if (team === 'Public Relations Team') return 'Public Relations';
-    return team.replace(' Team', ''); // Remove "Team" from others
-  };
-
   return (
     <>
-      <div 
+      <div
         onClick={() => setIsPopUpOpen(true)}
-        className="group flex items-center gap-4 p-4 border-b border-sbi-dark-border/30 
+        className="group flex items-center gap-4 p-4 border-b border-sbi-dark-border/30
                    hover:bg-sbi-dark-card/50 cursor-pointer transition-all"
       >
         {/* Priority Dot */}
-        <div className={`w-2 h-2 rounded-full ${getPriorityDotColor()}`} />
+        <div className={`w-2 h-2 rounded-full ${PRIORITY_DOT_COLOR[task.priority] ?? 'bg-gray-400'}`} />
 
         {/* Task Title */}
         <div className="flex-1">
@@ -58,17 +44,17 @@ export default function TaskCard({ task }: TaskCardProps) {
         </div>
 
         {/* Status - CENTERED */}
-<div className="w-32 flex items-center justify-center gap-2">
-  <div className={`w-2 h-2 rounded-full ${getStatusDotColor()}`} />
-  <span className="text-xs text-sbi-muted-dark font-light tracking-wide">
-    {task.status}
-  </span>
-</div>
+        <div className="w-32 flex items-center justify-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${STATUS_DOT_COLOR[task.status] ?? 'bg-gray-400'}`} />
+          <span className="text-xs text-sbi-muted-dark font-light tracking-wide">
+            {TASK_STATUS_LABELS[task.status]}
+          </span>
+        </div>
 
         {/* Team - CENTERED */}
         <div className="w-32 flex items-center justify-center">
           <span className="text-xs text-sbi-muted-dark font-light tracking-wide text-center">
-            {formatTeamName(task.team)}
+            {TEAM_NAME_LABELS[task.team]}
           </span>
         </div>
 
@@ -82,26 +68,14 @@ export default function TaskCard({ task }: TaskCardProps) {
 
         {/* Chevron */}
         <div className="text-sbi-muted-dark group-hover:text-sbi-green transition-colors">
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            className="h-5 w-5" 
-            viewBox="0 0 20 20" 
-            fill="currentColor"
-          >
-            <path 
-              fillRule="evenodd" 
-              d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" 
-              clipRule="evenodd" 
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
           </svg>
         </div>
       </div>
 
       {isPopUpOpen && (
-        <TaskPopUp 
-          task={task} 
-          onClose={() => setIsPopUpOpen(false)}
-        />
+        <TaskPopUp task={task} onClose={() => setIsPopUpOpen(false)} />
       )}
     </>
   );

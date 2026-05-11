@@ -189,8 +189,8 @@ export type Database = {
           data: Json
           form_id: number
           id: number
+          project_id: number | null
           updated_at: string | null
-          url_slug: string | null
           user_id: string
         }
         Insert: {
@@ -198,8 +198,8 @@ export type Database = {
           data?: Json
           form_id: number
           id?: number
+          project_id?: number | null
           updated_at?: string | null
-          url_slug?: string | null
           user_id?: string
         }
         Update: {
@@ -207,8 +207,8 @@ export type Database = {
           data?: Json
           form_id?: number
           id?: number
+          project_id?: number | null
           updated_at?: string | null
-          url_slug?: string | null
           user_id?: string
         }
         Relationships: [
@@ -217,6 +217,13 @@ export type Database = {
             columns: ["form_id"]
             isOneToOne: false
             referencedRelation: "custom_form_schemas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_form_submissions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -241,6 +248,140 @@ export type Database = {
           metadata?: Json | null
         }
         Relationships: []
+      }
+      lifecycle_projects: {
+        Row: {
+          completed: boolean
+          created_at: string
+          id: number
+          image: string | null
+          project_id: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          id?: number
+          image?: string | null
+          project_id: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          id?: number
+          image?: string | null
+          project_id?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifecycle_projects_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lifecycle_task_assignees: {
+        Row: {
+          created_at: string
+          id: number
+          profile_id: number
+          task_id: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          profile_id: number
+          task_id: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          profile_id?: number
+          task_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifecycle_task_assignees_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lifecycle_task_assignees_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "lifecycle_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lifecycle_tasks: {
+        Row: {
+          assigned_by: number | null
+          created_at: string
+          description: string | null
+          due_date: string
+          id: number
+          lifecycle_project_id: number
+          priority: "extreme" | "high" | "medium" | "low" | "stretch"
+          status: "not_started" | "in_progress" | "pending_approval" | "completed"
+          team: "technology" | "architecture" | "public_relations" | "engineering" | "finance" | "research" | "legal" | "executive"
+          tentative: boolean
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by?: number | null
+          created_at?: string
+          description?: string | null
+          due_date: string
+          id?: number
+          lifecycle_project_id: number
+          priority?: "extreme" | "high" | "medium" | "low" | "stretch"
+          status?: "not_started" | "in_progress" | "pending_approval" | "completed"
+          team: "technology" | "architecture" | "public_relations" | "engineering" | "finance" | "research" | "legal" | "executive"
+          tentative?: boolean
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by?: number | null
+          created_at?: string
+          description?: string | null
+          due_date?: string
+          id?: number
+          lifecycle_project_id?: number
+          priority?: "extreme" | "high" | "medium" | "low" | "stretch"
+          status?: "not_started" | "in_progress" | "pending_approval" | "completed"
+          team?: "technology" | "architecture" | "public_relations" | "engineering" | "finance" | "research" | "legal" | "executive"
+          tentative?: boolean
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifecycle_tasks_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lifecycle_tasks_lifecycle_project_id_fkey"
+            columns: ["lifecycle_project_id"]
+            isOneToOne: false
+            referencedRelation: "lifecycle_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {

@@ -7,13 +7,13 @@ import FilterDropdown from '../components/FilterDropdown';
 import Link from 'next/link';
 import { use, useState } from 'react';
 
-export default function ProjectDetailPage({ 
-  params 
-}: { 
-  params: Promise<{ projectId: string }> 
+export default function ProjectDetailPage({
+  params
+}: {
+  params: Promise<{ projectId: string }>
 }) {
   const { projectId } = use(params);
-  const project = getProjectById(projectId);
+  const project = getProjectById(Number(projectId));
   const [searchQuery, setSearchQuery] = useState('');
   
   if (!project) {
