@@ -18,5 +18,7 @@ export const config = {
     "/dashboard/:path*",
     // Match auth routes
     "/auth/:path*",
+    // Match login so authed users are redirected at the edge (no layout flash)
+    "/login",
   ],
 };

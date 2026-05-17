@@ -49,6 +49,36 @@ export async function updateSession(request: NextRequest) {
 		return NextResponse.redirect(url);
 	}
 
+	// Already-authenticated users hitting /login: resolve the redirect here at
+	// the edge, before the (static) layout (Navbar + Footer) ever ships. Doing
+	// it at the page level instead leaves a one-frame navbar/footer flash when
+	// the login RSC resolves into a redirect. Mirrors the profile guard in
+	// resolve-actor so an auth session without a profile doesn't loop
+	// (/login -> /dashboard -> /login).
+	if (user && request.nextUrl.pathname.startsWith("/login")) {
+		const { data: profile, error: profileErr } = await supabase
+			.from("profiles")
+			.select("id")
+			.eq("uid", user.sub as string)
+			.maybeSingle();
+
+		if (profile) {
+			const url = request.nextUrl.clone();
+			url.pathname = "/dashboard";
+			return NextResponse.redirect(url);
+		}
+
+		if (!profileErr) {
+			// Confirmed no profile row: clear the orphan session so the
+			// login form is usable instead of bouncing. Falls through to
+			// /login.
+			await supabase.auth.signOut();
+		}
+		// On a transient query error we can't confirm eligibility: fail
+		// open. Don't sign the user out, don't redirect — fall through to
+		// /login so a DB/RLS blip never logs out a valid session.
+	}
+
 	// IMPORTANT: You *must* return the supabaseResponse object as it is.
 	// If you're creating a new response object with NextResponse.next() make sure to:
 	// 1. Pass the request in it, like so:
