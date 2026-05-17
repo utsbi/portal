@@ -1,0 +1,228 @@
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
+
+export { Modal } from "./Modal";
+export { TextField } from "./TextField";
+
+/**
+ * Shared dashboard UI primitives. One surface system so every screen reads as
+ * the same product. See DESIGN.md "Dashboard System".
+ *
+ * Button language deliberately mirrors the public site (outlined green that
+ * fills on hover) — NOT loud solid-green fills.
+ */
+
+// ---------------------------------------------------------------------------
+// Page shell
+// ---------------------------------------------------------------------------
+
+/**
+ * Standard dashboard page wrapper: full height under the 4rem header, dark
+ * background, consistent padding, centered max-width column.
+ */
+export function DashboardShell({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className="h-[calc(100vh-4rem)] bg-sbi-dark flex flex-col p-6 md:p-8 overflow-hidden">
+      <div
+        className={cn(
+          "max-w-7xl w-full mx-auto flex flex-col h-full min-h-0",
+          className,
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Page title + subtitle + optional right-aligned action. Every dashboard page
+ * uses this so headers are pixel-identical.
+ */
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex justify-between items-end gap-4 mb-8 shrink-0",
+        className,
+      )}
+    >
+      <div>
+        <h1 className="text-2xl md:text-3xl font-light tracking-tight text-white mb-2">
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="text-sbi-muted text-sm">{subtitle}</p>
+        ) : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section label (green line + uppercase tracked text — public-site pattern)
+// ---------------------------------------------------------------------------
+
+export function SectionLabel({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center gap-4 mb-6", className)}>
+      <div className="w-10 h-px bg-sbi-green" />
+      <span className="text-xs tracking-[0.25em] uppercase text-sbi-green">
+        {children}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Surface / Panel — the containment system
+// ---------------------------------------------------------------------------
+
+/**
+ * The canonical contained surface. Everything that floats on black today
+ * should sit inside one of these.
+ */
+export function Panel({
+  children,
+  className,
+  padded = true,
+}: {
+  children: ReactNode;
+  className?: string;
+  padded?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded-xl",
+        padded && "p-6",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stat tile — replaces bare numbers floating on black
+// ---------------------------------------------------------------------------
+
+export function StatTile({
+  label,
+  value,
+  sublabel,
+  icon,
+  accent = false,
+}: {
+  label: string;
+  value: ReactNode;
+  sublabel?: string;
+  icon?: ReactNode;
+  accent?: boolean;
+}) {
+  return (
+    <div className="bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded-xl p-5">
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-[0.7rem] tracking-[0.2em] uppercase text-sbi-muted-dark">
+          {label}
+        </span>
+        {icon ? (
+          <span className="text-sbi-muted-dark">{icon}</span>
+        ) : null}
+      </div>
+      <div
+        className={cn(
+          "text-4xl font-thin tracking-tight tabular-nums",
+          accent ? "text-sbi-green" : "text-white",
+        )}
+      >
+        {value}
+      </div>
+      {sublabel ? (
+        <p className="text-xs text-sbi-muted-dark mt-2">{sublabel}</p>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Empty state — fills its container instead of being a tiny island
+// ---------------------------------------------------------------------------
+
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  className,
+}: {
+  icon?: ReactNode;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex-1 flex flex-col items-center justify-center text-center px-6 py-16",
+        className,
+      )}
+    >
+      {icon ? (
+        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-sbi-green/20 bg-sbi-green/5 text-sbi-green">
+          {icon}
+        </div>
+      ) : null}
+      <h3 className="text-lg font-light text-white">{title}</h3>
+      {description ? (
+        <p className="mt-2 max-w-sm text-sm text-sbi-muted">{description}</p>
+      ) : null}
+      {action ? <div className="mt-6">{action}</div> : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Button class language (outlined green → fills on hover; public-site match)
+// ---------------------------------------------------------------------------
+
+/** Primary action. Refined outline, not a loud solid fill. */
+export const btnPrimary =
+  "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
+  "bg-sbi-green/10 text-sbi-green border border-sbi-green/30 rounded-md cursor-pointer " +
+  "hover:bg-sbi-green hover:text-sbi-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
+
+/** Secondary / neutral action. */
+export const btnGhost =
+  "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
+  "bg-transparent text-sbi-muted border border-sbi-dark-border/60 rounded-md cursor-pointer " +
+  "hover:text-white hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
+
+/** Mantine <Button> classNames override to match btnPrimary. */
+export const mantinePrimaryClasses =
+  "!bg-sbi-green/10 !text-sbi-green !border !border-sbi-green/30 hover:!bg-sbi-green hover:!text-sbi-dark transition-colors uppercase tracking-[0.04em] text-xs font-medium";
