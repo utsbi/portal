@@ -177,8 +177,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Profile not found" }, { status: 403 });
         }
 
-        if (profile.role !== "director") {
-            return NextResponse.json({ error: "Only directors can submit reports" }, { status: 403 });
+        if (profile.role !== "director" && profile.role !== "member") {
+            return NextResponse.json({ error: "Only directors or members can submit reports" }, { status: 403 });
         }
 
         const department = typeof body.department === "string" && body.department.length > 0

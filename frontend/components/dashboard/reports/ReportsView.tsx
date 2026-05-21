@@ -21,7 +21,8 @@ export function ReportsView({
   initialReports: ReportItem[];
 }) {
   const { activeProject, user } = useProject();
-  const isDirector = user?.role === "director";
+  const isClient = user?.role === "client";
+  const canCreate = user?.role === "director" || user?.role === "member";
 
   const { reports, loading, addReport, updateStatus } = useReports(
     activeProject?.projectId,
@@ -40,7 +41,7 @@ export function ReportsView({
         title="Reports"
         subtitle="Submitted reports and review status"
         action={
-          isDirector ? (
+          canCreate ? (
             <button
               type="button"
               onClick={() => setIsCreatingModalOpen(true)}
@@ -87,7 +88,7 @@ export function ReportsView({
             <SectionLabel>Report History</SectionLabel>
             <ReportHistoryTable
               reports={allReports}
-              isDirector={isDirector}
+              canCreate={canCreate}
               onRowClick={setSelectedReport}
               onCreateClick={() => setIsCreatingModalOpen(true)}
             />

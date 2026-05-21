@@ -187,7 +187,7 @@ export function ReportDetailModal({
   const canAcknowledge =
     Boolean(onAcknowledge) &&
     report.status === "Pending" &&
-    user?.role !== "director";
+    user?.role === "client";
 
   const handleAcknowledge = async () => {
     if (!onAcknowledge) return;

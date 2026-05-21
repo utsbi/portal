@@ -43,14 +43,14 @@ const COLUMNS: ColumnDef<ReportItem>[] = [
 
 interface ReportHistoryTableProps {
   reports: ReportItem[];
-  isDirector: boolean;
+  canCreate: boolean;
   onRowClick: (report: ReportItem) => void;
   onCreateClick: () => void;
 }
 
 export function ReportHistoryTable({
   reports,
-  isDirector,
+  canCreate,
   onRowClick,
   onCreateClick,
 }: ReportHistoryTableProps) {
@@ -61,7 +61,7 @@ export function ReportHistoryTable({
         title="No reports yet"
         description="Reports submitted by directors will appear here."
         action={
-          isDirector ? (
+          canCreate ? (
             <button
               type="button"
               onClick={onCreateClick}

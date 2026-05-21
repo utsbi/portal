@@ -56,12 +56,10 @@ export default function RequestsPage() {
     toastSuccess(`Request "${data.subject}" submitted.`);
   };
 
-  const subtitle =
-    user?.role === "director"
-      ? "Triage requests from clients and team members"
-      : user?.role === "client"
-      ? "Submit a request to your team and track its progress"
-      : "Send a request to a teammate or track open ones";
+  const isClient = user?.role === "client";
+  const subtitle = isClient
+    ? "Submit a request to your team and track its progress"
+    : "Incoming requests from clients";
 
   return (
     <DashboardShell>
@@ -69,9 +67,11 @@ export default function RequestsPage() {
         title="Requests"
         subtitle={subtitle}
         action={
-          <button type="button" onClick={() => setIsModalOpen(true)} className={btnPrimary}>
-            <Plus className="w-4 h-4" /> New Request
-          </button>
+          isClient ? (
+            <button type="button" onClick={() => setIsModalOpen(true)} className={btnPrimary}>
+              <Plus className="w-4 h-4" /> New Request
+            </button>
+          ) : null
         }
       />
 
