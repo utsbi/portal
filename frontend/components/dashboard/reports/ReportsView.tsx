@@ -9,7 +9,7 @@ import {
   SectionLabel,
   btnPrimary,
 } from "@/components/dashboard/common/ui";
-import { ReportsOverview } from "./reports-overview";
+import { ReportsOverviewStrip } from "./ReportsOverviewStrip";
 import { ReportHistoryTable } from "./ReportHistoryTable";
 import { ReportDetailModal } from "./ReportDetailModal";
 import { NewReportModal } from "./NewReportModal";
@@ -60,20 +60,13 @@ export function ReportsView({ initialReports }: { initialReports: ReportItem[] }
       <main className="flex-1 overflow-auto dashboard-scrollbar">
         <div className="flex flex-col gap-8">
           {loading ? (
-            <div className="animate-pulse space-y-6">
-              <div className="h-8 bg-white/5 rounded w-48" />
-              <div className="grid grid-cols-4 gap-4">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-32 bg-white/5 rounded-xl" />
-                ))}
-              </div>
-              <div className="grid grid-cols-3 gap-6">
-                <div className="col-span-2 h-64 bg-white/5 rounded-xl" />
-                <div className="h-64 bg-white/5 rounded-xl" />
-              </div>
+            <div className="animate-pulse space-y-2">
+              <div className="h-3 bg-white/5 rounded w-24" />
+              <div className="h-4 bg-white/5 rounded w-2/3" />
+              <div className="h-4 bg-white/5 rounded w-1/2" />
             </div>
           ) : (
-            <ReportsOverview reports={allReports} />
+            <ReportsOverviewStrip reports={allReports} />
           )}
 
           <div>
