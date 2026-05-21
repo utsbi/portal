@@ -52,14 +52,15 @@ async def run_graph_streaming(
         yield {"type": "phase", "phase": "searching"}
         state = await retrieve_context(state)
 
+        # Materialize sources before generation so the prompt can reference them by [n].
+        state = await format_sources(state)
+
     yield {"type": "phase", "phase": "generating"}
     async for event in generate_response_streaming(state):
         if event["type"] == "delta":
             yield event
         elif event["type"] == "state":
             state = event["state"]
-
-    state = await format_sources(state)
 
     yield {
         "type": "result",

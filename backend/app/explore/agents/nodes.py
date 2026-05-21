@@ -245,6 +245,24 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _format_sources_list(sources: List[Dict[str, Any]]) -> str:
+    """Render the sources list for the generation prompt with [n] markers.
+
+    Order matches state['sources'] exactly so the model's [n] citations and the
+    frontend's chip mapping align.
+    """
+    if not sources:
+        return "(no sources available - do not emit citation markers)"
+    lines = []
+    for i, s in enumerate(sources, start=1):
+        filename = s.get("filename", "unknown")
+        page = s.get("page_number")
+        preview = (s.get("content") or "")[:150].replace("\n", " ").strip()
+        suffix = f" (p. {page})" if page else ""
+        lines.append(f'[{i}] {filename}{suffix}: "{preview}..."')
+    return "\n".join(lines)
+
+
 def _build_attachment_context(
     attachments: List[Dict[str, str]],
     max_length: int = 800_000,
@@ -303,10 +321,12 @@ async def generate_response_streaming(
             return
 
     formatted_history = format_history(history)
+    sources_list = _format_sources_list(state.get("sources", []))
     user_prompt = GENERATE_RESPONSE_PROMPT.format(
         query=query,
         context=context if context else "No relevant documents found.",
         history=formatted_history,
+        sources_list=sources_list,
     )
 
     answer_parts: List[str] = []
