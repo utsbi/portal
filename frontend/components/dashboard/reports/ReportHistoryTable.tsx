@@ -2,9 +2,9 @@
 
 import { FileText } from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
-import { DataTable, type ColumnDef, StatusPill } from "@/components/data-table";
-import { EmptyState, btnPrimary } from "@/components/dashboard/common/ui";
-import { STATUS_FILTER, DEPT_FILTER } from "./constants";
+import { btnPrimary, EmptyState } from "@/components/dashboard/common/ui";
+import { type ColumnDef, DataTable, StatusPill } from "@/components/data-table";
+import { DEPT_FILTER, STATUS_FILTER } from "./constants";
 
 const COLUMNS: ColumnDef<ReportItem>[] = [
   {
@@ -14,7 +14,9 @@ const COLUMNS: ColumnDef<ReportItem>[] = [
     render: (value, row) => (
       <div>
         <div className="text-white font-medium text-sm">{value}</div>
-        <div className="text-xs text-sbi-muted-dark mt-0.5">{row.project || "n/a"}</div>
+        <div className="text-xs text-sbi-muted-dark mt-0.5">
+          {row.project || "n/a"}
+        </div>
       </div>
     ),
   },
@@ -25,7 +27,11 @@ const COLUMNS: ColumnDef<ReportItem>[] = [
     header: "Date",
     sortable: true,
     render: (value) =>
-      new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
+      new Date(value).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
   },
   {
     accessor: "status",
@@ -42,7 +48,12 @@ interface ReportHistoryTableProps {
   onCreateClick: () => void;
 }
 
-export function ReportHistoryTable({ reports, isDirector, onRowClick, onCreateClick }: ReportHistoryTableProps) {
+export function ReportHistoryTable({
+  reports,
+  isDirector,
+  onRowClick,
+  onCreateClick,
+}: ReportHistoryTableProps) {
   if (reports.length === 0) {
     return (
       <EmptyState
@@ -51,7 +62,11 @@ export function ReportHistoryTable({ reports, isDirector, onRowClick, onCreateCl
         description="Reports submitted by directors will appear here."
         action={
           isDirector ? (
-            <button onClick={onCreateClick} className={btnPrimary}>
+            <button
+              type="button"
+              onClick={onCreateClick}
+              className={btnPrimary}
+            >
               Create First Report
             </button>
           ) : undefined

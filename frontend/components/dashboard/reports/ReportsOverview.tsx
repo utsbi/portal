@@ -1,7 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  FileText,
+  TrendingUp,
+} from "lucide-react";
 import { motion } from "motion/react";
+import { useMemo } from "react";
 import {
   Area,
   AreaChart,
@@ -10,13 +17,6 @@ import {
   Tooltip,
   XAxis,
 } from "recharts";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  FileText,
-  TrendingUp,
-} from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { Panel, StatTile } from "@/components/dashboard/common/ui";
 
@@ -36,7 +36,9 @@ function TrendTooltip({ active, payload, label }: TrendTooltipProps) {
   const value = typeof raw === "number" ? raw : Number(raw) || 0;
   return (
     <div className="rounded-lg border border-sbi-dark-border/60 bg-sbi-dark-card/95 backdrop-blur px-3 py-2 shadow-lg shadow-black/40">
-      <p className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark mb-0.5">{label}</p>
+      <p className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark mb-0.5">
+        {label}
+      </p>
       <p className="text-sm text-white tabular-nums">
         {value} report{value === 1 ? "" : "s"}
       </p>
@@ -60,10 +62,16 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
   }, [reports]);
 
   const timelineData = useMemo(() => {
-    const counts: Record<string, { date: string; count: number; sort: number }> = {};
+    const counts: Record<
+      string,
+      { date: string; count: number; sort: number }
+    > = {};
     for (const r of reports) {
       const d = new Date(r.created_at ?? r.date);
-      const key = d.toLocaleString("default", { month: "short", year: "2-digit" });
+      const key = d.toLocaleString("default", {
+        month: "short",
+        year: "2-digit",
+      });
       const sort = d.getFullYear() * 12 + d.getMonth();
       if (!counts[key]) counts[key] = { date: key, count: 0, sort };
       counts[key].count += 1;
@@ -123,22 +131,42 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart
+                data={timelineData}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
                 <defs>
-                  <linearGradient id="reportsTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient
+                    id="reportsTrendGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#ffffff05"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="date"
-                  tick={{ fill: "#8a9a93", fontSize: 10, letterSpacing: "0.05em" }}
+                  tick={{
+                    fill: "#8a9a93",
+                    fontSize: 10,
+                    letterSpacing: "0.05em",
+                  }}
                   axisLine={false}
                   tickLine={false}
                   dy={10}
                 />
-                <Tooltip content={<TrendTooltip />} cursor={{ stroke: "#ffffff10", strokeWidth: 1 }} />
+                <Tooltip
+                  content={<TrendTooltip />}
+                  cursor={{ stroke: "#ffffff10", strokeWidth: 1 }}
+                />
                 <Area
                   type="monotone"
                   dataKey="count"

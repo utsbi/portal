@@ -1,16 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { ReportItem } from "@/app/api/reports/route";
-import { useProject } from "@/lib/project/project-context";
-import { createClient } from "@/lib/supabase/client";
-import { toastError, toastSuccess } from "@/lib/notifications";
-import { Modal, btnGhost, btnPrimary } from "@/components/dashboard/common/ui";
+import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import { FileUpload } from "@/components/dashboard/requests/FileUpload";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +12,12 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toastError, toastSuccess } from "@/lib/notifications";
+import { useProject } from "@/lib/project/project-context";
+import { createClient } from "@/lib/supabase/client";
 import { DEPT_FILTER } from "./constants";
 
 const BUCKET = "ticket-attachments";
@@ -42,8 +42,11 @@ async function uploadFiles(files: File[]): Promise<Attachment[]> {
   const uploads: Attachment[] = [];
   for (const file of files) {
     const path = `reports/${Date.now()}-${file.name}`;
-    const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
-    if (error) throw new Error(`Failed to upload ${file.name}: ${error.message}`);
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, file, { upsert: false });
+    if (error)
+      throw new Error(`Failed to upload ${file.name}: ${error.message}`);
     uploads.push({ path, name: file.name, size: humanSize(file.size) });
   }
   return uploads;
@@ -65,10 +68,18 @@ const fieldClass =
   "bg-sbi-dark border-sbi-dark-border rounded-lg px-4 py-3 h-auto text-base md:text-base text-white placeholder:text-white/30 focus-visible:border-sbi-green/50 focus-visible:ring-sbi-green/20 focus-visible:ring-[2px] shadow-none";
 
 function RequiredAsterisk() {
-  return <span className="text-red-400 ml-1" aria-hidden="true">*</span>;
+  return (
+    <span className="text-red-400 ml-1" aria-hidden="true">
+      *
+    </span>
+  );
 }
 
-export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps) {
+export function NewReportModal({
+  open,
+  onClose,
+  onCreated,
+}: NewReportModalProps) {
   const { activeProject, user } = useProject();
   const defaultDept = user?.department ?? "Engineering General";
 
@@ -115,17 +126,29 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
         toastSuccess(`Report "${newReport.title ?? "Untitled"}" submitted.`);
       } else {
         const errBody = await res.json().catch(() => null);
-        toastError(errBody?.error ?? "Couldn't submit the report. Please try again.", "Submission failed");
+        toastError(
+          errBody?.error ?? "Couldn't submit the report. Please try again.",
+          "Submission failed",
+        );
       }
     } catch (err) {
-      toastError(err instanceof Error ? err.message : "Couldn't submit the report.", "Submission failed");
+      toastError(
+        err instanceof Error ? err.message : "Couldn't submit the report.",
+        "Submission failed",
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <Modal opened={open} onClose={onClose} title="Create New Report" size="lg" padded={false}>
+    <Modal
+      opened={open}
+      onClose={onClose}
+      title="Create New Report"
+      size="lg"
+      padded={false}
+    >
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div>
           <Label htmlFor="report-subject" className={labelClass}>
@@ -174,7 +197,8 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
             >
               Reporting on behalf of{" "}
               <span className="text-white">
-                {departmentOptions.find((o) => o.value === department)?.label ?? department}
+                {departmentOptions.find((o) => o.value === department)?.label ??
+                  department}
               </span>
               <ChevronDown className="w-3.5 h-3.5" />
             </DropdownMenuTrigger>
@@ -184,7 +208,10 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
               sideOffset={8}
               className="bg-sbi-dark border-sbi-dark-border max-h-72 custom-scrollbar"
             >
-              <DropdownMenuRadioGroup value={department} onValueChange={setDepartment}>
+              <DropdownMenuRadioGroup
+                value={department}
+                onValueChange={setDepartment}
+              >
                 {departmentOptions.map((o) => (
                   <DropdownMenuRadioItem
                     key={o.value}

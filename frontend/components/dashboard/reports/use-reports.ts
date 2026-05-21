@@ -16,7 +16,9 @@ export function useReports(projectId: string | number | null | undefined) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const url = projectId ? `/api/reports?project_id=${projectId}` : "/api/reports";
+    const url = projectId
+      ? `/api/reports?project_id=${projectId}`
+      : "/api/reports";
     setLoading(true);
     fetch(url, { cache: "no-store" })
       .then((r) => r.json())
@@ -31,7 +33,10 @@ export function useReports(projectId: string | number | null | undefined) {
     setReports((prev) => [report, ...prev]);
   };
 
-  const updateStatus = async (id: string, status: ReportItem["status"]): Promise<boolean> => {
+  const updateStatus = async (
+    id: string,
+    status: ReportItem["status"],
+  ): Promise<boolean> => {
     const supabase = createClient();
     const { error } = await supabase
       .from("tickets")

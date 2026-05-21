@@ -1,16 +1,32 @@
 "use client";
 
+import {
+  Building,
+  Calendar as CalendarIcon,
+  CheckCircle2,
+  FileText,
+  Folder,
+  User,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import { Building, Calendar as CalendarIcon, CheckCircle2, FileText, Folder, User } from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
+import { btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import { StatusPill } from "@/components/data-table";
-import { Modal, btnPrimary } from "@/components/dashboard/common/ui";
-import { createClient } from "@/lib/supabase/client";
-import { useProject } from "@/lib/project/project-context";
 import { toastError, toastSuccess } from "@/lib/notifications";
+import { useProject } from "@/lib/project/project-context";
+import { createClient } from "@/lib/supabase/client";
 
 const BUCKET = "ticket-attachments";
-const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "heic"]);
+const IMAGE_EXTS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "avif",
+  "heic",
+]);
 
 interface ReportDetailModalProps {
   report: ReportItem | null;
@@ -62,7 +78,9 @@ function MetaRow({
     <div className="flex items-start gap-3">
       <Icon className="h-4 w-4 text-sbi-green mt-0.5 shrink-0" />
       <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted mb-0.5">{label}</p>
+        <p className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted mb-0.5">
+          {label}
+        </p>
         <p className="text-sm text-white truncate">{value}</p>
       </div>
     </div>
@@ -123,7 +141,9 @@ function AttachmentItem({ attachment }: { attachment: AttachmentMeta }) {
           <FileText className="h-4 w-4 text-sbi-muted shrink-0" />
           <span className="text-sm text-white/90 flex-1 truncate">{name}</span>
           {attachment.size && (
-            <span className="text-xs text-sbi-muted tabular-nums">{attachment.size}</span>
+            <span className="text-xs text-sbi-muted tabular-nums">
+              {attachment.size}
+            </span>
           )}
         </div>
       </li>
@@ -146,20 +166,28 @@ function AttachmentItem({ attachment }: { attachment: AttachmentMeta }) {
         <span className="text-white/90 flex-1 truncate">{name}</span>
       )}
       {attachment.size && (
-        <span className="text-xs text-sbi-muted tabular-nums">{attachment.size}</span>
+        <span className="text-xs text-sbi-muted tabular-nums">
+          {attachment.size}
+        </span>
       )}
     </li>
   );
 }
 
-export function ReportDetailModal({ report, onClose, onAcknowledge }: ReportDetailModalProps) {
+export function ReportDetailModal({
+  report,
+  onClose,
+  onAcknowledge,
+}: ReportDetailModalProps) {
   const { user } = useProject();
   const [isAcknowledging, setIsAcknowledging] = useState(false);
 
   if (!report) return null;
 
   const canAcknowledge =
-    Boolean(onAcknowledge) && report.status === "Pending" && user?.role !== "director";
+    Boolean(onAcknowledge) &&
+    report.status === "Pending" &&
+    user?.role !== "director";
 
   const handleAcknowledge = async () => {
     if (!onAcknowledge) return;
@@ -175,7 +203,9 @@ export function ReportDetailModal({ report, onClose, onAcknowledge }: ReportDeta
 
   const title = (
     <span className="flex items-center gap-3">
-      <span className="truncate text-white normal-case tracking-normal">{report.title}</span>
+      <span className="truncate text-white normal-case tracking-normal">
+        {report.title}
+      </span>
       <StatusPill status={report.status} />
       <span className="text-xs text-sbi-muted tabular-nums normal-case tracking-normal">
         #{report.numid}
@@ -198,28 +228,56 @@ export function ReportDetailModal({ report, onClose, onAcknowledge }: ReportDeta
     >
       <div className="grid md:grid-cols-[260px_1fr] gap-0 md:gap-px bg-sbi-dark-border/30">
         <aside className="bg-sbi-dark p-6 flex flex-col gap-5">
-          <MetaRow icon={Folder} label="Project" value={report.project || "—"} />
-          <MetaRow icon={Building} label="Department" value={report.department} />
-          <MetaRow icon={User} label="Assigned Director" value={report.director} />
-          <MetaRow icon={CalendarIcon} label="Submitted" value={formatDate(report.date)} />
+          <MetaRow
+            icon={Folder}
+            label="Project"
+            value={report.project || "—"}
+          />
+          <MetaRow
+            icon={Building}
+            label="Department"
+            value={report.department}
+          />
+          <MetaRow
+            icon={User}
+            label="Assigned Director"
+            value={report.director}
+          />
+          <MetaRow
+            icon={CalendarIcon}
+            label="Submitted"
+            value={formatDate(report.date)}
+          />
           {report.updated_at && (
-            <MetaRow icon={CalendarIcon} label="Last Updated" value={formatDateTime(report.updated_at)} />
+            <MetaRow
+              icon={CalendarIcon}
+              label="Last Updated"
+              value={formatDateTime(report.updated_at)}
+            />
           )}
         </aside>
 
         <main className="bg-sbi-dark p-6 flex flex-col gap-6 min-w-0">
           <section>
-            <h3 className="text-xs uppercase tracking-[0.15em] text-sbi-muted mb-3">Summary</h3>
+            <h3 className="text-xs uppercase tracking-[0.15em] text-sbi-muted mb-3">
+              Summary
+            </h3>
             {report.message ? (
-              <p className="text-sm text-white/85 leading-relaxed whitespace-pre-wrap">{report.message}</p>
+              <p className="text-sm text-white/85 leading-relaxed whitespace-pre-wrap">
+                {report.message}
+              </p>
             ) : (
-              <p className="text-sm text-sbi-muted italic">No summary provided by the director.</p>
+              <p className="text-sm text-sbi-muted italic">
+                No summary provided by the director.
+              </p>
             )}
           </section>
 
           {attachments.length > 0 && (
             <section>
-              <h3 className="text-xs uppercase tracking-[0.15em] text-sbi-muted mb-3">Attachments</h3>
+              <h3 className="text-xs uppercase tracking-[0.15em] text-sbi-muted mb-3">
+                Attachments
+              </h3>
               <ul className="flex flex-col gap-3">
                 {attachments.map((a, i) => (
                   <AttachmentItem key={a.path ?? i} attachment={a} />

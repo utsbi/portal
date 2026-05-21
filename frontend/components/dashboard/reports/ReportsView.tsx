@@ -2,25 +2,34 @@
 
 import { useState } from "react";
 import type { ReportItem } from "@/app/api/reports/route";
-import { useProject } from "@/lib/project/project-context";
 import {
+  btnPrimary,
   DashboardShell,
   PageHeader,
   SectionLabel,
-  btnPrimary,
 } from "@/components/dashboard/common/ui";
-import { ReportsOverview } from "./ReportsOverview";
-import { ReportHistoryTable } from "./ReportHistoryTable";
-import { ReportDetailModal } from "./ReportDetailModal";
+import { useProject } from "@/lib/project/project-context";
 import { NewReportModal } from "./NewReportModal";
+import { ReportDetailModal } from "./ReportDetailModal";
+import { ReportHistoryTable } from "./ReportHistoryTable";
+import { ReportsOverview } from "./ReportsOverview";
 import { useReports } from "./use-reports";
 
-export function ReportsView({ initialReports }: { initialReports: ReportItem[] }) {
+export function ReportsView({
+  initialReports,
+}: {
+  initialReports: ReportItem[];
+}) {
   const { activeProject, user } = useProject();
   const isDirector = user?.role === "director";
 
-  const { reports, loading, addReport, updateStatus } = useReports(activeProject?.projectId);
-  const allReports = reports.length === 0 && initialReports.length > 0 ? initialReports : reports;
+  const { reports, loading, addReport, updateStatus } = useReports(
+    activeProject?.projectId,
+  );
+  const allReports =
+    reports.length === 0 && initialReports.length > 0
+      ? initialReports
+      : reports;
 
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
   const [isCreatingModalOpen, setIsCreatingModalOpen] = useState(false);
@@ -32,7 +41,11 @@ export function ReportsView({ initialReports }: { initialReports: ReportItem[] }
         subtitle="Submitted reports and review status"
         action={
           isDirector ? (
-            <button onClick={() => setIsCreatingModalOpen(true)} className={btnPrimary}>
+            <button
+              type="button"
+              onClick={() => setIsCreatingModalOpen(true)}
+              className={btnPrimary}
+            >
               <svg
                 width="16"
                 height="16"
@@ -42,7 +55,10 @@ export function ReportsView({ initialReports }: { initialReports: ReportItem[] }
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
+                focusable="false"
               >
+                <title>Plus</title>
                 <path d="M5 12h14" />
                 <path d="M12 5v14" />
               </svg>
@@ -57,8 +73,8 @@ export function ReportsView({ initialReports }: { initialReports: ReportItem[] }
           {loading ? (
             <div className="animate-pulse space-y-6">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-28 bg-white/5 rounded-xl" />
+                {["a", "b", "c", "d"].map((k) => (
+                  <div key={k} className="h-28 bg-white/5 rounded-xl" />
                 ))}
               </div>
               <div className="h-[260px] bg-white/5 rounded-xl" />
