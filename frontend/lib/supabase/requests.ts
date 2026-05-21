@@ -80,7 +80,7 @@ async function uploadFiles(
     for (const file of files) {
         const path = `${requestId}/${Date.now()}-${file.name}`;
         const { error } = await supabase.storage
-            .from("request-attachments")
+            .from("ticket-attachments")
             .upload(path, file);
 
         if (error) {

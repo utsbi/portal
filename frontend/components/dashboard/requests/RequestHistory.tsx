@@ -32,7 +32,7 @@ interface RequestHistoryProps {
 async function getSignedUrl(path: string): Promise<string | null> {
     const supabase = createClient();
     const { data, error } = await supabase.storage
-        .from("request-attachments")
+        .from("ticket-attachments")
         .createSignedUrl(path, 3600);
     if (error) { console.error("Signed URL error:", error.message); return null; }
     return data.signedUrl;
