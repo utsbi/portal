@@ -77,10 +77,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: directorsErr.message }, { status: 500 });
     }
 
-    // 4) Also get the client/owner email for attendee filtering
+    // 4) Also get the client/owner email for attendee filtering.
+    // Disambiguate the join: project_members has two FKs to profiles
+    // (profile_id and assigned_by); without the explicit constraint name
+    // PostgREST refuses the embed.
     const { data: ownerMember } = await supabaseAdmin
       .from("project_members")
-      .select("profile_id, profiles(email)")
+      .select("profile_id, profiles!project_members_profile_id_fkey(email)")
       .eq("project_id", projectId)
       .eq("role", "owner")
       .single();

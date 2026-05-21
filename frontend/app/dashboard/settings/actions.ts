@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from "./types";
 
 function getAdminClient() {
   return createAdminClient(
@@ -9,22 +10,6 @@ function getAdminClient() {
     process.env.SUPABASE_SECRET_KEY!
   );
 }
-
-export interface NotificationPrefs {
-  messages: boolean;
-  calendar: boolean;
-  requests: boolean;
-  reports: boolean;
-  weeklyDigest: boolean;
-}
-
-export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
-  messages: true,
-  calendar: true,
-  requests: true,
-  reports: true,
-  weeklyDigest: false,
-};
 
 async function requireUser() {
   const supabase = await createClient();
@@ -84,7 +69,7 @@ export async function createAccount(data: {
     return { error: "Password must be at least 8 characters" };
   }
 
-  const { error: authzError, admin } = await requireDirector();
+  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
   if (authzError || !admin) return { error: authzError || "Not authorized" };
 
   // Create auth user
@@ -118,7 +103,10 @@ export async function createAccount(data: {
     return { error: profileError.message };
   }
 
-  // If client, create a project
+  // If client, create a project AND link the client as its owner. Without
+  // the project_members(owner) row the project is orphaned — no member sees
+  // the client in the team list, and downstream queries that look up the
+  // owner (calendar attendees, etc.) miss them entirely.
   if (data.role === "client" && data.companyName) {
     const slug = data.companyName
       .toLowerCase()
@@ -126,16 +114,41 @@ export async function createAccount(data: {
       .replace(/^-|-$/g, "")
       + "-" + Math.random().toString(36).slice(2, 6);
 
-    const { error: projectError } = await admin
+    const { data: project, error: projectError } = await admin
       .from("projects")
       .insert({
         url_slug: slug,
         company_name: data.companyName,
         created_by: profile.id,
+      })
+      .select("id")
+      .single();
+
+    if (projectError || !project) {
+      // Roll back: auth user → profile cascades via FK. Without this the
+      // email is permanently burned and re-running the form fails with a
+      // duplicate-email error.
+      await admin.auth.admin.deleteUser(uid);
+      return { error: projectError?.message || "Couldn't create project" };
+    }
+
+    const { error: ownerError } = await admin
+      .from("project_members")
+      .insert({
+        profile_id: profile.id,
+        project_id: project.id,
+        role: "owner",
+        assigned_by: callerProfileId ?? null,
       });
 
-    if (projectError) {
-      return { error: projectError.message };
+    if (ownerError) {
+      // Project exists but ownership link failed. Surface a non-fatal
+      // warning — the director can recover from the Team panel.
+      return {
+        success: true,
+        profileId: profile.id,
+        warning: `Project created, but couldn't link the owner: ${ownerError.message}. Use the Team panel to assign the owner manually.`,
+      };
     }
   }
 
@@ -156,6 +169,49 @@ export async function listAccounts() {
 
   if (error) return { error: error.message, accounts: [] };
   return { accounts: profiles || [] };
+}
+
+export async function updateAccount(data: {
+  id: number;
+  name: string;
+  role: "client" | "director" | "member";
+  department: string | null;
+}) {
+  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized" };
+
+  const name = data.name.trim();
+  if (name.length < 2) return { error: "Name must be at least 2 characters" };
+
+  const department = data.department?.trim() || null;
+
+  // Fetch the existing row so we can detect a role change.
+  const { data: existing, error: existingError } = await admin
+    .from("profiles")
+    .select("id, role")
+    .eq("id", data.id)
+    .single();
+  if (existingError || !existing) return { error: existingError?.message || "Profile not found" };
+
+  // Block self role-change to prevent locking yourself out mid-session.
+  if (data.id === callerProfileId && data.role !== existing.role) {
+    return { error: "You can't change your own role." };
+  }
+
+  const { error } = await admin
+    .from("profiles")
+    .update({ name, role: data.role, department })
+    .eq("id", data.id);
+  if (error) return { error: error.message };
+
+  // If the role changed, clean stale project_members rows so they don't
+  // reference a role the profile no longer has. The caller can reassign
+  // memberships explicitly from the Team panel.
+  if (data.role !== existing.role) {
+    await admin.from("project_members").delete().eq("profile_id", data.id);
+  }
+
+  return { success: true };
 }
 
 export async function deleteAccount(profileId: number) {
@@ -199,18 +255,69 @@ export async function listProjects() {
 export async function listProjectMembers(projectId: number) {
   const { error: authzError, admin } = await requireDirector();
   if (authzError || !admin) return { error: authzError || "Not authorized", members: [] };
-  const { data, error } = await admin
+
+  // project_members has two FKs to profiles (profile_id + assigned_by), so
+  // we name the constraints. Aliasing the assigner embed as `assigner` keeps
+  // the resulting payload tidy.
+  const { data: assigned, error: assignedError } = await admin
     .from("project_members")
-    .select("id, role, profile_id, profiles(id, name, email, role)")
+    .select(
+      "id, role, profile_id, created_at, " +
+        "profiles!project_members_profile_id_fkey(id, name, email, role), " +
+        "assigner:profiles!project_members_assigned_by_fkey(id, name)",
+    )
     .eq("project_id", projectId)
     .order("role");
+  if (assignedError) return { error: assignedError.message, members: [] };
 
-  if (error) return { error: error.message, members: [] };
-  return { members: data || [] };
+  // Directors are documented as auto-assigned to every project. If the
+  // backfill trigger has missed any, materialise them in the response so
+  // the UI never shows an empty list when a director clearly belongs.
+  const { data: directors, error: directorsError } = await admin
+    .from("profiles")
+    .select("id, name, email, role")
+    .eq("role", "director")
+    .order("name");
+  if (directorsError) return { error: directorsError.message, members: [] };
+
+  type AssignedRow = {
+    id: number;
+    role: string;
+    profile_id: number;
+    created_at: string | null;
+    profiles: { id: number; name: string; email: string | null; role: string } | null;
+    assigner: { id: number; name: string } | null;
+  };
+  type DirectorRow = { id: number; name: string; email: string | null; role: string };
+
+  const assignedRows = (assigned || []) as unknown as AssignedRow[];
+  const directorRows = (directors || []) as unknown as DirectorRow[];
+
+  const seen = new Set(assignedRows.map((m) => m.profile_id));
+  const synthetic = directorRows
+    .filter((d) => !seen.has(d.id))
+    .map((d) => ({
+      // Display-only rows for directors auto-assigned without a backing
+      // project_members row. `synthetic: true` is the discriminator — the
+      // negative id is just for React keys, but UI code MUST check
+      // `synthetic` before passing the id to any mutation.
+      id: -d.id,
+      synthetic: true as const,
+      role: "director" as const,
+      profile_id: d.id,
+      created_at: null,
+      profiles: { id: d.id, name: d.name, email: d.email, role: d.role },
+      assigner: null,
+    }));
+
+  // Mark real rows explicitly for symmetry.
+  const real = assignedRows.map((m) => ({ ...m, synthetic: false as const }));
+
+  return { members: [...synthetic, ...real] };
 }
 
 export async function assignMemberToProject(profileId: number, projectId: number) {
-  const { error: authzError, admin } = await requireDirector();
+  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
   if (authzError || !admin) return { error: authzError || "Not authorized" };
 
   const { error } = await admin
@@ -219,6 +326,7 @@ export async function assignMemberToProject(profileId: number, projectId: number
       profile_id: profileId,
       project_id: projectId,
       role: "member",
+      assigned_by: callerProfileId ?? null,
     });
 
   if (error) {
@@ -230,6 +338,13 @@ export async function assignMemberToProject(profileId: number, projectId: number
 }
 
 export async function removeMemberFromProject(membershipId: number) {
+  // Synthetic director rows use negative ids (no real row backs them).
+  // Reject them defensively — Supabase would silently match zero rows
+  // and report success, masking a real bug.
+  if (!Number.isInteger(membershipId) || membershipId <= 0) {
+    return { error: "Invalid membership id" };
+  }
+
   const { error: authzError, admin } = await requireDirector();
   if (authzError || !admin) return { error: authzError || "Not authorized" };
 
@@ -242,6 +357,68 @@ export async function removeMemberFromProject(membershipId: number) {
   return { success: true };
 }
 
+export async function assignOwnerToProject(profileId: number, projectId: number) {
+  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized" };
+
+  // Verify the target is actually a client.
+  const { data: target } = await admin
+    .from("profiles")
+    .select("id, role")
+    .eq("id", profileId)
+    .single();
+  if (!target) return { error: "Profile not found" };
+  if (target.role !== "client") return { error: "Only clients can be project owners" };
+
+  // Enforce one-owner-per-project at the application layer (no partial
+  // unique index exists yet).
+  const { data: existingOwner } = await admin
+    .from("project_members")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("role", "owner")
+    .maybeSingle();
+  if (existingOwner) return { error: "This project already has an owner" };
+
+  const { error } = await admin
+    .from("project_members")
+    .insert({
+      profile_id: profileId,
+      project_id: projectId,
+      role: "owner",
+      assigned_by: callerProfileId ?? null,
+    });
+  if (error) {
+    if (error.code === "23505") return { error: "Client is already on this project" };
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
+
+export async function listAvailableOwners(projectId: number) {
+  const { error: authzError, admin } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized", clients: [] };
+
+  // All clients not already a member of this project.
+  const { data: existing } = await admin
+    .from("project_members")
+    .select("profile_id")
+    .eq("project_id", projectId);
+  const taken = (existing || []).map((r: { profile_id: number }) => r.profile_id);
+
+  let query = admin
+    .from("profiles")
+    .select("id, name, email")
+    .eq("role", "client")
+    .order("name");
+  if (taken.length > 0) query = query.not("id", "in", `(${taken.join(",")})`);
+
+  const { data, error } = await query;
+  if (error) return { error: error.message, clients: [] };
+  return { clients: data || [] };
+}
+
 export async function listUnassignedMembers(projectId: number) {
   const { error: authzError, admin } = await requireDirector();
   if (authzError || !admin) return { error: authzError || "Not authorized", members: [] };
@@ -252,7 +429,7 @@ export async function listUnassignedMembers(projectId: number) {
     .select("profile_id")
     .eq("project_id", projectId);
 
-  const assignedIds = (existingIds || []).map((r: any) => r.profile_id);
+  const assignedIds = (existingIds || []).map((r: { profile_id: number }) => r.profile_id);
 
   let query = admin
     .from("profiles")
