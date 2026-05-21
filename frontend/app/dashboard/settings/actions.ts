@@ -10,6 +10,45 @@ function getAdminClient() {
   );
 }
 
+export interface NotificationPrefs {
+  messages: boolean;
+  calendar: boolean;
+  requests: boolean;
+  reports: boolean;
+  weeklyDigest: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  messages: true,
+  calendar: true,
+  requests: true,
+  reports: true,
+  weeklyDigest: false,
+};
+
+async function requireUser() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" as const };
+
+  const admin = getAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id, role, name, email, department, config")
+    .eq("uid", user.id)
+    .single();
+
+  if (!profile) return { error: "Profile not found" as const };
+
+  return {
+    error: null,
+    admin,
+    supabase,
+    uid: user.id,
+    profile,
+  };
+}
+
 async function requireDirector() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -228,4 +267,74 @@ export async function listUnassignedMembers(projectId: number) {
   const { data, error } = await query;
   if (error) return { error: error.message, members: [] };
   return { members: data || [] };
+}
+
+// ============================================================
+// Personal Account (any authenticated user)
+// ============================================================
+
+export async function getMyAccount() {
+  const ctx = await requireUser();
+  if (ctx.error) return { error: ctx.error };
+
+  const config = (ctx.profile.config as Record<string, unknown>) || {};
+  const storedPrefs = (config.notifications as Partial<NotificationPrefs>) || {};
+  const prefs: NotificationPrefs = { ...DEFAULT_NOTIFICATION_PREFS, ...storedPrefs };
+
+  return {
+    error: null,
+    account: {
+      id: ctx.profile.id,
+      name: ctx.profile.name,
+      email: ctx.profile.email,
+      role: ctx.profile.role,
+      department: ctx.profile.department,
+      prefs,
+    },
+  };
+}
+
+export async function updateMyProfile(data: { name: string; department: string | null }) {
+  const ctx = await requireUser();
+  if (ctx.error) return { error: ctx.error };
+
+  const name = data.name.trim();
+  if (name.length < 2) return { error: "Name must be at least 2 characters" };
+
+  const department = data.department?.trim() || null;
+
+  const { error } = await ctx.admin
+    .from("profiles")
+    .update({ name, department })
+    .eq("id", ctx.profile.id);
+
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+export async function updateMyPassword(newPassword: string) {
+  const ctx = await requireUser();
+  if (ctx.error) return { error: ctx.error };
+
+  if (newPassword.length < 8) return { error: "Password must be at least 8 characters" };
+
+  const { error } = await ctx.supabase.auth.updateUser({ password: newPassword });
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+export async function updateMyNotificationPrefs(prefs: NotificationPrefs) {
+  const ctx = await requireUser();
+  if (ctx.error) return { error: ctx.error };
+
+  const config = ((ctx.profile.config as Record<string, unknown>) || {});
+  const nextConfig = { ...config, notifications: prefs };
+
+  const { error } = await ctx.admin
+    .from("profiles")
+    .update({ config: nextConfig })
+    .eq("id", ctx.profile.id);
+
+  if (error) return { error: error.message };
+  return { success: true };
 }
