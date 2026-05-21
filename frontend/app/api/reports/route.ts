@@ -22,14 +22,58 @@ export interface ReportItem {
     department: string;
     director: string;
     assign_to?: string;
-    project?: string;
+    project?: string | null;
     status: "Pending" | "In Progress" | "Done" | "Denied";
     message?: string;
     date: string;
     customer_id?: string;
-    attachments?: string[] | null;
+    attachments?: unknown[] | null;
     created_at?: string;
     updated_at?: string;
+}
+
+interface TicketRow {
+    id: string | number;
+    numid?: string | number | null;
+    title?: string | null;
+    subject?: string | null;
+    name?: string | null;
+    email?: string | null;
+    department?: string | null;
+    director?: string | null;
+    assign_to?: string | null;
+    project?: string | null;
+    status?: string | null;
+    message?: string | null;
+    customer_id?: string | null;
+    attachments?: unknown[] | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+    projects?: { company_name: string | null } | null;
+}
+
+function rowToReport(row: TicketRow): ReportItem {
+    return {
+        id: String(row.id),
+        numid: String(row.numid ?? row.id).padStart(4, "0"),
+        title: row.title || row.subject || "Untitled Report",
+        subject: row.subject ?? undefined,
+        name: row.name ?? undefined,
+        email: row.email ?? undefined,
+        department: row.department || "General",
+        director: row.director || row.assign_to || "Unassigned",
+        assign_to: row.assign_to ?? undefined,
+        project: row.projects?.company_name ?? row.project ?? null,
+        status: normalizeStatus(row.status),
+        message: row.message ?? undefined,
+        date: row.created_at
+            ? new Date(row.created_at).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0],
+        customer_id: row.customer_id ?? undefined,
+        attachments: row.attachments ?? null,
+        created_at: row.created_at ?? undefined,
+        updated_at: row.updated_at ?? undefined,
+    };
 }
 
 export async function GET(request: Request) {
@@ -54,9 +98,9 @@ export async function GET(request: Request) {
                 getAll() { return cookieStore.getAll(); },
                 setAll(cookiesToSet) {
                     try {
-                        cookiesToSet.forEach(({ name, value, options }) =>
-                            cookieStore.set(name, value, options),
-                        );
+                        for (const { name, value, options } of cookiesToSet) {
+                            cookieStore.set(name, value, options);
+                        }
                     } catch { /* Server Component — safe to ignore */ }
                 },
             },
@@ -79,27 +123,7 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        const reports: ReportItem[] = (data || []).map((item: any) => ({
-            id: item.id,
-            numid: String(item.numid || item.id).padStart(4, "0"),
-            title: item.title || item.subject || "Untitled Report",
-            subject: item.subject,
-            name: item.name,
-            email: item.email,
-            department: item.department || "General",
-            director: item.director || item.assign_to || "Unassigned",
-            assign_to: item.assign_to,
-            project: item.projects?.company_name ?? item.project ?? null,
-            status: normalizeStatus(item.status),
-            message: item.message,
-            date: item.created_at
-                ? new Date(item.created_at).toISOString().split("T")[0]
-                : new Date().toISOString().split("T")[0],
-            customer_id: item.customer_id,
-            attachments: item.attachments,
-            created_at: item.created_at,
-            updated_at: item.updated_at,
-        }));
+        const reports: ReportItem[] = ((data ?? []) as unknown as TicketRow[]).map(rowToReport);
 
         return NextResponse.json(reports);
     } catch (error) {
@@ -186,27 +210,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        const report: ReportItem = {
-            id: data.id,
-            numid: String(data.numid || data.id).padStart(4, "0"),
-            title: data.title || data.subject || "Untitled Report",
-            subject: data.subject,
-            name: data.name,
-            email: data.email,
-            department: data.department || "General",
-            director: data.director || data.assign_to || "Unassigned",
-            assign_to: data.assign_to,
-            project: (data as any).projects?.company_name ?? data.project ?? null,
-            status: normalizeStatus(data.status),
-            message: data.message,
-            date: data.created_at
-                ? new Date(data.created_at).toISOString().split("T")[0]
-                : new Date().toISOString().split("T")[0],
-            customer_id: data.customer_id,
-            attachments: data.attachments,
-            created_at: data.created_at,
-            updated_at: data.updated_at,
-        };
+        const report: ReportItem = rowToReport(data as unknown as TicketRow);
 
         return NextResponse.json(report, { status: 201 });
     } catch (error) {
