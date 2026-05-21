@@ -18,7 +18,8 @@ import { DashboardShell, PageHeader } from "@/components/dashboard/common/ui";
 import { useProject } from "@/lib/project/project-context";
 
 function CalendarPageInner() {
-  const { activeProject } = useProject();
+  const { activeProject, user } = useProject();
+  const canRsvp = user?.role === "client";
   const searchParams = useSearchParams();
   const demoMode = searchParams.get("demo") === "1";
 
@@ -32,11 +33,19 @@ function CalendarPageInner() {
     return new Date();
   });
 
-  const { events, rawById, loading, refetching, error, connected, refetch } =
-    useCalendarEvents({
-      projectId: activeProject?.projectId,
-      demoMode,
-    });
+  const {
+    events,
+    rawById,
+    loading,
+    refetching,
+    error,
+    connected,
+    refetch,
+    rsvp,
+  } = useCalendarEvents({
+    projectId: activeProject?.projectId,
+    demoMode,
+  });
 
   const projectLabel = activeProject?.companyName ?? "Project";
 
@@ -99,6 +108,8 @@ function CalendarPageInner() {
         rawById={rawById}
         search={search}
         scrollToDate={selectedDate}
+        canRsvp={canRsvp}
+        onRsvp={rsvp}
       />
     );
   } else {
@@ -110,6 +121,8 @@ function CalendarPageInner() {
         onChangeMonth={setCurrentMonth}
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
+        canRsvp={canRsvp}
+        onRsvp={rsvp}
       />
     );
   }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EventRow } from "./EventRow";
+import type { RsvpChoice } from "./hooks/useCalendarEvents";
 import type { CalendarEvent, RawCalendarEvent } from "./types";
 import { bucketEvents, eventMatchesSearch } from "./utils";
 
@@ -11,11 +12,20 @@ interface Props {
   search: string;
   /** YYYY-MM-DD to scroll to (the bucket containing this date). */
   scrollToDate?: string | null;
+  canRsvp?: boolean;
+  onRsvp?: (eventId: string, response: RsvpChoice) => void;
 }
 
 const BUCKET_ID_PREFIX = "calendar-bucket-";
 
-export function AgendaView({ events, rawById, search, scrollToDate }: Props) {
+export function AgendaView({
+  events,
+  rawById,
+  search,
+  scrollToDate,
+  canRsvp,
+  onRsvp,
+}: Props) {
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [pastExpanded, setPastExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -141,6 +151,8 @@ export function AgendaView({ events, rawById, search, scrollToDate }: Props) {
                     raw={rawById[ev.id]}
                     expanded={openEventId === ev.id}
                     onToggle={() => toggle(ev.id)}
+                    canRsvp={canRsvp}
+                    onRsvp={onRsvp}
                     isNextUp={ev.id === nextUpId}
                   />
                 ))}

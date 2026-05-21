@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, X } from "lucide-react";
+import { motion } from "motion/react";
 import type { CalendarView } from "./types";
 
 interface Props {
@@ -9,6 +10,11 @@ interface Props {
   search: string;
   onSearchChange: (search: string) => void;
 }
+
+const VIEW_OPTIONS: ReadonlyArray<{ id: CalendarView; label: string }> = [
+  { id: "agenda", label: "Agenda" },
+  { id: "month", label: "Month" },
+];
 
 export function CalendarHeader({
   view,
@@ -21,36 +27,38 @@ export function CalendarHeader({
       <div
         role="tablist"
         aria-label="Calendar view"
-        className="inline-flex rounded-md border border-sbi-dark-border/60 bg-sbi-dark-card/40 p-0.5 shrink-0"
+        className="relative inline-flex rounded-md border border-sbi-dark-border/60 bg-sbi-dark-card/40 p-0.5 shrink-0"
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "agenda"}
-          onClick={() => onViewChange("agenda")}
-          className={[
-            "px-3.5 py-1.5 text-xs font-medium tracking-[0.05em] uppercase rounded transition-colors",
-            view === "agenda"
-              ? "bg-sbi-green/15 text-sbi-green"
-              : "text-sbi-muted hover:text-white",
-          ].join(" ")}
-        >
-          Agenda
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "month"}
-          onClick={() => onViewChange("month")}
-          className={[
-            "px-3.5 py-1.5 text-xs font-medium tracking-[0.05em] uppercase rounded transition-colors",
-            view === "month"
-              ? "bg-sbi-green/15 text-sbi-green"
-              : "text-sbi-muted hover:text-white",
-          ].join(" ")}
-        >
-          Month
-        </button>
+        {VIEW_OPTIONS.map(({ id, label }) => {
+          const active = view === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onViewChange(id)}
+              className="relative px-3.5 py-1.5 text-xs font-medium tracking-[0.05em] uppercase rounded transition-colors"
+            >
+              {active ? (
+                <motion.span
+                  layoutId="calendar-view-toggle"
+                  className="absolute inset-0 rounded bg-sbi-green/15"
+                  transition={{ type: "spring", stiffness: 500, damping: 38 }}
+                  aria-hidden
+                />
+              ) : null}
+              <span
+                className={[
+                  "relative",
+                  active ? "text-sbi-green" : "text-sbi-muted hover:text-white",
+                ].join(" ")}
+              >
+                {label}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="relative flex-1 sm:max-w-sm">

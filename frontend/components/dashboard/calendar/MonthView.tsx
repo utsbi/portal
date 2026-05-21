@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { EventRow } from "./EventRow";
+import type { RsvpChoice } from "./hooks/useCalendarEvents";
 import { MonthPicker } from "./MonthPicker";
 import type { CalendarEvent, RawCalendarEvent } from "./types";
 import {
@@ -19,6 +20,8 @@ interface Props {
   onChangeMonth: (next: Date) => void;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
+  canRsvp?: boolean;
+  onRsvp?: (eventId: string, response: RsvpChoice) => void;
 }
 
 export function MonthView({
@@ -28,6 +31,8 @@ export function MonthView({
   onChangeMonth,
   selectedDate,
   onSelectDate,
+  canRsvp,
+  onRsvp,
 }: Props) {
   const [openEventId, setOpenEventId] = useState<string | null>(null);
 
@@ -136,7 +141,7 @@ export function MonthView({
               aria-label={`${key}${isToday ? " (today)" : ""}${dayEvs.length > 0 ? `, ${dayEvs.length} ${dayEvs.length === 1 ? "event" : "events"}` : ""}`}
               onClick={() => onSelectDate(isSelected ? null : key)}
               className={[
-                "group relative flex min-h-[72px] flex-col items-start gap-1.5 border-b border-r border-sbi-dark-border/40 p-2 text-left transition-colors",
+                "group relative flex min-h-[112px] flex-col items-start gap-2 border-b border-r border-sbi-dark-border/40 p-2.5 text-left transition-colors",
                 isSelected
                   ? "bg-sbi-green/[0.06] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.4)]"
                   : "hover:bg-white/[0.02]",
@@ -144,7 +149,7 @@ export function MonthView({
             >
               <span
                 className={[
-                  "flex size-[18px] items-center justify-center rounded-full text-[11px] tabular-nums transition-colors",
+                  "flex size-[22px] items-center justify-center rounded-full text-[13px] tabular-nums transition-colors",
                   isToday
                     ? "bg-sbi-green font-medium text-sbi-dark"
                     : !inMonth
@@ -158,12 +163,12 @@ export function MonthView({
               </span>
 
               {dayEvs.length > 0 ? (
-                <div className="flex w-full flex-col gap-0.5">
+                <div className="flex w-full flex-col gap-1">
                   {dayEvs.slice(0, 2).map((ev) => (
                     <div
                       key={ev.id}
                       className={[
-                        "flex items-center gap-1 truncate border-l-2 pl-1.5 text-[10px] leading-tight",
+                        "flex items-center gap-1.5 truncate border-l-2 pl-2 text-[12px] leading-snug",
                         ev.past
                           ? "border-l-zinc-600/60 text-zinc-500"
                           : "border-l-sbi-green/70 text-sbi-muted",
@@ -176,7 +181,7 @@ export function MonthView({
                     </div>
                   ))}
                   {dayEvs.length > 2 ? (
-                    <span className="text-[9px] tabular-nums text-sbi-muted/60">
+                    <span className="text-[10px] tabular-nums text-sbi-muted/60 pl-0.5">
                       +{dayEvs.length - 2} more
                     </span>
                   ) : null}
@@ -223,6 +228,8 @@ export function MonthView({
                   onToggle={() =>
                     setOpenEventId((p) => (p === ev.id ? null : ev.id))
                   }
+                  canRsvp={canRsvp}
+                  onRsvp={onRsvp}
                 />
               ))}
             </div>

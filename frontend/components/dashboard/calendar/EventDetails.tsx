@@ -1,21 +1,54 @@
 "use client";
 
-import { Download, ExternalLink, MapPin, User2 } from "lucide-react";
+import { Check, Download, HelpCircle, MapPin, User2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import type { CalendarEvent, RawCalendarEvent } from "./types";
-import {
-  buildGoogleCalendarUrl,
-  buildIcsUrl,
-  type CalendarEventSource,
-} from "./utils";
+import type { RsvpChoice } from "./hooks/useCalendarEvents";
+import type {
+  AttendeeResponse,
+  CalendarEvent,
+  RawCalendarEvent,
+} from "./types";
+import { buildIcsUrl, type CalendarEventSource } from "./utils";
 
 interface Props {
   open: boolean;
   event: CalendarEvent;
   raw: RawCalendarEvent | undefined;
+  canRsvp?: boolean;
+  onRsvp?: (eventId: string, response: RsvpChoice) => void;
 }
 
-export function EventDetails({ open, event, raw }: Props) {
+const RSVP_OPTIONS: ReadonlyArray<{
+  value: RsvpChoice;
+  label: string;
+  icon: typeof Check;
+  matches: AttendeeResponse;
+  activeClasses: string;
+}> = [
+  {
+    value: "accepted",
+    label: "Going",
+    icon: Check,
+    matches: "accepted",
+    activeClasses: "border-sbi-green/40 bg-sbi-green/10 text-sbi-green",
+  },
+  {
+    value: "tentative",
+    label: "Maybe",
+    icon: HelpCircle,
+    matches: "tentative",
+    activeClasses: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  },
+  {
+    value: "declined",
+    label: "Not going",
+    icon: X,
+    matches: "declined",
+    activeClasses: "border-zinc-500/40 bg-zinc-500/10 text-zinc-300",
+  },
+];
+
+export function EventDetails({ open, event, raw, canRsvp, onRsvp }: Props) {
   const calendarSource: CalendarEventSource = {
     summary: raw?.summary ?? event.title,
     start: raw?.start ?? event.start ?? "",
@@ -24,11 +57,11 @@ export function EventDetails({ open, event, raw }: Props) {
     description: raw?.description ?? event.description ?? "",
   };
 
-  const googleUrl = buildGoogleCalendarUrl(calendarSource);
   const icsUrl = buildIcsUrl(calendarSource);
 
   const description = event.description?.trim();
   const location = event.location?.trim();
+  const showRsvp = !!(canRsvp && onRsvp && !event.past);
 
   return (
     <AnimatePresence initial={false}>
@@ -60,20 +93,39 @@ export function EventDetails({ open, event, raw }: Props) {
               </p>
             ) : null}
 
+            {showRsvp ? (
+              <div className="mb-3">
+                <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-sbi-muted-dark mb-2">
+                  Your response
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {RSVP_OPTIONS.map(
+                    ({ value, label, icon: Icon, matches, activeClasses }) => {
+                      const active = event.myResponse === matches;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => onRsvp?.(event.id, value)}
+                          aria-pressed={active}
+                          className={[
+                            "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-colors",
+                            active
+                              ? activeClasses
+                              : "border-sbi-dark-border/60 bg-transparent text-sbi-muted hover:text-white hover:border-white/30",
+                          ].join(" ")}
+                        >
+                          <Icon className="size-3.5" />
+                          {label}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
+            ) : null}
+
             <div className="flex flex-wrap items-center gap-2">
-              <a
-                href={googleUrl}
-                target="_blank"
-                rel="noreferrer"
-                className={
-                  event.past
-                    ? "inline-flex items-center gap-1.5 rounded-md border border-sbi-dark-border/60 bg-transparent px-3 py-1.5 text-[11px] font-medium text-sbi-muted transition-colors hover:text-white"
-                    : "inline-flex items-center gap-1.5 rounded-md border border-sbi-green/30 bg-sbi-green/10 px-3 py-1.5 text-[11px] font-medium text-sbi-green transition-colors hover:bg-sbi-green/15"
-                }
-              >
-                <ExternalLink className="size-3.5" />
-                Add to Google Calendar
-              </a>
               <a
                 href={icsUrl}
                 target="_blank"

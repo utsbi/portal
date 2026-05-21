@@ -238,6 +238,8 @@ export function normalizeEvent(raw: RawCalendarEvent): CalendarEvent {
     start: startStr,
     end: raw.end ?? null,
     past: isPastEvent(raw.end),
+    myResponse: raw.myResponse ?? "needsAction",
+    calendarId: raw.sourceCalendarId ?? null,
   };
 }
 

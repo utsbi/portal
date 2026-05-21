@@ -33,12 +33,15 @@ export async function GET(req: Request) {
 
   const summary = searchParams.get("summary") ?? "SBI Event";
   const start = searchParams.get("start"); // ISO string required
-  const end = searchParams.get("end");     // ISO string required
+  const end = searchParams.get("end"); // ISO string required
   const location = searchParams.get("location") ?? "";
   const description = searchParams.get("description") ?? "";
 
   if (!start || !end) {
-    return NextResponse.json({ error: "Missing start or end" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing start or end" },
+      { status: 400 },
+    );
   }
 
   const uid = `${crypto.randomUUID()}@utsbi.org`;

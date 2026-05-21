@@ -2,12 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { generateDemoEvents } from "../demo-events";
-import type { CalendarEvent, EventsResponse, RawCalendarEvent } from "../types";
+import type {
+  AttendeeResponse,
+  CalendarEvent,
+  EventsResponse,
+  RawCalendarEvent,
+} from "../types";
 import {
   buildInternalUrl,
   CALENDAR_EVENTS_API,
   normalizeEvent,
 } from "../utils";
+
+export type RsvpChoice = "accepted" | "declined" | "tentative";
 
 interface UseCalendarEventsState {
   events: CalendarEvent[];
@@ -18,6 +25,7 @@ interface UseCalendarEventsState {
   error: string | null;
   connected: boolean | null;
   refetch: () => Promise<void>;
+  rsvp: (eventId: string, response: RsvpChoice) => Promise<void>;
 }
 
 interface Options {
@@ -115,6 +123,51 @@ export function useCalendarEvents({
     load();
   }, [load]);
 
+  const rsvp = useCallback(
+    async (eventId: string, response: RsvpChoice) => {
+      if (!projectId && !demoMode) return;
+
+      // Optimistically update local state — revert on failure.
+      let previousResponse: AttendeeResponse | undefined;
+      setEvents((curr) =>
+        curr.map((e) => {
+          if (e.id !== eventId) return e;
+          previousResponse = e.myResponse;
+          return { ...e, myResponse: response };
+        }),
+      );
+
+      if (demoMode) return;
+
+      const target = events.find((e) => e.id === eventId);
+      if (!target?.calendarId) return;
+
+      try {
+        const res = await fetch("/api/contact/calendar/client-events/rsvp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId,
+            calendarId: target.calendarId,
+            projectId,
+            response,
+          }),
+        });
+        if (!res.ok) throw new Error("RSVP request failed");
+      } catch (e) {
+        console.error("Failed to RSVP:", e);
+        setEvents((curr) =>
+          curr.map((evt) =>
+            evt.id === eventId && previousResponse !== undefined
+              ? { ...evt, myResponse: previousResponse }
+              : evt,
+          ),
+        );
+      }
+    },
+    [events, projectId, demoMode],
+  );
+
   return {
     events,
     rawById,
@@ -123,5 +176,6 @@ export function useCalendarEvents({
     error,
     connected,
     refetch: load,
+    rsvp,
   };
 }

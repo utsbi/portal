@@ -1,5 +1,11 @@
 export type CalendarView = "agenda" | "month";
 
+export type AttendeeResponse =
+  | "accepted"
+  | "declined"
+  | "tentative"
+  | "needsAction";
+
 export interface RawCalendarEvent {
   id: string | null;
   summary?: string | null;
@@ -12,6 +18,8 @@ export interface RawCalendarEvent {
   organizerEmail?: string | null;
   creatorName?: string | null;
   creatorEmail?: string | null;
+  myResponse?: AttendeeResponse | null;
+  sourceCalendarId?: string | null;
 }
 
 export interface CalendarEvent {
@@ -29,6 +37,9 @@ export interface CalendarEvent {
   start: string | null;
   end: string | null;
   past: boolean;
+  myResponse: AttendeeResponse;
+  /** Needed for write-back endpoints like RSVP */
+  calendarId: string | null;
 }
 
 export interface EventsResponse {

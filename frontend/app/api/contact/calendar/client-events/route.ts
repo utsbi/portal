@@ -8,6 +8,13 @@ function must(name: string) {
   return v;
 }
 
+type AttendeeResponse =
+  | "accepted"
+  | "declined"
+  | "tentative"
+  | "needsAction"
+  | null;
+
 type GoogleEventItem = {
   id?: string | null;
   summary?: string | null;
@@ -18,7 +25,10 @@ type GoogleEventItem = {
   htmlLink?: string | null;
   organizer?: { displayName?: string | null; email?: string | null } | null;
   creator?: { displayName?: string | null; email?: string | null } | null;
-  attendees?: Array<{ email?: string | null }> | null;
+  attendees?: Array<{
+    email?: string | null;
+    responseStatus?: string | null;
+  }> | null;
 };
 
 type DirectorConfig = {
@@ -122,6 +132,7 @@ export async function GET(req: Request) {
       organizerEmail: string | null;
       creatorName: string | null;
       creatorEmail: string | null;
+      myResponse: AttendeeResponse;
       sourceDirectorId: number | null;
       sourceDirectorEmail: string | null;
       sourceCalendarId: string | null;
@@ -155,14 +166,23 @@ export async function GET(req: Request) {
         const items = (res.data.items ?? []) as GoogleEventItem[];
 
         if (clientEmail) {
-          const matched = items.filter((ev) => {
-            const attendees = (ev.attendees ?? [])
-              .map((a) => a.email?.trim().toLowerCase())
-              .filter(Boolean) as string[];
-            return attendees.includes(clientEmail);
-          });
+          const matched = items
+            .map((ev) => {
+              const clientAttendee = (ev.attendees ?? []).find(
+                (a) => a.email?.trim().toLowerCase() === clientEmail,
+              );
+              return { ev, clientAttendee };
+            })
+            .filter(
+              (
+                m,
+              ): m is {
+                ev: GoogleEventItem;
+                clientAttendee: NonNullable<typeof m.clientAttendee>;
+              } => m.clientAttendee !== undefined,
+            );
 
-          const normalized = matched.map((ev) => ({
+          const normalized = matched.map(({ ev, clientAttendee }) => ({
             id: ev.id ?? null,
             summary: ev.summary ?? "(No title)",
             start: ev.start?.dateTime ?? ev.start?.date ?? null,
@@ -174,6 +194,8 @@ export async function GET(req: Request) {
             organizerEmail: ev.organizer?.email ?? null,
             creatorName: ev.creator?.displayName ?? null,
             creatorEmail: ev.creator?.email ?? null,
+            myResponse: (clientAttendee.responseStatus ??
+              null) as AttendeeResponse,
             sourceDirectorId: director.id ?? null,
             sourceDirectorEmail: director.email ?? null,
             sourceCalendarId: calendarId,
