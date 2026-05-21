@@ -178,7 +178,7 @@ export async function POST(request: Request) {
         const { data, error } = await supabase
             .from("tickets")
             .insert([newRecord])
-            .select()
+            .select("*, projects:project_id(company_name)")
             .single();
 
         if (error) {
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
             department: data.department || "General",
             director: data.director || data.assign_to || "Unassigned",
             assign_to: data.assign_to,
-            project: data.project,
+            project: (data as any).projects?.company_name ?? data.project ?? null,
             status: normalizeStatus(data.status),
             message: data.message,
             date: data.created_at
