@@ -1,238 +1,221 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { MessageSquarePlus, ChevronDown } from "lucide-react";
-import { useCreateConversationModal } from "./CreateConversationModalContext";
-import { createClient } from "@/lib/supabase/client";
-import { useProject } from "@/lib/project/project-context";
+import { Search } from "lucide-react";
 
-interface DirectorOption {
-  id: number;
-  name: string;
-  department: string;
-}
-
-// Minimal conversation shape required by the list UI.
+// Minimal conversation shape required by the list UI. The batched
+// name-resolution in index.tsx / DirectorMessages.tsx populates this exactly.
 export interface Conversation {
   id: string;
-  department?: string;
   name: string;
+  projectName?: string;
   lastMessage: string;
+  /** Absolute date + time label (never time-only). */
   timestamp: string;
+  /** Quiet emphasis only — no badge/dot/count. */
+  unread?: boolean;
+  /** Epoch ms of latest activity; used for sorting (not created_at). */
+  lastActivity?: number;
 }
-
-// Static department list for the "Select a department" filter.
-const departments = [
-  "President",
-  "Vice President",
-  "Project Operations",
-  "Engineering",
-  "Tech",
-  "Business",
-  "Public Relations",
-  "Architecture",
-  "Legal",
-];
 
 interface ConversationListProps {
   conversations: Conversation[];
   basePath: string;
-  /** When false, header and create modal are omitted so the parent (e.g. DirectorMessages) can render its own header and modal. */
-  showCreateButton?: boolean;
-  onConversationCreated?: (conversation: Conversation) => void;
+  /** True while the first load is in flight (skeleton vs empty state). */
+  loading?: boolean;
+  /** True when the initial load failed; shows a retry affordance. */
+  errored?: boolean;
+  onRetry?: () => void;
+  /** Called after a 200ms hover dwell — warms the conv cache before click. */
+  onPrefetch?: (convId: string) => void;
 }
 
-// display conversations in a list that have a latest message
-export function ConversationList({ conversations, basePath, showCreateButton = true, onConversationCreated }: ConversationListProps) {
-  const router = useRouter();
-  const { user, activeProject } = useProject();
-  // Use shared context when inside CreateConversationModalProvider so the empty-state button can open this modal; otherwise use local state.
-  const context = useCreateConversationModal();
-  const [localOpen, setLocalOpen] = useState(false);
-  const open = context?.open ?? localOpen;
-  const setOpen = context?.setOpen ?? setLocalOpen;
-  const [selected, setSelected] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [directors, setDirectors] = useState<DirectorOption[]>([]);
+function ListSkeleton() {
+  return (
+    <div className="flex flex-col gap-1">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          className="px-3 py-2.5 rounded-md border border-sbi-dark-border/30"
+        >
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="h-3.5 w-32 rounded bg-sbi-dark-card/80 animate-pulse" />
+            <div className="h-3 w-20 rounded bg-sbi-dark-card/60 animate-pulse" />
+          </div>
+          <div className="h-3 w-44 rounded bg-sbi-dark-card/50 animate-pulse" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function ConversationList({
+  conversations,
+  basePath,
+  loading = false,
+  errored = false,
+  onRetry,
+  onPrefetch,
+}: ConversationListProps) {
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pathname = usePathname();
+  const [query, setQuery] = useState("");
+  // Mirror the thread's pattern: only show the skeleton if the load is still
+  // going after a short grace window, so a fast fetch never flashes it.
+  const [showSkeleton, setShowSkeleton] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-
-    const fetchDirectors = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, name, department")
-        .eq("role", "director");
-
-      if (data) setDirectors(data as DirectorOption[]);
-    };
-
-    fetchDirectors();
-  }, [open]);
-
-  const filteredDirectors =
-    selectedDepartment === ""
-      ? directors
-      : directors.filter((d) => d.department === selectedDepartment);
-
-  const handleNext = async () => {
-    if (!selected) return;
-
-    try {
-      const supabase = createClient();
-
-      const {
-        data: { user: authUser },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !authUser) {
-        // eslint-disable-next-line no-console
-        console.error("Not authenticated:", userError);
-        return;
-      }
-
-      const selectedDirectorProfileId = Number(selected);
-
-      const { data: conversation, error: convoError } = await supabase
-        .from("conversations")
-        .insert({
-          client_profile_id: user?.id ?? null,
-          director_profile_id: selectedDirectorProfileId,
-          project_id: activeProject?.projectId ?? null,
-        })
-        .select("id")
-        .single();
-
-      if (convoError || !conversation) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to create conversation:", convoError);
-        return;
-      }
-
-      const conversationId = conversation.id as number;
-      const director = directors.find((d) => d.id === Number(selected));
-
-      onConversationCreated?.({
-        id: String(conversationId),
-        name: director?.name ?? "Director",
-        lastMessage: "",
-        timestamp: new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
-      });
-
-      router.push(`${basePath}/${conversationId}`);
-
-      setOpen(false);
-      setSelected("");
-      setSelectedDepartment("");
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("Unexpected error creating conversation:", err);
+    if (!loading) {
+      setShowSkeleton(false);
+      return;
     }
-  };
+    const t = setTimeout(() => setShowSkeleton(true), 220);
+    return () => clearTimeout(t);
+  }, [loading]);
+
+  const activeId = useMemo(() => {
+    const m = pathname?.match(/\/messages\/(\d+)/);
+    return m ? m[1] : null;
+  }, [pathname]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? conversations.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.projectName?.toLowerCase().includes(q) ?? false) ||
+            c.lastMessage.toLowerCase().includes(q),
+        )
+      : conversations;
+
+    // Sort by latest message activity, not conversation created_at.
+    return [...filtered].sort(
+      (a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0),
+    );
+  }, [conversations, query]);
 
   return (
-    <div className="p-4 w-full">
-      {/* Only show "Messages" + create button when this list owns the create flow (client). */}
-      {showCreateButton && (
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg text-white">Messages</h2>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="group flex items-center justify-center p-1 rounded transition-all duration-300 cursor-pointer focus:outline-none focus:ring-0"
-            aria-label="New conversation"
-          >
-            <div className="text-white group-hover:text-sbi-green transition-all duration-300">
-              <MessageSquarePlus size={18} strokeWidth={1.5} />
-            </div>
-          </button>
+    <div className="flex flex-col min-h-0 h-full w-full">
+      <div className="px-4 pb-3 shrink-0">
+        <div className="relative">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sbi-muted-dark"
+            size={15}
+            strokeWidth={1.75}
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search conversations"
+            className="w-full bg-sbi-dark-card text-white border border-sbi-dark-border/50 rounded-md pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-sbi-muted-dark"
+          />
         </div>
-      )}
-      {conversations.map((convo) => (
-        <Link
-          key={convo.id}
-          href={`${basePath}/${convo.id}`}
-          className="group relative block p-3 mb-2 border hover:bg-sbi-dark-card/80 transition-colors duration-300"
-        >
-          <div className="flex justify-between">
-            <span className="text-white text-sm">{convo.name}</span>
-            <span className="text-white text-sm">{convo.timestamp}</span>
-          </div>
-          <p className="text-white text-xs mt-1">{convo.lastMessage || "No messages yet"}</p>
-          {/* Green underline on hover */}
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-sbi-green scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-center" />
-        </Link>
-      ))}
+      </div>
 
-      {/* Only render client "Select a director" modal when this list owns the create flow. */}
-      {showCreateButton && open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-sbi-dark/50 backdrop-blur-sm"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="bg-sbi-dark-card/95 rounded-lg p-6 w-96 shadow-xl border border-sbi-dark-border"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-white text-lg font-medium mb-4">
-              Send a Message
-            </h2>
-
-            <div className="relative w-full mb-3">
-              <select
-                value={selectedDepartment}
-                onChange={(e) => {
-                  setSelectedDepartment(e.target.value);
-                  setSelected("");
-                }}
-                className="w-full appearance-none rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm pl-3 pr-10 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"
-              >
-                <option value="" disabled>
-                  Select a department
-                </option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white" size={16} />
-            </div>
-
-            <div className="relative w-full">
-              <select
-                value={selected}
-                onChange={(e) => setSelected(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-sbi-dark-border bg-sbi-dark text-white text-sm pl-3 pr-10 py-2 focus:outline-none focus:border-sbi-green/30 focus:ring-1 focus:ring-sbi-green/20"
-              >
-                <option value="" disabled>
-                  Select a director
-                </option>
-                {filteredDirectors.map((d) => (
-                  <option key={d.id} value={String(d.id)}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white" size={16} />
-            </div>
-
-            <div className="flex justify-end mt-6">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-4 pb-4">
+        {loading && showSkeleton ? (
+          <ListSkeleton />
+        ) : loading ? (
+          // Grace window before the skeleton: blank placeholder so a fast
+          // load reads as instant instead of a skeleton flash.
+          <div className="min-h-full" />
+        ) : errored ? (
+          <div className="px-3 py-6 text-center">
+            <p className="text-sm text-white">Conversations didn't load.</p>
+            <p className="mt-1 text-xs text-sbi-muted">
+              Check your connection and try again.
+            </p>
+            {onRetry ? (
               <button
                 type="button"
-                onClick={handleNext}
-                className="px-2.5 py-1 text-xs font-medium bg-sbi-green text-white rounded-md hover:bg-sbi-green/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"              
+                onClick={onRetry}
+                className="mt-4 inline-flex items-center justify-center px-4 h-9 text-xs font-medium tracking-[0.04em] uppercase bg-sbi-green/10 text-sbi-green border border-sbi-green/30 rounded-md cursor-pointer hover:bg-sbi-green hover:text-sbi-dark transition-colors"
               >
-                Next
+                Try again
               </button>
-            </div>
+            ) : null}
           </div>
-        </div>
-      )}
+        ) : visible.length === 0 ? (
+          <p className="text-sm text-sbi-muted px-3 py-6 text-center">
+            {query.trim()
+              ? "No conversations match that search."
+              : "No conversations yet."}
+          </p>
+        ) : (
+          visible.map((convo) => {
+            const isActive = activeId === convo.id;
+            // The open conversation reads as read immediately (optimistic),
+            // so the tick clears the moment you open it — not on reload.
+            const isUnread = convo.unread && !isActive;
+            return (
+              <Link
+                key={convo.id}
+                href={`${basePath}/${convo.id}`}
+                className={`group relative flex gap-2 px-3 py-2.5 mb-1 rounded-md border transition-colors ${
+                  isActive
+                    ? "border-sbi-green/30 bg-sbi-dark-card/60"
+                    : "border-sbi-dark-border/30 hover:border-sbi-green/30 hover:bg-sbi-dark-card/40"
+                }`}
+                onMouseEnter={() => {
+                  if (!onPrefetch) return;
+                  const id = convo.id;
+                  prefetchTimerRef.current = setTimeout(() => {
+                    onPrefetch(id);
+                  }, 200);
+                }}
+                onMouseLeave={() => {
+                  if (prefetchTimerRef.current !== null) {
+                    clearTimeout(prefetchTimerRef.current);
+                    prefetchTimerRef.current = null;
+                  }
+                }}
+              >
+                {/* Thin accent tick for unread — no dot, count, or badge.
+                    w-[3px] (not w-px): a 1px element sub-pixel-rounds to
+                    zero on fractional DPR / some browsers (e.g. Brave). */}
+                <span
+                  aria-hidden
+                  className={`w-[3px] shrink-0 self-stretch rounded-full ${
+                    isUnread ? "bg-sbi-green/70" : "bg-transparent"
+                  }`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span
+                      className={`truncate text-sm ${
+                        isUnread
+                          ? "text-white font-semibold"
+                          : "text-white/90 font-medium"
+                      }`}
+                    >
+                      {convo.name}
+                    </span>
+                    <span className="text-sbi-muted-dark text-[11px] tabular-nums shrink-0">
+                      {convo.timestamp}
+                    </span>
+                  </div>
+                  {convo.projectName ? (
+                    <p className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark truncate mb-1">
+                      {convo.projectName}
+                    </p>
+                  ) : null}
+                  <p
+                    className={`truncate text-xs ${
+                      isUnread ? "text-sbi-muted" : "text-sbi-muted-dark"
+                    }`}
+                  >
+                    {convo.lastMessage || "No messages yet"}
+                  </p>
+                </div>
+              </Link>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
