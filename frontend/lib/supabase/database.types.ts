@@ -14,11 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_chat_messages: {
+        Row: {
+          attachments: Json | null
+          content: string
+          created_at: string
+          id: number
+          is_cancelled: boolean
+          model_preference: string | null
+          role: string
+          session_id: number
+          sources: Json | null
+        }
+        Insert: {
+          attachments?: Json | null
+          content: string
+          created_at?: string
+          id?: number
+          is_cancelled?: boolean
+          model_preference?: string | null
+          role: string
+          session_id: number
+          sources?: Json | null
+        }
+        Update: {
+          attachments?: Json | null
+          content?: string
+          created_at?: string
+          id?: number
+          is_cancelled?: boolean
+          model_preference?: string | null
+          role?: string
+          session_id?: number
+          sources?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "client_chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_chat_sessions: {
         Row: {
           created_at: string
           id: number
           metadata: Json | null
+          project_id: number | null
           title: string | null
           uid: string | null
           updated_at: string | null
@@ -27,6 +72,7 @@ export type Database = {
           created_at?: string
           id?: number
           metadata?: Json | null
+          project_id?: number | null
           title?: string | null
           uid?: string | null
           updated_at?: string | null
@@ -35,11 +81,20 @@ export type Database = {
           created_at?: string
           id?: number
           metadata?: Json | null
+          project_id?: number | null
           title?: string | null
           uid?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "client_chat_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client_files: {
         Row: {
@@ -100,6 +155,39 @@ export type Database = {
           uid?: string
         }
         Relationships: []
+      }
+      conversation_reads: {
+        Row: {
+          conversation_id: number
+          last_read_at: string
+          profile_id: number
+        }
+        Insert: {
+          conversation_id: number
+          last_read_at?: string
+          profile_id: number
+        }
+        Update: {
+          conversation_id?: number
+          last_read_at?: string
+          profile_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_reads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_reads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversations: {
         Row: {
@@ -228,6 +316,21 @@ export type Database = {
           },
         ]
       }
+      finances: {
+        Row: {
+          created_at: string
+          id: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+        }
+        Relationships: []
+      }
       legal_documents: {
         Row: {
           content: string | null
@@ -332,8 +435,20 @@ export type Database = {
           id: number
           lifecycle_project_id: number
           priority: "extreme" | "high" | "medium" | "low" | "stretch"
-          status: "not_started" | "in_progress" | "pending_approval" | "completed"
-          team: "technology" | "architecture" | "public_relations" | "engineering" | "finance" | "research" | "legal" | "executive"
+          status:
+            | "not_started"
+            | "in_progress"
+            | "pending_approval"
+            | "completed"
+          team:
+            | "technology"
+            | "architecture"
+            | "public_relations"
+            | "engineering"
+            | "finance"
+            | "research"
+            | "legal"
+            | "executive"
           tentative: boolean
           title: string
           updated_at: string
@@ -346,8 +461,20 @@ export type Database = {
           id?: number
           lifecycle_project_id: number
           priority?: "extreme" | "high" | "medium" | "low" | "stretch"
-          status?: "not_started" | "in_progress" | "pending_approval" | "completed"
-          team: "technology" | "architecture" | "public_relations" | "engineering" | "finance" | "research" | "legal" | "executive"
+          status?:
+            | "not_started"
+            | "in_progress"
+            | "pending_approval"
+            | "completed"
+          team:
+            | "technology"
+            | "architecture"
+            | "public_relations"
+            | "engineering"
+            | "finance"
+            | "research"
+            | "legal"
+            | "executive"
           tentative?: boolean
           title: string
           updated_at?: string
@@ -360,8 +487,20 @@ export type Database = {
           id?: number
           lifecycle_project_id?: number
           priority?: "extreme" | "high" | "medium" | "low" | "stretch"
-          status?: "not_started" | "in_progress" | "pending_approval" | "completed"
-          team?: "technology" | "architecture" | "public_relations" | "engineering" | "finance" | "research" | "legal" | "executive"
+          status?:
+            | "not_started"
+            | "in_progress"
+            | "pending_approval"
+            | "completed"
+          team?:
+            | "technology"
+            | "architecture"
+            | "public_relations"
+            | "engineering"
+            | "finance"
+            | "research"
+            | "legal"
+            | "executive"
           tentative?: boolean
           title?: string
           updated_at?: string
@@ -383,36 +522,121 @@ export type Database = {
           },
         ]
       }
+      message_attachments: {
+        Row: {
+          created_at: string
+          id: number
+          message_id: number
+          meta: Json | null
+          mime_type: string | null
+          name: string
+          path: string
+          sort_index: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          message_id: number
+          meta?: Json | null
+          mime_type?: string | null
+          name: string
+          path: string
+          sort_index?: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          message_id?: number
+          meta?: Json | null
+          mime_type?: string | null
+          name?: string
+          path?: string
+          sort_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_unfurls: {
+        Row: {
+          description: string | null
+          fetched_at: string
+          image_url: string | null
+          message_id: number
+          site_name: string | null
+          title: string | null
+          url: string
+        }
+        Insert: {
+          description?: string | null
+          fetched_at?: string
+          image_url?: string | null
+          message_id: number
+          site_name?: string | null
+          title?: string | null
+          url: string
+        }
+        Update: {
+          description?: string | null
+          fetched_at?: string
+          image_url?: string | null
+          message_id?: number
+          site_name?: string | null
+          title?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_unfurls_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
-          attachment_name: string | null
-          attachment_path: string | null
           content: string | null
           conversation_id: number | null
           created_at: string
+          edited_at: string | null
           id: number
+          is_pinned: boolean
+          pinned_at: string | null
+          reply_to_id: number | null
           sender_profile_id: number | null
           sender_role: string
           sender_uid: string | null
         }
         Insert: {
-          attachment_name?: string | null
-          attachment_path?: string | null
           content?: string | null
           conversation_id?: number | null
           created_at?: string
+          edited_at?: string | null
           id?: number
+          is_pinned?: boolean
+          pinned_at?: string | null
+          reply_to_id?: number | null
           sender_profile_id?: number | null
           sender_role: string
           sender_uid?: string | null
         }
         Update: {
-          attachment_name?: string | null
-          attachment_path?: string | null
           content?: string | null
           conversation_id?: number | null
           created_at?: string
+          edited_at?: string | null
           id?: number
+          is_pinned?: boolean
+          pinned_at?: string | null
+          reply_to_id?: number | null
           sender_profile_id?: number | null
           sender_role?: string
           sender_uid?: string | null
@@ -423,6 +647,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
           {
@@ -719,6 +950,10 @@ export type Database = {
         }[]
       }
       is_director: { Args: { check_uid: string }; Returns: boolean }
+      mark_conversation_read: {
+        Args: { p_conversation_id: number }
+        Returns: undefined
+      }
       match_client_knowledge: {
         Args: {
           _filter_uid?: string

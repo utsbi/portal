@@ -24,8 +24,16 @@ export interface DisplayMessage {
   isCancelled?: boolean;
 }
 
+export interface SessionSummary {
+  id: number;
+  title: string | null;
+  updated_at: string | null;
+  project_id: number | null;
+}
+
 interface ChatContextType {
   messages: DisplayMessage[];
+  sessionId: number | null;
   loadingPhase: LoadingPhase;
   isLoading: boolean;
   error: string | null;
@@ -42,12 +50,16 @@ interface ChatContextType {
   cancelRequest: () => void;
   editAndResend: (messageId: string, newContent: string) => Promise<void>;
   regenerateResponse: () => Promise<void>;
+  newSession: () => void;
+  loadSession: (sessionId: number) => Promise<void>;
+  listSessions: () => Promise<SessionSummary[]>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [sessionId, setSessionIdState] = useState<number | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
@@ -55,6 +67,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loadingAttachments, setLoadingAttachments] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
+  const sessionIdRef = useRef<number | null>(null);
   const pendingQueryRef = useRef<{
     query: string;
     savedAttachments: AttachmentFile[];
@@ -63,7 +76,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const isLoading = loadingPhase !== "idle" && loadingPhase !== "complete" && loadingPhase !== "error";
 
-  // Collect all attachments from previous user messages in the session
+  const setSessionId = useCallback((id: number | null) => {
+    sessionIdRef.current = id;
+    setSessionIdState(id);
+  }, []);
+
   const collectSessionAttachments = useCallback((msgs: DisplayMessage[], extraAttachments?: AttachmentFile[]): AttachmentFile[] => {
     const seen = new Set<string>();
     const all: AttachmentFile[] = [];
@@ -96,14 +113,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handlePhase = useCallback((phase: string) => {
-    if (!cancelledRef.current) {
-      setLoadingPhase(phase as LoadingPhase);
-    }
+    if (!cancelledRef.current) setLoadingPhase(phase as LoadingPhase);
   }, []);
 
-  // Core streaming routine shared by sendMessage / processPendingMessage / editAndResend / regenerateResponse.
-  // The assistant message bubble is lazily created on the first delta, then appended to in place.
-  // Returns true on success, false on error/cancel.
   const runAgent = useCallback(async (
     query: string,
     history: ChatMessage[],
@@ -113,11 +125,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoadingPhase("thinking");
 
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (cancelledRef.current) return false;
-      if (!session?.access_token) throw new Error("Not authenticated");
-
       let assistantId: string | null = null;
 
       const response = await sendChatMessage(
@@ -127,8 +134,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           attachments: sessionAttachments,
           include_sources: true,
           model_preference: modelPreference,
+          session_id: sessionIdRef.current,
         },
-        session.access_token,
         abortController.signal,
         handlePhase,
         (delta) => {
@@ -151,6 +158,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             ));
           }
         },
+        (newSessionId) => {
+          if (sessionIdRef.current !== newSessionId) setSessionId(newSessionId);
+        },
       );
 
       if (cancelledRef.current) return false;
@@ -167,8 +177,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           } : m
         ));
       } else {
-        // Result arrived without any deltas (shouldn't happen in normal flow,
-        // but the backend's empty-response path could emit an empty stream).
         setMessages(prev => [...prev, {
           id: `assistant-${Date.now()}`,
           role: "assistant",
@@ -192,7 +200,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [modelPreference, handlePhase]);
+  }, [modelPreference, handlePhase, setSessionId]);
 
   const sendMessage = useCallback(async (query: string) => {
     if (!query.trim()) return;
@@ -223,7 +231,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (ok) setAttachments([]);
   }, [messages, attachments, runAgent, collectSessionAttachments]);
 
-  // Queue a user message without making the API call (welcome -> explore transition).
   const queueMessage = useCallback((query: string) => {
     if (!query.trim()) return;
 
@@ -267,11 +274,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoadingAttachments(prev => [...prev, filename]);
 
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const attachmentData = await extractFileText(file, session.access_token);
+      const attachmentData = await extractFileText(file);
       setAttachments(prev => [...prev, attachmentData]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to read file");
@@ -296,7 +299,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (hasStreaming) {
         return prev.map(m => m.isStreaming ? { ...m, isStreaming: false, isCancelled: true } : m);
       }
-      // Still in pre-delta phase — add a cancelled placeholder so the user sees something.
       return [...prev, {
         id: `assistant-cancelled-${Date.now()}`,
         role: "assistant" as const,
@@ -308,6 +310,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // NOTE: editAndResend and regenerateResponse currently only mutate client-side
+  // state. The DB rows for the original turn(s) remain. On the next session
+  // reload, those stale rows will reappear. Tracked as a Phase 1 follow-up.
   const editAndResend = useCallback(async (messageId: string, newContent: string) => {
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
@@ -328,7 +333,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Defer to next tick so the truncating setMessages flushes first.
     setTimeout(() => {
       runAgent(newContent, history, allSessionAttachments, abortController);
     }, 0);
@@ -363,7 +367,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     await runAgent(query, history, allSessionAttachments, abortController);
   }, [messages, runAgent, collectSessionAttachments]);
 
-  const clearChat = useCallback(() => {
+  const newSession = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -374,12 +378,72 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoadingAttachments([]);
     setLoadingPhase("idle");
     setError(null);
+    setSessionId(null);
+  }, [setSessionId]);
+
+  const clearChat = useCallback(() => {
+    // Alias retained for legacy callers (page unmount cleanup). Same behavior as newSession.
+    newSession();
+  }, [newSession]);
+
+  const loadSession = useCallback(async (id: number) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    pendingQueryRef.current = null;
+    setError(null);
+    setLoadingPhase("idle");
+
+    const supabase = createClient();
+    const { data, error: fetchErr } = await supabase
+      .from("client_chat_messages")
+      .select("id, role, content, sources, attachments, is_cancelled, created_at")
+      .eq("session_id", id)
+      .order("created_at", { ascending: true });
+
+    if (fetchErr) {
+      setError(`Failed to load session: ${fetchErr.message}`);
+      return;
+    }
+
+    const hydrated: DisplayMessage[] = (data ?? [])
+      .filter(row => row.role === "user" || row.role === "assistant")
+      .map(row => ({
+        id: `db-${row.id}`,
+        role: row.role as "user" | "assistant",
+        content: row.content,
+        sources: (row.sources as SourceDocument[] | null) ?? undefined,
+        attachments: (row.attachments as MessageAttachment[] | null) ?? undefined,
+        timestamp: new Date(row.created_at),
+        isCancelled: row.is_cancelled || undefined,
+      }));
+
+    setMessages(hydrated);
+    setAttachments([]);
+    setLoadingAttachments([]);
+    setSessionId(id);
+  }, [setSessionId]);
+
+  const listSessions = useCallback(async (): Promise<SessionSummary[]> => {
+    const supabase = createClient();
+    const { data, error: fetchErr } = await supabase
+      .from("client_chat_sessions")
+      .select("id, title, updated_at, project_id")
+      .order("updated_at", { ascending: false, nullsFirst: false });
+
+    if (fetchErr) {
+      setError(`Failed to list sessions: ${fetchErr.message}`);
+      return [];
+    }
+    return data ?? [];
   }, []);
 
   return (
     <ChatContext.Provider
       value={{
         messages,
+        sessionId,
         loadingPhase,
         isLoading,
         error,
@@ -396,6 +460,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         cancelRequest,
         editAndResend,
         regenerateResponse,
+        newSession,
+        loadSession,
+        listSessions,
       }}
     >
       {children}
