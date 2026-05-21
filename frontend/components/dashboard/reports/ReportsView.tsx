@@ -21,7 +21,6 @@ export function ReportsView({
   initialReports: ReportItem[];
 }) {
   const { activeProject, user } = useProject();
-  const isClient = user?.role === "client";
   const canCreate = user?.role === "director" || user?.role === "member";
 
   const { reports, loading, addReport, updateStatus } = useReports(

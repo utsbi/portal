@@ -1,11 +1,10 @@
 "use client";
 
+import { Calendar, Download, Eye, File, Mail, User } from "lucide-react";
 import { useCallback } from "react";
-import { File, Calendar, User, Mail, Download, Eye } from "lucide-react";
-import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
-import { StatusPill } from "@/components/data-table/status-pill";
-import { type StatusVariant } from "@/components/data-table/status-pill";
+import { type ColumnDef, DataTable } from "@/components/data-table/data-table";
 import { type FilterDef } from "@/components/data-table/data-table-filters";
+import { StatusPill } from "@/components/data-table/status-pill";
 import { createClient } from "@/lib/supabase/client";
 import { type RequestStatus } from "./StatusBadge";
 
