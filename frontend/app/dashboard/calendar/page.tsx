@@ -47,7 +47,41 @@ function CalendarPageInner() {
     return events.filter((e) => eventMatchesSearch(e, search));
   }, [events, search]);
 
-  const subtitle = demoMode ? `Demo · ${projectLabel}` : projectLabel;
+  const subtitle = useMemo(() => {
+    const parts: string[] = [`Upcoming meetings for ${projectLabel}`];
+    if (events.length > 0) {
+      const now = new Date();
+      const thisMonth = events.filter((e) => {
+        if (!e.start) return false;
+        const d = new Date(e.start);
+        return (
+          d.getFullYear() === now.getFullYear() &&
+          d.getMonth() === now.getMonth()
+        );
+      }).length;
+      if (thisMonth > 0) {
+        parts.push(
+          `${thisMonth} ${thisMonth === 1 ? "meeting" : "meetings"} this month`,
+        );
+      }
+      const lastContact = events
+        .filter((e) => e.past && e.start)
+        .sort(
+          (a, b) =>
+            new Date(b.start as string).getTime() -
+            new Date(a.start as string).getTime(),
+        )[0];
+      if (lastContact?.start) {
+        const d = new Date(lastContact.start);
+        const label = d.toLocaleDateString([], {
+          month: "short",
+          day: "numeric",
+        });
+        parts.push(`last contact ${label}`);
+      }
+    }
+    return parts.join(" · ");
+  }, [events, projectLabel]);
 
   let body: React.ReactNode;
   if (loading && events.length === 0) {
