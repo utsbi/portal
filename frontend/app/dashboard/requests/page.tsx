@@ -56,11 +56,18 @@ export default function RequestsPage() {
     toastSuccess(`Request "${data.subject}" submitted.`);
   };
 
+  const subtitle =
+    user?.role === "director"
+      ? "Triage requests from clients and team members"
+      : user?.role === "client"
+      ? "Submit a request to your team and track its progress"
+      : "Send a request to a teammate or track open ones";
+
   return (
     <DashboardShell>
       <PageHeader
         title="Requests"
-        subtitle="Submit and track requests from your team"
+        subtitle={subtitle}
         action={
           <button type="button" onClick={() => setIsModalOpen(true)} className={btnPrimary}>
             <Plus className="w-4 h-4" /> New Request
