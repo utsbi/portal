@@ -19,7 +19,7 @@ export function ReportsView({ initialReports }: { initialReports: ReportItem[] }
   const { activeProject, user } = useProject();
   const isDirector = user?.role === "director";
 
-  const { reports, loading, addReport } = useReports(activeProject?.projectId);
+  const { reports, loading, addReport, updateStatus } = useReports(activeProject?.projectId);
   const allReports = reports.length === 0 && initialReports.length > 0 ? initialReports : reports;
 
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
@@ -79,7 +79,17 @@ export function ReportsView({ initialReports }: { initialReports: ReportItem[] }
         </div>
       </main>
 
-      <ReportDetailModal report={selectedReport} onClose={() => setSelectedReport(null)} />
+      <ReportDetailModal
+        report={selectedReport}
+        onClose={() => setSelectedReport(null)}
+        onAcknowledge={async (id) => {
+          const ok = await updateStatus(id, "Done");
+          if (ok && selectedReport && selectedReport.id === id) {
+            setSelectedReport({ ...selectedReport, status: "Done" });
+          }
+          return ok;
+        }}
+      />
       <NewReportModal
         open={isCreatingModalOpen}
         onClose={() => setIsCreatingModalOpen(false)}

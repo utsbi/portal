@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building, Calendar as CalendarIcon, FileText, Folder, User } from "lucide-react";
+import { Building, Calendar as CalendarIcon, CheckCircle2, FileText, Folder, User } from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { StatusPill } from "@/components/data-table";
-import { Modal } from "@/components/dashboard/common/ui";
+import { Modal, btnPrimary } from "@/components/dashboard/common/ui";
 import { createClient } from "@/lib/supabase/client";
+import { useProject } from "@/lib/project/project-context";
+import { toastError, toastSuccess } from "@/lib/notifications";
 
 const BUCKET = "ticket-attachments";
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "heic"]);
@@ -13,6 +15,7 @@ const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", 
 interface ReportDetailModalProps {
   report: ReportItem | null;
   onClose: () => void;
+  onAcknowledge?: (reportId: string) => Promise<boolean>;
 }
 
 interface AttachmentMeta {
@@ -149,8 +152,26 @@ function AttachmentItem({ attachment }: { attachment: AttachmentMeta }) {
   );
 }
 
-export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
+export function ReportDetailModal({ report, onClose, onAcknowledge }: ReportDetailModalProps) {
+  const { user } = useProject();
+  const [isAcknowledging, setIsAcknowledging] = useState(false);
+
   if (!report) return null;
+
+  const canAcknowledge =
+    Boolean(onAcknowledge) && report.status === "Pending" && user?.role !== "director";
+
+  const handleAcknowledge = async () => {
+    if (!onAcknowledge) return;
+    setIsAcknowledging(true);
+    const ok = await onAcknowledge(report.id);
+    setIsAcknowledging(false);
+    if (ok) {
+      toastSuccess(`Acknowledged "${report.title}".`);
+    } else {
+      toastError("Couldn't update report status. Try again.");
+    }
+  };
 
   const title = (
     <span className="flex items-center gap-3">
@@ -205,6 +226,29 @@ export function ReportDetailModal({ report, onClose }: ReportDetailModalProps) {
                 ))}
               </ul>
             </section>
+          )}
+
+          {canAcknowledge && (
+            <div className="pt-4 border-t border-sbi-dark-border/40 flex justify-end">
+              <button
+                type="button"
+                onClick={handleAcknowledge}
+                disabled={isAcknowledging}
+                className={btnPrimary}
+              >
+                {isAcknowledging ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Marking…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Mark Acknowledged
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </main>
       </div>
