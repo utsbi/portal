@@ -104,6 +104,9 @@ export const metadata: Metadata = {
 
 const theme = createTheme({
   primaryColor: "green",
+  fontFamily: "var(--font-urbanist), sans-serif",
+  fontFamilyMonospace: "var(--font-jetbrains-mono), monospace",
+  headings: { fontFamily: "var(--font-urbanist), sans-serif" },
 });
 
 // Temporary fix for something trying to access localStorage during SSR

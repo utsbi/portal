@@ -8,6 +8,9 @@ import { createClient } from "@/lib/supabase/client";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { Modal, btnGhost, btnPrimary } from "@/components/dashboard/common/ui";
 import { FileUpload } from "@/components/dashboard/requests/FileUpload";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { DEPT_FILTER } from "./constants";
 
 const BUCKET = "ticket-attachments";
@@ -47,6 +50,12 @@ for (const opt of DEPT_FILTER.options ?? []) {
     departmentOptions.push({ value: opt.value, label: opt.label });
   }
 }
+
+const labelClass =
+  "text-[10px] uppercase tracking-[0.15em] text-sbi-muted mb-2 font-medium";
+
+const fieldClass =
+  "bg-sbi-dark border-sbi-dark-border rounded-lg px-4 py-3 h-auto text-sm text-white placeholder:text-white/20 focus-visible:border-sbi-green/50 focus-visible:ring-sbi-green/20 focus-visible:ring-[2px] shadow-none";
 
 export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps) {
   const { activeProject, user } = useProject();
@@ -106,18 +115,14 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
     }
   };
 
-  const fieldLabel = "block text-[10px] uppercase tracking-[0.15em] text-sbi-muted mb-2";
-  const fieldClass =
-    "w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-sbi-green/50 placeholder:text-white/20 transition-colors";
-
   return (
     <Modal opened={open} onClose={onClose} title="Create New Report" size="lg" padded={false}>
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div>
-          <label htmlFor="report-subject" className={fieldLabel}>
+          <Label htmlFor="report-subject" className={labelClass}>
             Subject *
-          </label>
-          <input
+          </Label>
+          <Input
             id="report-subject"
             required
             value={title}
@@ -129,35 +134,35 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
         </div>
 
         <div>
-          <label htmlFor="report-message" className={fieldLabel}>
+          <Label htmlFor="report-message" className={labelClass}>
             Message *
-          </label>
-          <textarea
+          </Label>
+          <Textarea
             id="report-message"
             required
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             disabled={isSubmitting}
             rows={5}
-            className={`${fieldClass} resize-none`}
+            className={`${fieldClass} resize-none min-h-[120px]`}
             placeholder="Summarize the status, results, or context the client should know about this project."
           />
         </div>
 
         <div>
-          <span className={fieldLabel}>Attachments</span>
+          <span className={`block ${labelClass}`}>Attachments</span>
           <FileUpload key={fileResetKey} onFilesChange={setFiles} />
         </div>
 
         <div className="text-xs text-sbi-muted">
           {showDeptOverride ? (
             <div className="flex items-center gap-3">
-              <label
+              <Label
                 htmlFor="report-department"
-                className="uppercase tracking-[0.15em] text-sbi-muted-dark"
+                className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark font-medium m-0"
               >
                 Reporting on behalf of
-              </label>
+              </Label>
               <select
                 id="report-department"
                 value={department}

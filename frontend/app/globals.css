@@ -335,17 +335,6 @@
     @apply bg-background text-foreground;
   }
 
-  /* Force form elements to inherit font (Mantine's stylesheet overrides Tailwind preflight). */
-  button,
-  input,
-  optgroup,
-  select,
-  textarea {
-    font-family: inherit;
-    font-feature-settings: inherit;
-    font-variation-settings: inherit;
-  }
-
   /* Autofill dark mode override */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
