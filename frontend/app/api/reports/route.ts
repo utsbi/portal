@@ -64,7 +64,7 @@ export async function GET(request: Request) {
 
         let query = supabase
             .from("tickets")
-            .select("*")
+            .select("*, projects:project_id(company_name)")
             .eq("ticket_type", "report")
             .order("created_at", { ascending: false });
 
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
             department: item.department || "General",
             director: item.director || item.assign_to || "Unassigned",
             assign_to: item.assign_to,
-            project: item.project,
+            project: item.projects?.company_name ?? item.project ?? null,
             status: normalizeStatus(item.status),
             message: item.message,
             date: item.created_at
