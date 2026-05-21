@@ -179,15 +179,17 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
               <ChevronDown className="w-3.5 h-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
+              side="right"
               align="start"
-              className="bg-sbi-dark border-sbi-dark-border max-h-72"
+              sideOffset={8}
+              className="bg-sbi-dark border-sbi-dark-border max-h-72 custom-scrollbar"
             >
               <DropdownMenuRadioGroup value={department} onValueChange={setDepartment}>
                 {departmentOptions.map((o) => (
                   <DropdownMenuRadioItem
                     key={o.value}
                     value={o.value}
-                    className="text-sm text-white focus:bg-sbi-green/10 focus:text-sbi-green"
+                    className="pl-3 [&>span:first-child]:hidden text-sm text-white focus:bg-sbi-green/10 focus:text-sbi-green data-[state=checked]:text-sbi-green data-[state=checked]:bg-sbi-green/5"
                   >
                     {o.label}
                   </DropdownMenuRadioItem>
