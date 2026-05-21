@@ -43,14 +43,16 @@ export interface ChatError {
 }
 
 /**
- * Send a chat message to the AI agent via SSE streaming
- * Calls onPhase when the backend reports a new processing phase.
+ * Send a chat message to the AI agent via SSE streaming.
+ * - onPhase fires when the backend reports a new processing phase.
+ * - onDelta fires for each token chunk as the model generates the response.
  */
 export async function sendChatMessage(
   request: ChatRequest,
   authToken: string,
   signal?: AbortSignal,
-  onPhase?: (phase: string) => void
+  onPhase?: (phase: string) => void,
+  onDelta?: (text: string) => void,
 ): Promise<ChatResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/chat/`, {
     method: "POST",
@@ -105,6 +107,8 @@ export async function sendChatMessage(
 
         if (event.type === "phase" && onPhase) {
           onPhase(event.phase);
+        } else if (event.type === "delta" && onDelta) {
+          onDelta(event.text || "");
         } else if (event.type === "result") {
           result = {
             answer: event.answer || "",

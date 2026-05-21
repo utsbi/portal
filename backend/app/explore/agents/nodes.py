@@ -1,23 +1,52 @@
 import logging
-from typing import Dict, Any, List
+from typing import Any, AsyncGenerator, Dict, List, Optional
+
 from openai import AsyncOpenAI
 
 from app.explore.core.config import settings
-
-logger = logging.getLogger(__name__)
-from app.explore.services.rag_service import RAGService
 from app.explore.agents.prompts import (
     SYSTEM_PROMPT,
     GENERATE_RESPONSE_PROMPT,
     QUERY_REWRITER_PROMPT,
     SEMANTIC_ROUTER_PROMPT,
 )
+from app.explore.services.rag_service import RAGService
+
+logger = logging.getLogger(__name__)
 
 
 rag_service = RAGService()
 openrouter_client = AsyncOpenAI(
     api_key=settings.api_key,
-    base_url="https://openrouter.ai/api/v1"
+    base_url="https://openrouter.ai/api/v1",
+)
+
+
+HELP_RESPONSE = """I'm here to help you with your construction and sustainability projects. Here's what I can do:
+
+### Document Analysis
+- **Search and answer** questions about your project documents and specifications
+- **Summarize** meeting notes, reports, and technical documents
+
+### Project Tracking
+- **Track** project progress, deadlines, and deliverables
+- **Extract action items** from meeting notes and documents
+
+### Insights
+- **Analyze** your project data and provide actionable insights
+- **Compare** information across multiple documents
+
+Feel free to ask me anything about your project, or upload documents for me to analyze."""
+
+GREETING_RESPONSE = (
+    "Hello. I'm your **Project Manager Assistant** for SBI. "
+    "How may I assist you with your project today?"
+)
+
+NO_CONTEXT_FOOTER = (
+    "\n\n---\n\n> **Note:** No specific documents were found in your project "
+    "files related to this query. You can upload relevant documents or ask me "
+    "to search for something else."
 )
 
 
@@ -35,8 +64,18 @@ def format_history(history: List[Dict[str, str]]) -> str:
     return "\n".join(formatted)
 
 
+def _direct_response_text(query: str) -> Optional[str]:
+    """Canned response for greeting/help direct route. None if not a direct case."""
+    query_lower = query.lower().strip()
+    if any(query_lower.startswith(g) for g in ["hello", "hi", "hey", "good"]):
+        return GREETING_RESPONSE
+    if "help" in query_lower or "what can you" in query_lower:
+        return HELP_RESPONSE
+    return None
+
+
 async def rewrite_query(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Phase 1 (Thinking): Check greetings/help, rewrite query"""
+    """Phase 1 (Thinking): Check greetings/help, rewrite query."""
     query = state.get("query", "")
     history = state.get("history", [])
 
@@ -44,7 +83,6 @@ async def rewrite_query(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Greetings and help (no LLM needed)
     query_lower = query.lower().strip()
-
     greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"]
     if any(query_lower.startswith(g) for g in greetings):
         logger.info("Route: direct (greeting detected)")
@@ -54,7 +92,7 @@ async def rewrite_query(state: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("Route: direct (help request)")
         return {**state, "route": "direct", "route_reason": "Help request", "standalone_query": query}
 
-    # Query Rewriting (conversation history exists)
+    # Query rewriting (conversation history exists)
     standalone_query = query
     if history:
         try:
@@ -90,7 +128,6 @@ async def semantic_route(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info(f"Semantic routing: '{query[:100]}' (attachments={len(attachments)} files)")
 
-    # No attachments in session -> always use RAG
     if not attachments:
         logger.info("Route: retrieve (no attachments, default RAG)")
         return {
@@ -99,7 +136,6 @@ async def semantic_route(state: Dict[str, Any]) -> Dict[str, Any]:
             "route_reason": "No attachments, default RAG search",
         }
 
-    # Attachments exist -> use LLM semantic router
     try:
         attachment_info = _build_attachment_info(attachments)
         router_prompt = SEMANTIC_ROUTER_PROMPT.format(
@@ -135,19 +171,8 @@ async def semantic_route(state: Dict[str, Any]) -> Dict[str, Any]:
     return {**state, "route": route, "route_reason": reason}
 
 
-async def route_query(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Combined routing: rewrite query + semantic route (used by compiled graph)."""
-    state = await rewrite_query(state)
-    if state.get("route") == "direct":
-        return state
-    return await semantic_route(state)
-
-
 def _build_attachment_info(attachments: List[Dict[str, str]]) -> str:
-    """Build a concise summary of attachments for semantic routing
-
-    Includes filename and first 300 chars of content
-    """
+    """Concise summary of attachments for semantic routing (filename + 500-char preview)."""
     info_parts = []
     for att in attachments:
         filename = att.get("filename", "unknown")
@@ -172,17 +197,18 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
     client_id = state.get("client_id", "")
     attachments = state.get("attachments", [])
     route = state.get("route", "retrieve")
-    logger.info(f"Retrieve context: route={route}, client_id={client_id[:8]}..., attachments={len(attachments)}, query='{query[:80]}'")
+    logger.info(
+        f"Retrieve context: route={route}, client_id={client_id[:8]}..., "
+        f"attachments={len(attachments)}, query='{query[:80]}'"
+    )
 
     retrieved_docs: List[Dict[str, Any]] = []
     context = ""
 
     if route == "attachment" and attachments:
-        # Build context from session attachments only
         context = _build_attachment_context(attachments)
 
-        # Fallback: if attachment context not enough, the file probably
-        # doesn't contain needed info, try RAG
+        # If attachment context is too thin, fall back to RAG search
         if len(context.strip()) < 100:
             logger.info("Attachment context too thin, falling back to RAG search")
             context = await rag_service.get_context_for_query(
@@ -193,7 +219,6 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
             )
 
     elif route == "retrieve":
-        # RAG search only, no attachment context
         context = await rag_service.get_context_for_query(
             query=query, client_id=client_id,
         )
@@ -202,8 +227,6 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
         )
 
     elif route == "hybrid":
-        # Both sources: get_context_for_query merges attachment
-        # text and vector search results when attachments are passed
         context = await rag_service.get_context_for_query(
             query=query, client_id=client_id, attachments=attachments,
         )
@@ -211,7 +234,10 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
             query=query, client_id=client_id, limit=5,
         )
 
-    logger.info(f"Retrieval complete: route={route}, context_length={len(context)}, docs_found={len(retrieved_docs)}")
+    logger.info(
+        f"Retrieval complete: route={route}, context_length={len(context)}, "
+        f"docs_found={len(retrieved_docs)}"
+    )
     return {
         **state,
         "context": context,
@@ -219,9 +245,11 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _build_attachment_context(attachments: List[Dict[str, str]],
-                              max_length: int = 800_000) -> str:
-    """Build a context string from session attachments"""
+def _build_attachment_context(
+    attachments: List[Dict[str, str]],
+    max_length: int = 800_000,
+) -> str:
+    """Build a context string from session attachments."""
     context_parts = ["=== Session Attachments ===\n"]
     current_length = 0
     for att in attachments:
@@ -244,87 +272,82 @@ def _build_attachment_context(attachments: List[Dict[str, str]],
     return "".join(context_parts)
 
 
-async def generate_response(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Generate the final response using retrieved context"""
+async def generate_response_streaming(
+    state: Dict[str, Any],
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """Generate the final response, streaming token deltas.
+
+    Yields:
+      {"type": "delta", "text": str}     -- 0+ times as chunks arrive
+      {"type": "state", "state": Dict}   -- once at the end with the full updated state
+    """
     query = state.get("query", "")
     context = state.get("context", "")
     history = state.get("history", [])
     route = state.get("route", "retrieve")
     model_preference = state.get("model_preference", "fast")
 
-    # Select model based on preference
-    if model_preference == "thinking":
-        model = settings.think_model
-    else:
-        model = settings.fast_model
+    model = settings.think_model if model_preference == "thinking" else settings.fast_model
 
-    logger.info(f"Generate response: model={model}, route={route}, context_length={len(context)}, history={len(history)} msgs")
-
-    # Handle direct responses (greetings, help)
-    if route == "direct":
-        query_lower = query.lower().strip()
-
-        if any(query_lower.startswith(g) for g in ["hello", "hi", "hey", "good"]):
-            return {
-                **state,
-                "response": "Hello. I'm your **Project Manager Assistant** for SBI. How may I assist you with your project today?"
-            }
-
-        if "help" in query_lower or "what can you" in query_lower:
-            return {
-                **state,
-                "response": """I'm here to help you with your construction and sustainability projects. Here's what I can do:
-
-### Document Analysis
-- **Search and answer** questions about your project documents and specifications
-- **Summarize** meeting notes, reports, and technical documents
-
-### Project Tracking
-- **Track** project progress, deadlines, and deliverables
-- **Extract action items** from meeting notes and documents
-
-### Insights
-- **Analyze** your project data and provide actionable insights
-- **Compare** information across multiple documents
-
-Feel free to ask me anything about your project, or upload documents for me to analyze."""
-            }
-
-    # Build the generation messages with proper system/user roles
-    formatted_history = format_history(history)
-
-    user_prompt = GENERATE_RESPONSE_PROMPT.format(
-        query=query,
-        context=context if context else 'No relevant documents found.',
-        history=formatted_history
+    logger.info(
+        f"Generate response (streaming): model={model}, route={route}, "
+        f"context_length={len(context)}, history={len(history)} msgs"
     )
 
+    # Direct route (greetings, help) — emit canned text as a single delta.
+    if route == "direct":
+        canned = _direct_response_text(query)
+        if canned is not None:
+            yield {"type": "delta", "text": canned}
+            yield {"type": "state", "state": {**state, "response": canned}}
+            return
+
+    formatted_history = format_history(history)
+    user_prompt = GENERATE_RESPONSE_PROMPT.format(
+        query=query,
+        context=context if context else "No relevant documents found.",
+        history=formatted_history,
+    )
+
+    answer_parts: List[str] = []
     try:
-        response = await openrouter_client.chat.completions.create(
+        stream = await openrouter_client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
-            ]
+            ],
+            stream=True,
         )
-        answer = (response.choices[0].message.content or "").strip()
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            if delta:
+                answer_parts.append(delta)
+                yield {"type": "delta", "text": delta}
 
+        answer = "".join(answer_parts).strip()
         if not answer:
             answer = "I was unable to generate a response. Please try rephrasing your question."
+            yield {"type": "delta", "text": answer}
 
-        # If no context was found, add a note
-        if not context or context == "No relevant documents found.":
-            if "No relevant documents" not in answer:
-                answer = f"{answer}\n\n---\n\n> **Note:** No specific documents were found in your project files related to this query. You can upload relevant documents or ask me to search for something else."
+        # If no context was found, append a note (and stream it so the UI sees it).
+        if (not context or context == "No relevant documents found.") and "No relevant documents" not in answer:
+            yield {"type": "delta", "text": NO_CONTEXT_FOOTER}
+            answer = f"{answer}{NO_CONTEXT_FOOTER}"
 
-        return {**state, "response": answer}
+        yield {"type": "state", "state": {**state, "response": answer}}
 
-    # TODO: Remove the error message {e} once it hits prod
     except Exception as e:
-        return {
-            **state,
-            "response": f"I apologize, but I encountered an issue while processing your request. Please try again or rephrase your question. Technical details: {str(e)}"
-        }
+        logger.exception("generate_response_streaming failed")
+        # TODO: stop leaking the exception text once we have proper user-visible errors.
+        err = (
+            "I apologize, but I encountered an issue while processing your request. "
+            f"Please try again or rephrase your question. Technical details: {e}"
+        )
+        yield {"type": "delta", "text": err}
+        yield {"type": "state", "state": {**state, "response": err}}
 
 
 async def format_sources(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -332,18 +355,17 @@ async def format_sources(state: Dict[str, Any]) -> Dict[str, Any]:
 
     Routes:
       - retrieve:   Only RAG sources
-      - attachment:  Only attached file(s)
-      - hybrid:      Both attached files and RAG sources
-      - direct:      No sources
+      - attachment: Only attached file(s)
+      - hybrid:     Both attached files and RAG sources
+      - direct:     No sources
     """
     retrieved_docs = state.get("retrieved_docs", [])
     attachments = state.get("attachments", [])
     route = state.get("route", "retrieve")
 
-    sources = []
+    sources: List[Dict[str, Any]] = []
     seen_files = set()
 
-    # Add attachment sources for attachment and hybrid routes
     if route in ("attachment", "hybrid") and attachments:
         for att in attachments:
             filename = att.get("filename", "unknown")
@@ -356,13 +378,11 @@ async def format_sources(state: Dict[str, Any]) -> Dict[str, Any]:
                     "relevance_score": 1.0,
                 })
 
-    # Add RAG sources for retrieve and hybrid routes
     if route in ("retrieve", "hybrid"):
         for doc in retrieved_docs:
             metadata = doc.get("metadata", {})
             filename = metadata.get("filename", "Unknown")
             page = metadata.get("page_number")
-
             source_key = f"{filename}:{page}" if page else filename
 
             if source_key not in seen_files:
@@ -371,7 +391,7 @@ async def format_sources(state: Dict[str, Any]) -> Dict[str, Any]:
                     "content": doc.get("content", "")[:500],
                     "filename": filename,
                     "page_number": page,
-                    "relevance_score": doc.get("similarity_score", 0.0)
+                    "relevance_score": doc.get("similarity_score", 0.0),
                 })
 
     return {**state, "sources": sources}

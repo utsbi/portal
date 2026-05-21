@@ -162,7 +162,7 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
     }
   }, [isEditing]);
 
-  const displayContent = message.displayedContent ?? message.content;
+  const displayContent = message.content;
 
   // Truncated content for collapsed view
   const getTruncatedContent = () => {

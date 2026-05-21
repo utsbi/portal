@@ -21,7 +21,6 @@ export interface DisplayMessage {
   attachments?: MessageAttachment[];
   timestamp: Date;
   isStreaming?: boolean;
-  displayedContent?: string;
   isCancelled?: boolean;
 }
 
@@ -69,7 +68,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const seen = new Set<string>();
     const all: AttachmentFile[] = [];
 
-    // Gather from all previous user messages
     for (const msg of msgs) {
       if (msg.role === "user" && msg.attachments) {
         for (const a of msg.attachments) {
@@ -85,7 +83,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Add any new attachments not yet on a message
     if (extraAttachments) {
       for (const a of extraAttachments) {
         if (!seen.has(a.filename)) {
@@ -98,65 +95,113 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return all;
   }, []);
 
-  // SSE phase callback - updates loading phase from backend events
   const handlePhase = useCallback((phase: string) => {
     if (!cancelledRef.current) {
       setLoadingPhase(phase as LoadingPhase);
     }
   }, []);
 
-  // Stream text animation for response
-  const streamText = useCallback((messageId: string, fullText: string): Promise<void> => {
-    return new Promise((resolve) => {
-      let charIndex = 0;
-      const charsPerTick = 3;
-      const tickDuration = 20;
-      
-      const tick = () => {
-        if (cancelledRef.current) {
-          resolve();
-          return;
-        }
-        if (charIndex < fullText.length) {
-          charIndex = Math.min(charIndex + charsPerTick, fullText.length);
-          const displayedContent = fullText.slice(0, charIndex);
-          
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === messageId
-                ? { ...msg, displayedContent, isStreaming: charIndex < fullText.length }
-                : msg
-            )
-          );
-          
-          setTimeout(tick, tickDuration);
-        } else {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === messageId
-                ? { ...msg, displayedContent: fullText, isStreaming: false }
-                : msg
-            )
-          );
-          resolve();
-        }
-      };
-      
-      tick();
-    });
-  }, []);
+  // Core streaming routine shared by sendMessage / processPendingMessage / editAndResend / regenerateResponse.
+  // The assistant message bubble is lazily created on the first delta, then appended to in place.
+  // Returns true on success, false on error/cancel.
+  const runAgent = useCallback(async (
+    query: string,
+    history: ChatMessage[],
+    sessionAttachments: AttachmentFile[],
+    abortController: AbortController,
+  ): Promise<boolean> => {
+    setLoadingPhase("thinking");
+
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelledRef.current) return false;
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      let assistantId: string | null = null;
+
+      const response = await sendChatMessage(
+        {
+          query,
+          history,
+          attachments: sessionAttachments,
+          include_sources: true,
+          model_preference: modelPreference,
+        },
+        session.access_token,
+        abortController.signal,
+        handlePhase,
+        (delta) => {
+          if (cancelledRef.current || !delta) return;
+          if (assistantId === null) {
+            const id = `assistant-${Date.now()}`;
+            assistantId = id;
+            setLoadingPhase("complete");
+            setMessages(prev => [...prev, {
+              id,
+              role: "assistant",
+              content: delta,
+              timestamp: new Date(),
+              isStreaming: true,
+            }]);
+          } else {
+            const id = assistantId;
+            setMessages(prev => prev.map(m =>
+              m.id === id ? { ...m, content: m.content + delta } : m
+            ));
+          }
+        },
+      );
+
+      if (cancelledRef.current) return false;
+
+      if (assistantId !== null) {
+        const id = assistantId;
+        setMessages(prev => prev.map(m =>
+          m.id === id ? {
+            ...m,
+            content: response.answer,
+            sources: response.sources,
+            isStreaming: false,
+            timestamp: new Date(response.timestamp),
+          } : m
+        ));
+      } else {
+        // Result arrived without any deltas (shouldn't happen in normal flow,
+        // but the backend's empty-response path could emit an empty stream).
+        setMessages(prev => [...prev, {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: response.answer,
+          sources: response.sources,
+          timestamp: new Date(response.timestamp),
+          isStreaming: false,
+        }]);
+        setLoadingPhase("complete");
+      }
+      return true;
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setLoadingPhase("idle");
+        return false;
+      }
+      setLoadingPhase("error");
+      setError(err instanceof Error ? err.message : "Failed to send message");
+      setTimeout(() => setLoadingPhase("idle"), 3000);
+      return false;
+    } finally {
+      abortControllerRef.current = null;
+    }
+  }, [modelPreference, handlePhase]);
 
   const sendMessage = useCallback(async (query: string) => {
     if (!query.trim()) return;
 
     setError(null);
     cancelledRef.current = false;
-
-    // Create new AbortController for this request
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    // Capture attachments for this message
     const messageAttachments: MessageAttachment[] = attachments.map(a => ({
       filename: a.filename,
       content: a.content,
@@ -169,78 +214,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
       timestamp: new Date(),
     };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
 
-    setLoadingPhase("thinking");
+    const history: ChatMessage[] = messages.map(m => ({ role: m.role, content: m.content }));
+    const allAttachments = collectSessionAttachments(messages, attachments);
 
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+    const ok = await runAgent(query, history, allAttachments, abortController);
+    if (ok) setAttachments([]);
+  }, [messages, attachments, runAgent, collectSessionAttachments]);
 
-      if (cancelledRef.current) return;
-
-      if (!session?.access_token) {
-        throw new Error("Not authenticated");
-      }
-
-      const history: ChatMessage[] = messages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-
-      // Collect all session attachments (previous messages + new ones)
-      const allAttachments = collectSessionAttachments(messages, attachments);
-
-      const response = await sendChatMessage(
-        {
-          query,
-          history,
-          attachments: allAttachments,
-          include_sources: true,
-          model_preference: modelPreference,
-        },
-        session.access_token,
-        abortController.signal,
-        handlePhase
-      );
-
-      if (cancelledRef.current) return;
-
-      const assistantMessage: DisplayMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: response.answer,
-        sources: response.sources,
-        timestamp: new Date(response.timestamp),
-        isStreaming: true,
-        displayedContent: "",
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-      setLoadingPhase("complete");
-
-      await streamText(assistantMessage.id, response.answer);
-
-      setAttachments([]);
-
-    } catch (err) {
-      // Handle abort
-      if (err instanceof Error && err.name === "AbortError") {
-        setLoadingPhase("idle");
-        return;
-      }
-
-      setLoadingPhase("error");
-      setError(err instanceof Error ? err.message : "Failed to send message");
-
-      setTimeout(() => setLoadingPhase("idle"), 3000);
-    } finally {
-      abortControllerRef.current = null;
-    }
-  }, [messages, attachments, modelPreference, handlePhase, streamText, collectSessionAttachments]);
-
-  // Queue a user message without making the API call 
-  // welcome -> explore transition
+  // Queue a user message without making the API call (welcome -> explore transition).
   const queueMessage = useCallback((query: string) => {
     if (!query.trim()) return;
 
@@ -257,24 +240,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       timestamp: new Date(),
     };
 
-    // Capture history and attachments before adding the new message
-    const history: ChatMessage[] = messages.map(msg => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+    const history: ChatMessage[] = messages.map(m => ({ role: m.role, content: m.content }));
     const allAttachments = collectSessionAttachments(messages, attachments);
 
-    pendingQueryRef.current = {
-      query,
-      savedAttachments: allAttachments,
-      history,
-    };
+    pendingQueryRef.current = { query, savedAttachments: allAttachments, history };
 
     setMessages(prev => [...prev, userMessage]);
     setAttachments([]);
   }, [attachments, messages, collectSessionAttachments]);
 
-  // Process a queued message
   const processPendingMessage = useCallback(async () => {
     const pending = pendingQueryRef.current;
     if (!pending) return;
@@ -282,91 +256,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     setError(null);
     cancelledRef.current = false;
-
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    setLoadingPhase("thinking");
-
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (cancelledRef.current) return;
-
-      if (!session?.access_token) {
-        throw new Error("Not authenticated");
-      }
-
-      const response = await sendChatMessage(
-        {
-          query: pending.query,
-          history: pending.history,
-          attachments: pending.savedAttachments,
-          include_sources: true,
-          model_preference: modelPreference,
-        },
-        session.access_token,
-        abortController.signal,
-        handlePhase
-      );
-
-      if (cancelledRef.current) return;
-
-      const assistantMessage: DisplayMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: response.answer,
-        sources: response.sources,
-        timestamp: new Date(response.timestamp),
-        isStreaming: true,
-        displayedContent: "",
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-      setLoadingPhase("complete");
-
-      await streamText(assistantMessage.id, response.answer);
-
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        setLoadingPhase("idle");
-        return;
-      }
-
-      setLoadingPhase("error");
-      setError(err instanceof Error ? err.message : "Failed to send message");
-      setTimeout(() => setLoadingPhase("idle"), 3000);
-    } finally {
-      abortControllerRef.current = null;
-    }
-  }, [modelPreference, handlePhase, streamText]);
+    await runAgent(pending.query, pending.history, pending.savedAttachments, abortController);
+  }, [runAgent]);
 
   const addAttachment = useCallback(async (file: File) => {
     const filename = file.name;
-    setLoadingAttachments((prev) => [...prev, filename]);
+    setLoadingAttachments(prev => [...prev, filename]);
 
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
 
-      if (!session?.access_token) {
-        throw new Error("Not authenticated");
-      }
-
-      // Extract text from file without adding to database
       const attachmentData = await extractFileText(file, session.access_token);
-
-      setAttachments((prev) => [...prev, attachmentData]);
+      setAttachments(prev => [...prev, attachmentData]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to read file");
     } finally {
-      setLoadingAttachments((prev) => prev.filter((f) => f !== filename));
+      setLoadingAttachments(prev => prev.filter(f => f !== filename));
     }
   }, []);
 
   const removeAttachment = useCallback((filename: string) => {
-    setAttachments((prev) => prev.filter((a) => a.filename !== filename));
+    setAttachments(prev => prev.filter(a => a.filename !== filename));
   }, []);
 
   const cancelRequest = useCallback(() => {
@@ -376,18 +291,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       abortControllerRef.current = null;
     }
     setLoadingPhase("idle");
-    // Replace streaming message with cancelled, or add cancelled if none exists yet
     setMessages(prev => {
       const hasStreaming = prev.some(m => m.isStreaming);
       if (hasStreaming) {
-        return prev.map(m => m.isStreaming ? {
-          ...m,
-          content: m.displayedContent || m.content,
-          isStreaming: false,
-          isCancelled: true,
-        } : m);
+        return prev.map(m => m.isStreaming ? { ...m, isStreaming: false, isCancelled: true } : m);
       }
-      // Still in loading/API phase - add a cancelled placeholder
+      // Still in pre-delta phase — add a cancelled placeholder so the user sees something.
       return [...prev, {
         id: `assistant-cancelled-${Date.now()}`,
         role: "assistant" as const,
@@ -400,125 +309,50 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const editAndResend = useCallback(async (messageId: string, newContent: string) => {
-    // Find the message index
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
 
-    // Collect all session attachments from messages up to and including the edited message
     const messagesUpToEdited = messages.slice(0, messageIndex + 1);
     const allSessionAttachments = collectSessionAttachments(messagesUpToEdited);
+    const historyMessages = messages.slice(0, messageIndex);
+    const history: ChatMessage[] = historyMessages.map(m => ({ role: m.role, content: m.content }));
 
-    // Update the message content in place and remove all messages after it
     setMessages(prev => {
       const updated = [...prev];
       updated[messageIndex] = { ...updated[messageIndex], content: newContent };
-      // Remove all messages after this one
       return updated.slice(0, messageIndex + 1);
     });
 
-    // Resend with the new content
-    // Wait for state update, use small delay
-    setTimeout(async () => {
-      // Build history from messages up to (not including) the edited message
-      const historyMessages = messages.slice(0, messageIndex);
+    setError(null);
+    cancelledRef.current = false;
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
-      setError(null);
-      cancelledRef.current = false;
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      setLoadingPhase("thinking");
-
-      try {
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (cancelledRef.current) return;
-
-        if (!session?.access_token) {
-          throw new Error("Not authenticated");
-        }
-
-        const history: ChatMessage[] = historyMessages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        }));
-
-        const response = await sendChatMessage(
-          {
-            query: newContent,
-            history,
-            attachments: allSessionAttachments,
-            include_sources: true,
-            model_preference: modelPreference,
-          },
-          session.access_token,
-          abortController.signal,
-          handlePhase
-        );
-
-        if (cancelledRef.current) return;
-
-        const assistantMessage: DisplayMessage = {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: response.answer,
-          sources: response.sources,
-          timestamp: new Date(response.timestamp),
-          isStreaming: true,
-          displayedContent: "",
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
-        setLoadingPhase("complete");
-
-        await streamText(assistantMessage.id, response.answer);
-
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
-          setLoadingPhase("idle");
-          return;
-        }
-
-        setLoadingPhase("error");
-        setError(err instanceof Error ? err.message : "Failed to send message");
-
-        setTimeout(() => setLoadingPhase("idle"), 3000);
-      } finally {
-        abortControllerRef.current = null;
-      }
+    // Defer to next tick so the truncating setMessages flushes first.
+    setTimeout(() => {
+      runAgent(newContent, history, allSessionAttachments, abortController);
     }, 0);
-  }, [messages, modelPreference, handlePhase, streamText, collectSessionAttachments]);
+  }, [messages, runAgent, collectSessionAttachments]);
 
   const regenerateResponse = useCallback(async () => {
-    // Find the last assistant message
     let lastAssistantIdx = -1;
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === 'assistant') {
-        lastAssistantIdx = i;
-        break;
-      }
+      if (messages[i].role === 'assistant') { lastAssistantIdx = i; break; }
     }
     if (lastAssistantIdx === -1) return;
 
-    // Find the user message before it
     let userIdx = -1;
     for (let i = lastAssistantIdx - 1; i >= 0; i--) {
-      if (messages[i].role === 'user') {
-        userIdx = i;
-        break;
-      }
+      if (messages[i].role === 'user') { userIdx = i; break; }
     }
     if (userIdx === -1) return;
 
     const query = messages[userIdx].content;
     const historyMessages = messages.slice(0, userIdx);
+    const history: ChatMessage[] = historyMessages.map(m => ({ role: m.role, content: m.content }));
     const lastAssistantId = messages[lastAssistantIdx].id;
-
-    // Collect all session attachments from messages up to and including the user message
     const allSessionAttachments = collectSessionAttachments(messages.slice(0, userIdx + 1));
 
-    // Remove the last assistant message
     setMessages(prev => prev.filter(m => m.id !== lastAssistantId));
 
     setError(null);
@@ -526,66 +360,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    setLoadingPhase("thinking");
-
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (cancelledRef.current) return;
-
-      if (!session?.access_token) {
-        throw new Error("Not authenticated");
-      }
-
-      const history: ChatMessage[] = historyMessages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-
-      const response = await sendChatMessage(
-        {
-          query,
-          history,
-          attachments: allSessionAttachments,
-          include_sources: true,
-          model_preference: modelPreference,
-        },
-        session.access_token,
-        abortController.signal,
-        handlePhase
-      );
-
-      if (cancelledRef.current) return;
-
-      const assistantMessage: DisplayMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: response.answer,
-        sources: response.sources,
-        timestamp: new Date(response.timestamp),
-        isStreaming: true,
-        displayedContent: "",
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-      setLoadingPhase("complete");
-
-      await streamText(assistantMessage.id, response.answer);
-
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        setLoadingPhase("idle");
-        return;
-      }
-
-      setLoadingPhase("error");
-      setError(err instanceof Error ? err.message : "Failed to send message");
-      setTimeout(() => setLoadingPhase("idle"), 3000);
-    } finally {
-      abortControllerRef.current = null;
-    }
-  }, [messages, modelPreference, handlePhase, streamText, collectSessionAttachments]);
+    await runAgent(query, history, allSessionAttachments, abortController);
+  }, [messages, runAgent, collectSessionAttachments]);
 
   const clearChat = useCallback(() => {
     if (abortControllerRef.current) {
