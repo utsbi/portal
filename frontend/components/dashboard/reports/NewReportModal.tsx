@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, FileText, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
 import { toastError, toastSuccess } from "@/lib/notifications";
-import { btnPrimary } from "@/components/dashboard/common/ui";
+import { Modal, btnGhost, btnPrimary } from "@/components/dashboard/common/ui";
 import { FileUpload } from "@/components/dashboard/requests/FileUpload";
 import { DEPT_FILTER } from "./constants";
 
@@ -40,6 +39,15 @@ async function uploadFiles(files: File[]): Promise<Attachment[]> {
   return uploads;
 }
 
+const departmentOptions: { value: string; label: string }[] = [];
+for (const opt of DEPT_FILTER.options ?? []) {
+  if ("options" in opt && opt.options) {
+    for (const sub of opt.options) departmentOptions.push(sub);
+  } else if ("value" in opt && opt.value && opt.value !== "All Depts") {
+    departmentOptions.push({ value: opt.value, label: opt.label });
+  }
+}
+
 export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps) {
   const { activeProject, user } = useProject();
   const defaultDept = user?.department ?? "Engineering General";
@@ -58,8 +66,6 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
       setShowDeptOverride(false);
     }
   }, [open, defaultDept]);
-
-  if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,135 +106,105 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
     }
   };
 
+  const fieldLabel = "block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2";
+  const fieldClass =
+    "w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-sbi-green/50 placeholder:text-white/20 transition-colors";
+
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => !isSubmitting && onClose()}
-          className="absolute inset-0 bg-sbi-dark/85 backdrop-blur-sm"
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-2xl bg-sbi-dark shadow-2xl flex flex-col z-10 border border-sbi-dark-border rounded-xl overflow-hidden font-urbanist"
-        >
-          <div className="flex items-center justify-between p-6 border-b border-sbi-dark-border bg-sbi-dark">
-            <h2 className="text-xl font-bold text-white flex items-center gap-3">
-              <FileText className="w-5 h-5 text-sbi-green" /> Create New Report
-            </h2>
+    <Modal opened={open} onClose={onClose} title="Create New Report" size="lg" padded={false}>
+      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <div>
+          <label htmlFor="report-subject" className={fieldLabel}>
+            Subject *
+          </label>
+          <input
+            id="report-subject"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            disabled={isSubmitting}
+            className={fieldClass}
+            placeholder="Quarterly Energy Modeling Review"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="report-message" className={fieldLabel}>
+            Message *
+          </label>
+          <textarea
+            id="report-message"
+            required
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={isSubmitting}
+            rows={5}
+            className={`${fieldClass} resize-none`}
+            placeholder="Summarize the status, results, or context the client should know about this project."
+          />
+        </div>
+
+        <div>
+          <span className={fieldLabel}>Attachments</span>
+          <FileUpload key={fileResetKey} onFilesChange={setFiles} />
+        </div>
+
+        <div className="text-xs text-sbi-muted">
+          {showDeptOverride ? (
+            <div className="flex items-center gap-3">
+              <label
+                htmlFor="report-department"
+                className="uppercase tracking-[0.15em] text-sbi-muted-dark"
+              >
+                Reporting on behalf of
+              </label>
+              <select
+                id="report-department"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                disabled={isSubmitting}
+                className="bg-sbi-dark border border-sbi-dark-border rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-sbi-green/50"
+              >
+                {departmentOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
             <button
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="p-2 text-sbi-muted hover:text-white rounded-full hover:bg-sbi-dark-card transition-colors disabled:opacity-50"
+              type="button"
+              onClick={() => setShowDeptOverride(true)}
+              className="inline-flex items-center gap-1 hover:text-white transition-colors"
             >
-              <X className="w-5 h-5" />
+              Reporting on behalf of <span className="text-white">{department}</span>
+              <ChevronDown className="w-3 h-3" />
             </button>
-          </div>
+          )}
+        </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6 bg-sbi-dark-card">
-            <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
-                Subject *
-              </label>
-              <input
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={isSubmitting}
-                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm"
-                placeholder="Quarterly Energy Modeling Review"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
-                Message *
-              </label>
-              <textarea
-                required
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                disabled={isSubmitting}
-                rows={5}
-                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm resize-none"
-                placeholder="Summarize the status, results, or context the client should know about this project."
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
-                Attachments
-              </label>
-              <FileUpload key={fileResetKey} onFilesChange={setFiles} />
-            </div>
-
-            <div className="text-xs text-sbi-muted">
-              {showDeptOverride ? (
-                <div className="flex items-center gap-3">
-                  <span className="uppercase tracking-[0.15em] text-sbi-muted-dark">Reporting on behalf of</span>
-                  <select
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    disabled={isSubmitting}
-                    className="bg-sbi-dark border border-sbi-dark-border rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-sbi-green/50"
-                  >
-                    {DEPT_FILTER.options
-                      ?.flatMap((opt) => {
-                        if ("options" in opt && opt.options) return opt.options;
-                        if (opt.value === "All Depts") return [];
-                        return [opt];
-                      })
-                      .map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowDeptOverride(true)}
-                  className="inline-flex items-center gap-1 hover:text-white transition-colors"
-                >
-                  Reporting on behalf of <span className="text-white">{department}</span>
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-
-            <div className="border-t border-sbi-dark-border pt-6 flex justify-end gap-3 mt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="px-5 py-2.5 text-sm font-medium text-sbi-muted hover:text-white hover:bg-sbi-dark rounded-lg transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={`${btnPrimary} disabled:shadow-none flex items-center gap-2`}
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                    Submitting…
-                  </>
-                ) : (
-                  "Submit Report"
-                )}
-              </button>
-            </div>
-          </form>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+        <div className="border-t border-sbi-dark-border pt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className={btnGhost}
+          >
+            Cancel
+          </button>
+          <button type="submit" disabled={isSubmitting} className={btnPrimary}>
+            {isSubmitting ? (
+              <>
+                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Submitting…
+              </>
+            ) : (
+              "Submit Report"
+            )}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
