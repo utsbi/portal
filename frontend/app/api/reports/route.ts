@@ -146,7 +146,7 @@ export async function POST(request: Request) {
         const { data: profile, error: profileErr } = await supabase
             .from("profiles")
             .select("name, role, department")
-            .eq("id", authData.user.id)
+            .eq("uid", authData.user.id)
             .single();
 
         if (profileErr || !profile) {
