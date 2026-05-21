@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { useProject } from "@/lib/project/project-context";
 import {
@@ -24,11 +24,6 @@ export function ReportsView({ initialReports }: { initialReports: ReportItem[] }
 
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
   const [isCreatingModalOpen, setIsCreatingModalOpen] = useState(false);
-
-  const knownProjects = useMemo(
-    () => Array.from(new Set(allReports.map((r) => r.project).filter((p): p is string => Boolean(p)))),
-    [allReports],
-  );
 
   return (
     <DashboardShell>
@@ -86,7 +81,6 @@ export function ReportsView({ initialReports }: { initialReports: ReportItem[] }
         open={isCreatingModalOpen}
         onClose={() => setIsCreatingModalOpen(false)}
         onCreated={addReport}
-        knownProjects={knownProjects}
       />
     </DashboardShell>
   );

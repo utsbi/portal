@@ -2,52 +2,62 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { FileText, X } from "lucide-react";
+import { ChevronDown, FileText, X } from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { btnPrimary } from "@/components/dashboard/common/ui";
+import { FileUpload } from "@/components/dashboard/requests/FileUpload";
 import { DEPT_FILTER } from "./constants";
 
-interface Director {
-  id: number;
-  name: string;
-  department: string | null;
-}
+const BUCKET = "ticket-attachments";
 
 interface NewReportModalProps {
   open: boolean;
   onClose: () => void;
   onCreated: (report: ReportItem) => void;
-  knownProjects: string[];
 }
 
-export function NewReportModal({ open, onClose, onCreated, knownProjects }: NewReportModalProps) {
-  const { activeProject } = useProject();
+type Attachment = { path: string; name: string; size: string };
+
+function humanSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+async function uploadFiles(files: File[]): Promise<Attachment[]> {
+  if (files.length === 0) return [];
+  const supabase = createClient();
+  const uploads: Attachment[] = [];
+  for (const file of files) {
+    const path = `reports/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
+    if (error) throw new Error(`Failed to upload ${file.name}: ${error.message}`);
+    uploads.push({ path, name: file.name, size: humanSize(file.size) });
+  }
+  return uploads;
+}
+
+export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps) {
+  const { activeProject, user } = useProject();
+  const defaultDept = user?.department ?? "Engineering General";
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCustomProject, setIsCustomProject] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    department: "Engineering General",
-    director: "",
-    project: "",
-    message: "",
-  });
-  const [directors, setDirectors] = useState<Director[]>([]);
+  const [showDeptOverride, setShowDeptOverride] = useState(false);
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [department, setDepartment] = useState(defaultDept);
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileResetKey, setFileResetKey] = useState(0);
 
   useEffect(() => {
-    if (!open || directors.length > 0) return;
-    const supabase = createClient();
-    supabase
-      .from("profiles")
-      .select("id, name, department")
-      .eq("role", "director")
-      .order("name", { ascending: true })
-      .then(({ data }) => {
-        if (data) setDirectors(data as Director[]);
-      });
-  }, [open, directors.length]);
+    if (open) {
+      setDepartment(defaultDept);
+      setShowDeptOverride(false);
+    }
+  }, [open, defaultDept]);
 
   if (!open) return null;
 
@@ -55,23 +65,36 @@ export function NewReportModal({ open, onClose, onCreated, knownProjects }: NewR
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const attachments = await uploadFiles(files);
+
       const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, project_id: activeProject?.projectId ?? null }),
+        body: JSON.stringify({
+          title,
+          message,
+          department,
+          project_id: activeProject?.projectId ?? null,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        }),
       });
+
       if (res.ok) {
         const newReport: ReportItem = await res.json();
         onCreated(newReport);
         onClose();
-        setForm({ title: "", department: "Engineering General", director: "", project: "", message: "" });
+        setTitle("");
+        setMessage("");
+        setDepartment(defaultDept);
+        setFiles([]);
+        setFileResetKey((k) => k + 1);
         toastSuccess(`Report "${newReport.title ?? "Untitled"}" submitted.`);
       } else {
         const errBody = await res.json().catch(() => null);
         toastError(errBody?.error ?? "Couldn't submit the report. Please try again.", "Submission failed");
       }
-    } catch {
-      toastError("Couldn't reach the server. Check your connection.", "Submission failed");
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Couldn't submit the report.", "Submission failed");
     } finally {
       setIsSubmitting(false);
     }
@@ -108,144 +131,75 @@ export function NewReportModal({ open, onClose, onCreated, knownProjects }: NewR
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6 bg-sbi-dark-card">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
-                  Subject / Title *
-                </label>
-                <input
-                  required
-                  value={form.title}
-                  onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                  disabled={isSubmitting}
-                  className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm"
-                  placeholder="Quarterly Earnings Review"
-                />
-              </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
+                Subject *
+              </label>
+              <input
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={isSubmitting}
+                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm"
+                placeholder="Quarterly Energy Modeling Review"
+              />
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
-                    Department *
-                  </label>
+            <div>
+              <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
+                Message *
+              </label>
+              <textarea
+                required
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                disabled={isSubmitting}
+                rows={5}
+                className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm resize-none"
+                placeholder="Summarize the status, results, or context the client should know about this project."
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
+                Attachments
+              </label>
+              <FileUpload key={fileResetKey} onFilesChange={setFiles} />
+            </div>
+
+            <div className="text-xs text-sbi-muted">
+              {showDeptOverride ? (
+                <div className="flex items-center gap-3">
+                  <span className="uppercase tracking-[0.15em] text-sbi-muted-dark">Reporting on behalf of</span>
                   <select
-                    required
-                    value={form.department}
-                    onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
                     disabled={isSubmitting}
-                    className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors text-sm appearance-none"
+                    className="bg-sbi-dark border border-sbi-dark-border rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-sbi-green/50"
                   >
-                    {DEPT_FILTER.options?.map((opt) => {
-                      if ("options" in opt && opt.options) {
-                        return opt.options.map((sub) => (
-                          <option key={sub.value} value={sub.value}>
-                            {sub.label}
-                          </option>
-                        ));
-                      }
-                      if (opt.value === "All Depts") return null;
-                      return (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
+                    {DEPT_FILTER.options
+                      ?.flatMap((opt) => {
+                        if ("options" in opt && opt.options) return opt.options;
+                        if (opt.value === "All Depts") return [];
+                        return [opt];
+                      })
+                      .map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
                         </option>
-                      );
-                    })}
+                      ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
-                    Assigned Director *
-                  </label>
-                  <select
-                    required
-                    value={form.director}
-                    onChange={(e) => setForm((p) => ({ ...p, director: e.target.value }))}
-                    disabled={isSubmitting}
-                    className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors text-sm appearance-none"
-                  >
-                    <option value="" disabled>
-                      Select a director…
-                    </option>
-                    {directors.map((d) => (
-                      <option key={d.id} value={d.name}>
-                        {d.department ? `${d.name}, ${d.department}` : d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold">
-                    Project ID / Reference
-                  </label>
-                  {isCustomProject && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomProject(false);
-                        setForm((p) => ({ ...p, project: "" }));
-                      }}
-                      className="text-[10px] text-sbi-green hover:underline"
-                    >
-                      Select Existing
-                    </button>
-                  )}
-                </div>
-                {isCustomProject ? (
-                  <input
-                    required
-                    value={form.project}
-                    onChange={(e) => setForm((p) => ({ ...p, project: e.target.value }))}
-                    disabled={isSubmitting}
-                    className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm font-mono"
-                    placeholder="Enter new Project ID..."
-                    autoFocus
-                  />
-                ) : (
-                  <select
-                    required
-                    value={form.project}
-                    onChange={(e) => {
-                      if (e.target.value === "__NEW__") {
-                        setIsCustomProject(true);
-                        setForm((p) => ({ ...p, project: "" }));
-                      } else {
-                        setForm((p) => ({ ...p, project: e.target.value }));
-                      }
-                    }}
-                    disabled={isSubmitting}
-                    className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors text-sm appearance-none font-mono"
-                  >
-                    <option value="" disabled>
-                      Select an existing project...
-                    </option>
-                    <option value="__NEW__" className="text-sbi-green font-bold bg-sbi-dark-card">
-                      + Enter New Project ID
-                    </option>
-                    {knownProjects.slice(0, 10).map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2">
-                  Report Message / Notes
-                </label>
-                <textarea
-                  value={form.message}
-                  onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
-                  disabled={isSubmitting}
-                  rows={4}
-                  className="w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-white/20 text-sm resize-none"
-                  placeholder="Include any preliminary context regarding this record..."
-                />
-              </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowDeptOverride(true)}
+                  className="inline-flex items-center gap-1 hover:text-white transition-colors"
+                >
+                  Reporting on behalf of <span className="text-white">{department}</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              )}
             </div>
 
             <div className="border-t border-sbi-dark-border pt-6 flex justify-end gap-3 mt-4">
@@ -265,7 +219,7 @@ export function NewReportModal({ open, onClose, onCreated, knownProjects }: NewR
                 {isSubmitting ? (
                   <>
                     <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                    Transmitting...
+                    Submitting…
                   </>
                 ) : (
                   "Submit Report"

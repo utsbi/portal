@@ -8,6 +8,7 @@ export interface ResolvedActor {
     email: string;
     role: 'client' | 'director' | 'member';
     initials: string;
+    department: string | null;
   };
   projects: {
     projectId: number;
@@ -40,7 +41,7 @@ export async function resolveActor(): Promise<ResolvedActor | null> {
   // Fetch profile from new identity table
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, email, role')
+    .select('id, name, email, role, department')
     .eq('uid', user.id)
     .single();
 
@@ -73,6 +74,7 @@ export async function resolveActor(): Promise<ResolvedActor | null> {
       email: profile.email || user.email || '',
       role: profile.role as ResolvedActor['profile']['role'],
       initials: getInitials(profile.name),
+      department: profile.department ?? null,
     },
     projects,
     activeProjectId,
