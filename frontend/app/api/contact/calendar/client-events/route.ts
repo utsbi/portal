@@ -82,17 +82,24 @@ export async function GET(req: Request) {
       );
     }
 
+    // Resolve the client email in two steps to dodge supabase's
+    // inconsistent shape (object vs array) on embedded joins.
     const { data: ownerMember } = await supabaseAdmin
       .from("project_members")
-      .select("profile_id, profiles(email)")
+      .select("profile_id")
       .eq("project_id", projectId)
       .eq("role", "owner")
       .single();
 
-    const ownerProfiles = ownerMember?.profiles as {
-      email?: string | null;
-    } | null;
-    const clientEmail = ownerProfiles?.email?.trim().toLowerCase() ?? "";
+    let clientEmail = "";
+    if (ownerMember?.profile_id) {
+      const { data: ownerProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email")
+        .eq("id", ownerMember.profile_id)
+        .single();
+      clientEmail = (ownerProfile?.email ?? "").trim().toLowerCase();
+    }
 
     const oauth2 = new google.auth.OAuth2(
       must("GOOGLE_CLIENT_ID"),
