@@ -94,7 +94,7 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`relative border border-dashed transition-all duration-300 ${isDragging
+                className={`relative border border-dashed rounded-lg transition-all duration-300 ${isDragging
                     ? "border-sbi-green bg-sbi-green/5"
                     : "border-sbi-dark-border hover:border-sbi-green/30 bg-transparent"
                     }`}
@@ -160,7 +160,7 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: 20 }}
-                                className="flex items-center gap-3 p-3 bg-sbi-dark-card border border-sbi-dark-border/50 group hover:border-sbi-green/30 transition-colors"
+                                className="flex items-center gap-3 p-3 bg-sbi-dark-card border border-sbi-dark-border/50 rounded-lg group hover:border-sbi-green/30 transition-colors"
                             >
                                 <File className="w-4 h-4 text-sbi-green shrink-0" />
                                 <div className="flex-1 min-w-0">

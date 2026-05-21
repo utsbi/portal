@@ -106,7 +106,7 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
     }
   };
 
-  const fieldLabel = "block text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark font-bold mb-2";
+  const fieldLabel = "block text-[10px] uppercase tracking-[0.15em] text-sbi-muted mb-2";
   const fieldClass =
     "w-full bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-sbi-green/50 placeholder:text-white/20 transition-colors";
 

@@ -24,6 +24,26 @@ interface ReportsOverviewProps {
   reports: ReportItem[];
 }
 
+interface TrendTooltipProps {
+  active?: boolean;
+  label?: string;
+  payload?: Array<{ value?: number | string }>;
+}
+
+function TrendTooltip({ active, payload, label }: TrendTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const raw = payload[0]?.value ?? 0;
+  const value = typeof raw === "number" ? raw : Number(raw) || 0;
+  return (
+    <div className="rounded-lg border border-sbi-dark-border/60 bg-sbi-dark-card/95 backdrop-blur px-3 py-2 shadow-lg shadow-black/40">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark mb-0.5">{label}</p>
+      <p className="text-sm text-white tabular-nums">
+        {value} report{value === 1 ? "" : "s"}
+      </p>
+    </div>
+  );
+}
+
 export function ReportsOverview({ reports }: ReportsOverviewProps) {
   const stats = useMemo(() => {
     let inProgress = 0;
@@ -118,15 +138,7 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                   tickLine={false}
                   dy={10}
                 />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#0A0A0A",
-                    border: "0.5px solid rgba(34, 197, 94, 0.3)",
-                    borderRadius: "12px",
-                    boxShadow: "0 10px 20px rgba(0,0,0,0.5)",
-                  }}
-                  itemStyle={{ color: "#fff" }}
-                />
+                <Tooltip content={<TrendTooltip />} cursor={{ stroke: "#ffffff10", strokeWidth: 1 }} />
                 <Area
                   type="monotone"
                   dataKey="count"
