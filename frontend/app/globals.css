@@ -334,6 +334,18 @@
     @apply bg-background text-foreground;
   }
 
+  /* Pin form-element font to the body's Urbanist; defends against any
+     downstream stylesheet (or stale cache) overriding the inherited value. */
+  button,
+  input,
+  optgroup,
+  select,
+  textarea {
+    font-family: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+  }
+
   /* Autofill dark mode override */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
