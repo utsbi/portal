@@ -3,10 +3,10 @@
 import { Calendar, Download, Eye, File, Mail, User } from "lucide-react";
 import { useCallback } from "react";
 import { type ColumnDef, DataTable } from "@/components/data-table/data-table";
-import { type FilterDef } from "@/components/data-table/data-table-filters";
+import type { FilterDef } from "@/components/data-table/data-table-filters";
 import { StatusPill } from "@/components/data-table/status-pill";
 import { createClient } from "@/lib/supabase/client";
-import { type RequestStatus } from "./StatusBadge";
+import type { RequestStatus } from "./StatusBadge";
 
 export interface Request {
     id: string;
