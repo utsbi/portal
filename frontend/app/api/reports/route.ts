@@ -125,8 +125,8 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
-        if (!body.title || !body.department || !body.director) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        if (!body.title || !body.message) {
+            return NextResponse.json({ error: "Title and message are required" }, { status: 400 });
         }
 
         const cookieStore = await cookies();
@@ -138,18 +138,41 @@ export async function POST(request: Request) {
             },
         });
 
+        const { data: authData, error: authErr } = await supabase.auth.getUser();
+        if (authErr || !authData.user) {
+            return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+        }
+
+        const { data: profile, error: profileErr } = await supabase
+            .from("profiles")
+            .select("name, role, department")
+            .eq("id", authData.user.id)
+            .single();
+
+        if (profileErr || !profile) {
+            return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+        }
+
+        if (profile.role !== "director") {
+            return NextResponse.json({ error: "Only directors can submit reports" }, { status: 403 });
+        }
+
+        const department = typeof body.department === "string" && body.department.length > 0
+            ? body.department
+            : profile.department ?? "General";
+
         const newRecord = {
             ticket_type: "report" as const,
             title: body.title,
             subject: body.title,
-            department: body.department,
-            director: body.director,
-            assign_to: body.director,
-            project: body.project || "N/A",
-            message: body.message || "",
+            department,
+            director: profile.name,
+            assign_to: profile.name,
+            message: body.message,
             status: "pending" as const,
-            customer_id: body.customer_id || null,
+            customer_id: body.customer_id ?? null,
             project_id: body.project_id ? Number(body.project_id) : null,
+            attachments: Array.isArray(body.attachments) ? body.attachments : null,
         };
 
         const { data, error } = await supabase
