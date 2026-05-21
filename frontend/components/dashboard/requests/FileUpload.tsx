@@ -123,11 +123,11 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
                                 }`}
                         />
                     </motion.div>
-                    <p className="text-sm text-sbi-muted mb-1">
+                    <p className="text-base text-sbi-muted mb-1">
                         {isDragging ? "Drop files here" : "Drag & drop files here"}
                     </p>
-                    <p className="text-xs text-sbi-muted-dark mb-2">or click to browse</p>
-                    <p className="text-[10px] text-sbi-muted-dark/70 uppercase tracking-widest">Max size 50MB per file</p>
+                    <p className="text-sm text-sbi-muted-dark mb-2">or click to browse</p>
+                    <p className="text-xs text-sbi-muted-dark/70 uppercase tracking-widest">Max size 50MB per file</p>
                 </label>
             </motion.div>
 

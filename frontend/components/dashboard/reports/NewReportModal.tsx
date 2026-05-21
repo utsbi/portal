@@ -52,10 +52,14 @@ for (const opt of DEPT_FILTER.options ?? []) {
 }
 
 const labelClass =
-  "text-[10px] uppercase tracking-[0.15em] text-sbi-muted mb-2 font-medium";
+  "text-xs uppercase tracking-[0.1em] text-sbi-muted mb-2 font-medium";
 
 const fieldClass =
-  "bg-sbi-dark border-sbi-dark-border rounded-lg px-4 py-3 h-auto text-sm text-white placeholder:text-white/20 focus-visible:border-sbi-green/50 focus-visible:ring-sbi-green/20 focus-visible:ring-[2px] shadow-none";
+  "bg-sbi-dark border-sbi-dark-border rounded-lg px-4 py-3 h-auto text-base md:text-base text-white placeholder:text-white/30 focus-visible:border-sbi-green/50 focus-visible:ring-sbi-green/20 focus-visible:ring-[2px] shadow-none";
+
+function RequiredAsterisk() {
+  return <span className="text-red-400 ml-1" aria-hidden="true">*</span>;
+}
 
 export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps) {
   const { activeProject, user } = useProject();
@@ -120,7 +124,8 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div>
           <Label htmlFor="report-subject" className={labelClass}>
-            Subject *
+            Subject
+            <RequiredAsterisk />
           </Label>
           <Input
             id="report-subject"
@@ -135,7 +140,8 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
 
         <div>
           <Label htmlFor="report-message" className={labelClass}>
-            Message *
+            Message
+            <RequiredAsterisk />
           </Label>
           <Textarea
             id="report-message"
@@ -154,12 +160,12 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
           <FileUpload key={fileResetKey} onFilesChange={setFiles} />
         </div>
 
-        <div className="text-xs text-sbi-muted">
+        <div className="text-sm text-sbi-muted">
           {showDeptOverride ? (
             <div className="flex items-center gap-3">
               <Label
                 htmlFor="report-department"
-                className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark font-medium m-0"
+                className="text-xs uppercase tracking-[0.1em] text-sbi-muted-dark font-medium m-0"
               >
                 Reporting on behalf of
               </Label>
@@ -168,7 +174,7 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 disabled={isSubmitting}
-                className="bg-sbi-dark border border-sbi-dark-border rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-sbi-green/50"
+                className="bg-sbi-dark border border-sbi-dark-border rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-sbi-green/50"
               >
                 {departmentOptions.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -181,10 +187,10 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
             <button
               type="button"
               onClick={() => setShowDeptOverride(true)}
-              className="inline-flex items-center gap-1 hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
             >
               Reporting on behalf of <span className="text-white">{department}</span>
-              <ChevronDown className="w-3 h-3" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
