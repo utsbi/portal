@@ -11,6 +11,13 @@ import { FileUpload } from "@/components/dashboard/requests/FileUpload";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DEPT_FILTER } from "./constants";
 
 const BUCKET = "ticket-attachments";
@@ -66,7 +73,6 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
   const defaultDept = user?.department ?? "Engineering General";
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showDeptOverride, setShowDeptOverride] = useState(false);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [department, setDepartment] = useState(defaultDept);
@@ -76,7 +82,6 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
   useEffect(() => {
     if (open) {
       setDepartment(defaultDept);
-      setShowDeptOverride(false);
     }
   }, [open, defaultDept]);
 
@@ -161,38 +166,35 @@ export function NewReportModal({ open, onClose, onCreated }: NewReportModalProps
         </div>
 
         <div className="text-sm text-sbi-muted">
-          {showDeptOverride ? (
-            <div className="flex items-center gap-3">
-              <Label
-                htmlFor="report-department"
-                className="text-xs uppercase tracking-[0.1em] text-sbi-muted-dark font-medium m-0"
-              >
-                Reporting on behalf of
-              </Label>
-              <select
-                id="report-department"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                disabled={isSubmitting}
-                className="bg-sbi-dark border border-sbi-dark-border rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-sbi-green/50"
-              >
-                {departmentOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <button
+          <DropdownMenu>
+            <DropdownMenuTrigger
               type="button"
-              onClick={() => setShowDeptOverride(true)}
-              className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none disabled:opacity-50"
             >
-              Reporting on behalf of <span className="text-white">{department}</span>
+              Reporting on behalf of{" "}
+              <span className="text-white">
+                {departmentOptions.find((o) => o.value === department)?.label ?? department}
+              </span>
               <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="bg-sbi-dark border-sbi-dark-border max-h-72"
+            >
+              <DropdownMenuRadioGroup value={department} onValueChange={setDepartment}>
+                {departmentOptions.map((o) => (
+                  <DropdownMenuRadioItem
+                    key={o.value}
+                    value={o.value}
+                    className="text-sm text-white focus:bg-sbi-green/10 focus:text-sbi-green"
+                  >
+                    {o.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="border-t border-sbi-dark-border pt-6 flex justify-end gap-3">
