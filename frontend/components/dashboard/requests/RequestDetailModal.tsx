@@ -3,19 +3,18 @@
 import {
   Building,
   Calendar as CalendarIcon,
-  CheckCircle2,
   FileText,
   Folder,
+  Mail,
   User,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ReportItem } from "@/app/api/reports/route";
-import { btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import { StatusPill } from "@/components/data-table";
+import { Modal } from "@/components/dashboard/common/ui";
 import { departmentLabel } from "@/lib/departments";
-import { toastError, toastSuccess } from "@/lib/notifications";
-import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
+import { memberLabel } from "./constants";
+import type { Request } from "./RequestHistory";
 
 const BUCKET = "ticket-attachments";
 const IMAGE_EXTS = new Set([
@@ -29,16 +28,9 @@ const IMAGE_EXTS = new Set([
   "heic",
 ]);
 
-interface ReportDetailModalProps {
-  report: ReportItem | null;
+interface RequestDetailModalProps {
+  request: Request | null;
   onClose: () => void;
-  onAcknowledge?: (reportId: string) => Promise<boolean>;
-}
-
-interface AttachmentMeta {
-  name?: string;
-  path?: string;
-  size?: string;
 }
 
 function isImage(name: string): boolean {
@@ -46,18 +38,20 @@ function isImage(name: string): boolean {
   return ext ? IMAGE_EXTS.has(ext) : false;
 }
 
-function formatDate(value: string | null | undefined) {
+function formatDate(value: Date | string | null | undefined) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-US", {
+  const d = value instanceof Date ? value : new Date(value);
+  return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
-function formatDateTime(value: string | null | undefined) {
+function formatDateTime(value: Date | string | null | undefined) {
   if (!value) return "—";
-  return new Date(value).toLocaleString("en-US", {
+  const d = value instanceof Date ? value : new Date(value);
+  return d.toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -88,10 +82,16 @@ function MetaRow({
   );
 }
 
-function AttachmentItem({ attachment }: { attachment: AttachmentMeta }) {
-  const name = attachment.name ?? attachment.path ?? "Untitled";
-  const path = attachment.path;
-  const showImage = path && isImage(name);
+interface AttachmentFile {
+  id: string;
+  name: string;
+  size: string;
+}
+
+function AttachmentItem({ attachment }: { attachment: AttachmentFile }) {
+  const path = attachment.id; // the lib stores the storage path under `id`
+  const name = attachment.name;
+  const showImage = isImage(name);
 
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -167,60 +167,29 @@ function AttachmentItem({ attachment }: { attachment: AttachmentMeta }) {
         <span className="text-white/90 flex-1 truncate">{name}</span>
       )}
       {attachment.size && (
-        <span className="text-xs text-sbi-muted tabular-nums">
-          {attachment.size}
-        </span>
+        <span className="text-xs text-sbi-muted tabular-nums">{attachment.size}</span>
       )}
     </li>
   );
 }
 
-export function ReportDetailModal({
-  report,
-  onClose,
-  onAcknowledge,
-}: ReportDetailModalProps) {
-  const { user } = useProject();
-  const [isAcknowledging, setIsAcknowledging] = useState(false);
-
-  if (!report) return null;
-
-  const canAcknowledge =
-    Boolean(onAcknowledge) &&
-    report.status === "Pending" &&
-    user?.role === "client";
-
-  const handleAcknowledge = async () => {
-    if (!onAcknowledge) return;
-    setIsAcknowledging(true);
-    const ok = await onAcknowledge(report.id);
-    setIsAcknowledging(false);
-    if (ok) {
-      toastSuccess(`Acknowledged "${report.title}".`);
-    } else {
-      toastError("Couldn't update report status. Try again.");
-    }
-  };
+export function RequestDetailModal({ request, onClose }: RequestDetailModalProps) {
+  if (!request) return null;
 
   const title = (
     <span className="flex items-center gap-3">
       <span className="truncate text-white normal-case tracking-normal">
-        {report.title}
+        {request.subject}
       </span>
-      <StatusPill status={report.status} />
-      <span className="text-xs text-sbi-muted tabular-nums normal-case tracking-normal">
-        #{report.numid}
-      </span>
+      <StatusPill status={request.status} />
     </span>
   );
 
-  const attachments = Array.isArray(report.attachments)
-    ? (report.attachments as AttachmentMeta[])
-    : [];
+  const attachments = request.attachments ?? [];
 
   return (
     <Modal
-      opened={!!report}
+      opened={!!request}
       onClose={onClose}
       title={title}
       uppercaseTitle={false}
@@ -229,48 +198,34 @@ export function ReportDetailModal({
     >
       <div className="grid md:grid-cols-[260px_1fr] gap-0 md:gap-px bg-sbi-dark-border/30">
         <aside className="bg-sbi-dark p-6 flex flex-col gap-5">
-          <MetaRow
-            icon={Folder}
-            label="Project"
-            value={report.project || "—"}
-          />
+          <MetaRow icon={User} label="From" value={request.name || "—"} />
+          <MetaRow icon={Mail} label="Email" value={request.email || "—"} />
           <MetaRow
             icon={Building}
             label="Department"
-            value={departmentLabel(report.department)}
+            value={departmentLabel(request.department)}
           />
-          <MetaRow
-            icon={User}
-            label="Assigned Director"
-            value={report.director}
-          />
-          <MetaRow
-            icon={CalendarIcon}
-            label="Submitted"
-            value={formatDate(report.date)}
-          />
-          {report.updated_at && (
+          <MetaRow icon={User} label="Assigned To" value={memberLabel(request.assignedTo)} />
+          <MetaRow icon={Folder} label="Project" value={request.project || "—"} />
+          <MetaRow icon={CalendarIcon} label="Created" value={formatDate(request.createdAt)} />
+          {request.updatedAt && (
             <MetaRow
               icon={CalendarIcon}
               label="Last Updated"
-              value={formatDateTime(report.updated_at)}
+              value={formatDateTime(request.updatedAt)}
             />
           )}
         </aside>
 
         <main className="bg-sbi-dark p-6 flex flex-col gap-6 min-w-0">
           <section>
-            <h3 className="text-xs uppercase tracking-[0.15em] text-sbi-muted mb-3">
-              Summary
-            </h3>
-            {report.message ? (
+            <h3 className="text-xs uppercase tracking-[0.15em] text-sbi-muted mb-3">Message</h3>
+            {request.message ? (
               <p className="text-sm text-white/85 leading-relaxed whitespace-pre-wrap">
-                {report.message}
+                {request.message}
               </p>
             ) : (
-              <p className="text-sm text-sbi-muted italic">
-                No summary provided by the director.
-              </p>
+              <p className="text-sm text-sbi-muted italic">No message provided.</p>
             )}
           </section>
 
@@ -280,34 +235,11 @@ export function ReportDetailModal({
                 Attachments
               </h3>
               <ul className="flex flex-col gap-3">
-                {attachments.map((a, i) => (
-                  <AttachmentItem key={a.path ?? i} attachment={a} />
+                {attachments.map((a) => (
+                  <AttachmentItem key={a.id} attachment={a} />
                 ))}
               </ul>
             </section>
-          )}
-
-          {canAcknowledge && (
-            <div className="pt-4 border-t border-sbi-dark-border/40 flex justify-end">
-              <button
-                type="button"
-                onClick={handleAcknowledge}
-                disabled={isAcknowledging}
-                className={btnPrimary}
-              >
-                {isAcknowledging ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Marking…
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Mark Acknowledged
-                  </>
-                )}
-              </button>
-            </div>
           )}
         </main>
       </div>

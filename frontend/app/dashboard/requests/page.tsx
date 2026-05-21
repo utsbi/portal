@@ -8,6 +8,7 @@ import {
   Modal,
   PageHeader,
 } from "@/components/dashboard/common/ui";
+import { RequestDetailModal } from "@/components/dashboard/requests/RequestDetailModal";
 import type { RequestFormData } from "@/components/dashboard/requests/RequestForm";
 import { RequestForm } from "@/components/dashboard/requests/RequestForm";
 import type { Request } from "@/components/dashboard/requests/RequestHistory";
@@ -21,6 +22,7 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   const projectId = activeProject?.projectId;
 
@@ -100,10 +102,15 @@ export default function RequestsPage() {
           </div>
         ) : (
           <div className="h-full">
-            <RequestHistory requests={requests} />
+            <RequestHistory requests={requests} onRowClick={setSelectedRequest} />
           </div>
         )}
       </main>
+
+      <RequestDetailModal
+        request={selectedRequest}
+        onClose={() => setSelectedRequest(null)}
+      />
     </DashboardShell>
   );
 }

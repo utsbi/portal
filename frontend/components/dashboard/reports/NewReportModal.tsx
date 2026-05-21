@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
-import { DEPT_FILTER } from "./constants";
+import { DEPARTMENTS } from "@/lib/departments";
 
 const BUCKET = "ticket-attachments";
 
@@ -52,14 +52,7 @@ async function uploadFiles(files: File[]): Promise<Attachment[]> {
   return uploads;
 }
 
-const departmentOptions: { value: string; label: string }[] = [];
-for (const opt of DEPT_FILTER.options ?? []) {
-  if ("options" in opt && opt.options) {
-    for (const sub of opt.options) departmentOptions.push(sub);
-  } else if ("value" in opt && opt.value && opt.value !== "All Depts") {
-    departmentOptions.push({ value: opt.value, label: opt.label });
-  }
-}
+const departmentOptions = DEPARTMENTS;
 
 const labelClass =
   "text-xs uppercase tracking-[0.1em] text-sbi-muted mb-2 font-medium";
@@ -81,7 +74,10 @@ export function NewReportModal({
   onCreated,
 }: NewReportModalProps) {
   const { activeProject, user } = useProject();
-  const defaultDept = user?.department ?? "Engineering General";
+  const defaultDept =
+    departmentOptions.find((d) => d.value === user?.department)?.value ??
+    departmentOptions[0]?.value ??
+    "";
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState("");

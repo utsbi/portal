@@ -4,6 +4,7 @@ import { FileText } from "lucide-react";
 import type { ReportItem } from "@/app/api/reports/route";
 import { btnPrimary, EmptyState } from "@/components/dashboard/common/ui";
 import { type ColumnDef, DataTable, StatusPill } from "@/components/data-table";
+import { departmentLabel } from "@/lib/departments";
 import { DEPT_FILTER, STATUS_FILTER } from "./constants";
 
 const COLUMNS: ColumnDef<ReportItem>[] = [
@@ -21,7 +22,12 @@ const COLUMNS: ColumnDef<ReportItem>[] = [
     ),
   },
   { accessor: "director", header: "Assigned To", sortable: true },
-  { accessor: "department", header: "Department", sortable: true },
+  {
+    accessor: "department",
+    header: "Department",
+    sortable: true,
+    render: (value) => departmentLabel(value),
+  },
   {
     accessor: "date",
     header: "Date",

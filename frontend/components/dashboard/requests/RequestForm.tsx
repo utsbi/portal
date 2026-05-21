@@ -13,56 +13,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DEPARTMENTS } from "@/lib/departments";
+import { TEAM_MEMBERS } from "./constants";
 import { FileUpload } from "./FileUpload";
 
-const departmentOptions = [
-  { value: "n/a", label: "N/A" },
-  { value: "engineering", label: "Engineering" },
-  { value: "architecture", label: "Architecture" },
-  { value: "tech", label: "Tech" },
-  { value: "business", label: "Business" },
-  { value: "pr", label: "PR" },
-  { value: "research", label: "Research and Development" },
-  { value: "legal", label: "Legal" },
-];
-
-const teamMembers = [
-  { value: "pedro", label: "Pedro Guzman - President", department: "n/a" },
-  { value: "sam", label: "Sam Moran - Vice President", department: "n/a" },
-  {
-    value: "brendan",
-    label: "Brendan Lyon - Director of Project Operations",
-    department: "engineering",
-  },
-  {
-    value: "kabir",
-    label: "Kabir Muzumdar - Director of Civil Engineering",
-    department: "engineering",
-  },
-  {
-    value: "preston",
-    label: "Preston Vajdos - Director of Civil Engineering",
-    department: "engineering",
-  },
-  {
-    value: "enoch",
-    label: "Enoch Zhu - Director of External Technologies",
-    department: "tech",
-  },
-  {
-    value: "daniel",
-    label: "Daniel Lam - Director of Internal Technologies",
-    department: "tech",
-  },
-  { value: "dev", label: "Dev Shroff - Director of Business", department: "business" },
-  { value: "arianne", label: "Arianne Yude - Director of Public Relations", department: "pr" },
-  {
-    value: "christian",
-    label: "Christian Butler - Director of Architecture",
-    department: "architecture",
-  },
-  { value: "alim", label: "Alim Makanov - Director of Legal", department: "legal" },
-];
+const departmentOptions = DEPARTMENTS;
+const teamMembers = TEAM_MEMBERS;
 
 export interface RequestFormData {
   subject: string;
@@ -94,16 +50,15 @@ function RequiredAsterisk() {
 export function RequestForm({ onSubmit, onCancel }: RequestFormProps) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [department, setDepartment] = useState("n/a");
+  const [department, setDepartment] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [resetKey, setResetKey] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredMembers =
-    department === "n/a"
-      ? teamMembers
-      : teamMembers.filter((m) => m.department === department);
+  const filteredMembers = department
+    ? teamMembers.filter((m) => m.department === department || m.department === null)
+    : teamMembers;
 
   const selectedMember = teamMembers.find((m) => m.value === assignedTo);
   const selectedDept = departmentOptions.find((d) => d.value === department);
@@ -125,7 +80,7 @@ export function RequestForm({ onSubmit, onCancel }: RequestFormProps) {
     });
     setSubject("");
     setMessage("");
-    setDepartment("n/a");
+    setDepartment("");
     setAssignedTo("");
     setFiles([]);
     setResetKey((k) => k + 1);
