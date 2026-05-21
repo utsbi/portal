@@ -75,7 +75,7 @@ export function DataTableFilters({
             placeholder={searchPlaceholder}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-[#0d120e] rounded-lg border border-sbi-green/10 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:ring-1 focus:ring-sbi-green/30 transition-all"
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-[#0d120e] rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
           />
         </div>
       )}
