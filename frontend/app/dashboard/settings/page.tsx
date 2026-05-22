@@ -164,12 +164,33 @@ function SettingsPageInner() {
       }
 
       const res = await fetch("/api/contact/calendar/client-events/list");
-      const data: { calendars?: GoogleCalendar[]; connected?: boolean } =
-        await res.json().catch(() => ({}));
+      const data: {
+        calendars?: GoogleCalendar[];
+        connected?: boolean;
+        error?: string;
+      } = await res.json().catch(() => ({}));
 
       if (data.connected === false) {
         setConnectionStatus("not_connected");
         setCalendars([]);
+        return;
+      }
+
+      if (!res.ok) {
+        // We DO have a refresh token (otherwise list would return connected:false),
+        // but Google rejected the request — almost always an insufficient-scope
+        // error after a scope change. If we have a saved calendar_id, events
+        // might still work; otherwise the user has to reconnect to mint a fresh
+        // token with the current scope.
+        setCalendars([]);
+        if (savedCalendarId) {
+          setConnectionStatus("ready");
+        } else {
+          setConnectionStatus("not_connected");
+        }
+        setCalendarError(
+          "Couldn't load your calendars. Your Google connection might be using an older scope — try Connect again to refresh permissions.",
+        );
         return;
       }
 

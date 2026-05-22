@@ -46,10 +46,15 @@ picker at the top.
 - App name: `SBI Portal` (or whatever you want directors to see)
 - User support email + developer email: a real address you monitor
 - Authorized domains: the domain you'll deploy to (e.g. `utsbi.org`)
-- Scopes: add `https://www.googleapis.com/auth/calendar.events`. This grants
-  read + write on event data for the calendar the director selects in the
-  portal (write is needed for client RSVPs). **Do not add other scopes** —
-  the portal does not need full Calendar admin or Gmail access.
+- Scopes: add **both** of the following. **Do not add other scopes** — the
+  portal does not need full Calendar admin or Gmail access.
+  - `https://www.googleapis.com/auth/calendar.events` — read + write on
+    event data for the calendar the director selects (write is needed for
+    client RSVPs)
+  - `https://www.googleapis.com/auth/calendar.calendarlist.readonly` —
+    read-only access to the list of calendars on the director's account, so
+    they can pick which one the portal reads from. (The `events` scope alone
+    doesn't include calendar metadata access.)
 - Test users: while the app is in "Testing" mode (default), only listed test
   users can sign in. Add every director's Google account here during
   development. Up to 100 test users.
@@ -226,7 +231,7 @@ The stored token shape (in `profiles.config.google`):
 {
   "refresh_token": "...",
   "access_token": "...",         // refreshed lazily by the API call
-  "scope": "https://www.googleapis.com/auth/calendar.events",
+  "scope": "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly",
   "token_type": "Bearer",
   "expiry_date": 1234567890,
   "calendar_id": "primary",      // chosen via Settings → Calendar
