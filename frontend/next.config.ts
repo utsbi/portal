@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
 
   // Optimize package imports
   experimental: {
-    optimizePackageImports: ["lucide-react", "gsap", "@mantine/core"],
+    optimizePackageImports: ["lucide-react", "gsap"],
   },
 };
 
