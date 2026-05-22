@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@mantine/core/styles.css";
 @import "@radix-ui/colors/black-alpha.css";
 @import "@radix-ui/colors/mauve.css";
 @import "@radix-ui/colors/violet.css";
@@ -339,11 +338,16 @@ html::-webkit-scrollbar-thumb:hover {
     @apply bg-background text-foreground;
   }
 
+  /* Pin form-element font to the body's Urbanist; defends against any
+     downstream stylesheet (or stale cache) overriding the inherited value. */
+  button,
   input,
+  optgroup,
   select,
-  textarea,
-  button {
+  textarea {
     font-family: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
   }
 
   /* Autofill dark mode override */

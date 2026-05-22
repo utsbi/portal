@@ -1,300 +1,231 @@
 "use client";
 
+import { ChevronDown, Send } from "lucide-react";
 import { useState } from "react";
-import { motion } from "motion/react";
-import { Send } from "lucide-react";
+import { btnGhost, btnPrimary } from "@/components/dashboard/common/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { DEPARTMENTS } from "@/lib/departments";
+import { TEAM_MEMBERS } from "./constants";
 import { FileUpload } from "./FileUpload";
 
-const departmentOptions = [
-    { value: "n/a", label: "N/A" },
-    { value: "engineering", label: "Engineering" },
-    { value: "architecture", label: "Architecture" },
-    { value: "tech", label: "Tech" },
-    { value: "business", label: "Business" },
-    { value: "pr", label: "PR" },
-    { value: "research", label: "Research and Development" },
-    { value: "legal", label: "Legal" },
-];
+const departmentOptions = DEPARTMENTS;
+const teamMembers = TEAM_MEMBERS;
 
-const teamMembers = [
-    { value: "pedro", label: "Pedro Guzman - President", department: "n/a" },
-    { value: "sam", label: "Sam Moran - Vice President", department: "n/a" },
-    { value: "brendan", label: "Brendan Lyon - Director of Project Operations", department: "engineering" }, // Using engineering as default for Project Ops unless specified
-    { value: "kabir", label: "Kabir Muzumdar - Director of Civil Engineering", department: "engineering" },
-    { value: "preston", label: "Preston Vajdos - Director of Civil Engineering", department: "engineering" },
-    { value: "enoch", label: "Enoch Zhu - Director of External Technologies", department: "tech" },
-    { value: "daniel", label: "Daniel Lam - Director of Internal Technologies", department: "tech" },
-    { value: "dev", label: "Dev Shroff - Director of Business", department: "business" },
-    { value: "arianne", label: "Arianne Yude - Director of Public Relations", department: "pr" },
-    { value: "christian", label: "Christian Butler - Director of Architecture", department: "architecture" },
-    { value: "alim", label: "Alim Makanov - Director of Legal", department: "legal" },
-];
-
-interface RequestFormProps {
-    onSubmit?: (data: any) => void;
+export interface RequestFormData {
+  subject: string;
+  department: string;
+  assignedTo: string;
+  message: string;
+  attachments: File[];
 }
 
-export function RequestForm({ onSubmit }: RequestFormProps) {
-    const [formState, setFormState] = useState({
-        name: "",
-        email: "",
-        subject: "",
-        department: "n/a",
-        assignedTo: "",
-        project: "",
-        message: "",
+interface RequestFormProps {
+  onSubmit?: (data: RequestFormData) => void | Promise<void>;
+  onCancel?: () => void;
+}
+
+const labelClass =
+  "text-xs uppercase tracking-[0.1em] text-sbi-muted mb-2 font-medium";
+
+const fieldClass =
+  "bg-sbi-dark border-sbi-dark-border rounded-lg px-4 py-3 h-auto text-base md:text-base text-white placeholder:text-white/30 focus-visible:border-sbi-green/50 focus-visible:ring-sbi-green/20 focus-visible:ring-[2px] shadow-none";
+
+function RequiredAsterisk() {
+  return (
+    <span className="text-red-400 ml-1" aria-hidden="true">
+      *
+    </span>
+  );
+}
+
+export function RequestForm({ onSubmit, onCancel }: RequestFormProps) {
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [department, setDepartment] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [resetKey, setResetKey] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const filteredMembers = department
+    ? teamMembers.filter((m) => m.department === department || m.department === null)
+    : teamMembers;
+
+  const selectedMember = teamMembers.find((m) => m.value === assignedTo);
+  const selectedDept = departmentOptions.find((d) => d.value === department);
+
+  const handleDepartmentChange = (value: string) => {
+    setDepartment(value);
+    setAssignedTo("");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    await onSubmit?.({
+      subject,
+      department,
+      assignedTo,
+      message,
+      attachments: files,
     });
-    const [files, setFiles] = useState<File[]>([]);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [resetKey, setResetKey] = useState(0);
+    setSubject("");
+    setMessage("");
+    setDepartment("");
+    setAssignedTo("");
+    setFiles([]);
+    setResetKey((k) => k + 1);
+    setIsSubmitting(false);
+  };
 
-    const handleChange = (
-        e: React.ChangeEvent<
-            HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-        >
-    ) => {
-        const { name, value } = e.target;
-        setFormState((prev) => {
-            const updates = { ...prev, [name]: value };
-            // Auto-reset assignedTo when department changes, unless the new department is 'n/a'
-            if (name === "department") {
-                updates.assignedTo = "";
-            }
-            return updates;
-        });
-    };
+  return (
+    <form onSubmit={handleSubmit} className="p-6 space-y-6">
+      <div>
+        <Label htmlFor="request-subject" className={labelClass}>
+          Subject
+          <RequiredAsterisk />
+        </Label>
+        <Input
+          id="request-subject"
+          required
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          disabled={isSubmitting}
+          className={fieldClass}
+          placeholder="Brief summary of your request"
+        />
+      </div>
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSubmitting(true);
+      <div>
+        <Label htmlFor="request-message" className={labelClass}>
+          Message
+          <RequiredAsterisk />
+        </Label>
+        <Textarea
+          id="request-message"
+          required
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          disabled={isSubmitting}
+          rows={5}
+          className={`${fieldClass} resize-none min-h-[120px]`}
+          placeholder="Describe what you need, why, and any context the team should know."
+        />
+      </div>
 
-        await onSubmit?.({
-            ...formState,
-            attachments: files,
-            createdAt: new Date(),
-            status: "pending",
-        });
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <span className={`block ${labelClass}`}>Department</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              type="button"
+              disabled={isSubmitting}
+              className="w-full inline-flex items-center justify-between gap-2 bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-base text-white hover:border-sbi-green/40 focus:outline-none focus:border-sbi-green/50 disabled:opacity-50"
+            >
+              <span className={selectedDept ? "" : "text-white/30"}>
+                {selectedDept?.label ?? "Select a department"}
+              </span>
+              <ChevronDown className="w-4 h-4 text-sbi-muted" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              sideOffset={4}
+              className="bg-sbi-dark border-sbi-dark-border max-h-72 custom-scrollbar w-(--radix-dropdown-menu-trigger-width)"
+            >
+              <DropdownMenuRadioGroup value={department} onValueChange={handleDepartmentChange}>
+                {departmentOptions.map((o) => (
+                  <DropdownMenuRadioItem
+                    key={o.value}
+                    value={o.value}
+                    className="pl-3 [&>span:first-child]:hidden text-sm text-white focus:bg-sbi-green/10 focus:text-sbi-green data-[state=checked]:text-sbi-green data-[state=checked]:bg-sbi-green/5"
+                  >
+                    {o.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-        // Reset form
-        setFormState({
-            name: "",
-            email: "",
-            subject: "",
-            department: "n/a",
-            assignedTo: "",
-            project: "",
-            message: "",
-        });
-        setFiles([]);
-        setResetKey((k) => k + 1); // Forces FileUpload to remount and clear
-        setIsSubmitting(false);
-    };
-
-    return (
-        <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Name and Email row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="group">
-                    <label
-                        htmlFor="name"
-                        className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
-                    >
-                        Name
-                    </label>
-                    <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        value={formState.name}
-                        onChange={handleChange}
-                        required
-                        className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white placeholder:text-sbi-muted/40 transition-colors"
-                        placeholder="Your name"
-                    />
-                </div>
-
-                <div className="group">
-                    <label
-                        htmlFor="email"
-                        className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
-                    >
-                        Email
-                    </label>
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        value={formState.email}
-                        onChange={handleChange}
-                        required
-                        className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white placeholder:text-sbi-muted/40 transition-colors"
-                        placeholder="your@email.com"
-                    />
-                </div>
-            </div>
-
-
-            {/* Department and Assigned To row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="group">
-                    <label
-                        htmlFor="department"
-                        className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
-                    >
-                        Department
-                    </label>
-                    <select
-                        id="department"
-                        name="department"
-                        value={formState.department}
-                        onChange={handleChange}
-                        className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white transition-colors appearance-none cursor-pointer"
-                    >
-                        {departmentOptions.map((option) => (
-                            <option
-                                key={option.value}
-                                value={option.value}
-                                className="bg-sbi-dark text-white"
-                            >
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                <div className="group">
-                    <label
-                        htmlFor="assignedTo"
-                        className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
-                    >
-                        Assign To
-                    </label>
-                    <select
-                        id="assignedTo"
-                        name="assignedTo"
-                        value={formState.assignedTo}
-                        onChange={handleChange}
-                        className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white transition-colors appearance-none cursor-pointer"
-                    >
-                        <option value="" className="bg-sbi-dark text-white">
-                            N/A
-                        </option>
-                        {teamMembers
-                            .filter(
-                                (member) =>
-                                    formState.department === "n/a" ||
-                                    member.department === formState.department ||
-                                    member.department === "n/a"
-                            )
-                            .map((member) => (
-                                <option
-                                    key={member.value}
-                                    value={member.value}
-                                    className="bg-sbi-dark text-white"
-                                >
-                                    {member.label}
-                                </option>
-                            ))}
-                    </select>
-                </div>
-            </div>
-
-            {/* Project */}
-            <div className="group">
-                <label
-                    htmlFor="project"
-                    className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
+        <div>
+          <span className={`block ${labelClass}`}>Assign to</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              type="button"
+              disabled={isSubmitting}
+              className="w-full inline-flex items-center justify-between gap-2 bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-base text-white hover:border-sbi-green/40 focus:outline-none focus:border-sbi-green/50 disabled:opacity-50"
+            >
+              <span className={selectedMember ? "truncate text-left" : "text-white/30 truncate text-left"}>
+                {selectedMember?.label ?? "Anyone available"}
+              </span>
+              <ChevronDown className="w-4 h-4 text-sbi-muted shrink-0" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              sideOffset={4}
+              className="bg-sbi-dark border-sbi-dark-border max-h-72 custom-scrollbar w-(--radix-dropdown-menu-trigger-width)"
+            >
+              <DropdownMenuRadioGroup value={assignedTo} onValueChange={setAssignedTo}>
+                <DropdownMenuRadioItem
+                  value=""
+                  className="pl-3 [&>span:first-child]:hidden text-sm text-sbi-muted italic focus:bg-sbi-green/10 focus:text-sbi-green"
                 >
-                    Project
-                </label>
-                <input
-                    type="text"
-                    id="project"
-                    name="project"
-                    value={formState.project}
-                    onChange={handleChange}
-                    className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white placeholder:text-sbi-muted/40 transition-colors"
-                    placeholder="Project name"
-                />
-            </div>
+                  Anyone available
+                </DropdownMenuRadioItem>
+                {filteredMembers.map((m) => (
+                  <DropdownMenuRadioItem
+                    key={m.value}
+                    value={m.value}
+                    className="pl-3 [&>span:first-child]:hidden text-sm text-white focus:bg-sbi-green/10 focus:text-sbi-green data-[state=checked]:text-sbi-green data-[state=checked]:bg-sbi-green/5"
+                  >
+                    {m.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
-            {/* Subject */}
-            <div className="group">
-                <label
-                    htmlFor="subject"
-                    className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
-                >
-                    Subject
-                </label>
-                <input
-                    type="text"
-                    id="subject"
-                    name="subject"
-                    value={formState.subject}
-                    onChange={handleChange}
-                    required
-                    className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white placeholder:text-sbi-muted/40 transition-colors"
-                    placeholder="Request subject"
-                />
-            </div>
+      <div>
+        <span className={`block ${labelClass}`}>Attachments</span>
+        <FileUpload key={resetKey} onFilesChange={setFiles} />
+      </div>
 
-            {/* Message */}
-            <div className="group">
-                <label
-                    htmlFor="message"
-                    className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3 group-focus-within:text-sbi-green transition-colors"
-                >
-                    Message
-                </label>
-                <textarea
-                    id="message"
-                    name="message"
-                    value={formState.message}
-                    onChange={handleChange}
-                    rows={4}
-                    className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white placeholder:text-sbi-muted/40 transition-colors resize-none custom-scrollbar"
-                    placeholder="Describe your request..."
-                />
-            </div>
-
-            {/* File Upload */}
-            <div>
-                <label className="block text-xs tracking-[0.2em] uppercase text-sbi-muted mb-3">
-                    Attach Documents
-                </label>
-                <FileUpload key={resetKey} onFilesChange={setFiles} />
-            </div>
-
-            {/* Submit Button */}
-            <div className="pt-4">
-                <motion.button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="relative inline-flex items-center gap-3 px-8 py-4 text-sm font-medium tracking-wider uppercase bg-transparent text-sbi-green border border-sbi-green/30 hover:bg-sbi-green hover:text-sbi-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                    whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-                    whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-                >
-                    {isSubmitting ? (
-                        <>
-                            <motion.span
-                                animate={{ rotate: 360 }}
-                                transition={{
-                                    duration: 1,
-                                    repeat: Infinity,
-                                    ease: "linear",
-                                }}
-                                className="w-4 h-4 border-2 border-sbi-green border-t-transparent rounded-full"
-                            />
-                            <span>Submitting...</span>
-                        </>
-                    ) : (
-                        <>
-                            <span>Submit Request</span>
-                            <Send className="w-4 h-4" />
-                        </>
-                    )}
-                </motion.button>
-            </div>
-        </form>
-    );
+      <div className="border-t border-sbi-dark-border pt-6 flex justify-end gap-3">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className={btnGhost}
+          >
+            Cancel
+          </button>
+        )}
+        <button type="submit" disabled={isSubmitting} className={btnPrimary}>
+          {isSubmitting ? (
+            <>
+              <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              Submitting…
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              Submit Request
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
 }

@@ -1,9 +1,3 @@
-import {
-  ColorSchemeScript,
-  createTheme,
-  MantineProvider,
-  mantineHtmlProps,
-} from "@mantine/core";
 import "@/app/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
@@ -103,17 +97,6 @@ export const metadata: Metadata = {
   },
 };
 
-const theme = createTheme({
-  primaryColor: "green",
-  fontFamily: "var(--font-urbanist), sans-serif",
-  fontFamilyMonospace: "var(--font-jetbrains-mono), monospace",
-  headings: { fontFamily: "var(--font-urbanist), sans-serif" },
-});
-
-// Temporary fix for something trying to access localStorage during SSR
-// if (!globalThis.localStorage.getItem)
-// 	globalThis.localStorage = undefined as never;
-
 export default function RootLayout({
   children,
 }: {
@@ -122,24 +105,18 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      {...mantineHtmlProps}
       suppressHydrationWarning
       className={`${urbanist.variable} ${oldStandardTT.variable} ${jetbrainsMono.variable}`}
     >
-      <head>
-        <ColorSchemeScript />
-      </head>
       <body className="scrollbar font-urbanist">
-        <MantineProvider theme={theme}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
-        </MantineProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
         <Toaster
           position="bottom-right"
           expand

@@ -22,14 +22,58 @@ export interface ReportItem {
     department: string;
     director: string;
     assign_to?: string;
-    project?: string;
+    project?: string | null;
     status: "Pending" | "In Progress" | "Done" | "Denied";
     message?: string;
     date: string;
     customer_id?: string;
-    attachments?: string[] | null;
+    attachments?: unknown[] | null;
     created_at?: string;
     updated_at?: string;
+}
+
+interface TicketRow {
+    id: string | number;
+    numid?: string | number | null;
+    title?: string | null;
+    subject?: string | null;
+    name?: string | null;
+    email?: string | null;
+    department?: string | null;
+    director?: string | null;
+    assign_to?: string | null;
+    project?: string | null;
+    status?: string | null;
+    message?: string | null;
+    customer_id?: string | null;
+    attachments?: unknown[] | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+    projects?: { company_name: string | null } | null;
+}
+
+function rowToReport(row: TicketRow): ReportItem {
+    return {
+        id: String(row.id),
+        numid: String(row.numid ?? row.id).padStart(4, "0"),
+        title: row.title || row.subject || "Untitled Report",
+        subject: row.subject ?? undefined,
+        name: row.name ?? undefined,
+        email: row.email ?? undefined,
+        department: row.department || "General",
+        director: row.director || row.assign_to || "Unassigned",
+        assign_to: row.assign_to ?? undefined,
+        project: row.projects?.company_name ?? row.project ?? null,
+        status: normalizeStatus(row.status),
+        message: row.message ?? undefined,
+        date: row.created_at
+            ? new Date(row.created_at).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0],
+        customer_id: row.customer_id ?? undefined,
+        attachments: row.attachments ?? null,
+        created_at: row.created_at ?? undefined,
+        updated_at: row.updated_at ?? undefined,
+    };
 }
 
 export async function GET(request: Request) {
@@ -54,9 +98,9 @@ export async function GET(request: Request) {
                 getAll() { return cookieStore.getAll(); },
                 setAll(cookiesToSet) {
                     try {
-                        cookiesToSet.forEach(({ name, value, options }) =>
-                            cookieStore.set(name, value, options),
-                        );
+                        for (const { name, value, options } of cookiesToSet) {
+                            cookieStore.set(name, value, options);
+                        }
                     } catch { /* Server Component — safe to ignore */ }
                 },
             },
@@ -64,7 +108,7 @@ export async function GET(request: Request) {
 
         let query = supabase
             .from("tickets")
-            .select("*")
+            .select("*, projects:project_id(company_name)")
             .eq("ticket_type", "report")
             .order("created_at", { ascending: false });
 
@@ -79,27 +123,7 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        const reports: ReportItem[] = (data || []).map((item: any) => ({
-            id: item.id,
-            numid: String(item.numid || item.id).padStart(4, "0"),
-            title: item.title || item.subject || "Untitled Report",
-            subject: item.subject,
-            name: item.name,
-            email: item.email,
-            department: item.department || "General",
-            director: item.director || item.assign_to || "Unassigned",
-            assign_to: item.assign_to,
-            project: item.project,
-            status: normalizeStatus(item.status),
-            message: item.message,
-            date: item.created_at
-                ? new Date(item.created_at).toISOString().split("T")[0]
-                : new Date().toISOString().split("T")[0],
-            customer_id: item.customer_id,
-            attachments: item.attachments,
-            created_at: item.created_at,
-            updated_at: item.updated_at,
-        }));
+        const reports: ReportItem[] = ((data ?? []) as unknown as TicketRow[]).map(rowToReport);
 
         return NextResponse.json(reports);
     } catch (error) {
@@ -125,8 +149,8 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
-        if (!body.title || !body.department || !body.director) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        if (!body.title || !body.message) {
+            return NextResponse.json({ error: "Title and message are required" }, { status: 400 });
         }
 
         const cookieStore = await cookies();
@@ -138,24 +162,47 @@ export async function POST(request: Request) {
             },
         });
 
+        const { data: authData, error: authErr } = await supabase.auth.getUser();
+        if (authErr || !authData.user) {
+            return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+        }
+
+        const { data: profile, error: profileErr } = await supabase
+            .from("profiles")
+            .select("name, role, department")
+            .eq("uid", authData.user.id)
+            .single();
+
+        if (profileErr || !profile) {
+            return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+        }
+
+        if (profile.role !== "director" && profile.role !== "member") {
+            return NextResponse.json({ error: "Only directors or members can submit reports" }, { status: 403 });
+        }
+
+        const department = typeof body.department === "string" && body.department.length > 0
+            ? body.department
+            : profile.department ?? "General";
+
         const newRecord = {
             ticket_type: "report" as const,
             title: body.title,
             subject: body.title,
-            department: body.department,
-            director: body.director,
-            assign_to: body.director,
-            project: body.project || "N/A",
-            message: body.message || "",
+            department,
+            director: profile.name,
+            assign_to: profile.name,
+            message: body.message,
             status: "pending" as const,
-            customer_id: body.customer_id || null,
+            customer_id: body.customer_id ?? null,
             project_id: body.project_id ? Number(body.project_id) : null,
+            attachments: Array.isArray(body.attachments) ? body.attachments : null,
         };
 
         const { data, error } = await supabase
             .from("tickets")
             .insert([newRecord])
-            .select()
+            .select("*, projects:project_id(company_name)")
             .single();
 
         if (error) {
@@ -163,27 +210,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        const report: ReportItem = {
-            id: data.id,
-            numid: String(data.numid || data.id).padStart(4, "0"),
-            title: data.title || data.subject || "Untitled Report",
-            subject: data.subject,
-            name: data.name,
-            email: data.email,
-            department: data.department || "General",
-            director: data.director || data.assign_to || "Unassigned",
-            assign_to: data.assign_to,
-            project: data.project,
-            status: normalizeStatus(data.status),
-            message: data.message,
-            date: data.created_at
-                ? new Date(data.created_at).toISOString().split("T")[0]
-                : new Date().toISOString().split("T")[0],
-            customer_id: data.customer_id,
-            attachments: data.attachments,
-            created_at: data.created_at,
-            updated_at: data.updated_at,
-        };
+        const report: ReportItem = rowToReport(data as unknown as TicketRow);
 
         return NextResponse.json(report, { status: 201 });
     } catch (error) {

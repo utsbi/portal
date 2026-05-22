@@ -94,7 +94,7 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`relative border border-dashed transition-all duration-300 ${isDragging
+                className={`relative border border-dashed rounded-lg transition-all duration-300 ${isDragging
                     ? "border-sbi-green bg-sbi-green/5"
                     : "border-sbi-dark-border hover:border-sbi-green/30 bg-transparent"
                     }`}
@@ -123,11 +123,11 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
                                 }`}
                         />
                     </motion.div>
-                    <p className="text-sm text-sbi-muted mb-1">
+                    <p className="text-base text-sbi-muted mb-1">
                         {isDragging ? "Drop files here" : "Drag & drop files here"}
                     </p>
-                    <p className="text-xs text-sbi-muted-dark mb-2">or click to browse</p>
-                    <p className="text-[10px] text-sbi-muted-dark/70 uppercase tracking-widest">Max size 50MB per file</p>
+                    <p className="text-sm text-sbi-muted-dark mb-2">or click to browse</p>
+                    <p className="text-xs text-sbi-muted-dark/70 uppercase tracking-widest">Max size 50MB per file</p>
                 </label>
             </motion.div>
 
@@ -160,7 +160,7 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: 20 }}
-                                className="flex items-center gap-3 p-3 bg-sbi-dark-card border border-sbi-dark-border/50 group hover:border-sbi-green/30 transition-colors"
+                                className="flex items-center gap-3 p-3 bg-sbi-dark-card border border-sbi-dark-border/50 rounded-lg group hover:border-sbi-green/30 transition-colors"
                             >
                                 <File className="w-4 h-4 text-sbi-green shrink-0" />
                                 <div className="flex-1 min-w-0">
@@ -188,5 +188,5 @@ function formatFileSize(bytes: number): string {
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+    return `${Math.round((bytes / k ** i) * 100) / 100} ${sizes[i]}`;
 }

@@ -222,7 +222,3 @@ export const btnGhost =
   "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
   "bg-transparent text-sbi-muted border border-sbi-dark-border/60 rounded-md cursor-pointer " +
   "hover:text-white hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
-
-/** Mantine <Button> classNames override to match btnPrimary. */
-export const mantinePrimaryClasses =
-  "!bg-sbi-green/10 !text-sbi-green !border !border-sbi-green/30 hover:!bg-sbi-green hover:!text-sbi-dark transition-colors uppercase tracking-[0.04em] text-xs font-medium";

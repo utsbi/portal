@@ -16,6 +16,7 @@ export interface UserProfile {
   email: string;
   role: 'client' | 'director' | 'member';
   initials: string;
+  department: string | null;
 }
 
 interface ProjectContextType {
@@ -95,7 +96,7 @@ export function ProjectProvider({
       // Fetch profile
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, name, email, role')
+        .select('id, name, email, role, department')
         .eq('uid', authUser.id)
         .single();
 
@@ -111,6 +112,7 @@ export function ProjectProvider({
         email: profile.email || authUser.email || '',
         role: profile.role as UserProfile['role'],
         initials: getInitials(profile.name),
+        department: profile.department ?? null,
       });
 
       // Fetch projects via project_members

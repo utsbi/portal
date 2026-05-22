@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "motion/react";
-
 export type RequestStatus = "pending" | "in-progress" | "done" | "denied";
 
 interface StatusBadgeProps {
