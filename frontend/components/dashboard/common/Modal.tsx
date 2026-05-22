@@ -106,6 +106,9 @@ export function Modal({
                             ) : null}
                         </>
                     )}
+                    <Dialog.Description className="sr-only">
+                        Dialog content
+                    </Dialog.Description>
                     <div
                         className={cn(
                             "flex-1 min-h-0 overflow-y-auto custom-scrollbar",

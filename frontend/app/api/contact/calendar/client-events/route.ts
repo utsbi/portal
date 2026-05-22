@@ -92,24 +92,20 @@ export async function GET(req: Request) {
       );
     }
 
-    // Resolve the client email in two steps to dodge supabase's
-    // inconsistent shape (object vs array) on embedded joins.
+    // Disambiguate the join: project_members has two FKs to profiles
+    // (profile_id and assigned_by); without the explicit constraint name
+    // PostgREST refuses the embed.
     const { data: ownerMember } = await supabaseAdmin
       .from("project_members")
-      .select("profile_id")
+      .select("profile_id, profiles!project_members_profile_id_fkey(email)")
       .eq("project_id", projectId)
       .eq("role", "owner")
       .single();
 
-    let clientEmail = "";
-    if (ownerMember?.profile_id) {
-      const { data: ownerProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("email")
-        .eq("id", ownerMember.profile_id)
-        .single();
-      clientEmail = (ownerProfile?.email ?? "").trim().toLowerCase();
-    }
+    const clientEmail =
+      (ownerMember?.profiles as { email?: string } | null)?.email
+        ?.trim()
+        .toLowerCase() ?? "";
 
     const oauth2 = new google.auth.OAuth2(
       must("GOOGLE_CLIENT_ID"),
