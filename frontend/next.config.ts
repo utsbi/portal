@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Produce a self-contained server bundle for the Docker runtime
+  // (consumed by frontend/Dockerfile). No-op for `next dev`.
+  output: "standalone",
+
   images: {
     remotePatterns: [
       {

@@ -1,0 +1,49 @@
+# SBI Client Portal — production stack.
+#
+# Currently only `backend` is enabled. The frontend ships separately for now
+# (running locally during development); uncomment the `frontend` block when
+# you're ready to host it on the VPS too.
+#
+# Routing on the VPS:
+#   nginx proxy manager terminates TLS and proxies the public domain to the
+#   backend on 127.0.0.1:8000 (and, once enabled, the frontend on
+#   127.0.0.1:3000). Both containers are bound to localhost only so they're
+#   never exposed directly to the public internet.
+#
+# When both services are running, the frontend's server routes reach the
+# backend via Docker's internal DNS at http://backend:8000 — no NPM hop
+# involved for that internal call.
+
+services:
+  backend:
+    build: ./backend
+    container_name: sbi-backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    ports:
+      # Bind to localhost only; nginx proxy manager handles the public side.
+      - "127.0.0.1:8000:8000"
+    networks:
+      - portal
+
+  # ---- Frontend (disabled — uncomment when ready to host on the VPS) ----
+  # frontend:
+  #   build: ./frontend
+  #   container_name: sbi-frontend
+  #   restart: unless-stopped
+  #   env_file: ./frontend/.env.production
+  #   environment:
+  #     # Server-only; the browser never talks to the backend directly. Server
+  #     # routes (app/api/chat/*) call this address via Docker's internal DNS.
+  #     BACKEND_URL: http://backend:8000
+  #   ports:
+  #     - "127.0.0.1:3000:3000"
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+  #   networks:
+  #     - portal
+
+networks:
+  portal:
+    name: sbi-portal

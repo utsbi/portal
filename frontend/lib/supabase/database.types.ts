@@ -14,11 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_chat_messages: {
+        Row: {
+          attachments: Json | null
+          content: string
+          created_at: string
+          id: number
+          is_cancelled: boolean
+          model_preference: string | null
+          role: string
+          session_id: number
+          sources: Json | null
+        }
+        Insert: {
+          attachments?: Json | null
+          content: string
+          created_at?: string
+          id?: number
+          is_cancelled?: boolean
+          model_preference?: string | null
+          role: string
+          session_id: number
+          sources?: Json | null
+        }
+        Update: {
+          attachments?: Json | null
+          content?: string
+          created_at?: string
+          id?: number
+          is_cancelled?: boolean
+          model_preference?: string | null
+          role?: string
+          session_id?: number
+          sources?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "client_chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_chat_sessions: {
         Row: {
           created_at: string
           id: number
           metadata: Json | null
+          project_id: number | null
           title: string | null
           uid: string | null
           updated_at: string | null
@@ -27,6 +72,7 @@ export type Database = {
           created_at?: string
           id?: number
           metadata?: Json | null
+          project_id?: number | null
           title?: string | null
           uid?: string | null
           updated_at?: string | null
@@ -35,11 +81,20 @@ export type Database = {
           created_at?: string
           id?: number
           metadata?: Json | null
+          project_id?: number | null
           title?: string | null
           uid?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "client_chat_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client_files: {
         Row: {
