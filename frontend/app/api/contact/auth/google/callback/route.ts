@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { google } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
+import { google } from "googleapis";
+import { NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -9,26 +9,44 @@ function must(name: string) {
   return v;
 }
 
+function settingsUrl(req: Request, params: Record<string, string>) {
+  const origin = new URL(req.url).origin;
+  const url = new URL("/dashboard/settings", origin);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  return url.toString();
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
+  const oauthError = searchParams.get("error");
+
+  if (oauthError) {
+    return NextResponse.redirect(
+      settingsUrl(req, { google: "error", reason: oauthError }),
+    );
+  }
 
   if (!code) {
-    return NextResponse.json({ error: "Missing code" }, { status: 400 });
+    return NextResponse.redirect(
+      settingsUrl(req, { google: "error", reason: "missing_code" }),
+    );
   }
 
-  // Get the authenticated user to determine which director this is
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    return NextResponse.redirect(
+      settingsUrl(req, { google: "error", reason: "unauthenticated" }),
+    );
   }
 
-  // Look up the director's profile
   const supabaseAdmin = createClient(
     must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SECRET_KEY")
+    must("SUPABASE_SECRET_KEY"),
   );
 
   const { data: profile } = await supabaseAdmin
@@ -38,50 +56,63 @@ export async function GET(req: Request) {
     .single();
 
   if (!profile || profile.role !== "director") {
-    return NextResponse.json({ error: "Only directors can connect Google Calendar" }, { status: 403 });
+    return NextResponse.redirect(
+      settingsUrl(req, { google: "error", reason: "not_director" }),
+    );
   }
 
   const oauth2 = new google.auth.OAuth2(
     must("GOOGLE_CLIENT_ID"),
     must("GOOGLE_CLIENT_SECRET"),
-    must("GOOGLE_REDIRECT_URI")
+    must("GOOGLE_REDIRECT_URI"),
   );
 
-  const { tokens } = await oauth2.getToken(code);
+  const exchanged = await oauth2.getToken(code).catch(() => null);
+  if (!exchanged) {
+    return NextResponse.redirect(
+      settingsUrl(req, { google: "error", reason: "exchange_failed" }),
+    );
+  }
+  const { tokens } = exchanged;
 
   if (!tokens.refresh_token) {
-    return NextResponse.json(
-      { error: "No refresh_token returned. Remove the app from Google permissions, then reconnect." },
-      { status: 400 }
+    // Google returns a refresh_token only on the first consent. If the user
+    // previously connected and is reconnecting without revoking, no refresh
+    // token comes back. Direct them to revoke and try again.
+    return NextResponse.redirect(
+      settingsUrl(req, { google: "error", reason: "no_refresh_token" }),
     );
   }
 
-  const existingConfig = (profile.config ?? {}) as Record<string, any>;
+  const existingConfig = (profile.config ?? {}) as Record<string, unknown>;
+  const existingGoogle = (existingConfig.google ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   const newConfig = {
     ...existingConfig,
     google: {
-      ...(existingConfig.google ?? {}),
+      ...existingGoogle,
       refresh_token: tokens.refresh_token,
       access_token: tokens.access_token ?? null,
       scope: tokens.scope ?? null,
       token_type: tokens.token_type ?? null,
       expiry_date: tokens.expiry_date ?? null,
+      connected_at: new Date().toISOString(),
     },
   };
 
-  // Save to profiles table (new identity model)
   const { error: writeErr } = await supabaseAdmin
     .from("profiles")
     .update({ config: newConfig })
     .eq("id", profile.id);
 
   if (writeErr) {
-    return NextResponse.json({ error: writeErr.message }, { status: 500 });
+    return NextResponse.redirect(
+      settingsUrl(req, { google: "error", reason: "save_failed" }),
+    );
   }
 
-  return NextResponse.json({
-    ok: true,
-    message: "Google connected. Refresh token saved.",
-  });
+  return NextResponse.redirect(settingsUrl(req, { google: "connected" }));
 }

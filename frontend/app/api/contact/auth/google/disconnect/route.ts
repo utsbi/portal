@@ -1,5 +1,4 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -9,9 +8,8 @@ function must(name: string) {
   return v;
 }
 
-export async function GET() {
+export async function POST() {
   const supabase = await createClient();
-
   const {
     data: { user },
     error: authError,
@@ -40,36 +38,38 @@ export async function GET() {
     return NextResponse.json({ error: "Not a director" }, { status: 403 });
   }
 
-  const config = profile.config as any;
-  const refreshToken = config?.google?.refresh_token;
+  const existingConfig = (profile.config ?? {}) as Record<string, unknown>;
+  const existingGoogle = (existingConfig.google ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const accessToken = existingGoogle.access_token as string | undefined;
 
-  if (!refreshToken) {
-    return NextResponse.json(
-      { error: "No refresh token found" },
-      { status: 400 },
-    );
+  // Best-effort revoke at Google. We don't fail the disconnect if this errors.
+  if (accessToken) {
+    try {
+      await fetch(
+        `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`,
+        {
+          method: "POST",
+        },
+      );
+    } catch {
+      // Ignore — local state is what matters.
+    }
   }
 
-  const oauth2 = new google.auth.OAuth2(
-    must("GOOGLE_CLIENT_ID"),
-    must("GOOGLE_CLIENT_SECRET"),
-    must("GOOGLE_REDIRECT_URI"),
-  );
+  const newConfig = { ...existingConfig };
+  delete (newConfig as Record<string, unknown>).google;
 
-  oauth2.setCredentials({
-    refresh_token: refreshToken,
-  });
+  const { error: writeErr } = await supabaseAdmin
+    .from("profiles")
+    .update({ config: newConfig })
+    .eq("id", profile.id);
 
-  const calendar = google.calendar({ version: "v3", auth: oauth2 });
-  const response = await calendar.calendarList.list();
+  if (writeErr) {
+    return NextResponse.json({ error: writeErr.message }, { status: 500 });
+  }
 
-  const calendars =
-    response.data.items?.map((item) => ({
-      id: item.id,
-      summary: item.summary,
-      primary: item.primary ?? false,
-      accessRole: item.accessRole,
-    })) ?? [];
-
-  return NextResponse.json({ calendars });
+  return NextResponse.json({ ok: true });
 }
