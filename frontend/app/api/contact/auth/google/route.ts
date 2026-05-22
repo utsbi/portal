@@ -11,7 +11,15 @@ export async function GET() {
   const url = oauth2.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: ["https://www.googleapis.com/auth/calendar.readonly"],
+    // calendar.events: read + write on events (RSVP via events.patch).
+    // calendar.calendarlist.readonly: list the director's calendars so they
+    // can pick which one the portal reads from — events scope alone doesn't
+    // include calendar list access. Both together give us exactly what the
+    // portal needs and nothing more (no Gmail, no full Calendar admin).
+    scope: [
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    ],
   });
 
   return NextResponse.redirect(url);

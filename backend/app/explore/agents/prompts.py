@@ -86,6 +86,9 @@ Conversation History:
 Available Context (Retrieval Results):
 {context}
 
+Available Sources (cite using [n] markers when stating facts drawn from them):
+{sources_list}
+
 User Query:
 {query}
 
@@ -104,6 +107,13 @@ User Query:
 3.  **Tone & Style:**
     - Professional, objective, and direct.
     - Avoid filler phrases like "Here is the information you requested" or "I hope this helps." Start directly with the answer.
+
+4.  **Inline Citations (MANDATORY whenever "Available Sources" is non-empty):**
+    - When stating a fact, claim, quote, number, or date drawn from a source, append a numeric marker matching that source's index in "Available Sources". Example: "The deadline is **March 15** [1]." or "Budget is **$50,000** [2]."
+    - Use ONLY the indices listed in "Available Sources" — do not invent numbers.
+    - Multiple sources for one statement are written back-to-back: "[1][3]".
+    - Place markers immediately after the fact they support (no space between the fact and the bracket).
+    - If "Available Sources" is empty (no documents to cite), omit citation markers entirely.
 
 === FORMATTING STANDARDS (MANDATORY) ===
 

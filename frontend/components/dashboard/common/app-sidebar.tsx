@@ -273,7 +273,7 @@ export function AppSidebar() {
             <ChevronUp className={`size-4 text-sbi-muted transition-transform ${isProjectMenuOpen ? "" : "rotate-180"}`} />
           </button>
           {isProjectMenuOpen && (
-            <div className="absolute bottom-full left-3 right-3 mb-1 bg-sbi-dark border border-sbi-dark-border/50 rounded-lg overflow-hidden shadow-2xl shadow-black/50 z-50">
+            <div className="absolute top-full left-3 right-3 mt-1 bg-sbi-dark border border-sbi-dark-border/50 rounded-lg overflow-hidden shadow-2xl shadow-black/50 z-50">
               {projects.map((project) => (
                 <button
                   key={project.projectId}
@@ -378,35 +378,36 @@ export function AppSidebar() {
             <div className="py-1">
               <button
                 type="button"
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
+                onClick={() => { router.push("/dashboard/settings?section=profile"); setIsUserMenuOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
               >
                 <User className="size-4" strokeWidth={1.5} />
                 <span className="text-sm font-light">Account</span>
               </button>
               <button
                 type="button"
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
+                onClick={() => { router.push("/dashboard/settings?section=notifications"); setIsUserMenuOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
               >
                 <Bell className="size-4" strokeWidth={1.5} />
                 <span className="text-sm font-light">Notifications</span>
               </button>
-              {userRole === "director" && (
-                <button
-                  type="button"
-                  onClick={() => { router.push("/dashboard/settings"); setIsUserMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
-                >
-                  <Settings className="size-4" strokeWidth={1.5} />
-                  <span className="text-sm font-light">Settings</span>
-                </button>
-              )}
               <button
                 type="button"
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
+                onClick={() => { router.push("/dashboard/settings"); setIsUserMenuOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
+              >
+                <Settings className="size-4" strokeWidth={1.5} />
+                <span className="text-sm font-light">Settings</span>
+              </button>
+              <a
+                href="mailto:support@utsbi.org?subject=Portal%20support"
+                onClick={() => setIsUserMenuOpen(false)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
               >
                 <HelpCircle className="size-4" strokeWidth={1.5} />
                 <span className="text-sm font-light">Help</span>
-              </button>
+              </a>
             </div>
 
             {/* Logout */}
@@ -414,7 +415,7 @@ export function AppSidebar() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
               >
                 <LogOut className="size-4" strokeWidth={1.5} />
                 <span className="text-sm font-light">Log out</span>

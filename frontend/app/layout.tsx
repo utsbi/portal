@@ -2,6 +2,7 @@ import "@/app/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Toaster } from "sonner";
 import type { Metadata } from "next";
 import { Old_Standard_TT, Urbanist, JetBrains_Mono } from "next/font/google";
 import faviconLight from "@/assets/favicons/favicon.ico";
@@ -116,6 +117,14 @@ export default function RootLayout({
         >
           {children}
         </ThemeProvider>
+        <Toaster
+          position="bottom-right"
+          expand
+          gap={10}
+          offset={20}
+          visibleToasts={4}
+          toastOptions={{ unstyled: true }}
+        />
         <SpeedInsights />
         <Analytics />
       </body>

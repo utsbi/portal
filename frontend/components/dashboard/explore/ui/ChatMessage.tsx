@@ -1,14 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Children, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import gsap from 'gsap';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check, Pencil, MoreHorizontal, ChevronDown, ChevronUp, FileText, File, RotateCw } from 'lucide-react';
+import type { SourceDocument } from '@/lib/api/chat';
 import type { DisplayMessage } from '@/lib/chat/chat-context';
 import { useChat } from '@/lib/chat/chat-context';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ChatMessageProps {
   message: DisplayMessage;
@@ -96,24 +99,97 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   );
 }
 
-// Custom ReactMarkdown component overrides
-const markdownComponents: Components = {
-  // Override pre to pass through (CodeBlock handles its own wrapper)
-  pre({ children }) {
-    return <>{children}</>;
-  },
-  // Override code: fenced blocks get CodeBlock, inline code stays as <code>
-  code({ className, children, ...props }) {
-    const match = /language-(\w+)/.exec(className || '');
-    const codeString = String(children).replace(/\n$/, '');
+// Inline citation chip: numeric badge with hover-card preview, links to /dashboard/files.
+function CitationChip({ index, source }: { index: number; source: SourceDocument }) {
+  const filename = source.filename;
+  const preview = (source.content || '').slice(0, 220).trim();
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={`/dashboard/files?file=${encodeURIComponent(filename)}`}
+            className="inline-flex items-center justify-center align-baseline mx-0.5 px-1.5 h-5 text-[11px] font-medium text-sbi-green/90 bg-sbi-green/10 border border-sbi-green/30 rounded-md no-underline hover:bg-sbi-green/20 hover:text-sbi-green transition-colors"
+            aria-label={`Source ${index}: ${filename}`}
+          >
+            {index}
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed bg-sbi-dark-card border-sbi-dark-border">
+          <div className="text-white font-medium mb-1">
+            {filename}{source.page_number ? ` (p. ${source.page_number})` : ''}
+          </div>
+          {preview && (
+            <div className="text-sbi-muted line-clamp-4">{preview}</div>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
-    if (match) {
-      return <CodeBlock language={match[1]} code={codeString} />;
-    }
+// Replace bracketed numeric markers in a string with CitationChip elements.
+// Out-of-range indices stay as plain text.
+function interpolateCitations(text: string, sources: SourceDocument[]): ReactNode {
+  if (sources.length === 0 || !text.includes('[')) return text;
+  const parts: ReactNode[] = [];
+  const pattern = /\[(\d+)\]/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = pattern.exec(text)) !== null) {
+    const n = Number.parseInt(match[1], 10);
+    if (n < 1 || n > sources.length) continue;
+    if (match.index > lastIdx) parts.push(text.slice(lastIdx, match.index));
+    parts.push(
+      <CitationChip
+        key={`cite-${match.index}-${key++}`}
+        index={n}
+        source={sources[n - 1]}
+      />,
+    );
+    lastIdx = pattern.lastIndex;
+  }
+  if (lastIdx === 0) return text; // no matches kept
+  if (lastIdx < text.length) parts.push(text.slice(lastIdx));
+  return parts;
+}
 
-    return <code className={className} {...props}>{children}</code>;
-  },
-};
+// Walks immediate string children and runs them through interpolateCitations.
+// Nested elements (e.g. <strong> inside <p>) hit their own override at their own level.
+function processCitations(children: ReactNode, sources: SourceDocument[]): ReactNode {
+  if (sources.length === 0) return children;
+  return Children.map(children, (child) => {
+    if (typeof child === 'string') return interpolateCitations(child, sources);
+    return child;
+  });
+}
+
+// Build the ReactMarkdown component map for an assistant message, capturing its sources.
+function buildMarkdownComponents(sources: SourceDocument[]): Components {
+  return {
+    pre({ children }) {
+      return <>{children}</>;
+    },
+    code({ className, children, ...props }) {
+      const codeString = String(children).replace(/\n$/, '');
+      const langMatch = /language-(\w+)/.exec(className || '');
+      if (langMatch) return <CodeBlock language={langMatch[1]} code={codeString} />;
+      return <code className={className} {...props}>{children}</code>;
+    },
+    p: ({ children }) => <p>{processCitations(children, sources)}</p>,
+    li: ({ children }) => <li>{processCitations(children, sources)}</li>,
+    strong: ({ children }) => <strong>{processCitations(children, sources)}</strong>,
+    em: ({ children }) => <em>{processCitations(children, sources)}</em>,
+    td: ({ children }) => <td>{processCitations(children, sources)}</td>,
+    th: ({ children }) => <th>{processCitations(children, sources)}</th>,
+    h1: ({ children }) => <h1>{processCitations(children, sources)}</h1>,
+    h2: ({ children }) => <h2>{processCitations(children, sources)}</h2>,
+    h3: ({ children }) => <h3>{processCitations(children, sources)}</h3>,
+    h4: ({ children }) => <h4>{processCitations(children, sources)}</h4>,
+    blockquote: ({ children }) => <blockquote>{processCitations(children, sources)}</blockquote>,
+  };
+}
 
 export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -127,6 +203,9 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
   const [isHovered, setIsHovered] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
   const { editAndResend, isLoading, regenerateResponse } = useChat();
+
+  const sources = message.sources ?? [];
+  const markdownComponents = useMemo(() => buildMarkdownComponents(sources), [sources]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -162,7 +241,7 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
     }
   }, [isEditing]);
 
-  const displayContent = message.displayedContent ?? message.content;
+  const displayContent = message.content;
 
   // Truncated content for collapsed view
   const getTruncatedContent = () => {
@@ -381,20 +460,22 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
               )}
             </div>
 
-            {/* Sources */}
+            {/* Sources — numbering matches the inline [n] markers above. */}
             {message.sources && message.sources.length > 0 && !message.isStreaming && (
               <div className="mt-4 space-y-2">
                 <p className="text-xs text-sbi-muted-dark tracking-wide uppercase">Sources</p>
                 <div className="flex flex-wrap gap-2">
-                  {message.sources
-                    .filter((source, index, arr) => arr.findIndex(s => s.filename === source.filename) === index)
-                    .map((source, index) => {
+                  {message.sources.map((source, index) => {
                     const fileInfo = getFileInfo(source.filename);
                     return (
-                      <div
-                        key={index}
-                        className="flex items-center gap-2 px-3 py-2 bg-sbi-dark-card border border-sbi-dark-border rounded-xl"
+                      <Link
+                        key={`${source.filename}:${source.page_number ?? ''}:${index}`}
+                        href={`/dashboard/files?file=${encodeURIComponent(source.filename)}`}
+                        className="flex items-center gap-2 px-3 py-2 bg-sbi-dark-card border border-sbi-dark-border rounded-xl hover:border-sbi-green/30 transition-colors no-underline"
                       >
+                        <span className="inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1 text-[11px] font-medium text-sbi-green/90 bg-sbi-green/10 border border-sbi-green/30 rounded-md">
+                          {index + 1}
+                        </span>
                         {fileInfo.icon}
                         <div className="flex flex-col min-w-0">
                           <span className="text-sm text-white font-light truncate max-w-[150px]">
@@ -405,7 +486,7 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
                             {fileInfo.label}
                           </span>
                         </div>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>

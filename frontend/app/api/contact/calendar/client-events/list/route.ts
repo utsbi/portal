@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { google } from "googleapis";
-import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { google } from "googleapis";
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
   const v = process.env[name];
@@ -23,7 +23,7 @@ export async function GET() {
 
   const supabaseAdmin = createAdminClient(
     must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SECRET_KEY")
+    must("SUPABASE_SECRET_KEY"),
   );
 
   const { data: profile, error: profileErr } = await supabaseAdmin
@@ -44,13 +44,16 @@ export async function GET() {
   const refreshToken = config?.google?.refresh_token;
 
   if (!refreshToken) {
-    return NextResponse.json({ error: "No refresh token found" }, { status: 400 });
+    return NextResponse.json(
+      { error: "No refresh token found" },
+      { status: 400 },
+    );
   }
 
   const oauth2 = new google.auth.OAuth2(
     must("GOOGLE_CLIENT_ID"),
     must("GOOGLE_CLIENT_SECRET"),
-    must("GOOGLE_REDIRECT_URI")
+    must("GOOGLE_REDIRECT_URI"),
   );
 
   oauth2.setCredentials({

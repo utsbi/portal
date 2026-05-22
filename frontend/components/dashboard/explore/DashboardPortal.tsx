@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import gsap from 'gsap';
 import { PortalHero } from './ui/PortalHero';
 import { PortalInput } from './ui/PortalInput';
@@ -9,6 +9,7 @@ import { SuggestionChips } from './ui/SuggestionChips';
 import { AmbientGrid } from './ui/AmbientGrid';
 import { FloatingNodes } from './ui/FloatingNodes';
 import { ChatMessages } from './ui/ChatMessages';
+import { ChatHistorySidebar } from './ui/ChatHistorySidebar';
 import { useChat } from '@/lib/chat/chat-context';
 
 /**
@@ -46,42 +47,24 @@ export function ExploreWelcome() {
 
       if (!heroElements || !inputElement || !ambientElements || !chips) return;
 
-      // Set initial states
       gsap.set(heroElements, { opacity: 0, y: 40 });
       gsap.set(inputElement, { opacity: 0, y: 30 });
       gsap.set(ambientElements, { opacity: 0 });
       gsap.set(chips, { opacity: 0, y: 15, scale: 0.95 });
 
-      // Master timeline with refined easing
-      const tl = gsap.timeline({
-        defaults: { ease: 'power3.out' }
-      });
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
 
-      tl.to(heroElements, {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-        stagger: 0.1,
-      }, 0)
-      .to(inputElement, {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-      }, 0.1)
-      .to(ambientElements, {
-        opacity: 1,
-        duration: 2,
-        stagger: 0.2,
-      }, 0)
-      .to(chips, {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        visibility: 'visible',
-        duration: 0.6,
-        stagger: 0.05,
-      }, 0.4);
-
+      tl.to(heroElements, { opacity: 1, y: 0, duration: 0.8, stagger: 0.1 }, 0)
+        .to(inputElement, { opacity: 1, y: 0, duration: 0.8 }, 0.1)
+        .to(ambientElements, { opacity: 1, duration: 2, stagger: 0.2 }, 0)
+        .to(chips, {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          visibility: 'visible',
+          duration: 0.6,
+          stagger: 0.05,
+        }, 0.4);
     }, containerRef);
 
     return () => ctx.revert();
@@ -92,10 +75,7 @@ export function ExploreWelcome() {
       ref={containerRef}
       className="relative flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] w-full overflow-hidden"
     >
-      {/* Floating nodes background */}
       <FloatingNodes />
-
-      {/* Ambient Background Elements */}
       <AmbientGrid />
 
       {/* Corner accents */}
@@ -105,6 +85,9 @@ export function ExploreWelcome() {
       {/* Subtle gradient orbs */}
       <div className="ambient-element absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
       <div className="ambient-element absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
+
+      {/* History trigger */}
+      <ChatHistorySidebar className="absolute top-4 left-4 z-20" />
 
       {/* Welcome mode */}
       <div className="relative z-10 w-full max-w-3xl mx-auto px-4 space-y-8">
@@ -122,40 +105,64 @@ export function ExploreWelcome() {
 }
 
 /**
- * Chat state rendered on the explore route (/dashboard/explore)
- * Shows the active chat session with messages and input.
+ * Chat state rendered on the explore route (/dashboard/explore).
+ *
+ * Hydration logic on mount:
+ *   1. URL has ?session=<id> -> loadSession(id).
+ *   2. No URL param but messages already exist (welcome -> explore handoff) -> processPendingMessage().
+ *   3. Neither -> redirect home.
+ *
+ * Whenever sessionId changes to a value not yet in the URL, push it into the URL
+ * via router.replace so refreshes resume the same thread.
  */
 export function ExploreChat() {
   const router = useRouter();
-  const { messages, clearChat, cancelRequest, processPendingMessage } = useChat();
+  const searchParams = useSearchParams();
+  const {
+    messages,
+    sessionId,
+    clearChat,
+    cancelRequest,
+    processPendingMessage,
+    loadSession,
+  } = useChat();
   const mountedRef = useRef(false);
 
-  // If no messages (direct navigation or page reload), redirect to dashboard
+  const urlSession = searchParams.get('session');
+  const targetSessionId = urlSession ? Number.parseInt(urlSession, 10) : null;
+  const targetIsValid = targetSessionId !== null && !Number.isNaN(targetSessionId);
+
+  // Mount-time hydration: pick exactly one of load / process-pending / redirect.
   useEffect(() => {
-    if (messages.length === 0) {
+    if (targetIsValid && targetSessionId !== null) {
+      loadSession(targetSessionId);
+    } else if (messages.length > 0) {
+      processPendingMessage();
+    } else {
       router.replace('/dashboard');
     }
+    // Intentionally mount-only; URL changes after mount are driven by the sidebar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Process the queued message from the welcome page
+  // Push session id into the URL whenever it diverges (new sessions created server-side).
   useEffect(() => {
-    processPendingMessage();
-  }, []);
+    if (sessionId !== null && sessionId !== targetSessionId) {
+      router.replace(`/dashboard/explore?session=${sessionId}`, { scroll: false });
+    }
+  }, [sessionId, targetSessionId, router]);
 
-  // Cleanup on page unload/refresh
+  // Cleanup on page unload/refresh.
   useEffect(() => {
     const handleBeforeUnload = () => {
       cancelRequest();
       clearChat();
     };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [clearChat, cancelRequest]);
 
-  // Cleanup when navigating away from explore
+  // Cleanup when navigating away from explore.
   useEffect(() => {
     const timer = setTimeout(() => {
       mountedRef.current = true;
@@ -172,10 +179,7 @@ export function ExploreChat() {
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] w-full overflow-hidden">
-      {/* Floating nodes background */}
       <FloatingNodes />
-
-      {/* Ambient Background Elements */}
       <AmbientGrid />
 
       {/* Corner accents */}
@@ -186,15 +190,16 @@ export function ExploreChat() {
       <div className="absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
 
+      {/* History trigger */}
+      <ChatHistorySidebar className="absolute top-4 left-4 z-20" />
+
       {/* Chat scrollable messages */}
       <div className="absolute inset-0 z-10 overflow-y-auto dashboard-scrollbar">
         <div className="w-full max-w-3xl mx-auto px-4 min-h-full flex flex-col">
-          {/* Chat messages */}
           <div className="flex-1 pt-6">
             <ChatMessages />
           </div>
 
-          {/* Input section */}
           <div className="sticky bottom-0 bg-sbi-dark pb-4 pt-2">
             <PortalInput animated={false} />
             <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
