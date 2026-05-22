@@ -53,6 +53,7 @@ export function Modal({
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-sbi-dark/70 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
                 <Dialog.Content
                     className={cn(
+                        "font-urbanist",
                         "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full",
                         sizeToMaxWidth[size],
                         "bg-sbi-dark text-white border border-sbi-dark-border/50 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
