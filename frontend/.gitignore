@@ -40,17 +40,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Agent / tooling sidecar dirs. 
 .omc/
 .sisyphus/
-
-# Agent / tooling sidecar dirs. CRITICAL: Tailwind v4 walks the project tree
-# on every compile to scan for class usage. .claude/ in particular can grow
-# to 500+MB / 6000+ files (session logs, prompts, artifacts), and scanning
-# it OOM's PostCSS — postcss.js worker climbed past 10GB during dev compile
-# before being killed. Keep these dirs ignored both for git AND Tailwind.
 .claude/
 .impeccable/
 .superpowers/
 
 # Playwright MCP scratch output (screenshots, snapshots, console logs)
 .playwright-mcp/
+
+# Local / agent planning notes (not product docs)
+docs/plans/

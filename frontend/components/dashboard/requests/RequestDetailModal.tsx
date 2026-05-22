@@ -10,11 +10,22 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { StatusPill } from "@/components/data-table";
-import { Modal } from "@/components/dashboard/common/ui";
+import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import { departmentLabel } from "@/lib/departments";
+import { toastError, toastSuccess } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/client";
+import { updateRequestStatus } from "@/lib/supabase/requests";
+import { cn } from "@/lib/utils";
 import { memberLabel } from "./constants";
 import type { Request } from "./RequestHistory";
+import type { RequestStatus } from "./StatusBadge";
+
+const STATUS_OPTIONS: { value: RequestStatus; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "in-progress", label: "In Progress" },
+  { value: "done", label: "Done" },
+  { value: "denied", label: "Denied" },
+];
 
 const BUCKET = "ticket-attachments";
 const IMAGE_EXTS = new Set([
@@ -31,6 +42,8 @@ const IMAGE_EXTS = new Set([
 interface RequestDetailModalProps {
   request: Request | null;
   onClose: () => void;
+  canEditStatus?: boolean;
+  onStatusChange?: (id: string, status: RequestStatus) => void;
 }
 
 function isImage(name: string): boolean {
@@ -173,8 +186,28 @@ function AttachmentItem({ attachment }: { attachment: AttachmentFile }) {
   );
 }
 
-export function RequestDetailModal({ request, onClose }: RequestDetailModalProps) {
+export function RequestDetailModal({
+  request,
+  onClose,
+  canEditStatus = false,
+  onStatusChange,
+}: RequestDetailModalProps) {
+  const [savingStatus, setSavingStatus] = useState<RequestStatus | null>(null);
+
   if (!request) return null;
+
+  const handleStatusChange = async (next: RequestStatus) => {
+    if (next === request.status || savingStatus) return;
+    setSavingStatus(next);
+    const ok = await updateRequestStatus(request.id, next);
+    setSavingStatus(null);
+    if (ok) {
+      toastSuccess(`Status set to ${next.replace("-", " ")}.`);
+      onStatusChange?.(request.id, next);
+    } else {
+      toastError("Couldn't update status.");
+    }
+  };
 
   const title = (
     <span className="flex items-center gap-3">
@@ -187,6 +220,36 @@ export function RequestDetailModal({ request, onClose }: RequestDetailModalProps
 
   const attachments = request.attachments ?? [];
 
+  const footer = canEditStatus ? (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted shrink-0">
+        Set status
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {STATUS_OPTIONS.map((opt) => {
+          const isActive = request.status === opt.value;
+          const isSaving = savingStatus === opt.value;
+          return (
+            <button
+              type="button"
+              key={opt.value}
+              onClick={() => handleStatusChange(opt.value)}
+              disabled={savingStatus !== null}
+              aria-pressed={isActive}
+              className={cn(
+                isActive ? btnPrimary : btnGhost,
+                "h-9 px-4 text-[11px]",
+                isActive && "shadow-[inset_0_0_0_1px_var(--color-sbi-green)]",
+              )}
+            >
+              {isSaving ? "Saving…" : opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  ) : undefined;
+
   return (
     <Modal
       opened={!!request}
@@ -195,6 +258,7 @@ export function RequestDetailModal({ request, onClose }: RequestDetailModalProps
       uppercaseTitle={false}
       size="xl"
       padded={false}
+      footer={footer}
     >
       <div className="grid md:grid-cols-[260px_1fr] gap-0 md:gap-px bg-sbi-dark-border/30">
         <aside className="bg-sbi-dark p-6 flex flex-col gap-5">

@@ -17,6 +17,8 @@ interface ModalProps {
     padded?: boolean;
     hideClose?: boolean;
     contentClassName?: string;
+    /** Sticky action bar rendered below the scrollable content. */
+    footer?: ReactNode;
     children: ReactNode;
 }
 
@@ -40,6 +42,7 @@ export function Modal({
     padded = true,
     hideClose = false,
     contentClassName,
+    footer,
     children,
 }: ModalProps) {
     return (
@@ -117,6 +120,11 @@ export function Modal({
                     >
                         {children}
                     </div>
+                    {footer ? (
+                        <div className="shrink-0 border-t border-sbi-dark-border/50 bg-sbi-dark-card px-5 py-3">
+                            {footer}
+                        </div>
+                    ) : null}
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

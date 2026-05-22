@@ -92,4 +92,13 @@ system_prompt.md
 
 # exclude lancedb from source control by default
 lancedb/
+
+# Agent / tooling sidecar dirs. 
 .omc/
+.sisyphus/
+.claude/
+.impeccable/
+.superpowers/
+
+# Playwright MCP scratch output (screenshots, snapshots, console logs)
+.playwright-mcp/

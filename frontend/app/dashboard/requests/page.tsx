@@ -110,6 +110,15 @@ export default function RequestsPage() {
       <RequestDetailModal
         request={selectedRequest}
         onClose={() => setSelectedRequest(null)}
+        canEditStatus={user?.role === "director"}
+        onStatusChange={(id, status) => {
+          setRequests((prev) =>
+            prev.map((r) => (r.id === id ? { ...r, status } : r)),
+          );
+          setSelectedRequest((prev) =>
+            prev && prev.id === id ? { ...prev, status } : prev,
+          );
+        }}
       />
     </DashboardShell>
   );
