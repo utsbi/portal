@@ -17,6 +17,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   assignMemberToProject,
   createAccount,
@@ -114,6 +115,8 @@ function SettingsPageInner() {
   const [calendarError, setCalendarError] = useState("");
   const [calendarSuccess, setCalendarSuccess] = useState("");
   const [disconnectBusy, setDisconnectBusy] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
 
   // Team state
   const [projects, setProjects] = useState<Project[]>([]);
@@ -260,14 +263,9 @@ function SettingsPageInner() {
     }
   };
 
-  const handleDisconnect = async () => {
-    if (
-      !confirm(
-        "Disconnect Google Calendar? Clients won't see events until you reconnect.",
-      )
-    ) {
-      return;
-    }
+  const handleDisconnect = () => setShowDisconnectConfirm(true);
+
+  const confirmDisconnect = async () => {
     setDisconnectBusy(true);
     setCalendarError("");
     setCalendarSuccess("");
@@ -354,10 +352,11 @@ function SettingsPageInner() {
     setCreateLoading(false);
   };
 
-  const handleDeleteAccount = async (profileId: number) => {
-    if (!confirm("Are you sure you want to delete this account?")) return;
-    const result = await deleteAccount(profileId);
+  const confirmDeleteAccount = async () => {
+    if (!accountToDelete) return;
+    const result = await deleteAccount(accountToDelete.id);
     if (!result.error) loadAccounts();
+    setAccountToDelete(null);
   };
 
   const handleAssignMember = async (profileId: number) => {
@@ -395,6 +394,7 @@ function SettingsPageInner() {
   const selectedCalendar = calendars.find((c) => c.id === selectedCalendarId);
 
   return (
+    <>
     <div className="h-[calc(100vh-4rem)] bg-sbi-dark flex flex-col p-6 md:p-8 overflow-y-auto">
       <div className="max-w-4xl w-full mx-auto">
         <h1 className="text-2xl md:text-3xl font-light tracking-tight text-white mb-2">
@@ -744,7 +744,7 @@ function SettingsPageInner() {
                   {account.id !== user?.id && (
                     <button
                       type="button"
-                      onClick={() => handleDeleteAccount(account.id)}
+                      onClick={() => setAccountToDelete(account)}
                       className="text-red-400/50 hover:text-red-400 transition-colors cursor-pointer"
                     >
                       <Trash2 className="size-4" />
@@ -757,6 +757,50 @@ function SettingsPageInner() {
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      opened={showDisconnectConfirm}
+      onClose={() => setShowDisconnectConfirm(false)}
+      title="Disconnect Google Calendar?"
+      description={
+        <>
+          Your clients won't see events from your calendar until you reconnect.
+          Stored tokens will be cleared.
+        </>
+      }
+      confirmLabel="Disconnect"
+      danger
+      onConfirm={async () => {
+        await confirmDisconnect();
+        setShowDisconnectConfirm(false);
+      }}
+    />
+
+    <ConfirmDialog
+      opened={!!accountToDelete}
+      onClose={() => setAccountToDelete(null)}
+      title="Delete account?"
+      danger
+      description={
+        accountToDelete ? (
+          <>
+            <p className="mb-2">
+              You're about to permanently delete{" "}
+              <span className="text-white font-medium">{accountToDelete.name}</span>{" "}
+              ({accountToDelete.email}).
+            </p>
+            <p>
+              This removes their profile, project memberships, and auth account.
+              This cannot be undone.
+            </p>
+          </>
+        ) : null
+      }
+      confirmationText={accountToDelete?.name}
+      confirmLabel="Delete account"
+      onConfirm={confirmDeleteAccount}
+    />
+    </>
   );
 }
 
