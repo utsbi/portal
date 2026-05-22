@@ -11,7 +11,10 @@ export async function GET() {
   const url = oauth2.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: ["https://www.googleapis.com/auth/calendar.readonly"],
+    // calendar.events grants read + write on events for the chosen calendar.
+    // Required for the portal's RSVP flow (events.patch on attendee response).
+    // Does NOT grant access to other Google data (Gmail, etc.).
+    scope: ["https://www.googleapis.com/auth/calendar.events"],
   });
 
   return NextResponse.redirect(url);

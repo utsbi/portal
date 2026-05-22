@@ -5,9 +5,11 @@ for the SBI portal. Directors who just want to connect their calendar after
 setup is done don't need to read this — they go to **Settings → Calendar** in
 the portal.
 
-The portal reads (read-only) events from each project director's Google
-Calendar, filters to events where the project's client is an invited attendee,
-and shows them to the client. Nothing is written back to Google in Phase 1.
+The portal reads events from each project director's Google Calendar, filters
+to events where the project's client is an invited attendee, and shows them to
+the client. When the client RSVPs from the portal, the portal writes the
+attendee response back to the director's Google Calendar via
+`events.patch`. No other writes happen.
 
 ## What you'll set up
 
@@ -44,8 +46,10 @@ picker at the top.
 - App name: `SBI Portal` (or whatever you want directors to see)
 - User support email + developer email: a real address you monitor
 - Authorized domains: the domain you'll deploy to (e.g. `utsbi.org`)
-- Scopes: add `https://www.googleapis.com/auth/calendar.readonly`. **Do not
-  add other scopes** — the portal only needs read access.
+- Scopes: add `https://www.googleapis.com/auth/calendar.events`. This grants
+  read + write on event data for the calendar the director selects in the
+  portal (write is needed for client RSVPs). **Do not add other scopes** —
+  the portal does not need full Calendar admin or Gmail access.
 - Test users: while the app is in "Testing" mode (default), only listed test
   users can sign in. Add every director's Google account here during
   development. Up to 100 test users.
@@ -94,7 +98,7 @@ changes.
 2. Go to **Settings → Calendar**.
 3. Click **Connect Google Calendar**.
 4. Sign in with a Google account that's in your test users list.
-5. Grant the requested read-only Calendar permission.
+5. Grant the requested Calendar event read + write permission.
 6. You should be redirected back to **Settings → Calendar** with a success
    message. The page will show the list of calendars on that Google account.
 7. Pick a calendar — preferably a dedicated "Client meetings" calendar so
@@ -124,6 +128,28 @@ If the secret leaks (or you suspect it might have), rotate immediately:
 If only ONE director's tokens were compromised, you can scope the SQL to that
 director's row.
 
+## 8. After scope changes — force directors to reconnect
+
+OAuth refresh tokens are bound to the exact scope they were granted with. If
+this repo ever changes the scope in
+`frontend/app/api/contact/auth/google/route.ts` (e.g., the move from
+`calendar.readonly` → `calendar.events` to support portal RSVP), every
+director's stored refresh token still has the OLD scope and will hit
+`insufficient authentication scopes` on any new API call requiring the new
+permission.
+
+Fix: clear `profiles.config.google.refresh_token` for all directors and have
+them reconnect:
+
+```sql
+update profiles
+set config = config - 'google'
+where role = 'director' and config ? 'google';
+```
+
+In the portal: **Settings → Calendar → Disconnect** then reconnect. Google
+will show the new consent screen with the expanded scope.
+
 ## Common errors
 
 ### `redirect_uri_mismatch`
@@ -141,6 +167,13 @@ any of the **Authorized redirect URIs** on the OAuth Client. Triple-check:
 The refresh token has been revoked, expired, or the client secret has been
 rotated since the token was issued. The director needs to reconnect:
 **Settings → Calendar → Disconnect → Connect Google Calendar**.
+
+### `Request had insufficient authentication scopes`
+
+The director connected before the app's OAuth scope was widened (e.g., before
+RSVP write support). Their refresh token is still scoped to the old
+permission. See section 8 above — disconnect + reconnect in **Settings →
+Calendar** to get a token with the current scope.
 
 ### "No `refresh_token` returned" (in our app)
 
@@ -193,7 +226,7 @@ The stored token shape (in `profiles.config.google`):
 {
   "refresh_token": "...",
   "access_token": "...",         // refreshed lazily by the API call
-  "scope": "https://www.googleapis.com/auth/calendar.readonly",
+  "scope": "https://www.googleapis.com/auth/calendar.events",
   "token_type": "Bearer",
   "expiry_date": 1234567890,
   "calendar_id": "primary",      // chosen via Settings → Calendar

@@ -748,8 +748,8 @@ function NotConnectedPanel() {
     <div className="mt-4">
       <p className="text-sbi-muted text-sm mb-4 max-w-prose">
         Clients on your projects will see events from your Google Calendar where
-        they're invited as an attendee. We request{" "}
-        <span className="text-white">read-only</span> access.
+        they're invited as an attendee. We only access the{" "}
+        <span className="text-white">one calendar</span> you pick.
       </p>
 
       <div className="grid sm:grid-cols-2 gap-3 mb-5">
@@ -761,6 +761,7 @@ function NotConnectedPanel() {
             <li>Read events from one calendar you choose</li>
             <li>Filter to events where the client is an attendee</li>
             <li>Show them on the client's calendar page</li>
+            <li>Save the client's RSVP back to your calendar</li>
           </ul>
         </div>
         <div className="rounded-md border border-sbi-dark-border/40 bg-sbi-dark/40 p-3">
@@ -768,7 +769,8 @@ function NotConnectedPanel() {
             What we don't do
           </div>
           <ul className="text-xs text-sbi-muted leading-relaxed list-disc list-outside ml-4 space-y-0.5">
-            <li>Create, edit, or delete events</li>
+            <li>Create new events or delete existing ones</li>
+            <li>Touch any calendar besides the one you select</li>
             <li>Read events without the client invited</li>
             <li>Access Gmail or any other Google data</li>
           </ul>

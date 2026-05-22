@@ -160,17 +160,35 @@ export async function POST(req: Request) {
     );
   }
 
+  // Strip `self`/`organizer`/`resource` flags from existing attendees — they're
+  // server-computed; sending them back can confuse Google's permission checks.
+  const sanitizedAttendees = attendees.map((a) => {
+    const { self: _self, organizer: _org, resource: _res, ...rest } = a as Record<string, unknown>;
+    void _self;
+    void _org;
+    void _res;
+    return rest;
+  });
+
   try {
     await cal.events.patch({
       calendarId,
       eventId,
-      requestBody: { attendees },
+      requestBody: { attendees: sanitizedAttendees },
       sendUpdates: "none",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error("Google rejected RSVP update:", message, {
+      calendarId,
+      eventId,
+      response,
+      attendeeCount: sanitizedAttendees.length,
+    });
+    // Don't leak Google's raw message (can include calendar IDs / scope hints)
+    // — keep server-side logs verbose, response body terse.
     return NextResponse.json(
-      { error: "Google rejected the update", message },
+      { error: "Couldn't save your RSVP. Please try again." },
       { status: 502 },
     );
   }

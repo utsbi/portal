@@ -216,9 +216,26 @@ export function buildIcsUrl(event: CalendarEventSource): string {
 // Event normalization + bucketing
 // ---------------------------------------------------------------------------
 
+/**
+ * Google all-day events return start.date in YYYY-MM-DD form (no timezone).
+ * Parsing that with `new Date(str)` makes it UTC midnight, which in a
+ * negative-UTC timezone shifts to the previous calendar day locally —
+ * which would bucket "today" all-day events into "yesterday". Construct
+ * via local-midnight when the value matches a date-only shape.
+ */
+function parseEventStart(startStr: string | null): Date | null {
+  if (!startStr) return null;
+  const dateOnly = startStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    const [, y, m, d] = dateOnly;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+  return new Date(startStr);
+}
+
 export function normalizeEvent(raw: RawCalendarEvent): CalendarEvent {
   const startStr = raw.start ?? null;
-  const startDate = startStr ? new Date(startStr) : null;
+  const startDate = parseEventStart(startStr);
   return {
     id: raw.id ?? Math.random().toString(36).slice(2),
     title: raw.summary ?? "Untitled event",

@@ -204,9 +204,10 @@ export async function GET(req: Request) {
           allMatchedEvents.push(...normalized);
         }
 
-        // Best-effort write of last_synced_at; failures here must not break
-        // the user-facing fetch.
-        await supabaseAdmin
+        // Best-effort, fire-and-forget. Awaiting here adds N round-trips of
+        // latency to every calendar pageview for a multi-director project,
+        // and a failed metadata write must not block the user-facing fetch.
+        void supabaseAdmin
           .from("profiles")
           .update({
             config: {
@@ -214,7 +215,15 @@ export async function GET(req: Request) {
               google: { ...google_, last_synced_at: syncedAt },
             },
           })
-          .eq("id", director.id);
+          .eq("id", director.id)
+          .then((res) => {
+            if (res.error) {
+              console.error(
+                `Failed to update last_synced_at for director ${director.id}:`,
+                res.error.message,
+              );
+            }
+          });
       } catch (err) {
         console.error(
           `Google Calendar fetch failed for director ${director.id}:`,

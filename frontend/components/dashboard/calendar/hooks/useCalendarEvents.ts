@@ -153,12 +153,23 @@ export function useCalendarEvents({
             response,
           }),
         });
-        if (!res.ok) throw new Error("RSVP request failed");
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          console.error("RSVP failed:", res.status, body);
+          throw new Error(
+            body?.error ?? `RSVP request failed with ${res.status}`,
+          );
+        }
       } catch (e) {
         console.error("Failed to RSVP:", e);
+        // Only revert if the local state STILL holds the value this call set.
+        // Without this check, a second click ("Maybe") that succeeds could be
+        // clobbered by the revert of a still-in-flight first call ("Going").
         setEvents((curr) =>
           curr.map((evt) =>
-            evt.id === eventId && previousResponse !== undefined
+            evt.id === eventId &&
+            evt.myResponse === response &&
+            previousResponse !== undefined
               ? { ...evt, myResponse: previousResponse }
               : evt,
           ),
