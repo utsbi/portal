@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { DashboardShell, PageHeader } from "@/components/dashboard/common/ui";
-import { EmptyBudgetState } from "@/components/dashboard/finances/EmptyBudgetState";
+import { FinancesView } from "@/components/dashboard/finances";
 import type { BudgetFetchResult } from "@/components/dashboard/finances/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -71,32 +70,13 @@ export default async function FinancesPage() {
   const result = await fetchFinancesData(projectId);
   if ("redirect" in result) redirect(result.redirect);
 
-  if (!result.budget) {
-    return (
-      <DashboardShell>
-        <PageHeader
-          title="Finances"
-          subtitle="Track your project budget and spending"
-        />
-        <main className="flex-1 overflow-auto dashboard-scrollbar">
-          <EmptyBudgetState canEdit={result.canEdit} />
-        </main>
-      </DashboardShell>
-    );
-  }
-
-  // FinancesView is wired in T14. Placeholder for now so the page is reachable.
   return (
-    <DashboardShell>
-      <PageHeader
-        title="Finances"
-        subtitle="Track your project budget and spending"
-      />
-      <main className="flex-1 overflow-auto dashboard-scrollbar">
-        <pre className="text-xs text-sbi-muted">
-          {JSON.stringify(result, null, 2)}
-        </pre>
-      </main>
-    </DashboardShell>
+    <FinancesView
+      projectId={projectId}
+      canEdit={result.canEdit}
+      initialBudget={result.budget}
+      initialCategories={result.categories}
+      initialTransactions={result.transactions}
+    />
   );
 }
