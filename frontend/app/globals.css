@@ -15,8 +15,8 @@
   --color-sbi-muted: #8a9a93;
   --color-sbi-muted-dark: #6b7c74;
   --font-urbanist: var(--font-urbanist);
-  --font-old-standard: var(--font-old-standard);
   --font-jetbrains-mono: var(--font-jetbrains-mono);
+  --font-mono: var(--font-jetbrains-mono);
 
   /* Conv-switch bloom. Triggered on every MessageThread mount (driven by
      `key={conversationId}` on conv switch). Tailwind v4 generates the

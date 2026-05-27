@@ -22,9 +22,20 @@ const nextConfig: NextConfig = {
     removeConsole: process.env.NODE_ENV === "production",
   },
 
+  // Keep server-only SDKs out of the bundler's reachability analysis.
+  serverExternalPackages: ["googleapis"],
+
   // Optimize package imports
   experimental: {
-    optimizePackageImports: ["lucide-react", "gsap"],
+    optimizePackageImports: [
+      "lucide-react",
+      "gsap",
+      "@phosphor-icons/react",
+      "@react-three/drei",
+      "recharts",
+      "react-syntax-highlighter",
+      "motion",
+    ],
   },
 };
 

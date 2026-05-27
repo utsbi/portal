@@ -94,9 +94,9 @@ export function Button() { ... }
 
 ## UI Stack
 
-1. **Mantine UI** (`@mantine/core`) - Primary component library
-2. **Tailwind CSS v4** - Utility classes
-3. **shadcn/ui** - Radix primitives in `components/ui/`
+1. **Tailwind CSS v4** - Utility classes (primary styling)
+2. **shadcn/ui** - Radix primitives in `components/ui/`
+3. **Dashboard primitives** - Shared shell/panels/buttons in `components/dashboard/common/ui.tsx`
 
 ### Tailwind + cn()
 
@@ -117,7 +117,7 @@ className={cn(
 ### Fonts
 
 - `font-urbanist` - Primary UI font (applied to body by default)
-- `font-old-standard` - Serif accent
+- `font-jetbrains-mono` - Monospace (code, technical UI)
 
 ## Animation
 
@@ -181,17 +181,30 @@ export async function POST(request: NextRequest) {
 
 ## Environment Variables
 
-Required in `.env.local`:
+Copy `.env.example` to `.env.local` for local development. All keys below are required unless noted.
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+SUPABASE_SECRET_KEY=
+TURNSTILE_SECRET_KEY=
 N8N_CONTACT_WEBHOOK_URL=
 BASIC_AUTH_USER=
 BASIC_AUTH_PASSWORD=
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=
-TURNSTILE_SECRET_KEY=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
 ```
+
+| Variable | Scope | Purpose |
+|----------|-------|---------|
+| `NEXT_PUBLIC_SUPABASE_*` | Client + server | Supabase project URL and anon/publishable key |
+| `SUPABASE_SECRET_KEY` | Server only | Service role key for admin APIs, Google OAuth token storage, seed scripts |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | Client / server | Cloudflare Turnstile (contact form) |
+| `N8N_CONTACT_WEBHOOK_URL` | Server only | n8n webhook for contact form submissions |
+| `BASIC_AUTH_*` | Server only | HTTP basic auth for protected routes |
+| `GOOGLE_*` | Server only | Google Calendar OAuth for dashboard contact/calendar APIs |
 
 ## Adding New Features
 

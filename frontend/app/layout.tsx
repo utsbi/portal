@@ -4,17 +4,10 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 import type { Metadata } from "next";
-import { Old_Standard_TT, Urbanist, JetBrains_Mono } from "next/font/google";
+import { Urbanist, JetBrains_Mono } from "next/font/google";
 import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
 import { ThemeProvider } from "@/components/theme-provider";
-
-const oldStandardTT = Old_Standard_TT({
-  weight: ["400", "700"],
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-old-standard",
-});
 
 const urbanist = Urbanist({
   subsets: ["latin"],
@@ -106,7 +99,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${urbanist.variable} ${oldStandardTT.variable} ${jetbrainsMono.variable}`}
+      className={`${urbanist.variable} ${jetbrainsMono.variable}`}
     >
       <body className="scrollbar font-urbanist">
         <ThemeProvider
