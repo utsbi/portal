@@ -45,14 +45,17 @@ CREATE TABLE public.budget_transactions (
 CREATE INDEX idx_budget_tx_budget_date ON public.budget_transactions (budget_id, occurred_on);
 CREATE INDEX idx_budget_tx_category    ON public.budget_transactions (category_id);
 
--- 4. updated_at triggers (mirror project pattern) ----------------------
+-- 4. updated_at trigger (shared helper) --------------------------------
 CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path TO 'pg_catalog', 'pg_temp'
+AS $$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE TRIGGER trg_project_budgets_updated_at
   BEFORE UPDATE ON public.project_budgets
@@ -71,23 +74,20 @@ ALTER TABLE public.project_budgets      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.budget_categories    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.budget_transactions  ENABLE ROW LEVEL SECURITY;
 
--- Helper: is auth.uid() a member of the given project?
-CREATE OR REPLACE FUNCTION public.is_project_member(target_project_id bigint)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.project_members pm
-    JOIN public.profiles p ON p.id = pm.profile_id
-    WHERE pm.project_id = target_project_id AND p.uid = auth.uid()
-  );
-$$;
+-- Reuse existing public.is_project_member(_project_id bigint) — already in DB.
 
--- Helper: is auth.uid() a director on the given project?
-CREATE OR REPLACE FUNCTION public.is_project_director(target_project_id bigint)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER AS $$
+-- New helper: is auth.uid() a director on the given project?
+-- Matches the convention of the existing is_project_member: SECURITY DEFINER + search_path hardening.
+CREATE OR REPLACE FUNCTION public.is_project_director(_project_id bigint)
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'pg_temp'
+AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.project_members pm
     JOIN public.profiles p ON p.id = pm.profile_id
-    WHERE pm.project_id = target_project_id
+    WHERE pm.project_id = _project_id
       AND pm.role = 'director'
       AND p.uid = auth.uid()
   );
