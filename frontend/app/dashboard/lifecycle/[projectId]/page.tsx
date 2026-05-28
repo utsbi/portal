@@ -1,26 +1,39 @@
 "use client";
 
-import { ArrowLeft, ListChecks, ShieldAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  ListChecks,
+  ListPlus,
+  Pencil,
+  ShieldAlert,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import {
   btnGhost,
+  btnPrimary,
   DashboardShell,
   EmptyState,
   PageHeader,
   SectionLabel,
 } from "@/components/dashboard/common/ui";
 import { type ColumnDef, DataTable } from "@/components/data-table";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
+import { deleteLifecycleTask } from "../api";
 import {
   TASK_PRIORITY_FILTER,
   TASK_TEAM_FILTER,
 } from "../components/constants";
 import { PriorityPill, TaskStatusPill } from "../components/Pills";
+import { ProjectModal } from "../components/ProjectModal";
 import { StatusChips } from "../components/StatusChips";
 import { StatusDonut } from "../components/StatusDonut";
 import { countByStatus } from "../components/status-meta";
+import { TaskModal } from "../components/TaskModal";
 import TaskPopUp from "../components/TaskPopUp";
 import {
   TASK_PRIORITY_ORDER,
@@ -47,13 +60,43 @@ function ProjectDetailInner() {
   const { user } = useProject();
   const canEdit = user?.role === "director";
 
-  const { project, loading, setTaskStatus } = useLifecycleProject({
+  const { project, loading, refetch, setTaskStatus } = useLifecycleProject({
     projectId,
     demoMode,
   });
 
+  const canCreate = canEdit && !demoMode;
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [statusFilter, setStatusFilter] = useState<TaskStatusDB | null>(null);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
+
+  const openAddTask = () => {
+    setEditingTask(null);
+    setTaskModalOpen(true);
+  };
+  const openEditTask = (t: Task) => {
+    setSelectedTask(null);
+    setEditingTask(t);
+    setTaskModalOpen(true);
+  };
+  const requestDeleteTask = (t: Task) => {
+    setSelectedTask(null);
+    setDeletingTask(t);
+  };
+  const confirmDeleteTask = async () => {
+    if (!deletingTask) return;
+    const ok = await deleteLifecycleTask(deletingTask.id);
+    if (ok) {
+      toastSuccess(`Task "${deletingTask.title}" deleted.`);
+      await refetch();
+    } else {
+      toastError("Couldn't delete the task.");
+    }
+    setDeletingTask(null);
+  };
 
   const counts = useMemo(
     () => countByStatus(project?.tasks ?? []),
@@ -124,8 +167,48 @@ function ProjectDetailInner() {
           </span>
         ),
       },
+      ...(canCreate
+        ? [
+            {
+              accessor: "id" as keyof Task,
+              header: "",
+              width: "w-20",
+              align: "right" as const,
+              render: (_: unknown, row: Task) => (
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    aria-label="Edit task"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedTask(null);
+                      setEditingTask(row);
+                      setTaskModalOpen(true);
+                    }}
+                    className="rounded-md p-1.5 text-sbi-muted transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete task"
+                    title="Delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingTask(row);
+                    }}
+                    className="rounded-md p-1.5 text-sbi-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ),
+            },
+          ]
+        : []),
     ],
-    [],
+    [canCreate],
   );
 
   if (loading && !project) {
@@ -170,10 +253,30 @@ function ProjectDetailInner() {
         title={project.title}
         subtitle={subtitle}
         action={
-          <Link href="/dashboard/lifecycle" className={btnGhost}>
-            <ArrowLeft className="h-4 w-4" />
-            Lifecycle
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/lifecycle" className={btnGhost}>
+              <ArrowLeft className="h-4 w-4" />
+              Lifecycle
+            </Link>
+            {canCreate ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditProjectOpen(true)}
+                  className={btnGhost}
+                >
+                  <Pencil className="h-4 w-4" /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={openAddTask}
+                  className={btnPrimary}
+                >
+                  <ListPlus className="h-4 w-4" /> Add Task
+                </button>
+              </>
+            ) : null}
+          </div>
         }
       />
 
@@ -241,6 +344,10 @@ function ProjectDetailInner() {
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
         canEdit={canEdit}
+        onEdit={selectedTask ? () => openEditTask(selectedTask) : undefined}
+        onDelete={
+          selectedTask ? () => requestDeleteTask(selectedTask) : undefined
+        }
         onStatusChange={async (taskId, status) => {
           const ok = await setTaskStatus(taskId, status);
           if (ok) {
@@ -250,6 +357,42 @@ function ProjectDetailInner() {
           }
           return ok;
         }}
+      />
+
+      <TaskModal
+        open={taskModalOpen}
+        onClose={() => setTaskModalOpen(false)}
+        lifecycleProjectId={projectId}
+        assignedBy={user?.id ?? null}
+        task={editingTask}
+        onSaved={refetch}
+      />
+
+      <ProjectModal
+        open={isEditProjectOpen}
+        onClose={() => setIsEditProjectOpen(false)}
+        parentProjectId={project.project_id}
+        project={project}
+        onSaved={refetch}
+      />
+
+      <ConfirmDialog
+        opened={!!deletingTask}
+        onClose={() => setDeletingTask(null)}
+        title="Delete task"
+        description={
+          deletingTask ? (
+            <>
+              Delete <span className="text-white">{deletingTask.title}</span>?
+              This permanently removes the task and its assignees.
+            </>
+          ) : (
+            ""
+          )
+        }
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDeleteTask}
       />
     </DashboardShell>
   );

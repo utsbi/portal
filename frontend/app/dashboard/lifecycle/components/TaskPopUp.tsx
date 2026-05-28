@@ -1,6 +1,13 @@
 "use client";
 
-import { Calendar as CalendarIcon, Flag, User, Users } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  Flag,
+  Pencil,
+  Trash2,
+  User,
+  Users,
+} from "lucide-react";
 import { useState } from "react";
 import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import { toastError, toastSuccess } from "@/lib/notifications";
@@ -20,6 +27,10 @@ type TaskPopUpProps = {
   /** Directors may change status; everyone else is read-only. */
   canEdit?: boolean;
   onStatusChange?: (taskId: number, status: TaskStatusDB) => Promise<boolean>;
+  /** Director-only: open the full edit form for this task. */
+  onEdit?: () => void;
+  /** Director-only: request deletion of this task. */
+  onDelete?: () => void;
 };
 
 function MetaRow({
@@ -67,6 +78,8 @@ export default function TaskPopUp({
   onClose,
   canEdit = false,
   onStatusChange,
+  onEdit,
+  onDelete,
 }: TaskPopUpProps) {
   const [saving, setSaving] = useState<TaskStatusDB | null>(null);
 
@@ -132,6 +145,33 @@ export default function TaskPopUp({
       size="xl"
       padded={false}
       footer={footer}
+      headerActions={
+        canEdit && (onEdit || onDelete) ? (
+          <div className="flex items-center gap-2">
+            {onEdit ? (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex items-center gap-1.5 rounded-md border border-sbi-dark-border/60 px-2.5 py-1 text-xs text-sbi-muted transition-colors hover:border-white/30 hover:text-white"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            ) : null}
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                aria-label="Delete task"
+                className="inline-flex items-center gap-1.5 rounded-md border border-sbi-dark-border/60 px-2.5 py-1 text-xs text-sbi-muted transition-colors hover:border-red-400/40 hover:text-red-400"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+            ) : null}
+          </div>
+        ) : undefined
+      }
     >
       <div className="grid md:grid-cols-[260px_1fr] gap-0 md:gap-px bg-sbi-dark-border/30">
         <aside className="bg-sbi-dark p-6 flex flex-col gap-5">

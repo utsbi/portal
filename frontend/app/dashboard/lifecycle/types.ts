@@ -71,7 +71,11 @@ export type Task = {
   due_date: Date;
   tentative: boolean;
   assigned_by: string;
+  /** profiles.id of the assigner (null if unset); kept for editing. */
+  assigned_by_id: number | null;
   assignees: string[];
+  /** profiles.id of each assignee; kept for editing. */
+  assignee_ids: number[];
   priority: TaskPriorityDB;
   lifecycle_project_id: number;
   created_at: Date;

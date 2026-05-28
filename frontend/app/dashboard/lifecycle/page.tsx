@@ -1,15 +1,17 @@
 "use client";
 
-import { FolderKanban } from "lucide-react";
+import { FolderKanban, Plus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import {
+  btnPrimary,
   DashboardShell,
   EmptyState,
   PageHeader,
   SectionLabel,
 } from "@/components/dashboard/common/ui";
 import { useProject } from "@/lib/project/project-context";
+import { ProjectModal } from "./components/ProjectModal";
 import ProjectCard from "./components/ProjectCard";
 import { ProjectHeroCard } from "./components/ProjectHeroCard";
 import type { Project } from "./types";
@@ -49,22 +51,43 @@ function arrange(projects: Project[]): {
 }
 
 function LifecyclePageInner() {
-  const { activeProject } = useProject();
+  const { activeProject, user } = useProject();
   const searchParams = useSearchParams();
   const demoMode = searchParams.get("demo") === "1";
 
-  const { projects, loading } = useLifecycleProjects({
+  const { projects, loading, refetch } = useLifecycleProjects({
     parentProjectId: activeProject?.projectId,
     demoMode,
   });
 
   const { hero, rest } = useMemo(() => arrange(projects), [projects]);
 
+  const canCreate = user?.role === "director" && !demoMode;
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+
   return (
     <DashboardShell>
       <PageHeader
         title="Lifecycle"
         subtitle="Track progress across your active projects"
+        action={
+          canCreate ? (
+            <button
+              type="button"
+              onClick={() => setIsNewProjectOpen(true)}
+              className={btnPrimary}
+            >
+              <Plus className="h-4 w-4" /> New Project
+            </button>
+          ) : null
+        }
+      />
+
+      <ProjectModal
+        open={isNewProjectOpen}
+        onClose={() => setIsNewProjectOpen(false)}
+        parentProjectId={activeProject?.projectId}
+        onSaved={refetch}
       />
 
       <main className="flex-1 overflow-y-auto custom-scrollbar">
