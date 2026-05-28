@@ -1,33 +1,47 @@
 // DB enum values (must match Postgres enums exactly)
-export type TaskStatusDB = 'not_started' | 'in_progress' | 'pending_approval' | 'completed';
-export type TaskPriorityDB = 'extreme' | 'high' | 'medium' | 'low' | 'stretch';
-export type TeamNameDB = 'technology' | 'architecture' | 'public_relations' | 'engineering' | 'finance' | 'research' | 'legal' | 'executive';
+export type TaskStatusDB =
+  | "not_started"
+  | "in_progress"
+  | "pending_approval"
+  | "blocked"
+  | "completed";
+export type TaskPriorityDB = "extreme" | "high" | "medium" | "low" | "stretch";
+export type TeamNameDB =
+  | "technology"
+  | "architecture"
+  | "public_relations"
+  | "engineering"
+  | "finance"
+  | "research"
+  | "legal"
+  | "executive";
 
 // Display labels
 export const TASK_STATUS_LABELS: Record<TaskStatusDB, string> = {
-  not_started: 'Not Started',
-  in_progress: 'In Progress',
-  pending_approval: 'Pending Approval',
-  completed: 'Completed',
+  not_started: "Not Started",
+  in_progress: "In Progress",
+  pending_approval: "Pending Approval",
+  blocked: "Blocked",
+  completed: "Completed",
 };
 
 export const TASK_PRIORITY_LABELS: Record<TaskPriorityDB, string> = {
-  extreme: 'Extremely High',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
-  stretch: 'Stretch',
+  extreme: "Extremely High",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+  stretch: "Stretch",
 };
 
 export const TEAM_NAME_LABELS: Record<TeamNameDB, string> = {
-  technology: 'Technology',
-  architecture: 'Architecture',
-  public_relations: 'Public Relations',
-  engineering: 'Engineering',
-  finance: 'Finance',
-  research: 'Research & Development',
-  legal: 'Legal',
-  executive: 'Executive Board',
+  technology: "Technology",
+  architecture: "Architecture",
+  public_relations: "Public Relations",
+  engineering: "Engineering",
+  finance: "Finance",
+  research: "Research & Development",
+  legal: "Legal",
+  executive: "Executive Board",
 };
 
 // Ordering for sorting
@@ -35,7 +49,8 @@ export const TASK_STATUS_ORDER: Record<TaskStatusDB, number> = {
   not_started: 0,
   in_progress: 1,
   pending_approval: 2,
-  completed: 3,
+  blocked: 3,
+  completed: 4,
 };
 
 export const TASK_PRIORITY_ORDER: Record<TaskPriorityDB, number> = {
@@ -75,28 +90,38 @@ export type Project = {
 
 // Sort options
 export type SortOption =
-  | 'dueDate-asc'
-  | 'dueDate-desc'
-  | 'status-asc'
-  | 'status-desc'
-  | 'priority-asc'
-  | 'priority-desc';
+  | "dueDate-asc"
+  | "dueDate-desc"
+  | "status-asc"
+  | "status-desc"
+  | "priority-asc"
+  | "priority-desc";
 
 export function sortTasks(tasks: Task[], sortOption: SortOption): Task[] {
   const sorted = [...tasks];
   switch (sortOption) {
-    case 'dueDate-asc':
+    case "dueDate-asc":
       return sorted.sort((a, b) => a.due_date.getTime() - b.due_date.getTime());
-    case 'dueDate-desc':
+    case "dueDate-desc":
       return sorted.sort((a, b) => b.due_date.getTime() - a.due_date.getTime());
-    case 'status-asc':
-      return sorted.sort((a, b) => TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status]);
-    case 'status-desc':
-      return sorted.sort((a, b) => TASK_STATUS_ORDER[b.status] - TASK_STATUS_ORDER[a.status]);
-    case 'priority-asc':
-      return sorted.sort((a, b) => TASK_PRIORITY_ORDER[a.priority] - TASK_PRIORITY_ORDER[b.priority]);
-    case 'priority-desc':
-      return sorted.sort((a, b) => TASK_PRIORITY_ORDER[b.priority] - TASK_PRIORITY_ORDER[a.priority]);
+    case "status-asc":
+      return sorted.sort(
+        (a, b) => TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status],
+      );
+    case "status-desc":
+      return sorted.sort(
+        (a, b) => TASK_STATUS_ORDER[b.status] - TASK_STATUS_ORDER[a.status],
+      );
+    case "priority-asc":
+      return sorted.sort(
+        (a, b) =>
+          TASK_PRIORITY_ORDER[a.priority] - TASK_PRIORITY_ORDER[b.priority],
+      );
+    case "priority-desc":
+      return sorted.sort(
+        (a, b) =>
+          TASK_PRIORITY_ORDER[b.priority] - TASK_PRIORITY_ORDER[a.priority],
+      );
     default:
       return sorted;
   }

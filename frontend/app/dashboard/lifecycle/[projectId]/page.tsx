@@ -1,121 +1,271 @@
-'use client';
+"use client";
 
-import { getProjectById } from '../mockData';
-import TaskCard from '../components/TaskCard';
-import SearchBar from '../components/SearchBar';
-import FilterDropdown from '../components/FilterDropdown';
-import Link from 'next/link';
-import { use, useState } from 'react';
+import { ArrowLeft, ListChecks, ShieldAlert } from "lucide-react";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import {
+  btnGhost,
+  DashboardShell,
+  EmptyState,
+  PageHeader,
+  SectionLabel,
+} from "@/components/dashboard/common/ui";
+import { type ColumnDef, DataTable } from "@/components/data-table";
+import { useProject } from "@/lib/project/project-context";
+import {
+  TASK_PRIORITY_FILTER,
+  TASK_TEAM_FILTER,
+} from "../components/constants";
+import { PriorityPill, TaskStatusPill } from "../components/Pills";
+import { StatusChips } from "../components/StatusChips";
+import { StatusDonut } from "../components/StatusDonut";
+import { countByStatus } from "../components/status-meta";
+import TaskPopUp from "../components/TaskPopUp";
+import {
+  TASK_PRIORITY_ORDER,
+  TASK_STATUS_ORDER,
+  type Task,
+  type TaskStatusDB,
+  TEAM_NAME_LABELS,
+} from "../types";
+import { useLifecycleProject } from "../use-lifecycle";
 
-export default function ProjectDetailPage({
-  params
-}: {
-  params: Promise<{ projectId: string }>
-}) {
-  const { projectId } = use(params);
-  const project = getProjectById(Number(projectId));
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  if (!project) {
+const formatDueDate = (d: Date) =>
+  d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+function ProjectDetailInner() {
+  const params = useParams<{ projectId: string }>();
+  const projectId = Number(params.projectId);
+  const searchParams = useSearchParams();
+  const demoMode = searchParams.get("demo") === "1";
+
+  const { user } = useProject();
+  const canEdit = user?.role === "director";
+
+  const { project, loading, setTaskStatus } = useLifecycleProject({
+    projectId,
+    demoMode,
+  });
+
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [statusFilter, setStatusFilter] = useState<TaskStatusDB | null>(null);
+
+  const counts = useMemo(
+    () => countByStatus(project?.tasks ?? []),
+    [project?.tasks],
+  );
+
+  const visibleTasks = useMemo(() => {
+    const all = project?.tasks ?? [];
+    return statusFilter ? all.filter((t) => t.status === statusFilter) : all;
+  }, [project?.tasks, statusFilter]);
+
+  const columns: ColumnDef<Task>[] = useMemo(
+    () => [
+      {
+        accessor: "title",
+        header: "Task",
+        sortable: true,
+        render: (value, row) => (
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white truncate">{value}</p>
+            {row.description ? (
+              <p className="text-xs text-sbi-muted-dark truncate mt-0.5">
+                {row.description}
+              </p>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        accessor: "status",
+        header: "Status",
+        sortable: true,
+        sortFn: (a, b) =>
+          TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status],
+        render: (_, row) => <TaskStatusPill status={row.status} />,
+      },
+      {
+        accessor: "priority",
+        header: "Priority",
+        sortable: true,
+        sortFn: (a, b) =>
+          TASK_PRIORITY_ORDER[b.priority] - TASK_PRIORITY_ORDER[a.priority],
+        render: (_, row) => <PriorityPill priority={row.priority} />,
+      },
+      {
+        accessor: "team",
+        header: "Team",
+        sortable: true,
+        render: (_, row) => (
+          <span className="text-sm text-sbi-muted">
+            {TEAM_NAME_LABELS[row.team]}
+          </span>
+        ),
+      },
+      {
+        accessor: "due_date",
+        header: "Due",
+        sortable: true,
+        sortFn: (a, b) => a.due_date.getTime() - b.due_date.getTime(),
+        render: (_, row) => (
+          <span className="text-sm text-sbi-muted tabular-nums whitespace-nowrap">
+            {row.tentative ? (
+              <span className="mr-1 text-amber-400" title="Tentative">
+                ~
+              </span>
+            ) : null}
+            {formatDueDate(row.due_date)}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  if (loading && !project) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-white font-light tracking-wide">Project not found</div>
-      </div>
+      <DashboardShell>
+        <PageHeader title="Loading…" subtitle="" />
+        <div className="flex-1 animate-pulse space-y-6">
+          <div className="h-36 rounded-2xl bg-white/5" />
+          <div className="h-64 rounded-xl bg-white/5" />
+        </div>
+      </DashboardShell>
     );
   }
 
-  // Filter tasks based on search (searches both title and description)
-  const filteredTasks = project.tasks.filter(task =>
-    task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    task.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  if (!project) {
+    return (
+      <DashboardShell>
+        <PageHeader title="Project not found" subtitle="" />
+        <EmptyState
+          icon={<ShieldAlert className="h-6 w-6" />}
+          title="We couldn't find that project"
+          description="It may have been removed or the link is incorrect."
+          action={
+            <Link href="/dashboard/lifecycle" className={btnGhost}>
+              <ArrowLeft className="h-4 w-4" />
+              Back to Lifecycle
+            </Link>
+          }
+        />
+      </DashboardShell>
+    );
+  }
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-  };
-  
+  const blocked = counts.blocked;
+  const subtitle = `${project.tasks.length} ${
+    project.tasks.length === 1 ? "task" : "tasks"
+  } · ${blocked > 0 ? `${blocked} blocked` : "on track"} · ${project.progress_percent}% complete`;
+
   return (
-    <div className="container mx-auto p-6">
-      {/* Back Button */}
-      <Link 
-        href="/dashboard/lifecycle" 
-        className="inline-flex items-center gap-2 text-sbi-green hover:text-sbi-green/80 
-                   transition-colors mb-6 font-light tracking-wide"
-      >
-        <svg 
-          xmlns="http://www.w3.org/2000/svg" 
-          className="h-5 w-5" 
-          viewBox="0 0 20 20" 
-          fill="currentColor"
-        >
-          <path 
-            fillRule="evenodd" 
-            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" 
-            clipRule="evenodd" 
-          />
-        </svg>
-        Back to Projects
-      </Link>
-      
-      {/* Project Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-light text-white mb-2 tracking-wide">{project.title}</h1>
-        <p className="text-sbi-muted-dark font-light tracking-wide">
-          {project.progress_percent}% Complete • {project.tasks.length} Tasks
-        </p>
-      </div>
+    <DashboardShell>
+      <PageHeader
+        title={project.title}
+        subtitle={subtitle}
+        action={
+          <Link href="/dashboard/lifecycle" className={btnGhost}>
+            <ArrowLeft className="h-4 w-4" />
+            Lifecycle
+          </Link>
+        }
+      />
 
-      {/* Task Status Pie Chart */}
-      <div className="mb-8">
-        <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg p-6 h-64">
-          <p className="text-sm uppercase tracking-[0.15em] text-sbi-muted-dark mb-4 font-light">
-            Task Status Overview
-          </p>
-          <div className="flex items-center justify-center h-full text-sbi-muted-dark font-light tracking-wide">
-            Pie chart placeholder - PM will add graph component
+      <main className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="flex flex-col gap-8 pb-2">
+          <div className="flex flex-col items-center gap-6 rounded-2xl border border-sbi-dark-border/50 bg-sbi-dark-card/40 p-6 sm:flex-row sm:items-center">
+            <StatusDonut tasks={project.tasks} size={128} thickness={14} />
+            <div className="min-w-0 flex-1">
+              <p className="mb-3 text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark">
+                Status breakdown · tap to filter
+              </p>
+              <StatusChips
+                counts={counts}
+                active={statusFilter}
+                onSelect={setStatusFilter}
+              />
+              {blocked > 0 ? (
+                <p className="mt-3 flex items-center gap-2 text-sm text-red-400">
+                  <ShieldAlert className="h-4 w-4 shrink-0" />
+                  {blocked} {blocked === 1 ? "task is" : "tasks are"} blocked —
+                  needs attention.
+                </p>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </div>
-      
-      {/* Search & Filter */}
-      <div className="flex gap-4 mb-6">
-        <SearchBar 
-          placeholder="Search tasks..."
-          onSearch={handleSearch}
-        />
-        <FilterDropdown 
-          onFilterChange={(filters) => console.log('Filters:', filters)}
-        />
-      </div>
-      
-      {/* Task List */}
-      <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg overflow-hidden">
-        {/* Task List Header */}
-        <div className="flex items-center gap-4 p-4 border-b border-sbi-dark-border/30 text-xs uppercase tracking-[0.15em] text-sbi-muted-dark font-light">
-          <div className="w-2"></div> {/* Priority dot space */}
-          <div className="flex-1">Task</div>
-          <div className="w-32 text-center">Status</div>
-          <div className="w-32 text-center">Team</div>
-          <div className="w-24 text-center">Due Date</div>
-          <div className="w-6"></div> {/* Chevron space */}
-        </div>
-        
-        {/* Task List Items */}
-        {filteredTasks.length > 0 ? (
+
           <div>
-            {filteredTasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
+            <div className="flex items-center gap-3">
+              <SectionLabel>Tasks</SectionLabel>
+              {statusFilter ? (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter(null)}
+                  className="mb-6 ml-auto rounded-full border border-sbi-dark-border/60 px-3 py-1 text-[11px] text-sbi-muted hover:text-white hover:border-white/30 transition-colors"
+                >
+                  Clear status filter ✕
+                </button>
+              ) : null}
+            </div>
+            {project.tasks.length === 0 ? (
+              <EmptyState
+                icon={<ListChecks className="h-6 w-6" />}
+                title="No tasks yet"
+                description="Tasks added to this lifecycle project will appear here."
+              />
+            ) : (
+              <DataTable<Task>
+                data={visibleTasks}
+                columns={columns}
+                rowKey="id"
+                searchable
+                searchKeys={["title", "description", "assigned_by"]}
+                searchPlaceholder="Search tasks..."
+                filters={[TASK_PRIORITY_FILTER, TASK_TEAM_FILTER]}
+                pageSize={8}
+                primaryColumn="title"
+                onRowClick={setSelectedTask}
+              />
+            )}
           </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <h3 className="text-lg font-light text-white mb-2">No Tasks Found</h3>
-            <p className="text-sbi-muted-dark font-light tracking-wide">
-              {searchQuery ? 'Try a different search term' : 'No tasks in this project'}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+        </div>
+      </main>
+
+      <TaskPopUp
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        canEdit={canEdit}
+        onStatusChange={async (taskId, status) => {
+          const ok = await setTaskStatus(taskId, status);
+          if (ok) {
+            setSelectedTask((prev) =>
+              prev && prev.id === taskId ? { ...prev, status } : prev,
+            );
+          }
+          return ok;
+        }}
+      />
+    </DashboardShell>
+  );
+}
+
+export default function ProjectDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardShell>
+          <PageHeader title="Loading…" subtitle="" />
+          <div className="flex-1" />
+        </DashboardShell>
+      }
+    >
+      <ProjectDetailInner />
+    </Suspense>
   );
 }

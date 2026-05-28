@@ -1,44 +1,63 @@
-import { createClient } from '@/lib/supabase/client';
-import { Project, Task, type TaskStatusDB, type TaskPriorityDB, type TeamNameDB } from './types';
+import { createClient } from "@/lib/supabase/client";
+import type {
+  Project,
+  Task,
+  TaskPriorityDB,
+  TaskStatusDB,
+  TeamNameDB,
+} from "./types";
 
 function calculateProgress(tasks: Task[]): number {
   if (tasks.length === 0) return 0;
-  const completedTasks = tasks.filter(task => task.status === 'completed').length;
+  const completedTasks = tasks.filter(
+    (task) => task.status === "completed",
+  ).length;
   return Math.round((completedTasks / tasks.length) * 100);
 }
 
-export async function fetchProjects(): Promise<Project[]> {
+export async function fetchProjects(
+  parentProjectId?: number | null,
+): Promise<Project[]> {
   const supabase = createClient();
 
-  const { data: projectsData, error: projectsError } = await supabase
-    .from('lifecycle_projects')
-    .select('*')
-    .order('created_at', { ascending: false });
+  let query = supabase
+    .from("lifecycle_projects")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (parentProjectId != null) {
+    query = query.eq("project_id", parentProjectId);
+  }
+
+  const { data: projectsData, error: projectsError } = await query;
 
   if (projectsError || !projectsData) {
-    console.error('Error fetching lifecycle projects:', projectsError);
+    console.error("Error fetching lifecycle projects:", projectsError);
     return [];
   }
 
   const { data: tasksData, error: tasksError } = await supabase
-    .from('lifecycle_tasks')
-    .select('*, assignees:lifecycle_task_assignees(profile_id, profiles(id, name))');
+    .from("lifecycle_tasks")
+    .select(
+      "*, assignees:lifecycle_task_assignees(profile_id, profiles(id, name))",
+    );
 
   if (tasksError) {
-    console.error('Error fetching lifecycle tasks:', tasksError);
+    console.error("Error fetching lifecycle tasks:", tasksError);
     return [];
   }
 
   const tasks: Task[] = (tasksData ?? []).map((t: any) => ({
     id: t.id,
     title: t.title,
-    description: t.description ?? '',
+    description: t.description ?? "",
     status: t.status as TaskStatusDB,
     team: t.team as TeamNameDB,
     due_date: new Date(t.due_date),
     tentative: t.tentative,
-    assigned_by: '', // resolved below if needed
-    assignees: (t.assignees ?? []).map((a: any) => a.profiles?.name ?? 'Unknown'),
+    assigned_by: "", // resolved below if needed
+    assignees: (t.assignees ?? []).map(
+      (a: any) => a.profiles?.name ?? "Unknown",
+    ),
     priority: t.priority as TaskPriorityDB,
     lifecycle_project_id: t.lifecycle_project_id,
     created_at: new Date(t.created_at),
@@ -46,7 +65,7 @@ export async function fetchProjects(): Promise<Project[]> {
   }));
 
   return projectsData.map((p: any) => {
-    const projectTasks = tasks.filter(t => t.lifecycle_project_id === p.id);
+    const projectTasks = tasks.filter((t) => t.lifecycle_project_id === p.id);
     return {
       id: p.id,
       project_id: p.project_id,
@@ -63,36 +82,40 @@ export async function fetchProjectById(id: number): Promise<Project | null> {
   const supabase = createClient();
 
   const { data: p, error: projectError } = await supabase
-    .from('lifecycle_projects')
-    .select('*')
-    .eq('id', id)
+    .from("lifecycle_projects")
+    .select("*")
+    .eq("id", id)
     .single();
 
   if (projectError || !p) {
-    console.error('Error fetching lifecycle project:', projectError);
+    console.error("Error fetching lifecycle project:", projectError);
     return null;
   }
 
   const { data: tasksData, error: tasksError } = await supabase
-    .from('lifecycle_tasks')
-    .select('*, assignees:lifecycle_task_assignees(profile_id, profiles(id, name))')
-    .eq('lifecycle_project_id', id);
+    .from("lifecycle_tasks")
+    .select(
+      "*, assignees:lifecycle_task_assignees(profile_id, profiles(id, name))",
+    )
+    .eq("lifecycle_project_id", id);
 
   if (tasksError) {
-    console.error('Error fetching lifecycle tasks:', tasksError);
+    console.error("Error fetching lifecycle tasks:", tasksError);
     return null;
   }
 
   const tasks: Task[] = (tasksData ?? []).map((t: any) => ({
     id: t.id,
     title: t.title,
-    description: t.description ?? '',
+    description: t.description ?? "",
     status: t.status as TaskStatusDB,
     team: t.team as TeamNameDB,
     due_date: new Date(t.due_date),
     tentative: t.tentative,
-    assigned_by: '',
-    assignees: (t.assignees ?? []).map((a: any) => a.profiles?.name ?? 'Unknown'),
+    assigned_by: "",
+    assignees: (t.assignees ?? []).map(
+      (a: any) => a.profiles?.name ?? "Unknown",
+    ),
     priority: t.priority as TaskPriorityDB,
     lifecycle_project_id: t.lifecycle_project_id,
     created_at: new Date(t.created_at),
@@ -108,4 +131,21 @@ export async function fetchProjectById(id: number): Promise<Project | null> {
     image: p.image,
     tasks,
   };
+}
+
+/** Director-only: update a task's status. RLS must permit the write. */
+export async function updateTaskStatus(
+  taskId: number,
+  status: TaskStatusDB,
+): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("lifecycle_tasks")
+    .update({ status })
+    .eq("id", taskId);
+  if (error) {
+    console.error("Error updating task status:", error);
+    return false;
+  }
+  return true;
 }
