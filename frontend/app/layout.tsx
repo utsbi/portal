@@ -116,7 +116,8 @@ export default function RootLayout({
           gap={10}
           offset={20}
           visibleToasts={4}
-          toastOptions={{ unstyled: true }}
+          className="font-urbanist"
+          toastOptions={{ unstyled: true, className: "font-urbanist" }}
         />
         <SpeedInsights />
         <Analytics />

@@ -30,7 +30,7 @@ export function Toast({ kind, title, message }: ToastProps) {
             role={kind === "error" ? "alert" : "status"}
             aria-live={kind === "error" ? "assertive" : "polite"}
             aria-atomic="true"
-            className="flex w-fit min-w-[240px] max-w-[min(380px,calc(100vw-2rem))] items-start gap-3 rounded-xl border border-sbi-dark-border/60 bg-sbi-dark-card px-4 py-3 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.75)]"
+            className="font-urbanist flex w-fit min-w-[240px] max-w-[min(380px,calc(100vw-2rem))] items-start gap-3 rounded-xl border border-sbi-dark-border/60 bg-sbi-dark-card px-4 py-3 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.75)]"
         >
             <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${color}`} />
             <div className="min-w-0 flex-1">
