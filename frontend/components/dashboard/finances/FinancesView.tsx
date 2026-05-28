@@ -81,6 +81,14 @@ export function FinancesView({
     return map;
   }, [transactions]);
 
+  const txCountByCategory = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const tx of transactions) {
+      map.set(tx.category_id, (map.get(tx.category_id) ?? 0) + 1);
+    }
+    return map;
+  }, [transactions]);
+
   const totalExpected = useMemo(
     () => categories.reduce((s, c) => s + Number(c.expected_amount), 0),
     [categories],
@@ -220,6 +228,7 @@ export function FinancesView({
         onClose={() => setCategoryEditorOpen(false)}
         budgetId={budget.id}
         categories={categories}
+        txCountByCategory={txCountByCategory}
         onSaved={refetch}
       />
 

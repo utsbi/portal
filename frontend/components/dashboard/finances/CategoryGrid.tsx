@@ -47,8 +47,8 @@ export function CategoryGrid({
   );
 
   return (
-    <div className="border border-sbi-dark-border/30 rounded-md overflow-hidden">
-      <div className="grid grid-cols-[minmax(0,1fr)_110px_110px_110px_64px] gap-3 px-4 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/50">
+    <div className="rounded-lg border border-white/[0.06] bg-sbi-dark-card overflow-hidden">
+      <div className="grid grid-cols-[minmax(0,1fr)_120px_120px_130px_56px] gap-4 px-5 py-2.5 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark bg-sbi-dark-btn/50 border-b border-white/[0.04]">
         <div>Category</div>
         <div className="text-right">Expected</div>
         <div className="text-right">Actual</div>
@@ -64,9 +64,11 @@ export function CategoryGrid({
         return (
           <div
             key={cat.id}
-            className="group grid grid-cols-[minmax(0,1fr)_110px_110px_110px_64px] gap-3 items-center px-4 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015]"
+            className="group grid grid-cols-[minmax(0,1fr)_120px_120px_130px_56px] gap-4 items-center px-5 py-3 border-b border-white/[0.04] transition-colors hover:bg-white/[0.04]"
           >
-            <div className="text-sm text-white truncate">{cat.name}</div>
+            <div className="text-sm font-medium text-white truncate">
+              {cat.name}
+            </div>
             <div className="text-sm text-sbi-muted text-right tabular-nums">
               {formatCurrency(expected)}
             </div>
@@ -102,8 +104,10 @@ export function CategoryGrid({
           </div>
         );
       })}
-      <div className="grid grid-cols-[minmax(0,1fr)_110px_110px_110px_64px] gap-3 items-center px-4 py-3 border-t border-sbi-dark-border/50 bg-sbi-green/[0.03]">
-        <div className="text-sm text-white font-medium">Total</div>
+      <div className="grid grid-cols-[minmax(0,1fr)_120px_120px_130px_56px] gap-4 items-center px-5 py-3 bg-sbi-dark-btn/30">
+        <div className="text-[11px] tracking-[0.15em] uppercase text-sbi-muted">
+          Total
+        </div>
         <div className="text-sm text-white text-right tabular-nums">
           {formatCurrency(totalExpected)}
         </div>
@@ -111,7 +115,7 @@ export function CategoryGrid({
           {formatCurrency(totalActual)}
         </div>
         <div
-          className={`text-sm text-right tabular-nums ${
+          className={`text-sm font-medium text-right tabular-nums ${
             totalExpected - totalActual >= 0
               ? "text-emerald-400"
               : "text-rose-400"

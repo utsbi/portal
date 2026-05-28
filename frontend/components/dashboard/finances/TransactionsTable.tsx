@@ -1,7 +1,9 @@
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { type ColumnDef, DataTable } from "@/components/data-table";
+import { TransactionDetailModal } from "./TransactionDetailModal";
 import type { BudgetCategory, BudgetTransaction } from "./types";
 
 interface TransactionsTableProps {
@@ -19,6 +21,14 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
+/** First line of the description; appends an ellipsis if more lines follow. */
+function descriptionPreview(description: string | null): string | null {
+  if (!description) return null;
+  const [first, ...rest] = description.split("\n");
+  const hasMore = rest.some((line) => line.trim().length > 0);
+  return hasMore ? `${first}…` : first;
+}
+
 export function TransactionsTable({
   transactions,
   categories,
@@ -28,6 +38,7 @@ export function TransactionsTable({
   onDeleteTransaction,
 }: TransactionsTableProps) {
   const categoryById = new Map(categories.map((c) => [c.id, c.name] as const));
+  const [selectedTx, setSelectedTx] = useState<BudgetTransaction | null>(null);
 
   const columns: ColumnDef<BudgetTransaction>[] = [
     {
@@ -45,16 +56,19 @@ export function TransactionsTable({
       accessor: "title",
       header: "Transaction",
       sortable: true,
-      render: (_v, row) => (
-        <div className="flex flex-col">
-          <span className="text-white">{row.title}</span>
-          {row.description ? (
-            <span className="text-xs text-sbi-muted-dark truncate">
-              {row.description}
-            </span>
-          ) : null}
-        </div>
-      ),
+      render: (_v, row) => {
+        const preview = descriptionPreview(row.description);
+        return (
+          <div className="flex flex-col min-w-0 max-w-[420px]">
+            <span className="text-white truncate">{row.title}</span>
+            {preview ? (
+              <span className="text-xs text-sbi-muted-dark truncate">
+                {preview}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       accessor: "category_id",
@@ -120,14 +134,36 @@ export function TransactionsTable({
   }
 
   return (
-    <DataTable<BudgetTransaction>
-      data={transactions}
-      columns={columns}
-      rowKey="id"
-      searchable
-      searchKeys={["title", "description"]}
-      searchPlaceholder="Search transactions…"
-      pageSize={10}
-    />
+    <>
+      <DataTable<BudgetTransaction>
+        data={transactions}
+        columns={columns}
+        rowKey="id"
+        searchable
+        searchKeys={["title", "description"]}
+        searchPlaceholder="Search transactions…"
+        pageSize={10}
+        primaryColumn="title"
+        onRowClick={(row) => setSelectedTx(row)}
+      />
+
+      <TransactionDetailModal
+        transaction={selectedTx}
+        categoryName={
+          selectedTx ? (categoryById.get(selectedTx.category_id) ?? "—") : "—"
+        }
+        formatCurrency={formatCurrency}
+        canEdit={canEdit}
+        onClose={() => setSelectedTx(null)}
+        onEdit={(tx) => {
+          setSelectedTx(null);
+          onEditTransaction?.(tx);
+        }}
+        onDelete={(id) => {
+          setSelectedTx(null);
+          onDeleteTransaction?.(id);
+        }}
+      />
+    </>
   );
 }
