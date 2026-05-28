@@ -106,6 +106,12 @@ export function FinancesView({
     });
   }, [transactions]);
 
+  const pendingDeleteCategoryTxCount = pendingDeleteCategory
+    ? transactions.filter((t) => t.category_id === pendingDeleteCategory.id)
+        .length
+    : 0;
+  const deleteCategoryBlocked = pendingDeleteCategoryTxCount > 0;
+
   if (!budget) {
     return (
       <DashboardShell>
@@ -232,12 +238,27 @@ export function FinancesView({
       <ConfirmDialog
         opened={pendingDeleteCategory !== null}
         onClose={() => setPendingDeleteCategory(null)}
-        title={`Delete category "${pendingDeleteCategory?.name ?? ""}"?`}
-        description="This will fail if the category has transactions attached."
-        confirmLabel="Delete"
-        danger
+        title={
+          deleteCategoryBlocked
+            ? `Can't delete "${pendingDeleteCategory?.name ?? ""}"`
+            : `Delete category "${pendingDeleteCategory?.name ?? ""}"?`
+        }
+        description={
+          deleteCategoryBlocked
+            ? `This category has ${pendingDeleteCategoryTxCount} transaction${
+                pendingDeleteCategoryTxCount === 1 ? "" : "s"
+              }. Reassign or delete them first, then you can remove the category.`
+            : "This permanently removes the category. This can't be undone."
+        }
+        confirmLabel={deleteCategoryBlocked ? "Got it" : "Delete"}
+        cancelLabel={deleteCategoryBlocked ? "Close" : "Cancel"}
+        danger={!deleteCategoryBlocked}
         onConfirm={async () => {
           if (!pendingDeleteCategory) return;
+          if (deleteCategoryBlocked) {
+            setPendingDeleteCategory(null);
+            return;
+          }
           const result = await deleteCategory(pendingDeleteCategory.id);
           setPendingDeleteCategory(null);
           if (result.error) {
