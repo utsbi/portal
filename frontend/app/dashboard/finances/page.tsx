@@ -72,6 +72,7 @@ export default async function FinancesPage() {
 
   return (
     <FinancesView
+      key={projectId}
       projectId={projectId}
       canEdit={result.canEdit}
       initialBudget={result.budget}

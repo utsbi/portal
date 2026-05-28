@@ -82,17 +82,19 @@ export async function upsertCategories(
   const gate = await requireDirector(projectId);
   if ("error" in gate) return { error: gate.error };
 
-  const rows = drafts.map((d) => ({
-    id: d.id,
-    budget_id: budgetId,
-    name: d.name.trim(),
-    expected_amount: d.expected_amount,
-    sort_order: d.sort_order,
-  }));
+  const rows = drafts.map((d) => {
+    const base = {
+      budget_id: budgetId,
+      name: d.name.trim(),
+      expected_amount: d.expected_amount,
+      sort_order: d.sort_order,
+    };
+    return d.id !== undefined ? { ...base, id: d.id } : base;
+  });
 
   const { error } = await gate.supabase
     .from("budget_categories")
-    .upsert(rows, { onConflict: "id" });
+    .upsert(rows, { onConflict: "id", defaultToNull: false });
 
   if (error) return { error: error.message };
   revalidatePath(FINANCES_PATH);

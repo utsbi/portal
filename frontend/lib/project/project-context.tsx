@@ -1,20 +1,28 @@
-'use client';
+"use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useRouter } from "next/navigation";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+  useTransition,
+} from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export interface ProjectData {
   projectId: number;
   projectSlug: string;
   companyName: string;
-  role: 'owner' | 'director' | 'member';
+  role: "owner" | "director" | "member";
 }
 
 export interface UserProfile {
   id: number;
   name: string;
   email: string;
-  role: 'client' | 'director' | 'member';
+  role: "client" | "director" | "member";
   initials: string;
   department: string | null;
 }
@@ -24,6 +32,8 @@ interface ProjectContextType {
   activeProject: ProjectData | null;
   projects: ProjectData[];
   isLoading: boolean;
+  /** True while a project switch is re-running server components. */
+  isSwitching: boolean;
   error: string | null;
   switchProject: (projectId: number) => void;
   refetch: () => Promise<void>;
@@ -31,19 +41,21 @@ interface ProjectContextType {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-const ACTIVE_PROJECT_COOKIE = 'active_project_id';
+const ACTIVE_PROJECT_COOKIE = "active_project_id";
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   }
-  return parts[0]?.substring(0, 2).toUpperCase() || '??';
+  return parts[0]?.substring(0, 2).toUpperCase() || "??";
 }
 
 function getActiveProjectId(): number | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp(`${ACTIVE_PROJECT_COOKIE}=(\\d+)`));
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(
+    new RegExp(`${ACTIVE_PROJECT_COOKIE}=(\\d+)`),
+  );
   return match ? parseInt(match[1], 10) : null;
 }
 
@@ -65,18 +77,31 @@ export function ProjectProvider({
   initialActiveProjectId,
 }: ProjectProviderProps) {
   const [user, setUser] = useState<UserProfile | null>(initialUser || null);
-  const [projects, setProjects] = useState<ProjectData[]>(initialProjects || []);
+  const [projects, setProjects] = useState<ProjectData[]>(
+    initialProjects || [],
+  );
   const [activeProjectId, setActiveProjectIdState] = useState<number | null>(
-    initialActiveProjectId || getActiveProjectId()
+    initialActiveProjectId || getActiveProjectId(),
   );
   const [isLoading, setIsLoading] = useState(!initialUser);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const [isSwitching, startSwitching] = useTransition();
 
-  const activeProject = projects.find(p => p.projectId === activeProjectId) || projects[0] || null;
+  const activeProject =
+    projects.find((p) => p.projectId === activeProjectId) ||
+    projects[0] ||
+    null;
 
   const switchProject = (projectId: number) => {
+    if (projectId === activeProjectId) return;
     setActiveProjectIdState(projectId);
     setActiveProjectId(projectId);
+    // Re-run server components so every dashboard page re-fetches against the
+    // new project. isSwitching stays true until the new render resolves.
+    startSwitching(() => {
+      router.refresh();
+    });
   };
 
   const fetchData = async () => {
@@ -85,23 +110,26 @@ export function ProjectProvider({
 
     try {
       const supabase = createClient();
-      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      const {
+        data: { user: authUser },
+        error: authError,
+      } = await supabase.auth.getUser();
 
       if (authError || !authUser) {
-        setError('Not authenticated');
+        setError("Not authenticated");
         setIsLoading(false);
         return;
       }
 
       // Fetch profile
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, name, email, role, department')
-        .eq('uid', authUser.id)
+        .from("profiles")
+        .select("id, name, email, role, department")
+        .eq("uid", authUser.id)
         .single();
 
       if (!profile) {
-        setError('Profile not found');
+        setError("Profile not found");
         setIsLoading(false);
         return;
       }
@@ -109,17 +137,17 @@ export function ProjectProvider({
       setUser({
         id: profile.id,
         name: profile.name,
-        email: profile.email || authUser.email || '',
-        role: profile.role as UserProfile['role'],
+        email: profile.email || authUser.email || "",
+        role: profile.role as UserProfile["role"],
         initials: getInitials(profile.name),
         department: profile.department ?? null,
       });
 
       // Fetch projects via project_members
       const { data: memberships } = await supabase
-        .from('project_members')
-        .select('role, project_id, projects(id, url_slug, company_name)')
-        .eq('profile_id', profile.id);
+        .from("project_members")
+        .select("role, project_id, projects(id, url_slug, company_name)")
+        .eq("profile_id", profile.id);
 
       if (memberships && memberships.length > 0) {
         const projectList: ProjectData[] = memberships
@@ -128,14 +156,14 @@ export function ProjectProvider({
             projectId: m.projects.id,
             projectSlug: m.projects.url_slug,
             companyName: m.projects.company_name,
-            role: m.role as ProjectData['role'],
+            role: m.role as ProjectData["role"],
           }));
 
         setProjects(projectList);
 
         // Set active project from cookie or default to first
         const savedId = getActiveProjectId();
-        const validSaved = projectList.find(p => p.projectId === savedId);
+        const validSaved = projectList.find((p) => p.projectId === savedId);
         if (validSaved) {
           setActiveProjectIdState(savedId);
         } else if (projectList.length > 0) {
@@ -144,8 +172,8 @@ export function ProjectProvider({
         }
       }
     } catch (err) {
-      setError('Failed to fetch project data');
-      console.error('Project data fetch error:', err);
+      setError("Failed to fetch project data");
+      console.error("Project data fetch error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -164,6 +192,7 @@ export function ProjectProvider({
         activeProject,
         projects,
         isLoading,
+        isSwitching,
         error,
         switchProject,
         refetch: fetchData,
@@ -177,7 +206,7 @@ export function ProjectProvider({
 export function useProject() {
   const context = useContext(ProjectContext);
   if (context === undefined) {
-    throw new Error('useProject must be used within a ProjectProvider');
+    throw new Error("useProject must be used within a ProjectProvider");
   }
   return context;
 }
@@ -189,7 +218,7 @@ export function useProject() {
 export function useRequiredProject() {
   const { activeProject, isLoading } = useProject();
   if (!isLoading && !activeProject) {
-    throw new Error('No active project selected');
+    throw new Error("No active project selected");
   }
   return activeProject;
 }

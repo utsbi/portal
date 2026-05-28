@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
   // (consumed by frontend/Dockerfile). No-op for `next dev`.
   output: "standalone",
 
+  // Cross-origin hosts allowed to hit the dev server (Tailscale, etc.).
+  // No-op in production.
+  allowedDevOrigins: [
+    "galileo",
+    "galileo.bear-ling.ts.net",
+    "100.68.183.80",
+  ],
+
   images: {
     remotePatterns: [
       {
