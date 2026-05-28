@@ -17,7 +17,8 @@ export type TransactionInput = {
   budget_id: number;
   category_id: number;
   occurred_on: string;
-  description: string;
+  title: string;
+  description?: string | null;
   amount: number;
 };
 

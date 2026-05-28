@@ -35,6 +35,7 @@ export function LogTransactionDrawer({
   onSaved,
 }: LogTransactionDrawerProps) {
   const [occurredOn, setOccurredOn] = useState(todayIso());
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [amountStr, setAmountStr] = useState("");
@@ -45,11 +46,13 @@ export function LogTransactionDrawer({
     if (!open) return;
     if (editingTransaction) {
       setOccurredOn(editingTransaction.occurred_on);
-      setDescription(editingTransaction.description);
+      setTitle(editingTransaction.title);
+      setDescription(editingTransaction.description ?? "");
       setCategoryId(editingTransaction.category_id);
       setAmountStr(String(editingTransaction.amount));
     } else {
       setOccurredOn(todayIso());
+      setTitle("");
       setDescription("");
       setCategoryId(categories[0]?.id ?? null);
       setAmountStr("");
@@ -64,8 +67,8 @@ export function LogTransactionDrawer({
     setSubmitting(true);
     setError(null);
     const amount = parseAmount(amountStr);
-    if (!description.trim()) {
-      setError("Add a description.");
+    if (!title.trim()) {
+      setError("Add a title.");
       setSubmitting(false);
       return;
     }
@@ -84,6 +87,7 @@ export function LogTransactionDrawer({
       ? await updateTransaction(editingTransaction.id, {
           category_id: categoryId,
           occurred_on: occurredOn,
+          title,
           description,
           amount,
         })
@@ -91,6 +95,7 @@ export function LogTransactionDrawer({
           budget_id: budget.id,
           category_id: categoryId,
           occurred_on: occurredOn,
+          title,
           description,
           amount,
         });
@@ -131,14 +136,30 @@ export function LogTransactionDrawer({
 
         <label className="flex flex-col gap-1">
           <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">
-            Description
+            Title
           </span>
           <input
             type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Figma annual subscription"
             className="px-3 h-9 text-sm bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">
+            Description{" "}
+            <span className="text-sbi-muted-dark/60 normal-case tracking-normal">
+              (optional)
+            </span>
+          </span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Additional detail about this expense"
+            rows={2}
+            className="px-3 py-2 text-sm bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 resize-none"
           />
         </label>
 

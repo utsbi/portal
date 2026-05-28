@@ -42,10 +42,19 @@ export function TransactionsTable({
       ),
     },
     {
-      accessor: "description",
-      header: "Description",
+      accessor: "title",
+      header: "Transaction",
       sortable: true,
-      render: (v) => <span className="text-white">{String(v)}</span>,
+      render: (_v, row) => (
+        <div className="flex flex-col">
+          <span className="text-white">{row.title}</span>
+          {row.description ? (
+            <span className="text-xs text-sbi-muted-dark truncate">
+              {row.description}
+            </span>
+          ) : null}
+        </div>
+      ),
     },
     {
       accessor: "category_id",
@@ -116,7 +125,7 @@ export function TransactionsTable({
       columns={columns}
       rowKey="id"
       searchable
-      searchKeys={["description"]}
+      searchKeys={["title", "description"]}
       searchPlaceholder="Search transactions…"
       pageSize={10}
     />

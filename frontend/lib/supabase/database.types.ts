@@ -59,9 +59,10 @@ export type Database = {
           category_id: number;
           created_at: string;
           created_by: number | null;
-          description: string;
+          description: string | null;
           id: number;
           occurred_on: string;
+          title: string;
           updated_at: string;
         };
         Insert: {
@@ -70,9 +71,10 @@ export type Database = {
           category_id: number;
           created_at?: string;
           created_by?: number | null;
-          description: string;
+          description?: string | null;
           id?: number;
           occurred_on: string;
+          title: string;
           updated_at?: string;
         };
         Update: {
@@ -81,9 +83,10 @@ export type Database = {
           category_id?: number;
           created_at?: string;
           created_by?: number | null;
-          description?: string;
+          description?: string | null;
           id?: number;
           occurred_on?: string;
+          title?: string;
           updated_at?: string;
         };
         Relationships: [

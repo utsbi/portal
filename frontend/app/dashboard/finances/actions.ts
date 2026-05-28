@@ -146,7 +146,8 @@ export async function logTransaction(
     budget_id: input.budget_id,
     category_id: input.category_id,
     occurred_on: input.occurred_on,
-    description: input.description.trim(),
+    title: input.title.trim(),
+    description: input.description?.trim() || null,
     amount: input.amount,
     created_by: gate.profileId,
   });
@@ -178,8 +179,9 @@ export async function updateTransaction(
     updateRow.category_id = patch.category_id;
   if (patch.occurred_on !== undefined)
     updateRow.occurred_on = patch.occurred_on;
+  if (patch.title !== undefined) updateRow.title = patch.title.trim();
   if (patch.description !== undefined) {
-    updateRow.description = patch.description.trim();
+    updateRow.description = patch.description?.trim() || null;
   }
   if (patch.amount !== undefined) updateRow.amount = patch.amount;
 
