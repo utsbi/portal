@@ -1,101 +1,127 @@
+"use client";
 
-'use client';
-
-import { Project } from '../types';
-import Link from 'next/link';
-import Image from 'next/image';
+import { ArrowRight, FolderKanban } from "lucide-react";
+import { motion } from "motion/react";
+import Image from "next/image";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+import type { Project } from "../types";
 
 type ProjectCardProps = {
   project: Project;
+  index?: number;
 };
 
-export default function ProjectCard({ project }: ProjectCardProps) {
-  // Circle progress calculation
-  const radius = 44;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (project.progress_percent / 100) * circumference;
+const CIRCLE_RADIUS = 22;
+const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
+
+export default function ProjectCard({ project, index = 0 }: ProjectCardProps) {
+  const pct = Math.min(Math.max(project.progress_percent, 0), 100);
+  const offset = CIRCLE_CIRCUMFERENCE - (pct / 100) * CIRCLE_CIRCUMFERENCE;
+  const isComplete = project.completed || pct >= 100;
+  const blocked = project.tasks.filter((t) => t.status === "blocked").length;
+  const taskLabel = `${project.tasks.length} ${project.tasks.length === 1 ? "task" : "tasks"}`;
 
   return (
-
-  <Link href={`/client-test/dashboard/lifecycle/${project.id}`}>
-      <div className="group relative border border-sbi-dark-border/30 rounded-lg overflow-hidden 
-                      bg-sbi-dark-card hover:border-sbi-green/40 
-                      transition-all duration-300 cursor-pointer
-                      hover:shadow-lg hover:shadow-sbi-green/5">
-        
-        {/* Project Image with Progress Circle Overlay */}
-        <div className="relative h-48 bg-sbi-dark-border/10 overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.35,
+        delay: index * 0.04,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+    >
+      <Link
+        href={`/dashboard/lifecycle/${project.id}`}
+        className={cn(
+          "group block bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded-xl overflow-hidden transition-colors hover:border-sbi-green/40 hover:bg-sbi-dark-card/60",
+          isComplete && "opacity-65 hover:opacity-100",
+        )}
+      >
+        <div className="relative h-40 overflow-hidden bg-sbi-dark-border/10">
           {project.image ? (
             <Image
               src={project.image}
               alt={project.title}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+              className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
           ) : (
-            // Fallback folder icon
-            <div className="flex items-center justify-center h-full">
-              <div className="text-7xl opacity-20">📁</div>
+            <div className="flex h-full items-center justify-center text-sbi-muted-dark/40">
+              <FolderKanban className="h-12 w-12" strokeWidth={1.25} />
             </div>
           )}
-          
-          {/* Progress Circle - Top Right */}
-          <div className="absolute top-4 right-4 flex items-center justify-center">
-            <svg className="w-24 h-24 transform -rotate-90">
-              {/* Background circle */}
+
+          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-sbi-dark-card/95 to-transparent" />
+
+          <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-sbi-dark/70 backdrop-blur-sm px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.15em]">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                isComplete ? "bg-sbi-green" : "bg-amber-400"
+              }`}
+            />
+            <span className={isComplete ? "text-sbi-green" : "text-amber-400"}>
+              {isComplete ? "Complete" : "In Progress"}
+            </span>
+          </div>
+
+          {blocked > 0 ? (
+            <div className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-red-400/30 bg-sbi-dark/70 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-red-400 backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+              {blocked} Blocked
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-4 p-5">
+          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+            <svg
+              className="h-14 w-14 -rotate-90"
+              viewBox="0 0 56 56"
+              role="img"
+              aria-label={`${pct}% complete`}
+            >
+              <title>{`${pct}% complete`}</title>
               <circle
-                cx="48"
-                cy="48"
-                r={radius}
+                cx="28"
+                cy="28"
+                r={CIRCLE_RADIUS}
                 stroke="currentColor"
-                strokeWidth="8"
+                strokeWidth="4"
                 fill="none"
-                className="text-sbi-dark-border/40"
+                className="text-sbi-dark-border/60"
               />
-              {/* Progress circle */}
               <circle
-                cx="48"
-                cy="48"
-                r={radius}
+                cx="28"
+                cy="28"
+                r={CIRCLE_RADIUS}
                 stroke="currentColor"
-                strokeWidth="6"
+                strokeWidth="4"
                 fill="none"
-                strokeDasharray={circumference}
+                strokeDasharray={CIRCLE_CIRCUMFERENCE}
                 strokeDashoffset={offset}
-                className="text-sbi-green transition-all duration-500"
+                className="text-sbi-green transition-[stroke-dashoffset] duration-700 ease-out"
                 strokeLinecap="round"
               />
             </svg>
-            {/* Percentage text */}
-            <div className="absolute text-white font-light text-lg">
-              {project.progress_percent}%
-            </div>
-          </div>
-
-          {/* Status indicator - Bottom Left */}
-          <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
-            <div className={`w-2 h-2 rounded-full ${project.completed ? 'bg-sbi-green' : 'bg-yellow-500'}`} />
-            <span className="text-[10px] tracking-[0.15em] uppercase text-white/90 font-light">
-              {project.completed ? 'Complete' : 'In Progress'}
+            <span className="absolute text-xs font-medium tabular-nums text-white">
+              {pct}%
             </span>
           </div>
-        </div>
 
-        {/* Card Content */}
-        <div className="p-5">
-          {/* Project Title */}
-          <h3 className="text-xl font-light text-white mb-2 group-hover:text-sbi-green transition-colors tracking-wide">
-            {project.title}
-          </h3>
-          
-          {/* Task Count */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-sbi-muted-dark font-light tracking-wide">
-              {project.tasks.length} {project.tasks.length === 1 ? 'Task' : 'Tasks'}
-            </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-base text-white group-hover:text-sbi-green transition-colors">
+              {project.title}
+            </h3>
+            <p className="mt-1 text-xs uppercase tracking-[0.15em] text-sbi-muted-dark">
+              {taskLabel}
+            </p>
           </div>
+
+          <ArrowRight className="h-4 w-4 shrink-0 text-sbi-muted-dark transition-all group-hover:text-sbi-green group-hover:translate-x-0.5" />
         </div>
-      </div>
-    </Link>
+      </Link>
+    </motion.div>
   );
 }

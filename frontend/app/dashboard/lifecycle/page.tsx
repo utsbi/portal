@@ -1,218 +1,151 @@
-'use client';
+"use client";
 
-import { Project } from './types';
-import ProjectCard from './components/ProjectCard';
-import { MOCK_PROJECTS } from './mockData';
-import { useState } from 'react';
+import { FolderKanban, Plus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import {
+  btnPrimary,
+  DashboardShell,
+  EmptyState,
+  PageHeader,
+  SectionLabel,
+} from "@/components/dashboard/common/ui";
+import { useProject } from "@/lib/project/project-context";
+import { ProjectModal } from "./components/ProjectModal";
+import ProjectCard from "./components/ProjectCard";
+import { ProjectHeroCard } from "./components/ProjectHeroCard";
+import type { Project } from "./types";
+import { useLifecycleProjects } from "./use-lifecycle";
 
-export default function LifecyclePage() {
-  const [currentGraphIndex, setCurrentGraphIndex] = useState(0);
-  const [currentProjectIndex, setCurrentProjectIndex] = useState(0);
+function latestUpdate(p: Project): number {
+  return p.tasks.reduce((max, t) => Math.max(max, t.updated_at.getTime()), 0);
+}
 
-  const graphs = [
-    {
-      title: 'Overall Progress',
-      content: 'Graph 1 placeholder'
-    },
-    {
-      title: 'Task Distribution',
-      content: 'Graph 2 placeholder'
-    },
-    {
-      title: 'Team Workload',
-      content: 'Graph 3 placeholder'
-    }
+/** Hero = the project most worth attention; rest sorted active-first,
+ * completed faded to the end. */
+function arrange(projects: Project[]): {
+  hero: Project | null;
+  rest: Project[];
+} {
+  if (projects.length === 0) return { hero: null, rest: [] };
+  const active = projects.filter(
+    (p) => !p.completed && p.progress_percent < 100,
+  );
+  const done = projects.filter((p) => p.completed || p.progress_percent >= 100);
+
+  const heroPool = active.length > 0 ? active : done;
+  const hero = [...heroPool].sort((a, b) => {
+    if (active.length > 0) return b.progress_percent - a.progress_percent;
+    return latestUpdate(b) - latestUpdate(a);
+  })[0];
+
+  const rest = [
+    ...active
+      .filter((p) => p.id !== hero.id)
+      .sort((a, b) => b.progress_percent - a.progress_percent),
+    ...done
+      .filter((p) => p.id !== hero.id)
+      .sort((a, b) => latestUpdate(b) - latestUpdate(a)),
   ];
+  return { hero, rest };
+}
 
-  const nextGraph = () => {
-    setCurrentGraphIndex((prev) => (prev + 1) % graphs.length);
-  };
+function LifecyclePageInner() {
+  const { activeProject, user } = useProject();
+  const searchParams = useSearchParams();
+  const demoMode = searchParams.get("demo") === "1";
 
-  const prevGraph = () => {
-    setCurrentGraphIndex((prev) => (prev - 1 + graphs.length) % graphs.length);
-  };
+  const { projects, loading, refetch } = useLifecycleProjects({
+    parentProjectId: activeProject?.projectId,
+    demoMode,
+  });
 
-  const nextProject = () => {
-    setCurrentProjectIndex((prev) => (prev + 1) % MOCK_PROJECTS.length);
-  };
+  const { hero, rest } = useMemo(() => arrange(projects), [projects]);
 
-  const prevProject = () => {
-    setCurrentProjectIndex((prev) => (prev - 1 + MOCK_PROJECTS.length) % MOCK_PROJECTS.length);
-  };
+  const canCreate = user?.role === "director" && !demoMode;
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
 
   return (
-    <div className="container mx-auto p-6">
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-light text-white mb-2 tracking-wide">Your Projects</h1>
-        <p className="text-sbi-muted-dark font-light tracking-wide">
-          View and manage all your active projects
-        </p>
-      </div>
-
-      {/* Main Content - Side by Side Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        
-        {/* Left Side - Graphs Carousel */}
-        <div className="flex flex-col">
-          <h2 className="text-xl font-light text-white mb-4 tracking-wide">Project Metrics</h2>
-          
-          {/* Graph Carousel - Fixed aspect ratio to match ProjectCard */}
-          <div className="relative flex items-center" style={{ height: '280px' }}>
-            {/* ↑ Changed to fixed pixel height matching ProjectCard */}
-            
-            {/* Previous Button */}
+    <DashboardShell>
+      <PageHeader
+        title="Lifecycle"
+        subtitle="Track progress across your active projects"
+        action={
+          canCreate ? (
             <button
-              onClick={prevGraph}
-              className="absolute left-0 z-10 p-2 bg-sbi-dark-card/80 border border-sbi-dark-border/30 
-                         rounded-full text-sbi-green hover:bg-sbi-dark-card hover:border-sbi-green/50 
-                         transition-all"
-              aria-label="Previous graph"
+              type="button"
+              onClick={() => setIsNewProjectOpen(true)}
+              className={btnPrimary}
             >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-6 w-6" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
-              >
-                <path 
-                  fillRule="evenodd" 
-                  d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" 
-                  clipRule="evenodd" 
-                />
-              </svg>
+              <Plus className="h-4 w-4" /> New Project
             </button>
+          ) : null
+        }
+      />
 
-            {/* Graph Card - Remove internal padding/title */}
-            <div className="w-full px-12 h-full">
-              <div className="bg-sbi-dark-card border border-sbi-dark-border/30 rounded-lg h-full flex items-center justify-center">
-                {/* ↑ Removed p-6, removed flex-col, removed title */}
-                <div className="text-sbi-muted-dark font-light tracking-wide text-center">
-                  <p className="text-xs uppercase tracking-[0.15em] mb-2 opacity-60">
-                    {graphs[currentGraphIndex].title}
-                  </p>
-                  <p>{graphs[currentGraphIndex].content}</p>
+      <ProjectModal
+        open={isNewProjectOpen}
+        onClose={() => setIsNewProjectOpen(false)}
+        parentProjectId={activeProject?.projectId}
+        onSaved={refetch}
+      />
+
+      <main className="flex-1 overflow-y-auto custom-scrollbar">
+        {loading && projects.length === 0 ? (
+          <div className="animate-pulse space-y-6">
+            <div className="h-40 rounded-2xl bg-white/5" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {["a", "b", "c"].map((k) => (
+                <div key={k} className="h-56 rounded-xl bg-white/5" />
+              ))}
+            </div>
+          </div>
+        ) : projects.length === 0 ? (
+          <EmptyState
+            icon={<FolderKanban className="h-6 w-6" />}
+            title="No projects yet"
+            description="New lifecycle projects will appear here as your team kicks them off."
+          />
+        ) : (
+          <div className="flex flex-col gap-8 pb-2">
+            {hero ? (
+              <div>
+                <SectionLabel>Current Focus</SectionLabel>
+                <ProjectHeroCard project={hero} />
+              </div>
+            ) : null}
+
+            {rest.length > 0 ? (
+              <div>
+                <SectionLabel>{`All Projects · ${projects.length}`}</SectionLabel>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {rest.map((p, i) => (
+                    <ProjectCard key={p.id} project={p} index={i} />
+                  ))}
                 </div>
               </div>
-            </div>
-
-            {/* Next Button */}
-            <button
-              onClick={nextGraph}
-              className="absolute right-0 z-10 p-2 bg-sbi-dark-card/80 border border-sbi-dark-border/30 
-                         rounded-full text-sbi-green hover:bg-sbi-dark-card hover:border-sbi-green/50 
-                         transition-all"
-              aria-label="Next graph"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-6 w-6" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
-              >
-                <path 
-                  fillRule="evenodd" 
-                  d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" 
-                  clipRule="evenodd" 
-                />
-              </svg>
-            </button>
+            ) : null}
           </div>
+        )}
+      </main>
+    </DashboardShell>
+  );
+}
 
-          {/* Graph Indicators */}
-          <div className="flex justify-center gap-2 mt-4">
-            {graphs.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentGraphIndex(index)}
-                className={`w-2 h-2 rounded-full transition-all ${
-                  index === currentGraphIndex 
-                    ? 'bg-sbi-green w-6' 
-                    : 'bg-sbi-dark-border/50 hover:bg-sbi-dark-border'
-                }`}
-                aria-label={`Go to graph ${index + 1}`}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Right Side - Projects Carousel */}
-        <div className="flex flex-col">
-          <h2 className="text-xl font-light text-white mb-4 tracking-wide">Your Projects</h2>
-          
-          {/* Project Carousel */}
-          <div className="relative flex items-center" style={{ height: '280px' }}>
-            {/* ↑ Same fixed height */}
-            
-            {/* Previous Button */}
-            <button
-              onClick={prevProject}
-              className="absolute left-0 z-10 p-2 bg-sbi-dark-card/80 border border-sbi-dark-border/30 
-                         rounded-full text-sbi-green hover:bg-sbi-dark-card hover:border-sbi-green/50 
-                         transition-all"
-              aria-label="Previous project"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-6 w-6" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
-              >
-                <path 
-                  fillRule="evenodd" 
-                  d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" 
-                  clipRule="evenodd" 
-                />
-              </svg>
-            </button>
-
-            {/* Project Card */}
-            <div className="w-full px-12 h-full flex items-center">
-              <div className="w-full">
-                <ProjectCard project={MOCK_PROJECTS[currentProjectIndex]} />
-              </div>
-            </div>
-
-            {/* Next Button */}
-            <button
-              onClick={nextProject}
-              className="absolute right-0 z-10 p-2 bg-sbi-dark-card/80 border border-sbi-dark-border/30 
-                         rounded-full text-sbi-green hover:bg-sbi-dark-card hover:border-sbi-green/50 
-                         transition-all"
-              aria-label="Next project"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-6 w-6" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
-              >
-                <path 
-                  fillRule="evenodd" 
-                  d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" 
-                  clipRule="evenodd" 
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* Project Indicators */}
-          <div className="flex justify-center gap-2 mt-4">
-            {MOCK_PROJECTS.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentProjectIndex(index)}
-                className={`w-2 h-2 rounded-full transition-all ${
-                  index === currentProjectIndex 
-                    ? 'bg-sbi-green w-6' 
-                    : 'bg-sbi-dark-border/50 hover:bg-sbi-dark-border'
-                }`}
-                aria-label={`Go to project ${index + 1}`}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+export default function LifecyclePage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardShell>
+          <PageHeader
+            title="Lifecycle"
+            subtitle="Track progress across your active projects"
+          />
+          <div className="flex-1" />
+        </DashboardShell>
+      }
+    >
+      <LifecyclePageInner />
+    </Suspense>
   );
 }
