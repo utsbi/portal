@@ -1,5 +1,6 @@
 "use client";
 
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { type ColumnDef, DataTable } from "@/components/data-table/data-table";
 import { StatusPill } from "@/components/data-table/status-pill";
@@ -76,8 +77,16 @@ const columns: ColumnDef<Request>[] = [
   },
 ];
 
+const SEARCH_KEYS: (keyof Request)[] = [
+  "subject",
+  "name",
+  "department",
+  "project",
+];
+
 export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
   const [activeStatus, setActiveStatus] = useState<StatusFilterValue>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const counts = useMemo(() => {
     const c: Record<StatusFilterValue, number> = {
@@ -91,46 +100,63 @@ export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
     return c;
   }, [requests]);
 
-  const filtered = useMemo(
-    () =>
+  const filtered = useMemo(() => {
+    const byStatus =
       activeStatus === "all"
         ? requests
-        : requests.filter((r) => r.status === activeStatus),
-    [requests, activeStatus],
-  );
+        : requests.filter((r) => r.status === activeStatus);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter((r) =>
+      SEARCH_KEYS.some((key) => {
+        const v = r[key];
+        return typeof v === "string" && v.toLowerCase().includes(q);
+      }),
+    );
+  }, [requests, activeStatus, searchQuery]);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="mb-4 flex flex-wrap gap-2 shrink-0">
-        {STATUS_CHIPS.map((chip) => {
-          const isActive = activeStatus === chip.value;
-          const count = counts[chip.value];
-          return (
-            <button
-              key={chip.value}
-              type="button"
-              onClick={() => setActiveStatus(chip.value)}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs uppercase tracking-[0.15em] transition-colors",
-                isActive
-                  ? "border-sbi-green/60 bg-sbi-green/10 text-sbi-green"
-                  : "border-sbi-dark-border/60 bg-sbi-dark-card/40 text-sbi-muted hover:border-sbi-dark-border hover:text-white",
-              )}
-            >
-              <span>{chip.label}</span>
-              <span
+      <div className="mb-4 flex flex-wrap items-center gap-3 shrink-0">
+        {/* Search (left, grows) */}
+        <div className="relative grow min-w-[240px] max-w-sm group">
+          <MagnifyingGlassIcon
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-sbi-muted-dark group-focus-within:text-sbi-green transition-colors"
+            size={15}
+          />
+          <input
+            type="text"
+            placeholder="Search requests..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-[#0d120e] rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
+          />
+        </div>
+
+        {/* Status chips (right) */}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {STATUS_CHIPS.map((chip) => {
+            const isActive = activeStatus === chip.value;
+            const count = counts[chip.value];
+            return (
+              <button
+                key={chip.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setActiveStatus(chip.value)}
                 className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] tabular-nums",
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                   isActive
-                    ? "bg-sbi-green/20 text-sbi-green"
-                    : "bg-white/5 text-sbi-muted-dark",
+                    ? "border-sbi-green/60 bg-sbi-green/10 text-sbi-green shadow-[inset_0_0_0_1px_currentColor]"
+                    : "border-sbi-dark-border/60 bg-transparent text-sbi-muted hover:bg-white/5 hover:text-white",
                 )}
               >
-                {count}
-              </span>
-            </button>
-          );
-        })}
+                <span>{chip.label}</span>
+                <span className="tabular-nums opacity-70">· {count}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -138,9 +164,6 @@ export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
           data={filtered}
           columns={columns}
           rowKey="id"
-          searchable
-          searchKeys={["subject", "name", "department", "project"]}
-          searchPlaceholder="Search requests..."
           pageSize={8}
           primaryColumn="subject"
           onRowClick={onRowClick}
