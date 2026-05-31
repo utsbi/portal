@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/common/app-sidebar";
 import { ProjectStatusBar } from "@/components/dashboard/common/ProjectStatusBar";
+import { ProjectSwitchOverlay } from "@/components/dashboard/common/ProjectSwitchOverlay";
 import { SidebarTriggerCustom } from "@/components/dashboard/common/SidebarTriggerCustom";
 import { TimeDisplay } from "@/components/dashboard/explore/ui/TimeDisplay";
-import { resolveActor } from "@/lib/project/resolve-actor";
-import { ProjectProvider } from "@/lib/project/project-context";
-import { SidebarProvider } from "@/lib/sidebar/sidebar-context";
 import { ChatProvider } from "@/lib/chat/chat-context";
+import { ProjectProvider } from "@/lib/project/project-context";
+import { resolveActor } from "@/lib/project/resolve-actor";
+import { SidebarProvider } from "@/lib/sidebar/sidebar-context";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -21,9 +22,10 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const activeProject = actor.projects.find(p => p.projectId === actor.activeProjectId)
-    || actor.projects[0]
-    || null;
+  const activeProject =
+    actor.projects.find((p) => p.projectId === actor.activeProjectId) ||
+    actor.projects[0] ||
+    null;
 
   return (
     <ProjectProvider
@@ -56,6 +58,7 @@ export default async function DashboardLayout({
               <div className="flex flex-1 flex-col min-h-0 bg-sbi-dark relative">
                 <div className="absolute top-0 left-0 right-0 h-32 bg-linear-to-b from-sbi-dark-card/20 to-transparent pointer-events-none" />
                 {children}
+                <ProjectSwitchOverlay />
               </div>
             </div>
           </div>

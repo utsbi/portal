@@ -67,9 +67,7 @@ export function PageHeader({
         <h1 className="text-2xl md:text-3xl font-light tracking-tight text-white mb-2">
           {title}
         </h1>
-        {subtitle ? (
-          <p className="text-sbi-muted text-sm">{subtitle}</p>
-        ) : null}
+        {subtitle ? <p className="text-sbi-muted text-sm">{subtitle}</p> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
@@ -137,27 +135,49 @@ export function StatTile({
   sublabel,
   icon,
   accent = false,
+  tone,
 }: {
   label: string;
   value: ReactNode;
   sublabel?: string;
   icon?: ReactNode;
   accent?: boolean;
+  tone?: "default" | "accent" | "warning";
 }) {
+  const resolvedTone: "default" | "accent" | "warning" =
+    tone ?? (accent ? "accent" : "default");
+
   return (
-    <div className="bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded-xl p-5">
+    <div
+      className={cn(
+        "bg-sbi-dark-card/40 border rounded-xl p-5 transition-colors",
+        resolvedTone === "warning"
+          ? "border-amber-400/40"
+          : "border-sbi-dark-border/50",
+      )}
+    >
       <div className="flex items-start justify-between mb-3">
         <span className="text-[0.7rem] tracking-[0.2em] uppercase text-sbi-muted-dark">
           {label}
         </span>
         {icon ? (
-          <span className="text-sbi-muted-dark">{icon}</span>
+          <span
+            className={cn(
+              resolvedTone === "warning"
+                ? "text-amber-400"
+                : "text-sbi-muted-dark",
+            )}
+          >
+            {icon}
+          </span>
         ) : null}
       </div>
       <div
         className={cn(
           "text-4xl font-thin tracking-tight tabular-nums",
-          accent ? "text-sbi-green" : "text-white",
+          resolvedTone === "accent" && "text-sbi-green",
+          resolvedTone === "warning" && "text-amber-400",
+          resolvedTone === "default" && "text-white",
         )}
       >
         {value}
