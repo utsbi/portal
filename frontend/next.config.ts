@@ -21,11 +21,9 @@ const nextConfig: NextConfig = {
         pathname: "/**",
       },
     ],
-    qualities: [70, 75],
   },
   reactStrictMode: true,
 
-  // Suppress hydration warnings caused by browser extensions
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
   },
@@ -33,7 +31,6 @@ const nextConfig: NextConfig = {
   // Keep server-only SDKs out of the bundler's reachability analysis.
   serverExternalPackages: ["googleapis"],
 
-  // Optimize package imports
   experimental: {
     optimizePackageImports: [
       "lucide-react",
