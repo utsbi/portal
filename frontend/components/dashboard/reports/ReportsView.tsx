@@ -77,7 +77,7 @@ export function ReportsView({
                   <div key={k} className="h-28 bg-white/5 rounded-xl" />
                 ))}
               </div>
-              <div className="h-[260px] bg-white/5 rounded-xl" />
+              <div className="h-[280px] bg-white/5 rounded-xl" />
             </div>
           ) : (
             <ReportsOverview reports={allReports} />

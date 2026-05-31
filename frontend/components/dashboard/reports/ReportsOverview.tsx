@@ -113,7 +113,7 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
         />
       </div>
 
-      <Panel className="flex flex-col h-[260px]">
+      <Panel>
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-xs tracking-[0.15em] uppercase text-sbi-muted font-medium flex items-center gap-2 mb-1">
@@ -124,13 +124,13 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
             </p>
           </div>
         </div>
-        <div className="flex-1 min-h-0">
+        <div className="w-full">
           {timelineData.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
+            <div className="h-[180px] flex items-center justify-center">
               <p className="text-sm text-sbi-muted">No submissions yet.</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={180}>
               <AreaChart
                 data={timelineData}
                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
