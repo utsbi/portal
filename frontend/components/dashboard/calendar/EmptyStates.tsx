@@ -6,7 +6,8 @@ import {
   CalendarOff,
   RefreshCw,
 } from "lucide-react";
-import { EmptyState } from "@/components/dashboard/common/ui";
+import { EmptyState, btnPrimary } from "@/components/dashboard/common/ui";
+import { cn } from "@/lib/utils";
 
 export function NoDirectorConnectedState() {
   return (
@@ -42,7 +43,7 @@ export function FetchErrorState({ onRetry }: FetchErrorProps) {
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex items-center gap-2 rounded-md border border-sbi-green/30 bg-sbi-green/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.04em] text-sbi-green transition-colors hover:bg-sbi-green/15"
+          className={cn(btnPrimary, "px-4 h-9")}
         >
           <RefreshCw className="size-3.5" />
           Try again
