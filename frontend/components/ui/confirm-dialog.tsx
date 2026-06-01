@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/dashboard/common/Modal";
+import { btnGhost, btnPrimary, btnDanger, labelClass, inputClass } from "@/components/dashboard/common/ui";
+import { cn } from "@/lib/utils";
 
 interface ConfirmDialogProps {
   opened: boolean;
@@ -76,7 +78,7 @@ export function ConfirmDialog({
 
         {confirmationText && (
           <div className="mb-5 mt-2">
-            <label className="block text-xs uppercase tracking-[0.15em] text-sbi-muted mb-2">
+            <label className={cn(labelClass, "block mb-2")}>
               Type{" "}
               <span className="text-white font-medium normal-case">
                 {confirmationText}
@@ -89,7 +91,7 @@ export function ConfirmDialog({
               onChange={(e) => setTyped(e.target.value)}
               disabled={isWorking}
               autoFocus
-              className="w-full bg-sbi-dark-card border border-sbi-dark-border/50 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-sbi-green/50 transition-colors disabled:opacity-50"
+              className={cn(inputClass)}
               placeholder={confirmationText}
             />
           </div>
@@ -100,7 +102,7 @@ export function ConfirmDialog({
             type="button"
             onClick={handleClose}
             disabled={isWorking}
-            className="cursor-pointer rounded-md border border-sbi-dark-border/50 px-4 py-2 text-xs font-medium text-sbi-muted hover:text-white hover:border-sbi-dark-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className={cn(btnGhost, "h-9 px-4")}
           >
             {cancelLabel}
           </button>
@@ -108,12 +110,7 @@ export function ConfirmDialog({
             type="button"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className={[
-              "inline-flex items-center gap-2 rounded-md px-4 py-2 text-xs font-medium uppercase tracking-[0.04em] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
-              danger
-                ? "bg-red-500/15 text-red-300 border border-red-500/40 hover:bg-red-500/25 hover:text-red-200"
-                : "bg-sbi-green text-sbi-dark hover:bg-sbi-green/90",
-            ].join(" ")}
+            className={cn(danger ? btnDanger : btnPrimary, "h-9 px-4")}
           >
             {isWorking ? (
               <>
