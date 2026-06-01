@@ -157,7 +157,7 @@ export function StatTile({
       )}
     >
       <div className="flex items-start justify-between mb-3">
-        <span className="text-[0.7rem] tracking-[0.2em] uppercase text-sbi-muted-dark">
+        <span className="text-[0.7rem] tracking-[0.15em] uppercase text-sbi-muted-dark">
           {label}
         </span>
         {icon ? (
@@ -228,6 +228,22 @@ export function EmptyState({
 }
 
 // ---------------------------------------------------------------------------
+// Label + field language — one micro-label tier (0.15em) and one dark input
+// style, so forms across the dashboard stop re-inventing them.
+// Tracking tiers: SectionLabel eyebrow = 0.25em · micro-label = 0.15em ·
+// button text keeps its own tight 0.04em (intentional).
+// ---------------------------------------------------------------------------
+
+/** Small uppercase label for form fields, meta rows, and stat tiles. */
+export const labelClass =
+  "text-xs font-medium uppercase tracking-[0.15em] text-sbi-muted";
+
+/** Canonical dark input / textarea styling (sbi theme — NOT stock shadcn). */
+export const inputClass =
+  "w-full bg-sbi-dark-card text-white border border-sbi-dark-border/50 rounded-md px-3 py-2 text-sm " +
+  "placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/50 transition-colors disabled:opacity-50";
+
+// ---------------------------------------------------------------------------
 // Button class language (outlined green → fills on hover; public-site match)
 // ---------------------------------------------------------------------------
 
@@ -242,3 +258,9 @@ export const btnGhost =
   "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
   "bg-transparent text-sbi-muted border border-sbi-dark-border/60 rounded-md cursor-pointer " +
   "hover:text-white hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
+
+/** Destructive action. Red mirror of btnPrimary for delete/deny confirms. */
+export const btnDanger =
+  "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
+  "bg-red-500/10 text-red-300 border border-red-500/40 rounded-md cursor-pointer " +
+  "hover:bg-red-500/20 hover:text-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";

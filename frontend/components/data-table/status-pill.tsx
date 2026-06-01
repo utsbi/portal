@@ -6,10 +6,16 @@ import {
   ClockIcon,
   WarningIcon,
   ProhibitIcon,
+  QuestionIcon,
   type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
 
-export type StatusVariant = "done" | "in-progress" | "pending" | "denied";
+export type StatusVariant =
+  | "done"
+  | "in-progress"
+  | "pending"
+  | "denied"
+  | "unknown";
 
 interface StatusConfig {
   label: string;
@@ -38,9 +44,16 @@ const STATUS_MAP: Record<StatusVariant, StatusConfig> = {
     icon: ProhibitIcon,
     className: "text-red-400 bg-red-400/10 border-red-400/20",
   },
+  unknown: {
+    label: "Unknown",
+    icon: QuestionIcon,
+    className: "text-sbi-muted bg-white/5 border-white/10",
+  },
 };
 
-// Normalize different status string formats to our variant keys
+// Normalize different status string formats to our variant keys.
+// Unrecognized values render as "Unknown" (not silently "Pending") so bad
+// data is visible rather than masquerading as a valid state.
 function normalizeStatus(status: string): StatusVariant {
   const lower = status.toLowerCase().replace(/\s+/g, "-");
   if (lower === "done" || lower === "complete" || lower === "completed")
@@ -48,7 +61,10 @@ function normalizeStatus(status: string): StatusVariant {
   if (lower === "in-progress" || lower === "in-process") return "in-progress";
   if (lower === "pending") return "pending";
   if (lower === "denied" || lower === "rejected") return "denied";
-  return "pending";
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(`StatusPill: unrecognized status "${status}" → "unknown"`);
+  }
+  return "unknown";
 }
 
 interface StatusPillProps {
