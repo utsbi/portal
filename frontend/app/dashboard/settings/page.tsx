@@ -15,14 +15,17 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toastSuccess, toastError } from "@/lib/notifications";
+import { cn } from "@/lib/utils";
 import {
   DashboardShell,
   PageHeader,
   SectionLabel,
   Panel,
   EmptyState,
+  inputClass,
   btnPrimary,
   btnGhost,
+  btnDanger,
 } from "@/components/dashboard/common/ui";
 import {
   createAccount,
@@ -285,10 +288,6 @@ function NavGroup({
 // Shared classes
 // ---------------------------------------------------------------------------
 
-const inputClass =
-  "w-full h-9 bg-sbi-dark border border-sbi-dark-border/50 text-white text-sm rounded-md px-3 " +
-  "focus:outline-none focus:border-sbi-green/50 disabled:opacity-50 placeholder:text-sbi-muted-dark/60";
-
 const labelClass = "text-[11px] tracking-[0.15em] uppercase text-sbi-muted-dark font-light";
 
 function useClickOutside<T extends HTMLElement>(
@@ -418,7 +417,7 @@ function ProfileSection() {
                 minLength={2}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className={`${inputClass} mt-1`}
+                className={cn(inputClass, "mt-1")}
               />
             </div>
             <div>
@@ -427,7 +426,7 @@ function ProfileSection() {
                 type="email"
                 value={account.email ?? ""}
                 readOnly
-                className={`${inputClass} mt-1 cursor-not-allowed text-sbi-muted`}
+                className={cn(inputClass, "mt-1 cursor-not-allowed text-sbi-muted")}
               />
             </div>
             {showDepartment && (
@@ -545,7 +544,7 @@ function SecuritySection() {
               autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className={`${inputClass} mt-1`}
+              className={cn(inputClass, "mt-1")}
             />
           </div>
           <div>
@@ -556,7 +555,7 @@ function SecuritySection() {
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className={`${inputClass} mt-1`}
+              className={cn(inputClass, "mt-1")}
             />
           </div>
           <div>
@@ -567,7 +566,7 @@ function SecuritySection() {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className={`${inputClass} mt-1`}
+              className={cn(inputClass, "mt-1")}
             />
           </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -1136,7 +1135,7 @@ function CalendarConnectedPanel({
         <button
           type="button"
           onClick={onChangeCalendar}
-          className="px-3 py-1.5 text-xs text-sbi-muted border border-sbi-dark-border/60 rounded hover:text-white hover:border-white/30 transition-colors cursor-pointer"
+          className={cn(btnGhost, "h-auto py-1.5 px-3")}
         >
           Change calendar
         </button>
@@ -1144,7 +1143,7 @@ function CalendarConnectedPanel({
           type="button"
           onClick={onDisconnect}
           disabled={disconnectBusy}
-          className="px-3 py-1.5 text-xs text-red-400 border border-red-500/30 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50 cursor-pointer"
+          className={cn(btnDanger, "h-auto py-1.5 px-3")}
         >
           {disconnectBusy ? "Disconnecting…" : "Disconnect"}
         </button>
@@ -1344,7 +1343,7 @@ function TeamSection() {
                             value={ownerQuery}
                             onChange={(e) => setOwnerQuery(e.target.value)}
                             placeholder="Search clients"
-                            className="w-full h-8 bg-sbi-dark border border-sbi-dark-border/50 text-white text-sm rounded-md pl-9 pr-3 focus:outline-none focus:border-sbi-green/50 placeholder:text-sbi-muted-dark/60"
+                            className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
                           />
                         </div>
                       </div>
@@ -1405,7 +1404,7 @@ function TeamSection() {
                         value={assignQuery}
                         onChange={(e) => setAssignQuery(e.target.value)}
                         placeholder="Search by name, email, or department"
-                        className="w-full h-8 bg-sbi-dark border border-sbi-dark-border/50 text-white text-sm rounded-md pl-9 pr-3 focus:outline-none focus:border-sbi-green/50 placeholder:text-sbi-muted-dark/60"
+                        className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
                       />
                     </div>
                   </div>
@@ -1674,7 +1673,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   required
                   value={createForm.name}
                   onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
-                  className={`${inputClass} mt-1`}
+                  className={cn(inputClass, "mt-1")}
                 />
               </div>
               <div>
@@ -1684,7 +1683,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   required
                   value={createForm.email}
                   onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
-                  className={`${inputClass} mt-1`}
+                  className={cn(inputClass, "mt-1")}
                 />
               </div>
               <div>
@@ -1694,7 +1693,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   required
                   value={createForm.password}
                   onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
-                  className={`${inputClass} mt-1`}
+                  className={cn(inputClass, "mt-1")}
                 />
               </div>
               <div>
@@ -1721,7 +1720,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                     required
                     value={createForm.companyName}
                     onChange={(e) => setCreateForm((f) => ({ ...f, companyName: e.target.value }))}
-                    className={`${inputClass} mt-1`}
+                    className={cn(inputClass, "mt-1")}
                   />
                 </div>
               )}
@@ -1777,7 +1776,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search by name or email"
-                  className="w-full h-8 bg-sbi-dark border border-sbi-dark-border/50 text-white text-sm rounded-md pl-9 pr-3 focus:outline-none focus:border-sbi-green/50 placeholder:text-sbi-muted-dark/60"
+                  className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
                 />
               </div>
               <div className="flex items-center gap-1 text-xs">
@@ -1959,7 +1958,7 @@ function EditAccountModal({
                 minLength={2}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className={`${inputClass} mt-1`}
+                className={cn(inputClass, "mt-1")}
               />
             </div>
             <div className="sm:col-span-2">
@@ -1968,7 +1967,7 @@ function EditAccountModal({
                 type="email"
                 value={account.email}
                 readOnly
-                className={`${inputClass} mt-1 cursor-not-allowed text-sbi-muted`}
+                className={cn(inputClass, "mt-1 cursor-not-allowed text-sbi-muted")}
               />
               <p className="text-[11px] text-sbi-muted-dark mt-1">
                 Email changes require re-verification and aren't supported here.
