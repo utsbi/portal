@@ -31,7 +31,8 @@ import {
   PinOff,
   Search,
 } from "lucide-react";
-import { EmptyState } from "@/components/dashboard/common/ui";
+import { EmptyState, btnPrimary } from "@/components/dashboard/common/ui";
+import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toastError } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/client";
@@ -2337,7 +2338,7 @@ export function MessageThread({
                           type="button"
                           onClick={() => persistEdit(msg.id)}
                           disabled={editValue.trim().length === 0}
-                          className="inline-flex h-7 items-center justify-center rounded-md px-3 text-[11px] uppercase tracking-[0.04em] bg-sbi-green/10 text-sbi-green border border-sbi-green/30 cursor-pointer hover:bg-sbi-green hover:text-sbi-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className={cn(btnPrimary, "h-7 px-3 text-[11px]")}
                         >
                           Save
                         </button>
@@ -2524,7 +2525,7 @@ export function MessageThread({
                 <button
                   type="button"
                   onClick={loadMessages}
-                  className="inline-flex items-center gap-2 px-4 h-9 text-xs font-medium tracking-[0.04em] uppercase bg-sbi-green/10 text-sbi-green border border-sbi-green/30 rounded-md cursor-pointer hover:bg-sbi-green hover:text-sbi-dark transition-colors"
+                  className={cn(btnPrimary, "px-4 h-9")}
                 >
                   <RotateCw className="w-3.5 h-3.5" strokeWidth={1.75} />
                   Try again
