@@ -9,6 +9,7 @@
   --color-sbi-dark-card: #0a120c;
   --color-sbi-dark-border: #16301d;
   --color-sbi-dark-btn: #0f1a12;
+  --color-sbi-input: #0d120e;
   --color-sbi-muted: #8a9a93;
   --color-sbi-muted-dark: #6b7c74;
   --font-urbanist: var(--font-urbanist);
@@ -375,25 +376,6 @@ html::-webkit-scrollbar-thumb:hover {
   transition-property: width, transform;
   transition-duration: 300ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Animation for suggestion chips */
-@keyframes chip-in {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-chip-in {
-  opacity: 0;
-  animation: chip-in 0.6s ease-out forwards;
-  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Subtle glow pulse for active states */

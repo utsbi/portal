@@ -952,7 +952,7 @@ function ReportsTable() {
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3 w-full bg-sbi-dark p-2 rounded-xl">
-        <div className="relative flex-grow min-w-[300px] max-w-md group bg-[#0d120e] rounded-lg border border-sbi-green/10">
+        <div className="relative flex-grow min-w-[300px] max-w-md group bg-sbi-input rounded-lg border border-sbi-green/10">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sbi-green/60 group-focus-within:text-sbi-green transition-colors" />
           <input
             type="text"
