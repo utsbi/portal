@@ -1,5 +1,5 @@
 import { createClient } from "./client";
-import type { RequestStatus } from "@/components/dashboard/requests/StatusBadge";
+export type RequestStatus = "pending" | "in-progress" | "done" | "denied";
 
 function normalizeStatus(raw: string | null | undefined): RequestStatus {
     if (!raw) return "pending";

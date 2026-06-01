@@ -6,7 +6,7 @@ import { type ColumnDef, DataTable } from "@/components/data-table/data-table";
 import { StatusPill } from "@/components/data-table/status-pill";
 import { departmentLabel } from "@/lib/departments";
 import { cn } from "@/lib/utils";
-import type { RequestStatus } from "./StatusBadge";
+import type { RequestStatus } from "@/lib/supabase/requests";
 
 export interface Request {
   id: string;
@@ -129,7 +129,7 @@ export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
             placeholder="Search requests..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-[#0d120e] rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-sbi-input rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
           />
         </div>
 
