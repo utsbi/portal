@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import bg from "@/assets/images/login.jpg";
+import { BrandLoader } from "@/components/brand-loader";
 import { loginAction, checkAuthAction } from "./actions";
 
 const portalTypes = ["Client", "Member", "Sponsor"];
@@ -106,24 +107,7 @@ export default function LoginPage() {
   };
 
   if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-sbi-dark flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-4"
-        >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-8 h-8 border-2 border-sbi-green border-t-transparent rounded-full"
-          />
-          <span className="text-sbi-muted text-sm tracking-wider uppercase">
-            Loading...
-          </span>
-        </motion.div>
-      </div>
-    );
+    return <BrandLoader />;
   }
 
   return (
