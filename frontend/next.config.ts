@@ -21,6 +21,9 @@ const nextConfig: NextConfig = {
         pathname: "/**",
       },
     ],
+    // Allowed <Image quality> values. Next 16 defaults to [75]; some images
+    // (e.g. the login hero) request 70, so both must be declared.
+    qualities: [70, 75],
   },
   reactStrictMode: true,
 
