@@ -15,21 +15,20 @@ import { ReportHistoryTable } from "./ReportHistoryTable";
 import { ReportsOverview } from "./ReportsOverview";
 import { useReports } from "./use-reports";
 
-export function ReportsView({
-  initialReports,
-}: {
-  initialReports: ReportItem[];
-}) {
+export function ReportsView() {
   const { activeProject, user } = useProject();
   const canCreate = user?.role === "director" || user?.role === "member";
 
   const { reports, loading, addReport, updateStatus } = useReports(
     activeProject?.projectId,
   );
-  const allReports =
-    reports.length === 0 && initialReports.length > 0
-      ? initialReports
-      : reports;
+
+  const pending = reports.filter((r) => r.status !== "Done").length;
+  const subtitle = loading
+    ? "Submitted reports and review status"
+    : reports.length === 0
+      ? "No reports submitted yet"
+      : `${reports.length} ${reports.length === 1 ? "report" : "reports"} · ${pending} pending review`;
 
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
   const [isCreatingModalOpen, setIsCreatingModalOpen] = useState(false);
@@ -38,7 +37,7 @@ export function ReportsView({
     <DashboardShell>
       <PageHeader
         title="Reports"
-        subtitle="Submitted reports and review status"
+        subtitle={subtitle}
         action={
           canCreate ? (
             <button
@@ -80,18 +79,20 @@ export function ReportsView({
               <div className="h-[280px] bg-white/5 rounded-xl" />
             </div>
           ) : (
-            <ReportsOverview reports={allReports} />
-          )}
+            <>
+              <ReportsOverview reports={reports} />
 
-          <div>
-            <SectionLabel>Report History</SectionLabel>
-            <ReportHistoryTable
-              reports={allReports}
-              canCreate={canCreate}
-              onRowClick={setSelectedReport}
-              onCreateClick={() => setIsCreatingModalOpen(true)}
-            />
-          </div>
+              <div>
+                <SectionLabel>Report History</SectionLabel>
+                <ReportHistoryTable
+                  reports={reports}
+                  canCreate={canCreate}
+                  onRowClick={setSelectedReport}
+                  onCreateClick={() => setIsCreatingModalOpen(true)}
+                />
+              </div>
+            </>
+          )}
         </div>
       </main>
 
