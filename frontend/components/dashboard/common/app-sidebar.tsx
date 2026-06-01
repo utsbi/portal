@@ -9,7 +9,6 @@ import {
   DollarSign,
   Repeat,
   Calendar,
-  ClipboardList,
   FolderOpen,
   FileText,
   MailQuestion,
@@ -43,7 +42,6 @@ const mainItems: NavItem[] = [
 ];
 
 const documentItems: NavItem[] = [
-  { title: "Questionnaire", path: "/questionnaire", icon: ClipboardList, roles: ["client"] },
   { title: "Files", path: "/files", icon: FolderOpen },
   { title: "Reports", path: "/reports", icon: FileText },
   { title: "Requests", path: "/requests", icon: MailQuestion },

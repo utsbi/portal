@@ -62,7 +62,7 @@ export function SearchableDropdown({
         <div className={cn("relative group", className)} ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center justify-between w-full bg-[#0d120e] border border-sbi-green/10 text-sbi-muted hover:text-white px-4 py-2 text-sm rounded-md transition-colors focus:outline-none focus:border-sbi-green/30 h-[38px]"
+                className="flex items-center justify-between w-full bg-sbi-input border border-sbi-green/10 text-sbi-muted hover:text-white px-4 py-2 text-sm rounded-md transition-colors focus:outline-none focus:border-sbi-green/30 h-[38px]"
             >
                 <span className="truncate">{getDisplayLabel()}</span>
                 <ChevronDown className="w-3.5 h-3.5 ml-2 opacity-50" />

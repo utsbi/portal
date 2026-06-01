@@ -26,7 +26,7 @@ export function TextField({
     return (
         <div>
             {label ? (
-                <label className="block text-xs uppercase tracking-[0.04em] text-sbi-muted mb-2">
+                <label className="block text-xs uppercase tracking-[0.15em] text-sbi-muted mb-2">
                     {label}
                 </label>
             ) : null}

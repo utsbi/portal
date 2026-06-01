@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays } from "lucide-react";
 import { EventRow } from "./EventRow";
 import type { RsvpChoice } from "./hooks/useCalendarEvents";
 import type { CalendarEvent, RawCalendarEvent } from "./types";
 import { bucketEvents, eventMatchesSearch } from "./utils";
+import { EmptyState } from "@/components/dashboard/common/ui";
 
 interface Props {
   events: CalendarEvent[];
@@ -78,11 +80,15 @@ export function AgendaView({
   if (filtered.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center px-6 py-12">
-        <p className="text-sm text-sbi-muted text-center max-w-xs">
-          {search.trim()
-            ? "No events match this search."
-            : "No events to show."}
-        </p>
+        <EmptyState
+          icon={<CalendarDays className="w-8 h-8" strokeWidth={1.5} />}
+          title={search.trim() ? "No matching events" : "No events to show"}
+          description={
+            search.trim()
+              ? "No events match this search."
+              : "There are no upcoming events scheduled."
+          }
+        />
       </div>
     );
   }

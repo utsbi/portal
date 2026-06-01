@@ -387,7 +387,7 @@ export function DataTable<T extends Record<string, any>>({
     <div className="relative" ref={columnToggleRef}>
       <button
         onClick={() => setColumnToggleOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 px-3 py-2 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-[#0d120e]"
+        className="flex items-center gap-1.5 px-3 py-2 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input"
       >
         <ColumnsIcon size={14} />
         Columns

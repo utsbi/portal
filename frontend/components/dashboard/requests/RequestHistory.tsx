@@ -1,10 +1,12 @@
 "use client";
 
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { useMemo, useState } from "react";
 import { type ColumnDef, DataTable } from "@/components/data-table/data-table";
 import { StatusPill } from "@/components/data-table/status-pill";
 import { departmentLabel } from "@/lib/departments";
-import { STATUS_FILTER } from "./constants";
-import type { RequestStatus } from "./StatusBadge";
+import { cn } from "@/lib/utils";
+import type { RequestStatus } from "@/lib/supabase/requests";
 
 export interface Request {
   id: string;
@@ -25,6 +27,16 @@ interface RequestHistoryProps {
   requests: Request[];
   onRowClick?: (request: Request) => void;
 }
+
+type StatusFilterValue = "all" | RequestStatus;
+
+const STATUS_CHIPS: { value: StatusFilterValue; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "in-progress", label: "In Progress" },
+  { value: "done", label: "Done" },
+  { value: "denied", label: "Denied" },
+];
 
 const formatDate = (date: Date) =>
   new Intl.DateTimeFormat("en-US", {
@@ -65,23 +77,93 @@ const columns: ColumnDef<Request>[] = [
   },
 ];
 
+const SEARCH_KEYS: (keyof Request)[] = [
+  "subject",
+  "name",
+  "department",
+  "project",
+];
+
 export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
+  const [activeStatus, setActiveStatus] = useState<StatusFilterValue>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const counts = useMemo(() => {
+    const c: Record<StatusFilterValue, number> = {
+      all: requests.length,
+      pending: 0,
+      "in-progress": 0,
+      done: 0,
+      denied: 0,
+    };
+    for (const r of requests) c[r.status] += 1;
+    return c;
+  }, [requests]);
+
+  const filtered = useMemo(() => {
+    const byStatus =
+      activeStatus === "all"
+        ? requests
+        : requests.filter((r) => r.status === activeStatus);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter((r) =>
+      SEARCH_KEYS.some((key) => {
+        const v = r[key];
+        return typeof v === "string" && v.toLowerCase().includes(q);
+      }),
+    );
+  }, [requests, activeStatus, searchQuery]);
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 mb-4 shrink-0">
-        <div className="w-8 h-px bg-sbi-green" />
-        <p className="text-xs tracking-[0.2em] uppercase text-sbi-muted">Request History</p>
+      <div className="mb-4 flex flex-wrap items-center gap-3 shrink-0">
+        {/* Search (left, grows) */}
+        <div className="relative grow min-w-[240px] max-w-sm group">
+          <MagnifyingGlassIcon
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-sbi-muted-dark group-focus-within:text-sbi-green transition-colors"
+            size={15}
+          />
+          <input
+            type="text"
+            placeholder="Search requests..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-sbi-input rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
+          />
+        </div>
+
+        {/* Status chips (right) */}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {STATUS_CHIPS.map((chip) => {
+            const isActive = activeStatus === chip.value;
+            const count = counts[chip.value];
+            return (
+              <button
+                key={chip.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setActiveStatus(chip.value)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  isActive
+                    ? "border-sbi-green/60 bg-sbi-green/10 text-sbi-green shadow-[inset_0_0_0_1px_currentColor]"
+                    : "border-sbi-dark-border/60 bg-transparent text-sbi-muted hover:bg-white/5 hover:text-white",
+                )}
+              >
+                <span>{chip.label}</span>
+                <span className="tabular-nums opacity-70">· {count}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <DataTable<Request>
-          data={requests}
+          data={filtered}
           columns={columns}
           rowKey="id"
-          searchable
-          searchKeys={["subject", "name", "department", "project"]}
-          searchPlaceholder="Search requests..."
-          filters={[STATUS_FILTER]}
           pageSize={8}
           primaryColumn="subject"
           onRowClick={onRowClick}

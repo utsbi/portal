@@ -18,7 +18,7 @@ import { updateRequestStatus } from "@/lib/supabase/requests";
 import { cn } from "@/lib/utils";
 import { memberLabel } from "./constants";
 import type { Request } from "./RequestHistory";
-import type { RequestStatus } from "./StatusBadge";
+import type { RequestStatus } from "@/lib/supabase/requests";
 
 const STATUS_OPTIONS: { value: RequestStatus; label: string }[] = [
   { value: "pending", label: "Pending" },

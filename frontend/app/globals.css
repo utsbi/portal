@@ -1,7 +1,4 @@
 @import "tailwindcss";
-@import "@radix-ui/colors/black-alpha.css";
-@import "@radix-ui/colors/mauve.css";
-@import "@radix-ui/colors/violet.css";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -12,6 +9,7 @@
   --color-sbi-dark-card: #0a120c;
   --color-sbi-dark-border: #16301d;
   --color-sbi-dark-btn: #0f1a12;
+  --color-sbi-input: #0d120e;
   --color-sbi-muted: #8a9a93;
   --color-sbi-muted-dark: #6b7c74;
   --font-urbanist: var(--font-urbanist);
@@ -380,25 +378,6 @@ html::-webkit-scrollbar-thumb:hover {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Animation for suggestion chips */
-@keyframes chip-in {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-chip-in {
-  opacity: 0;
-  animation: chip-in 0.6s ease-out forwards;
-  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
 /* Subtle glow pulse for active states */
 @keyframes glow-pulse {
 
@@ -426,6 +405,27 @@ html::-webkit-scrollbar-thumb:hover {
 /* Dashboard element animations */
 .dashboard-glow {
   animation: glow-pulse 3s ease-in-out infinite;
+}
+
+/* Slim, low-contrast scrollbar for primary dashboard scroll containers.
+   White tint at rest, green tint on hover (ties to brand on interaction). */
+.dashboard-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+.dashboard-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.dashboard-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dashboard-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+.dashboard-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(34, 197, 94, 0.45);
 }
 
 /* Slimmer variant for dense dashboard panes. */

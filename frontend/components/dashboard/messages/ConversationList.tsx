@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, MessageSquare } from "lucide-react";
+import { btnPrimary, inputClass, EmptyState } from "@/components/dashboard/common/ui";
+import { cn } from "@/lib/utils";
 
 // Minimal conversation shape required by the list UI. The batched
 // name-resolution in index.tsx / DirectorMessages.tsx populates this exactly.
@@ -111,7 +113,7 @@ export function ConversationList({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search conversations"
-            className="w-full bg-sbi-dark-card text-white border border-sbi-dark-border/50 rounded-md pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-sbi-green/50 transition-colors placeholder:text-sbi-muted-dark"
+            className={cn(inputClass, "pl-9 pr-3")}
           />
         </div>
       </div>
@@ -133,18 +135,22 @@ export function ConversationList({
               <button
                 type="button"
                 onClick={onRetry}
-                className="mt-4 inline-flex items-center justify-center px-4 h-9 text-xs font-medium tracking-[0.04em] uppercase bg-sbi-green/10 text-sbi-green border border-sbi-green/30 rounded-md cursor-pointer hover:bg-sbi-green hover:text-sbi-dark transition-colors"
+                className={cn(btnPrimary, "mt-4 px-4 h-9")}
               >
                 Try again
               </button>
             ) : null}
           </div>
         ) : visible.length === 0 ? (
-          <p className="text-sm text-sbi-muted px-3 py-6 text-center">
-            {query.trim()
-              ? "No conversations match that search."
-              : "No conversations yet."}
-          </p>
+          <EmptyState
+            icon={<MessageSquare className="size-6" />}
+            title={query.trim() ? "No results" : "No conversations yet"}
+            description={
+              query.trim()
+                ? "No conversations match that search."
+                : undefined
+            }
+          />
         ) : (
           visible.map((convo) => {
             const isActive = activeId === convo.id;

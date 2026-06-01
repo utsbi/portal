@@ -113,7 +113,7 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
         />
       </div>
 
-      <Panel className="flex flex-col h-[260px]">
+      <Panel>
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-xs tracking-[0.15em] uppercase text-sbi-muted font-medium flex items-center gap-2 mb-1">
@@ -124,13 +124,13 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
             </p>
           </div>
         </div>
-        <div className="flex-1 min-h-0">
+        <div className="w-full">
           {timelineData.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
+            <div className="h-[180px] flex items-center justify-center">
               <p className="text-sm text-sbi-muted">No submissions yet.</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={180}>
               <AreaChart
                 data={timelineData}
                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
@@ -143,8 +143,8 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--color-sbi-green)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="var(--color-sbi-green)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
@@ -170,12 +170,12 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                 <Area
                   type="monotone"
                   dataKey="count"
-                  stroke="#22c55e"
+                  stroke="var(--color-sbi-green)"
                   strokeWidth={3}
                   fillOpacity={1}
                   fill="url(#reportsTrendGradient)"
                   dot={false}
-                  activeDot={{ r: 6, strokeWidth: 0, fill: "#22c55e" }}
+                  activeDot={{ r: 6, strokeWidth: 0, fill: "var(--color-sbi-green)" }}
                 />
               </AreaChart>
             </ResponsiveContainer>

@@ -88,7 +88,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
         customStyle={{
           margin: 0,
           padding: '1rem',
-          background: '#0a120c',
+          background: 'var(--color-sbi-dark-card)',
           fontSize: '0.875rem',
           borderRadius: 0,
         }}
