@@ -2,6 +2,8 @@
 
 import { Search, X } from "lucide-react";
 import { motion } from "motion/react";
+import { inputClass } from "@/components/dashboard/common/ui";
+import { cn } from "@/lib/utils";
 import type { CalendarView } from "./types";
 
 interface Props {
@@ -68,7 +70,7 @@ export function CalendarHeader({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search events"
-          className="w-full rounded-md border border-sbi-dark-border/60 bg-sbi-dark-card/40 py-2 pl-9 pr-9 text-sm text-white outline-none placeholder:text-sbi-muted/60 focus:border-sbi-green/40"
+          className={cn(inputClass, "pl-9 pr-9")}
         />
         {search ? (
           <button
