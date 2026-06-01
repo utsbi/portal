@@ -18,6 +18,10 @@ import { cn } from "@/lib/utils";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { StatusPill } from "@/components/data-table/status-pill";
 import {
+  EmptyState,
+  inputClass,
+} from "@/components/dashboard/common/ui";
+import {
   ArrowUpDown,
   AlertCircle,
   Search,
@@ -1084,34 +1088,6 @@ function ReportsTable() {
 // REQUESTS TABLE COMPONENT
 // ─────────────────────────────────────────────────────────────
 
-const requestStatusConfig: Record<
-  RequestStatus,
-  { label: string; className: string }
-> = {
-  pending: { label: "Pending", className: "text-red-400 font-medium" },
-  "in-progress": {
-    label: "In Progress",
-    className: "text-yellow-400 font-medium",
-  },
-  done: { label: "Done", className: "text-sbi-green font-medium" },
-  denied: { label: "Denied", className: "text-slate-400 font-medium" },
-};
-
-function RequestStatusBadge({ status }: { status: RequestStatus }) {
-  const config = requestStatusConfig[status];
-  return (
-    <div
-      className={`inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full text-xs tracking-wider uppercase border border-transparent ${config.className}`}
-    >
-      <div className="relative flex h-2 w-2 items-center justify-center">
-        <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping bg-current" />
-        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
-      </div>
-      {config.label}
-    </div>
-  );
-}
-
 function RequestsTable() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1180,7 +1156,7 @@ function RequestsTable() {
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search requests..."
-              className="bg-sbi-dark-card border border-sbi-dark-border/50 text-white text-xs placeholder:text-sbi-muted pl-6 pr-6 py-1.5 w-45 focus:outline-none focus:border-sbi-green/50 transition-colors"
+              className={cn(inputClass, "pl-6 pr-6 py-1.5 w-45 text-xs")}
             />
             {searchQuery && (
               <button
@@ -1276,7 +1252,7 @@ function RequestsTable() {
                   {formatDate(request.createdAt)}
                 </p>
                 <div className="flex justify-start">
-                  <RequestStatusBadge status={request.status} />
+                  <StatusPill status={request.status} />
                 </div>
               </button>
 
@@ -1353,11 +1329,11 @@ function RequestsTable() {
         })}
 
         {filteredRequests.length === 0 && (
-          <div className="text-center py-12 border border-dashed border-sbi-dark-border">
-            <p className="text-sm text-sbi-muted">
-              No requests match your search
-            </p>
-          </div>
+          <EmptyState
+            icon={<Search className="w-6 h-6" />}
+            title="No requests match your filters"
+            description="Try adjusting your search or status filter to find what you're looking for."
+          />
         )}
       </div>
 
