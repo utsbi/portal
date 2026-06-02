@@ -12,6 +12,7 @@ import {
   FolderOpen,
   FileText,
   MailQuestion,
+  ClipboardList,
   ChevronUp,
   User,
   Bell,
@@ -45,6 +46,12 @@ const documentItems: NavItem[] = [
   { title: "Files", path: "/files", icon: FolderOpen },
   { title: "Reports", path: "/reports", icon: FileText },
   { title: "Requests", path: "/requests", icon: MailQuestion },
+  {
+    title: "Questionnaire",
+    path: "/questionnaire",
+    icon: ClipboardList,
+    roles: ["client"],
+  },
 ];
 
 // Settings is accessed from the user profile menu, not the nav
