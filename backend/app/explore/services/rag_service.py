@@ -215,9 +215,41 @@ class RAGService:
 
     async def get_context_for_query(self, query: str, client_id: str,
         attachments: Optional[List[Dict[str, str]]] = None,
+        retrieved_docs: Optional[List[Dict[str, Any]]] = None,
         max_context_length: int = 200_000) -> str:
-        """Build a context string for the LLM from retrieved documents and attachments."""
-        context_parts = []
+        """Build a context string for the LLM from retrieved documents and attachments.
+
+        If ``retrieved_docs`` is provided, it is used directly (no DB call); this
+        lets callers run a single ``hybrid_search`` per turn and reuse the same
+        ranked docs for both the prompt context and the citation source list,
+        keeping the prompt's ``[n]`` markers aligned with the rendered sources.
+        Falls back to running its own ``hybrid_search`` when ``retrieved_docs`` is
+        None for backward compatibility.
+        """
+        if retrieved_docs is None:
+            retrieved_docs = await self.hybrid_search(
+                query=query,
+                client_id=client_id,
+                limit=5,
+            )
+
+        return self.build_context_string(
+            retrieved_docs=retrieved_docs,
+            attachments=attachments,
+            max_context_length=max_context_length,
+        )
+
+    @staticmethod
+    def build_context_string(
+        retrieved_docs: List[Dict[str, Any]],
+        attachments: Optional[List[Dict[str, str]]] = None,
+        max_context_length: int = 200_000,
+    ) -> str:
+        """Render a prompt context string from already-retrieved docs + attachments.
+
+        Pure (no I/O) so it can be reused wherever docs were fetched once.
+        """
+        context_parts: List[str] = []
         current_length = 0
 
         if attachments:
@@ -228,13 +260,6 @@ class RAGService:
                     context_parts.append(att_text)
                     current_length += len(att_text)
 
-        # Retrieve relevant documents from the vector store
-        retrieved_docs = await self.hybrid_search(
-            query=query,
-            client_id=client_id,
-            limit=5
-        )
-
         if retrieved_docs:
             context_parts.append("\n=== Retrieved Documents ===\n")
             for doc in retrieved_docs:
@@ -243,7 +268,7 @@ class RAGService:
                 page = metadata.get("page_number", "")
                 page_str = f" (Page {page})" if page else ""
 
-                doc_text = f"\n[Source: {filename}{page_str}]\n{doc['content']}\n"
+                doc_text = f"\n[Source: {filename}{page_str}]\n{doc.get('content', '')}\n"
 
                 if current_length + len(doc_text) < max_context_length:
                     context_parts.append(doc_text)

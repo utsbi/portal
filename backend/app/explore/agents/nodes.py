@@ -211,27 +211,24 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
         # If attachment context is too thin, fall back to RAG search
         if len(context.strip()) < 100:
             logger.info("Attachment context too thin, falling back to RAG search")
-            context = await rag_service.get_context_for_query(
-                query=query, client_id=client_id,
-            )
             retrieved_docs = await rag_service.hybrid_search(
                 query=query, client_id=client_id, limit=5,
             )
+            context = rag_service.build_context_string(retrieved_docs=retrieved_docs)
 
     elif route == "retrieve":
-        context = await rag_service.get_context_for_query(
-            query=query, client_id=client_id,
-        )
+        # Single retrieval reused for both prompt context and citation sources.
         retrieved_docs = await rag_service.hybrid_search(
             query=query, client_id=client_id, limit=5,
         )
+        context = rag_service.build_context_string(retrieved_docs=retrieved_docs)
 
     elif route == "hybrid":
-        context = await rag_service.get_context_for_query(
-            query=query, client_id=client_id, attachments=attachments,
-        )
         retrieved_docs = await rag_service.hybrid_search(
             query=query, client_id=client_id, limit=5,
+        )
+        context = rag_service.build_context_string(
+            retrieved_docs=retrieved_docs, attachments=attachments,
         )
 
     logger.info(
