@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/utsbi/portal/security/policy
+    about: Please report security issues privately — see our security policy, not a public issue.
