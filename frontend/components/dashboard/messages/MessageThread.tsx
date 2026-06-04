@@ -1665,7 +1665,12 @@ export function MessageThread({
       }
     }
 
-    const storagePath = `${crypto.randomUUID()}-${file.name}`;
+    // Scope the object path by conversation id (first path segment) so the
+    // storage INSERT policy can verify the uploader is a participant of that
+    // conversation. The same string is persisted to message_attachments.path,
+    // keeping the read-side policy (which joins ma.path = objects.name) intact.
+    if (!conversationId) return null;
+    const storagePath = `${conversationId}/${crypto.randomUUID()}-${file.name}`;
     const { error } = await supabase.storage
       .from("Message Attachments")
       .upload(storagePath, file, { upsert: false });
