@@ -32,6 +32,32 @@
  *
  * On any blocked/invalid URL we return a clean `{ skipped: "blocked url" }`
  * without leaking *why* (no internal-target oracle for the caller).
+ *
+ * SECURITY: AUTHORIZATION (IDOR).
+ * The function runs with `verify_jwt: true`, so every request carries the
+ * caller's JWT in the `Authorization` header. We build a *per-request,
+ * user-scoped* Supabase client from that header and read the target message
+ * THROUGH it, so Postgres RLS enforces visibility: the `messages` SELECT
+ * policy ("Users can view messages in their conversations") only returns rows
+ * whose conversation has the caller as client_profile_id or director_profile_id.
+ * If the caller cannot see the message, the select returns nothing and we
+ * return `{ skipped: "not found" }` and do nothing else — no fetch, no upsert.
+ * This blocks the cross-conversation IDOR where any authenticated caller could
+ * pass an arbitrary `message_id` to learn its first URL and trigger/overwrite
+ * its unfurl. The SERVICE-ROLE client is used ONLY for the outbound unfurl
+ * fetch and the final `message_unfurls` upsert, gated behind that visibility
+ * check. A missing `Authorization` header is a 401.
+ *
+ * SECURITY: DNS-REBINDING (TOCTOU) — RESIDUAL, see README.
+ * `validateUrl` resolves DNS and rejects internal addresses, but the
+ * subsequent `fetch()` re-resolves independently, so a rebinding host could
+ * return an external IP at check time and an internal IP at connect time.
+ * `safeFetch` re-validates on every redirect hop, which narrows the window,
+ * but does NOT fully close it: closing it requires pinning the TCP connection
+ * to the validated IP (custom Deno.connect/connectTls client) or an egress
+ * proxy enforcing an IP allowlist at connect time. We deliberately do NOT
+ * hand-roll an IP-pinned HTTP/TLS client here (fragile on the edge runtime);
+ * the residual is documented rather than papered over.
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
@@ -287,18 +313,48 @@ Deno.serve(async (req) => {
   try {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.86.0");
 
+    // verify_jwt:true means the caller's JWT is in Authorization. Require it
+    // explicitly so we never fall through to an unauthenticated/service path.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: JSON_HEADERS });
+    }
+
     const { message_id } = (await req.json()) as Payload;
     if (!message_id) {
       return new Response(JSON.stringify({ error: "missing message_id" }), { status: 400, headers: JSON_HEADERS });
     }
 
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+
+    // Per-request, USER-SCOPED client: anon key + caller's JWT. Reads run as
+    // the caller, so RLS on `messages` enforces conversation membership.
+    const userClient = createClient(
+      SUPABASE_URL,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+
+    // SERVICE-ROLE client: used ONLY for the outbound unfurl fetch path and the
+    // final `message_unfurls` upsert, AFTER the user-scoped visibility check.
     const supa = createClient(
-      Deno.env.get("SUPABASE_URL")!,
+      SUPABASE_URL,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: msg } = await supa.from("messages").select("id, content").eq("id", message_id).single();
-    if (!msg?.content) {
+    // AUTHZ GATE: read the message THROUGH the user-scoped client. If the
+    // caller can't see it (RLS), `data` is null -> treat as not found and stop.
+    // maybeSingle() avoids throwing on zero rows so RLS-hidden rows look the
+    // same as truly-missing ones (no IDOR oracle).
+    const { data: msg } = await userClient
+      .from("messages")
+      .select("id, content")
+      .eq("id", message_id)
+      .maybeSingle();
+    if (!msg) {
+      return new Response(JSON.stringify({ skipped: "not found" }), { headers: JSON_HEADERS });
+    }
+    if (!msg.content) {
       return new Response(JSON.stringify({ skipped: "no content" }), { headers: JSON_HEADERS });
     }
 
