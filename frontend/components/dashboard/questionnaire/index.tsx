@@ -9,6 +9,7 @@ import {
   Clock,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   btnGhost,
@@ -22,6 +23,11 @@ import {
 import { StatusPill } from "@/components/data-table/status-pill";
 import type { QuestionnaireFormView } from "@/lib/data/questionnaire";
 import { cn } from "@/lib/utils";
+
+// "Not Started" isn't a StatusPill variant; surface it as a pending pill.
+function pillStatus(status: QuestionnaireFormView["status"]): string {
+  return status === "Not Started" ? "Pending" : status;
+}
 
 // ---------------------------------------------------------------------------
 // Form row
@@ -71,7 +77,7 @@ function FormRow({ form, index, onOpen }: FormRowProps) {
 
       {/* Status */}
       <div className="shrink-0">
-        <StatusPill status={form.status} />
+        <StatusPill status={pillStatus(form.status)} />
       </div>
 
       {/* Arrow */}
@@ -151,7 +157,7 @@ function DetailPanel({ form, onClose }: DetailPanelProps) {
                   <p className="text-[10px] tracking-[0.15em] uppercase text-sbi-muted mb-1.5">
                     Status
                   </p>
-                  <StatusPill status={form.status} />
+                  <StatusPill status={pillStatus(form.status)} />
                 </div>
                 <div>
                   <p className="text-[10px] tracking-[0.15em] uppercase text-sbi-muted mb-1">
@@ -223,13 +229,16 @@ function DetailPanel({ form, onClose }: DetailPanelProps) {
 
             {/* Footer */}
             <div className="p-6 border-t border-sbi-dark-border/30 shrink-0">
-              <button
-                type="button"
+              <Link
+                href={`/dashboard/questionnaire/${form.id}`}
                 className={cn(btnPrimary, "w-full")}
-                disabled
               >
-                Fill Out Form
-              </button>
+                {form.submissionStatus === "submitted"
+                  ? "Review Answers"
+                  : form.submissionStatus === "draft"
+                    ? "Continue Form"
+                    : "Fill Out Form"}
+              </Link>
             </div>
           </motion.aside>
         </>
