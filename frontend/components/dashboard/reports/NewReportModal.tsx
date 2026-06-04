@@ -36,12 +36,19 @@ function humanSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-async function uploadFiles(files: File[]): Promise<Attachment[]> {
+async function uploadFiles(
+  projectId: number,
+  files: File[],
+): Promise<Attachment[]> {
   if (files.length === 0) return [];
   const supabase = createClient();
   const uploads: Attachment[] = [];
   for (const file of files) {
-    const path = `reports/${Date.now()}-${file.name}`;
+    // Scope the object path by project id (first path segment) so the
+    // ticket-attachments INSERT policy can enforce is_project_member on it.
+    // The same path is persisted into tickets.attachments[].path, keeping
+    // the read-side policy (which keys off that stored path) consistent.
+    const path = `${projectId}/${Date.now()}-${file.name}`;
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, file, { upsert: false });
@@ -94,9 +101,18 @@ export function NewReportModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const projectId = activeProject?.projectId;
+    if (files.length > 0 && projectId == null) {
+      toastError(
+        "Select a project before attaching files to a report.",
+        "No active project",
+      );
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const attachments = await uploadFiles(files);
+      const attachments =
+        projectId != null ? await uploadFiles(projectId, files) : [];
 
       const res = await fetch("/api/reports", {
         method: "POST",

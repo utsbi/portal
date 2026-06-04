@@ -71,14 +71,18 @@ export async function fetchRequests(projectId?: number): Promise<Request[]> {
 }
 
 async function uploadFiles(
-    requestId: string,
+    projectId: number,
     files: File[]
 ): Promise<{ name: string; size: string; path: string }[]> {
     const supabase = createClient();
     const results: { name: string; size: string; path: string }[] = [];
 
     for (const file of files) {
-        const path = `${requestId}/${Date.now()}-${file.name}`;
+        // Scope the object path by project id (first path segment) so the
+        // ticket-attachments INSERT policy can enforce is_project_member on it.
+        // The same path is persisted into tickets.attachments[].path, keeping
+        // the read-side policy (which keys off that stored path) consistent.
+        const path = `${projectId}/${Date.now()}-${file.name}`;
         const { error } = await supabase.storage
             .from("ticket-attachments")
             .upload(path, file);
@@ -135,8 +139,8 @@ export async function createRequest(payload: {
 
     const row = inserted as TicketRow;
 
-    if (payload.files && payload.files.length > 0) {
-        const attachmentMeta = await uploadFiles(String(row.id), payload.files);
+    if (payload.files && payload.files.length > 0 && payload.projectId != null) {
+        const attachmentMeta = await uploadFiles(payload.projectId, payload.files);
 
         if (attachmentMeta.length > 0) {
             const { error: updateError } = await supabase
