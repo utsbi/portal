@@ -334,6 +334,45 @@ export type Database = {
           },
         ];
       };
+      custom_form_assignments: {
+        Row: {
+          created_at: string;
+          form_id: number;
+          id: number;
+          project_id: number | null;
+          user_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          form_id: number;
+          id?: number;
+          project_id?: number | null;
+          user_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          form_id?: number;
+          id?: number;
+          project_id?: number | null;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "custom_form_assignments_form_id_fkey";
+            columns: ["form_id"];
+            isOneToOne: false;
+            referencedRelation: "custom_form_schemas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "custom_form_assignments_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       custom_form_schemas: {
         Row: {
           assigned_to: string[] | null;
@@ -345,6 +384,7 @@ export type Database = {
           is_active: boolean | null;
           title: string;
           updated_at: string | null;
+          version: number;
         };
         Insert: {
           assigned_to?: string[] | null;
@@ -356,6 +396,7 @@ export type Database = {
           is_active?: boolean | null;
           title: string;
           updated_at?: string | null;
+          version?: number;
         };
         Update: {
           assigned_to?: string[] | null;
@@ -367,6 +408,7 @@ export type Database = {
           is_active?: boolean | null;
           title?: string;
           updated_at?: string | null;
+          version?: number;
         };
         Relationships: [];
       };
@@ -377,6 +419,9 @@ export type Database = {
           form_id: number;
           id: number;
           project_id: number | null;
+          schema_version: number;
+          status: string;
+          submitted_at: string | null;
           updated_at: string | null;
           user_id: string;
         };
@@ -386,6 +431,9 @@ export type Database = {
           form_id: number;
           id?: number;
           project_id?: number | null;
+          schema_version?: number;
+          status?: string;
+          submitted_at?: string | null;
           updated_at?: string | null;
           user_id?: string;
         };
@@ -395,6 +443,9 @@ export type Database = {
           form_id?: number;
           id?: number;
           project_id?: number | null;
+          schema_version?: number;
+          status?: string;
+          submitted_at?: string | null;
           updated_at?: string | null;
           user_id?: string;
         };
