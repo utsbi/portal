@@ -11,6 +11,7 @@ import {
   Calendar,
   FolderOpen,
   FileText,
+  FileEdit,
   MailQuestion,
   ClipboardList,
   ChevronUp,
@@ -51,6 +52,12 @@ const documentItems: NavItem[] = [
     path: "/questionnaire",
     icon: ClipboardList,
     roles: ["client"],
+  },
+  {
+    title: "Form Builder",
+    path: "/questionnaire/builder",
+    icon: FileEdit,
+    roles: ["director"],
   },
 ];
 
