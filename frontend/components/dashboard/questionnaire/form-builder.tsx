@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  ArrowDown,
-  ArrowUp,
   ChevronDown,
   Copy,
   GripVertical,
@@ -106,17 +104,24 @@ export function FormBuilder({
       return next;
     });
 
-  const moveField = (index: number, dir: -1 | 1) =>
-    setFields((prev) => {
-      const target = index + dir;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-
   const addField = (type: FieldType) =>
     setFields((prev) => [...prev, defaultFieldForType(type)]);
+
+  // Drag-and-drop reorder via the grip handle (native HTML5 DnD).
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+
+  const handleDrop = (to: number) => {
+    setFields((prev) => {
+      if (dragIndex === null || dragIndex === to) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(dragIndex, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDragIndex(null);
+    setOverIndex(null);
+  };
 
   const schema: FormSchema = useMemo(() => ({ fields }), [fields]);
 
@@ -292,13 +297,23 @@ export function FormBuilder({
               <FieldEditor
                 key={field.id}
                 field={field}
-                index={index}
-                total={fields.length}
                 referenceable={answerableBefore(index)}
+                isDragging={dragIndex === index}
+                isOver={
+                  overIndex === index &&
+                  dragIndex !== null &&
+                  dragIndex !== index
+                }
                 onChange={(patch) => updateField(field.id, patch)}
                 onRemove={() => removeField(field.id)}
                 onDuplicate={() => duplicateField(field.id)}
-                onMove={(dir) => moveField(index, dir)}
+                onDragStart={() => setDragIndex(index)}
+                onDragEnterItem={() => setOverIndex(index)}
+                onDropItem={() => handleDrop(index)}
+                onDragEndItem={() => {
+                  setDragIndex(null);
+                  setOverIndex(null);
+                }}
               />
             ))}
 
@@ -352,171 +367,201 @@ function AddFieldBar({ onAdd }: { onAdd: (type: FieldType) => void }) {
 
 interface FieldEditorProps {
   field: FieldDef;
-  index: number;
-  total: number;
   referenceable: FieldDef[];
+  isDragging: boolean;
+  isOver: boolean;
   onChange: (patch: Partial<FieldDef>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
-  onMove: (dir: -1 | 1) => void;
+  onDragStart: () => void;
+  onDragEnterItem: () => void;
+  onDropItem: () => void;
+  onDragEndItem: () => void;
 }
 
 function FieldEditor({
   field,
-  index,
-  total,
   referenceable,
+  isDragging,
+  isOver,
   onChange,
   onRemove,
   onDuplicate,
-  onMove,
+  onDragStart,
+  onDragEnterItem,
+  onDropItem,
+  onDragEndItem,
 }: FieldEditorProps) {
   const [expanded, setExpanded] = useState(true);
+  // The wrapper is only draggable once the grip handle is grabbed, so text
+  // selection inside the field inputs keeps working normally.
+  const [grabbed, setGrabbed] = useState(false);
   const isSection = field.type === "section";
   const isChoice = CHOICE_TYPES.includes(field.type);
 
   return (
-    <Panel
-      padded={false}
+    // biome-ignore lint/a11y/noStaticElementInteractions: native HTML5 drag drop target; the real control is the grip <button> below.
+    <div
+      draggable={grabbed}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragEnter={onDragEnterItem}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDropItem();
+      }}
+      onDragEnd={() => {
+        setGrabbed(false);
+        onDragEndItem();
+      }}
       className={cn(
-        "overflow-hidden",
-        isSection && "border-sbi-green/30 bg-sbi-green/5",
+        "rounded-xl transition-all",
+        isDragging && "opacity-40",
+        isOver && "ring-2 ring-sbi-green/50",
       )}
     >
-      {/* Header row */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-sbi-dark-border/40">
-        <GripVertical className="size-4 text-sbi-muted-dark shrink-0" />
-        <span className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted shrink-0">
-          {FIELD_TYPE_LABELS[field.type]}
-        </span>
-        <span className="flex-1 truncate text-sm text-white/80">
-          {field.label || "Untitled"}
-        </span>
-        <div className="flex items-center gap-1 shrink-0">
-          <IconBtn
-            label="Move up"
-            disabled={index === 0}
-            onClick={() => onMove(-1)}
+      <Panel
+        padded={false}
+        className={cn(
+          "overflow-hidden",
+          isSection && "border-sbi-green/30 bg-sbi-green/5",
+        )}
+      >
+        {/* Header row */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-sbi-dark-border/40">
+          <button
+            type="button"
+            aria-label="Drag to reorder"
+            title="Drag to reorder"
+            onMouseDown={() => setGrabbed(true)}
+            onMouseUp={() => setGrabbed(false)}
+            className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 text-sbi-muted-dark hover:text-sbi-muted transition-colors"
           >
-            <ArrowUp className="size-3.5" />
-          </IconBtn>
-          <IconBtn
-            label="Move down"
-            disabled={index === total - 1}
-            onClick={() => onMove(1)}
-          >
-            <ArrowDown className="size-3.5" />
-          </IconBtn>
-          <IconBtn label="Duplicate" onClick={onDuplicate}>
-            <Copy className="size-3.5" />
-          </IconBtn>
-          <IconBtn label="Delete" onClick={onRemove} danger>
-            <Trash2 className="size-3.5" />
-          </IconBtn>
-          <IconBtn label="Toggle" onClick={() => setExpanded((e) => !e)}>
-            <ChevronDown
-              className={cn(
-                "size-3.5 transition-transform",
-                expanded && "rotate-180",
-              )}
-            />
-          </IconBtn>
-        </div>
-      </div>
-
-      {expanded && (
-        <div className="p-4 flex flex-col gap-4">
-          {/* Label + type */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
-              <span className={cn("block", labelClass)}>
-                {isSection ? "Section title" : "Question"}
-              </span>
-              <input
-                className={cn(inputClass, "mt-1.5")}
-                value={field.label}
-                onChange={(e) => onChange({ label: e.target.value })}
+            <GripVertical className="size-4" />
+          </button>
+          <span className="text-[10px] uppercase tracking-[0.15em] text-sbi-muted shrink-0">
+            {FIELD_TYPE_LABELS[field.type]}
+          </span>
+          <span className="flex-1 truncate text-sm text-white/80">
+            {field.label || "Untitled"}
+          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            <IconBtn label="Duplicate" onClick={onDuplicate}>
+              <Copy className="size-3.5" />
+            </IconBtn>
+            <IconBtn label="Delete" onClick={onRemove} danger>
+              <Trash2 className="size-3.5" />
+            </IconBtn>
+            <IconBtn label="Toggle" onClick={() => setExpanded((e) => !e)}>
+              <ChevronDown
+                className={cn(
+                  "size-3.5 transition-transform",
+                  expanded && "rotate-180",
+                )}
               />
+            </IconBtn>
+          </div>
+        </div>
+
+        {expanded && (
+          <div className="p-4 flex flex-col gap-4">
+            {/* Label + type */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <span className={cn("block", labelClass)}>
+                  {isSection ? "Section title" : "Question"}
+                </span>
+                <input
+                  className={cn(inputClass, "mt-1.5")}
+                  value={field.label}
+                  onChange={(e) => onChange({ label: e.target.value })}
+                />
+              </div>
+              <div>
+                <span className={cn("block", labelClass)}>Type</span>
+                <select
+                  className={cn(inputClass, "mt-1.5")}
+                  value={field.type}
+                  onChange={(e) => {
+                    const type = e.target.value as FieldType;
+                    const patch: Partial<FieldDef> = { type };
+                    if (CHOICE_TYPES.includes(type) && !field.options) {
+                      patch.options = [
+                        { value: "option_1", label: "Option 1" },
+                        { value: "option_2", label: "Option 2" },
+                      ];
+                    }
+                    if (type === "scale" && !field.validation) {
+                      patch.validation = { min: 1, max: 5, step: 1 };
+                    }
+                    onChange(patch);
+                  }}
+                >
+                  {FIELD_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {FIELD_TYPE_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            {/* Help text */}
             <div>
-              <span className={cn("block", labelClass)}>Type</span>
-              <select
-                className={cn(inputClass, "mt-1.5")}
-                value={field.type}
-                onChange={(e) => {
-                  const type = e.target.value as FieldType;
-                  const patch: Partial<FieldDef> = { type };
-                  if (CHOICE_TYPES.includes(type) && !field.options) {
-                    patch.options = [
-                      { value: "option_1", label: "Option 1" },
-                      { value: "option_2", label: "Option 2" },
-                    ];
-                  }
-                  if (type === "scale" && !field.validation) {
-                    patch.validation = { min: 1, max: 5, step: 1 };
-                  }
-                  onChange(patch);
-                }}
-              >
-                {FIELD_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {FIELD_TYPE_LABELS[t]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Help text */}
-          <div>
-            <span className={cn("block", labelClass)}>Help text</span>
-            <input
-              className={cn(inputClass, "mt-1.5")}
-              value={field.description ?? ""}
-              placeholder="Optional"
-              onChange={(e) =>
-                onChange({ description: e.target.value || undefined })
-              }
-            />
-          </div>
-
-          {/* Options editor */}
-          {isChoice && (
-            <OptionsEditor
-              field={field}
-              onChange={(options) => onChange({ options })}
-            />
-          )}
-
-          {/* Scale config */}
-          {field.type === "scale" && (
-            <ScaleConfig field={field} onChange={onChange} />
-          )}
-
-          {/* Validation */}
-          {!isSection && <ValidationEditor field={field} onChange={onChange} />}
-
-          {/* Required + conditional */}
-          {!isSection && (
-            <label className="flex items-center gap-2 text-xs text-white/80 cursor-pointer">
+              <span className={cn("block", labelClass)}>Help text</span>
               <input
-                type="checkbox"
-                className="accent-sbi-green size-4"
-                checked={field.required ?? false}
-                onChange={(e) => onChange({ required: e.target.checked })}
+                className={cn(inputClass, "mt-1.5")}
+                value={field.description ?? ""}
+                placeholder="Optional"
+                onChange={(e) =>
+                  onChange({ description: e.target.value || undefined })
+                }
               />
-              Required
-            </label>
-          )}
+            </div>
 
-          <ConditionEditor
-            field={field}
-            referenceable={referenceable}
-            onChange={onChange}
-          />
-        </div>
-      )}
-    </Panel>
+            {/* Options editor */}
+            {isChoice && (
+              <OptionsEditor
+                field={field}
+                onChange={(options) => onChange({ options })}
+              />
+            )}
+
+            {/* Scale config */}
+            {field.type === "scale" && (
+              <ScaleConfig field={field} onChange={onChange} />
+            )}
+
+            {/* Validation */}
+            {!isSection && (
+              <ValidationEditor field={field} onChange={onChange} />
+            )}
+
+            {/* Required + conditional */}
+            {!isSection && (
+              <label className="flex items-center gap-2 text-xs text-white/80 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-sbi-green size-4"
+                  checked={field.required ?? false}
+                  onChange={(e) => onChange({ required: e.target.checked })}
+                />
+                Required
+              </label>
+            )}
+
+            <ConditionEditor
+              field={field}
+              referenceable={referenceable}
+              onChange={onChange}
+            />
+          </div>
+        )}
+      </Panel>
+    </div>
   );
 }
 
