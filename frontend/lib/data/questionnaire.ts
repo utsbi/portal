@@ -443,6 +443,10 @@ export async function fetchEditFormData(
 export interface ResponseRow {
   submissionId: number;
   userId: string;
+  /** Responder display name (from profiles); null if no profile row. */
+  userName: string | null;
+  /** Responder email (from profiles); null if unset. */
+  userEmail: string | null;
   projectId: number | null;
   status: "draft" | "submitted";
   submittedAt: string | null;
@@ -498,6 +502,25 @@ export async function fetchResponsesData(
     .eq("form_id", formId)
     .order("updated_at", { ascending: false });
 
+  // Resolve responder identities (uid -> name/email) so the viewer shows who
+  // answered instead of a raw UUID.
+  const responderIds = Array.from(
+    new Set((submissions ?? []).map((s) => s.user_id)),
+  );
+  const profileByUid = new Map<
+    string,
+    { name: string; email: string | null }
+  >();
+  if (responderIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("uid, name, email")
+      .in("uid", responderIds);
+    for (const p of profiles ?? []) {
+      profileByUid.set(p.uid, { name: p.name, email: p.email });
+    }
+  }
+
   // Resolve each submission's schema_version to the field definitions it was
   // captured against, so old answers aren't reinterpreted against an edited
   // live schema. Versions with no snapshot row (e.g. before the snapshot
@@ -524,9 +547,12 @@ export async function fetchResponsesData(
     const version = s.schema_version ?? 1;
     const rowSchema = schemaForVersion(version);
     const missing = validateAnswers(rowSchema, answers).length > 0;
+    const profile = profileByUid.get(s.user_id) ?? null;
     return {
       submissionId: s.id,
       userId: s.user_id,
+      userName: profile?.name ?? null,
+      userEmail: profile?.email ?? null,
       projectId: s.project_id,
       status: (s.status as "draft" | "submitted") ?? "draft",
       submittedAt: s.submitted_at,

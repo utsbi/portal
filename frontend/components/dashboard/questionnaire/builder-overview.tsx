@@ -5,11 +5,18 @@ import {
   CheckCircle2,
   ClipboardList,
   FileEdit,
+  Loader2,
   Plus,
+  Trash2,
   Users,
+  X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { isActionError } from "@/app/dashboard/questionnaire/action-types";
+import { deleteForm } from "@/app/dashboard/questionnaire/actions";
 import {
   btnGhost,
   btnPrimary,
@@ -21,6 +28,7 @@ import {
   StatTile,
 } from "@/components/dashboard/common/ui";
 import type { DirectorFormView } from "@/lib/data/questionnaire";
+import { toastError, toastSuccess } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
 interface BuilderOverviewProps {
@@ -157,8 +165,65 @@ function FormCard({ form, index }: { form: DirectorFormView; index: number }) {
           >
             <FileEdit className="size-3.5" /> Edit
           </Link>
+          <DeleteFormButton form={form} />
         </div>
       </Panel>
     </motion.div>
+  );
+}
+
+function DeleteFormButton({ form }: { form: DirectorFormView }) {
+  const router = useRouter();
+  const [state, setState] = useState<"idle" | "confirm" | "deleting">("idle");
+
+  const handleDelete = async () => {
+    setState("deleting");
+    const res = await deleteForm({ id: form.id });
+    if (isActionError(res)) {
+      toastError(res.error);
+      setState("idle");
+      return;
+    }
+    toastSuccess("Form deleted.");
+    router.refresh();
+  };
+
+  if (state === "confirm") {
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="h-8 px-2.5 rounded-md text-[11px] font-medium uppercase tracking-[0.04em] bg-red-500/10 text-red-300 border border-red-500/40 hover:bg-red-500/20 transition-colors"
+        >
+          Delete
+        </button>
+        <button
+          type="button"
+          aria-label="Cancel delete"
+          onClick={() => setState("idle")}
+          className="p-1.5 rounded-md text-sbi-muted hover:text-white transition-colors"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={`Delete ${form.title}`}
+      title="Delete form"
+      disabled={state === "deleting"}
+      onClick={() => setState("confirm")}
+      className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+    >
+      {state === "deleting" ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <Trash2 className="size-3.5" />
+      )}
+    </button>
   );
 }

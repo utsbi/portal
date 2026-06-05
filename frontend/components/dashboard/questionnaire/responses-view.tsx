@@ -43,12 +43,23 @@ export function ResponsesView({ title, rows }: ResponsesViewProps) {
         title={`${title} — Responses`}
         subtitle={`${submitted} submitted · ${drafts} in progress`}
         action={
-          <Link
-            href="/dashboard/questionnaire/builder"
-            className={cn(btnGhost, "h-9")}
-          >
-            Back
-          </Link>
+          <div className="flex items-center gap-2">
+            {rows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => exportResponsesCsv(title, rows)}
+                className={cn(btnGhost, "h-9")}
+              >
+                <Download className="size-4" /> Export CSV
+              </button>
+            )}
+            <Link
+              href="/dashboard/questionnaire/builder"
+              className={cn(btnGhost, "h-9")}
+            >
+              Back
+            </Link>
+          </div>
         }
       />
 
@@ -87,8 +98,8 @@ export function ResponsesView({ title, rows }: ResponsesViewProps) {
                     ) : (
                       <Clock className="size-3.5 text-amber-400" />
                     )}
-                    <span className="text-xs text-white/85 font-mono truncate">
-                      {row.userId.slice(0, 8)}…
+                    <span className="text-xs text-white/85 truncate">
+                      {responderLabel(row)}
                     </span>
                     <span className="ml-auto text-[10px] text-sbi-muted-dark">
                       v{row.schemaVersion}
@@ -125,7 +136,16 @@ function ResponseDetail({ row }: { row: ResponseRow }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 pb-3 border-b border-sbi-dark-border/40">
-        <span className="text-xs font-mono text-white/70">{row.userId}</span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm text-white/85 truncate">
+            {responderLabel(row)}
+          </span>
+          {row.userEmail && row.userName && (
+            <span className="text-[11px] text-sbi-muted truncate">
+              {row.userEmail}
+            </span>
+          )}
+        </div>
         <span
           className={cn(
             "ml-auto text-[10px] px-2 py-0.5 rounded uppercase tracking-wide",
@@ -225,4 +245,79 @@ function formatDate(iso: string | null): string {
   } catch {
     return "—";
   }
+}
+
+/** Best display name for a responder: name → email → shortened uid. */
+function responderLabel(row: ResponseRow): string {
+  return row.userName ?? row.userEmail ?? `${row.userId.slice(0, 8)}…`;
+}
+
+// ---------------------------------------------------------------------------
+// CSV export — one row per submission, one column per answerable field (union
+// across all rows, first-seen order). File answers export as their filename.
+// ---------------------------------------------------------------------------
+
+function csvCell(field: FieldDef, value: AnswerValue): string {
+  if (value === null || value === undefined || value === "") return "";
+  if (field.type === "file" && typeof value === "string") {
+    return fileNameFromPath(value);
+  }
+  return formatAnswer(field, value);
+}
+
+function escapeCsv(value: string): string {
+  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+function exportResponsesCsv(title: string, rows: ResponseRow[]): void {
+  const columns: FieldDef[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    for (const field of row.fields) {
+      if (!seen.has(field.id)) {
+        seen.add(field.id);
+        columns.push(field);
+      }
+    }
+  }
+
+  const header = [
+    "Responder",
+    "Email",
+    "Status",
+    "Submitted",
+    "Updated",
+    "Schema version",
+    ...columns.map((c) => c.label),
+  ];
+
+  const body = rows.map((row) => [
+    row.userName ?? row.userId,
+    row.userEmail ?? "",
+    row.status,
+    row.submittedAt ?? "",
+    row.updatedAt ?? "",
+    String(row.schemaVersion),
+    ...columns.map((c) => csvCell(c, row.answers[c.id] ?? null)),
+  ]);
+
+  const csv = [header, ...body]
+    .map((line) => line.map(escapeCsv).join(","))
+    .join("\r\n");
+
+  const slug =
+    title
+      .toLowerCase()
+      .replace(/[^\w]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "form";
+  const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${slug}-responses.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
