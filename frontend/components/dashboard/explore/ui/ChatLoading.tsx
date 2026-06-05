@@ -4,12 +4,15 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { useChat, type LoadingPhase } from '@/lib/chat/chat-context';
 
+// User-facing status. Internal routing (planning) folds into "Thinking" so the
+// indicator reads as two honest states — thinking, then searching documents —
+// rather than exposing every internal phase.
 const PHASE_LABELS: Record<LoadingPhase, string> = {
   idle: '',
   thinking: 'Thinking',
-  planning: 'Planning',
-  searching: 'Searching',
-  generating: 'Generating answer',
+  planning: 'Thinking',
+  searching: 'Searching documents',
+  generating: 'Writing response',
   complete: '',
   error: 'Something went wrong',
 };
@@ -83,7 +86,7 @@ export function ChatLoading() {
             {loadingPhase === 'error' ? error : PHASE_LABELS[loadingPhase]}
           </span>
           
-          {/* Animated dots */}
+          {/* Animated dots — convey "working" without faking a progress percentage */}
           {isLoading && (
             <div ref={dotsRef} className="flex items-center gap-1">
               <div className="loading-dot w-1.5 h-1.5 bg-sbi-green/60 rounded-full" />
@@ -92,22 +95,6 @@ export function ChatLoading() {
             </div>
           )}
         </div>
-
-        {/* Progress bar */}
-        {isLoading && (
-          <div className="h-0.5 bg-sbi-dark-border rounded-full overflow-hidden max-w-xs">
-            <div 
-              className="h-full bg-sbi-green/50 rounded-full transition-all duration-500"
-              style={{
-                width: loadingPhase === 'thinking' ? '20%' 
-                     : loadingPhase === 'planning' ? '45%'
-                     : loadingPhase === 'searching' ? '70%'
-                     : loadingPhase === 'generating' ? '90%'
-                     : '0%'
-              }}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

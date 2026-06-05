@@ -201,6 +201,7 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
   const { editAndResend, isLoading, regenerateResponse } = useChat();
 
@@ -460,10 +461,23 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
               )}
             </div>
 
-            {/* Sources — numbering matches the inline [n] markers above. */}
+            {/* Sources — collapsible; numbering matches the inline [n] markers above. */}
             {message.sources && message.sources.length > 0 && !message.isStreaming && (
               <div className="mt-4 space-y-2">
-                <p className="text-xs text-sbi-muted-dark tracking-wide uppercase">Sources</p>
+                <button
+                  type="button"
+                  onClick={() => setSourcesOpen((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs text-sbi-muted-dark tracking-wide uppercase hover:text-sbi-muted transition-colors"
+                  aria-expanded={sourcesOpen}
+                >
+                  {sourcesOpen ? (
+                    <ChevronUp className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  )}
+                  Sources · {message.sources.length}
+                </button>
+                {sourcesOpen && (
                 <div className="flex flex-wrap gap-2">
                   {message.sources.map((source, index) => {
                     const fileInfo = getFileInfo(source.filename);
@@ -490,6 +504,7 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
                     );
                   })}
                 </div>
+                )}
               </div>
             )}
           </>
