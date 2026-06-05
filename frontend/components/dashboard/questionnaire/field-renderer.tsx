@@ -1,13 +1,26 @@
 "use client";
 
-import { inputClass, labelClass } from "@/components/dashboard/common/ui";
+import { Download, Loader2, Paperclip, X } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import {
+  btnGhost,
+  inputClass,
+  labelClass,
+} from "@/components/dashboard/common/ui";
+import {
+  createAttachmentSignedUrl,
+  fileNameFromPath,
+  removeQuestionnaireFile,
+  uploadQuestionnaireFile,
+} from "@/lib/questionnaire/file-upload";
 import type { AnswerValue, FieldDef } from "@/lib/questionnaire/schema";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Renders a single answerable field for the client fill-out UI. Pure controlled
 // component: receives the current value + onChange. Section dividers are handled
-// by the parent (FillOutForm), not here.
+// by the parent (FillOutForm), not here. The `file` type is the one stateful
+// case — it uploads to Supabase Storage and stores the object path as its value.
 // ---------------------------------------------------------------------------
 
 interface FieldRendererProps {
@@ -16,6 +29,8 @@ interface FieldRendererProps {
   onChange: (value: AnswerValue) => void;
   error?: string;
   disabled?: boolean;
+  /** Required by the `file` type to namespace uploads under the form. */
+  formId: number;
 }
 
 export function FieldRenderer({
@@ -24,6 +39,7 @@ export function FieldRenderer({
   onChange,
   error,
   disabled,
+  formId,
 }: FieldRendererProps) {
   const selectedArray = Array.isArray(value) ? value : [];
 
@@ -177,18 +193,12 @@ export function FieldRenderer({
       )}
 
       {field.type === "file" && (
-        <div className="text-xs text-sbi-muted border border-dashed border-sbi-dark-border/60 rounded-md px-3 py-4 text-center">
-          File upload — capture the file name/reference (storage wiring is a v2
-          item).
-          <input
-            type="text"
-            className={cn(inputClass, "mt-2")}
-            placeholder="Paste a link or describe the file"
-            value={typeof value === "string" ? value : ""}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        </div>
+        <FileField
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          formId={formId}
+        />
       )}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
@@ -248,6 +258,134 @@ function ScaleField({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+function FileField({
+  value,
+  onChange,
+  disabled,
+  formId,
+}: {
+  value: AnswerValue;
+  onChange: (value: AnswerValue) => void;
+  disabled?: boolean;
+  formId: number;
+}) {
+  const inputId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const path = typeof value === "string" && value ? value : null;
+
+  const handleSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Allow re-selecting the same file later.
+    if (inputRef.current) inputRef.current.value = "";
+    if (!file) return;
+    setLocalError(null);
+    setUploading(true);
+    const res = await uploadQuestionnaireFile(formId, file);
+    setUploading(false);
+    if (!res.data) {
+      setLocalError(res.error);
+      return;
+    }
+    onChange(res.data.path);
+  };
+
+  const handleDownload = async () => {
+    if (!path) return;
+    setDownloading(true);
+    const url = await createAttachmentSignedUrl(path);
+    setDownloading(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    else setLocalError("Couldn't open the file. Try again.");
+  };
+
+  const handleRemove = async () => {
+    if (path) void removeQuestionnaireFile(path);
+    onChange(null);
+  };
+
+  if (path) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2 rounded-md border border-sbi-dark-border/50 bg-sbi-dark-card px-3 py-2">
+          <Paperclip className="size-3.5 text-sbi-muted shrink-0" />
+          <span className="flex-1 truncate text-sm text-white/85">
+            {fileNameFromPath(path)}
+          </span>
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={downloading}
+            aria-label="Download file"
+            title="Download"
+            className="p-1 rounded text-sbi-muted hover:text-sbi-green transition-colors disabled:opacity-50"
+          >
+            {downloading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+          </button>
+          {!disabled && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              aria-label="Remove file"
+              title="Remove"
+              className="p-1 rounded text-sbi-muted hover:text-red-400 transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+        {localError && <p className="text-xs text-red-400">{localError}</p>}
+      </div>
+    );
+  }
+
+  if (disabled) {
+    return <p className="text-sm text-sbi-muted">No file uploaded.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <input
+        ref={inputRef}
+        id={inputId}
+        type="file"
+        className="hidden"
+        disabled={uploading}
+        onChange={handleSelect}
+      />
+      <label
+        htmlFor={inputId}
+        className={cn(
+          btnGhost,
+          "h-9 self-start cursor-pointer",
+          uploading && "pointer-events-none opacity-50",
+        )}
+      >
+        {uploading ? (
+          <>
+            <Loader2 className="size-4 animate-spin" /> Uploading…
+          </>
+        ) : (
+          <>
+            <Paperclip className="size-4" /> Upload file
+          </>
+        )}
+      </label>
+      <span className="text-[11px] text-sbi-muted-dark">
+        Up to 25 MB. PDF, images, and Office documents.
+      </span>
+      {localError && <p className="text-xs text-red-400">{localError}</p>}
     </div>
   );
 }

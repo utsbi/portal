@@ -1,6 +1,13 @@
 "use client";
 
-import { CheckCircle2, Clock, Inbox } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  Download,
+  Inbox,
+  Loader2,
+  Paperclip,
+} from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
@@ -13,6 +20,10 @@ import {
   SectionLabel,
 } from "@/components/dashboard/common/ui";
 import type { ResponseRow } from "@/lib/data/questionnaire";
+import {
+  createAttachmentSignedUrl,
+  fileNameFromPath,
+} from "@/lib/questionnaire/file-upload";
 import type { AnswerValue, FieldDef } from "@/lib/questionnaire/schema";
 import { cn } from "@/lib/utils";
 
@@ -126,16 +137,61 @@ function ResponseDetail({ row }: { row: ResponseRow }) {
           {row.status}
         </span>
       </div>
-      {fields.map((field) => (
-        <div key={field.id} className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-[0.1em] text-sbi-muted">
-            {field.label}
-          </span>
-          <span className="text-sm text-white/90">
-            {formatAnswer(field, row.answers[field.id] ?? null)}
-          </span>
-        </div>
-      ))}
+      {fields.map((field) => {
+        const value = row.answers[field.id] ?? null;
+        return (
+          <div key={field.id} className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-[0.1em] text-sbi-muted">
+              {field.label}
+            </span>
+            {field.type === "file" && typeof value === "string" && value ? (
+              <FileAnswer path={value} />
+            ) : (
+              <span className="text-sm text-white/90">
+                {formatAnswer(field, value)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FileAnswer({ path }: { path: string }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  const handleDownload = async () => {
+    setLoading(true);
+    setError(false);
+    const url = await createAttachmentSignedUrl(path);
+    setLoading(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    else setError(true);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={loading}
+        className="flex items-center gap-2 self-start rounded-md border border-sbi-dark-border/50 bg-sbi-dark-card px-3 py-1.5 text-sm text-white/85 transition-colors hover:border-sbi-green/40 hover:text-sbi-green disabled:opacity-50"
+      >
+        <Paperclip className="size-3.5 shrink-0" />
+        <span className="max-w-xs truncate">{fileNameFromPath(path)}</span>
+        {loading ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <Download className="size-3.5" />
+        )}
+      </button>
+      {error && (
+        <span className="text-xs text-red-400">
+          Couldn't open the file. Try again.
+        </span>
+      )}
     </div>
   );
 }
