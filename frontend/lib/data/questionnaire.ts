@@ -82,8 +82,10 @@ function fieldShim(fields: FieldDef[]) {
 
 // ---------------------------------------------------------------------------
 // CLIENT read path: forms assigned to this project + this user's submissions.
-// Falls back to ALL active forms when no typed assignment rows exist yet (so the
-// feature is usable before any director assigns), preserving prior behavior.
+// A form is visible to a client only when it has been explicitly assigned to one
+// of their projects via custom_form_assignments. A project with no assignment
+// rows sees NO forms (assignment is the authorization boundary — we never fall
+// back to "all active forms", which would leak other directors' forms).
 // ---------------------------------------------------------------------------
 
 export async function fetchQuestionnaireData(
@@ -112,19 +114,16 @@ export async function fetchQuestionnaireData(
     (assignments ?? []).map((a) => a.form_id),
   );
 
-  let schemaQuery = supabase
+  // No assignment for this project => no forms. Assignment is the authorization
+  // boundary; we do not fall back to showing every active form.
+  if (assignedFormIds.size === 0) return { forms: [] };
+
+  const { data: schemas } = await supabase
     .from("custom_form_schemas")
     .select("id, title, description, fields, version")
     .eq("is_active", true)
+    .in("id", Array.from(assignedFormIds))
     .order("created_at", { ascending: true });
-
-  // When typed assignments exist for this project, scope to them; otherwise show
-  // all active forms (legacy "assigned to all" behavior).
-  if (assignedFormIds.size > 0) {
-    schemaQuery = schemaQuery.in("id", Array.from(assignedFormIds));
-  }
-
-  const { data: schemas } = await schemaQuery;
 
   const submissionByForm = new Map<
     number,
