@@ -87,7 +87,7 @@ export function ExploreWelcome() {
       <div className="ambient-element absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
 
       {/* History trigger */}
-      <ChatHistorySidebar className="absolute top-4 left-4 z-20" />
+      <ChatHistorySidebar className="absolute top-4 right-4 z-20" />
 
       {/* Welcome mode */}
       <div className="relative z-10 w-full max-w-3xl mx-auto px-4 space-y-8">
@@ -191,7 +191,7 @@ export function ExploreChat() {
       <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
 
       {/* History trigger */}
-      <ChatHistorySidebar className="absolute top-4 left-4 z-20" />
+      <ChatHistorySidebar className="absolute top-4 right-4 z-20" />
 
       {/* Chat scrollable messages */}
       <div className="absolute inset-0 z-10 overflow-y-auto dashboard-scrollbar">

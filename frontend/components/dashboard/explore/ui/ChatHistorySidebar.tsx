@@ -202,24 +202,22 @@ export function ChatHistorySidebar({ className }: ChatHistorySidebarProps) {
           </Button>
         </SheetTrigger>
         <SheetContent
-          side="left"
+          side="right"
           className="bg-sbi-dark border-sbi-dark-border w-80 p-0 flex flex-col"
         >
           <SheetHeader className="px-4 pt-5 pb-3 border-b border-sbi-dark-border space-y-3">
-            <div className="flex items-center justify-between">
-              <SheetTitle className="text-white text-sm font-medium tracking-wide">
-                Conversations
-              </SheetTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNewChat}
-                className="h-7 px-2 text-xs text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark-card/40 gap-1.5"
-              >
-                <MessageSquarePlus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                New
-              </Button>
-            </div>
+            {/* pr-8 leaves room for the Sheet's built-in close (X) at top-right */}
+            <SheetTitle className="text-white text-sm font-medium tracking-wide pr-8">
+              Conversations
+            </SheetTitle>
+            <button
+              type="button"
+              onClick={handleNewChat}
+              className="flex items-center justify-center gap-2 w-full h-9 rounded-lg border border-sbi-dark-border bg-sbi-dark-card/40 text-sm text-sbi-muted hover:text-sbi-green hover:border-sbi-green/30 transition-colors"
+            >
+              <MessageSquarePlus className="h-4 w-4" strokeWidth={1.5} />
+              New chat
+            </button>
             <div className="relative">
               <Search
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sbi-muted-dark"
