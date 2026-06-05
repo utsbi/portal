@@ -1,5 +1,6 @@
 import logging
 from typing import List, Dict, Any, Optional
+import httpx
 from openai import AsyncOpenAI
 from app.explore.core.config import settings
 from app.explore.db.supabase import supabase
@@ -25,7 +26,7 @@ class RAGService:
                 "model": settings.embedding_model,
                 "input": text,
             }
-            if settings.EMBEDDING_DIMENSIONS is not None:
+            if settings.embedding_dimensions:
                 params["dimensions"] = settings.embedding_dimensions
 
             result = await self.client.embeddings.create(**params)
@@ -159,6 +160,81 @@ class RAGService:
         )
 
         return sorted_results[:limit]
+
+    async def rerank(self, query: str, documents: List[Dict[str, Any]],
+        top_n: int) -> List[Dict[str, Any]]:
+        """Re-score candidate documents against the query with a cross-encoder.
+
+        Uses OpenRouter's hosted rerank endpoint (Cohere Rerank), which scores
+        each (query, document) pair far more accurately than the embedding
+        similarity used for first-stage retrieval. Returns the ``top_n`` highest
+        scoring documents, each annotated with a ``rerank_score``.
+
+        Reranking is best-effort: if it is disabled or the call fails for any
+        reason, we fall back to the pre-rerank ordering (truncated to ``top_n``)
+        so a reranker hiccup never breaks chat.
+        """
+        if not settings.rerank_model or len(documents) <= 1:
+            return documents[:top_n]
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    "https://openrouter.ai/api/v1/rerank",
+                    headers={"Authorization": f"Bearer {settings.api_key}"},
+                    json={
+                        "model": settings.rerank_model,
+                        "query": query,
+                        "documents": [d.get("content", "") for d in documents],
+                        "top_n": top_n,
+                    },
+                )
+                resp.raise_for_status()
+                results = resp.json().get("results", [])
+
+            reranked: List[Dict[str, Any]] = []
+            for r in results:
+                idx = r.get("index")
+                if idx is None or idx < 0 or idx >= len(documents):
+                    continue
+                doc = dict(documents[idx])
+                doc["rerank_score"] = r.get("relevance_score")
+                reranked.append(doc)
+
+            if reranked:
+                logger.info(
+                    f"Reranked {len(documents)} candidates -> {len(reranked)} "
+                    f"(model={settings.rerank_model})"
+                )
+                return reranked
+
+            logger.warning("Rerank returned no usable results, using pre-rerank order")
+        except Exception as e:
+            logger.warning(f"Rerank failed, using pre-rerank order: {e}")
+
+        return documents[:top_n]
+
+    async def retrieve_relevant(self, query: str, client_id: str,
+        top_n: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Retrieve the most relevant documents for a query (two-stage).
+
+        Stage 1: hybrid search widens to ``rerank_candidates`` candidates.
+        Stage 2: the reranker re-scores them and keeps the top ``top_n``.
+
+        This is the entry point chat turns should use; the returned list is the
+        single source of truth for both the prompt context and the citation
+        sources, keeping the model's ``[n]`` markers aligned with the rendered
+        source chips.
+        """
+        keep = top_n if top_n is not None else settings.rerank_top_n
+        candidates = await self.hybrid_search(
+            query=query,
+            client_id=client_id,
+            limit=settings.rerank_candidates,
+        )
+        if not candidates:
+            return []
+        return await self.rerank(query=query, documents=candidates, top_n=keep)
 
     async def _keyword_search(self, query: str, client_id: str,
         limit: int = 10) -> List[Dict[str, Any]]:

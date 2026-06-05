@@ -211,21 +211,21 @@ async def retrieve_context(state: Dict[str, Any]) -> Dict[str, Any]:
         # If attachment context is too thin, fall back to RAG search
         if len(context.strip()) < 100:
             logger.info("Attachment context too thin, falling back to RAG search")
-            retrieved_docs = await rag_service.hybrid_search(
-                query=query, client_id=client_id, limit=5,
+            retrieved_docs = await rag_service.retrieve_relevant(
+                query=query, client_id=client_id,
             )
             context = rag_service.build_context_string(retrieved_docs=retrieved_docs)
 
     elif route == "retrieve":
         # Single retrieval reused for both prompt context and citation sources.
-        retrieved_docs = await rag_service.hybrid_search(
-            query=query, client_id=client_id, limit=5,
+        retrieved_docs = await rag_service.retrieve_relevant(
+            query=query, client_id=client_id,
         )
         context = rag_service.build_context_string(retrieved_docs=retrieved_docs)
 
     elif route == "hybrid":
-        retrieved_docs = await rag_service.hybrid_search(
-            query=query, client_id=client_id, limit=5,
+        retrieved_docs = await rag_service.retrieve_relevant(
+            query=query, client_id=client_id,
         )
         context = rag_service.build_context_string(
             retrieved_docs=retrieved_docs, attachments=attachments,
@@ -356,12 +356,13 @@ async def generate_response_streaming(
 
         yield {"type": "state", "state": {**state, "response": answer}}
 
-    except Exception as e:
+    except Exception:
+        # Full traceback goes to the server logs; the user sees a generic message
+        # so we never leak internal error details (model ids, stack frames, keys).
         logger.exception("generate_response_streaming failed")
-        # TODO: stop leaking the exception text once we have proper user-visible errors.
         err = (
-            "I apologize, but I encountered an issue while processing your request. "
-            f"Please try again or rephrase your question. Technical details: {e}"
+            "I ran into a problem while generating a response. "
+            "Please try again in a moment, or rephrase your question."
         )
         yield {"type": "delta", "text": err}
         yield {"type": "state", "state": {**state, "response": err}}
