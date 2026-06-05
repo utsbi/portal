@@ -1,0 +1,64 @@
+name: Bug report
+description: Report something that isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill out the sections below so we can reproduce and fix it quickly.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear, concise description of the bug.
+      placeholder: When I do X, Y happens instead of Z.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we trigger the bug?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the portal is affected?
+      options:
+        - Frontend (Next.js / dashboard / public pages)
+        - Backend (FastAPI / AI portal)
+        - Supabase (auth / database / RLS)
+        - Infra / deploy (Vercel / Docker / VPS)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, deploy target (prod / preview / local), and any relevant versions.
+      placeholder: |
+        - Browser: Chrome 124
+        - Where: production (portal.utsbi.org) / preview / local
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Logs / screenshots
+      description: Console errors, network logs, or screenshots. Do not paste secrets or tokens.
+    validations:
+      required: false
