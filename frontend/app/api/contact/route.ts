@@ -9,15 +9,47 @@ const subjectLabels: Record<string, string> = {
   partnership: "Partnership",
 };
 
+// The endpoint is public, so the React UI's constraints can't be trusted —
+// these are the server-side backstop.
+const FIELD_LIMITS = { name: 100, email: 254, message: 5000 };
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    if (!body.name || !body.email || !body.message) {
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim() : "";
+    const message = typeof body.message === "string" ? body.message.trim() : "";
+    const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+
+    if (!name || !email || !message) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 },
       );
+    }
+
+    if (
+      name.length > FIELD_LIMITS.name ||
+      email.length > FIELD_LIMITS.email ||
+      message.length > FIELD_LIMITS.message
+    ) {
+      return NextResponse.json(
+        { error: "One or more fields exceed the allowed length" },
+        { status: 400 },
+      );
+    }
+
+    if (!EMAIL_PATTERN.test(email)) {
+      return NextResponse.json(
+        { error: "Invalid email address" },
+        { status: 400 },
+      );
+    }
+
+    if (!Object.hasOwn(subjectLabels, subject)) {
+      return NextResponse.json({ error: "Invalid subject" }, { status: 400 });
     }
 
     // Verify Turnstile token
@@ -60,8 +92,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { turnstileToken, ...formData } = body;
-
     // Persist the submission. The `website_forms` RLS policy allows anonymous
     // inserts, so the publishable-key client is sufficient (no service role).
     // Prefer Cloudflare's `cf-connecting-ip` (real client IP) and fall back to
@@ -73,10 +103,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
     const { error: insertError } = await supabase.from("website_forms").insert({
-      name: formData.name,
-      email: formData.email,
-      subject: formData.subject,
-      message: formData.message,
+      name,
+      email,
+      subject,
+      message,
       ip_address: ipAddress,
     });
 
@@ -93,8 +123,7 @@ export async function POST(request: NextRequest) {
     const discordWebhookUrl = process.env.DISCORD_CONTACT_WEBHOOK_URL;
     if (discordWebhookUrl) {
       try {
-        const subjectLabel =
-          subjectLabels[formData.subject] ?? formData.subject ?? "Unknown";
+        const subjectLabel = subjectLabels[subject];
         const discordResponse = await fetch(discordWebhookUrl, {
           method: "POST",
           headers: {
@@ -106,12 +135,12 @@ export async function POST(request: NextRequest) {
                 title: "New Contact Form Submission",
                 color: 0x22c55e,
                 fields: [
-                  { name: "Name", value: formData.name, inline: true },
-                  { name: "Email", value: formData.email, inline: true },
+                  { name: "Name", value: name, inline: true },
+                  { name: "Email", value: email, inline: true },
                   { name: "Subject", value: subjectLabel, inline: true },
                   { name: "IP", value: ipAddress ?? "unknown", inline: true },
                   // Embed field values are capped at 1024 characters.
-                  { name: "Message", value: formData.message.slice(0, 1024) },
+                  { name: "Message", value: message.slice(0, 1024) },
                 ],
                 // Renders a localized timestamp in the embed footer.
                 timestamp: new Date().toISOString(),
