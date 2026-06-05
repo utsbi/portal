@@ -53,6 +53,8 @@ interface ChatContextType {
   newSession: () => void;
   loadSession: (sessionId: number) => Promise<void>;
   listSessions: () => Promise<SessionSummary[]>;
+  renameSession: (sessionId: number, title: string) => Promise<void>;
+  deleteSession: (sessionId: number) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -439,6 +441,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return data ?? [];
   }, []);
 
+  const renameSession = useCallback(async (id: number, title: string): Promise<void> => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    const supabase = createClient();
+    const { error: updateErr } = await supabase
+      .from("client_chat_sessions")
+      .update({ title: trimmed })
+      .eq("id", id);
+    if (updateErr) setError(`Failed to rename conversation: ${updateErr.message}`);
+  }, []);
+
+  const deleteSession = useCallback(async (id: number): Promise<void> => {
+    const supabase = createClient();
+    // ON DELETE CASCADE on client_chat_messages.session_id removes the messages.
+    const { error: delErr } = await supabase
+      .from("client_chat_sessions")
+      .delete()
+      .eq("id", id);
+    if (delErr) {
+      setError(`Failed to delete conversation: ${delErr.message}`);
+      return;
+    }
+    // If the deleted conversation was the open one, reset to a fresh session.
+    if (sessionIdRef.current === id) newSession();
+  }, [newSession]);
+
   return (
     <ChatContext.Provider
       value={{
@@ -463,6 +491,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         newSession,
         loadSession,
         listSessions,
+        renameSession,
+        deleteSession,
       }}
     >
       {children}
