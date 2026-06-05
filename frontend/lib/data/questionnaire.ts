@@ -449,7 +449,13 @@ export interface ResponseRow {
   updatedAt: string | null;
   schemaVersion: number;
   answers: AnswerMap;
-  /** Required fields missing (against current schema). */
+  /**
+   * Answerable fields of the schema_version this row was captured against, so
+   * answers render with the labels/options the respondent actually saw. Falls
+   * back to the current schema when no snapshot exists for that version.
+   */
+  fields: FieldDef[];
+  /** Required fields missing (against this row's own schema version). */
   missingRequired: boolean;
 }
 
@@ -492,9 +498,32 @@ export async function fetchResponsesData(
     .eq("form_id", formId)
     .order("updated_at", { ascending: false });
 
+  // Resolve each submission's schema_version to the field definitions it was
+  // captured against, so old answers aren't reinterpreted against an edited
+  // live schema. Versions with no snapshot row (e.g. before the snapshot
+  // migration was applied) fall back to the current schema.
+  const versionSchemas = new Map<number, FormSchema>();
+  const neededVersions = Array.from(
+    new Set((submissions ?? []).map((s) => s.schema_version ?? 1)),
+  );
+  if (neededVersions.length > 0) {
+    const { data: snapshots } = await supabase
+      .from("custom_form_schema_versions")
+      .select("version, fields")
+      .eq("form_id", formId)
+      .in("version", neededVersions);
+    for (const snap of snapshots ?? []) {
+      versionSchemas.set(snap.version, parseFormSchema(snap.fields));
+    }
+  }
+  const schemaForVersion = (version: number): FormSchema =>
+    versionSchemas.get(version) ?? parsed;
+
   const rows: ResponseRow[] = (submissions ?? []).map((s) => {
     const answers = toAnswerMap(s.data);
-    const missing = validateAnswers(parsed, answers).length > 0;
+    const version = s.schema_version ?? 1;
+    const rowSchema = schemaForVersion(version);
+    const missing = validateAnswers(rowSchema, answers).length > 0;
     return {
       submissionId: s.id,
       userId: s.user_id,
@@ -502,8 +531,9 @@ export async function fetchResponsesData(
       status: (s.status as "draft" | "submitted") ?? "draft",
       submittedAt: s.submitted_at,
       updatedAt: s.updated_at,
-      schemaVersion: s.schema_version ?? 1,
+      schemaVersion: version,
       answers,
+      fields: rowSchema.fields.filter((f) => f.type !== "section"),
       missingRequired: missing,
     };
   });

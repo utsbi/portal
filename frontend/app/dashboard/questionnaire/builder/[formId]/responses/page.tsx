@@ -18,11 +18,5 @@ export default async function ResponsesPage({
   if ("forbidden" in result) redirect("/dashboard/questionnaire");
   if ("notFound" in result) notFound();
 
-  return (
-    <ResponsesView
-      title={result.title}
-      schema={result.schema}
-      rows={result.rows}
-    />
-  );
+  return <ResponsesView title={result.title} rows={result.rows} />;
 }

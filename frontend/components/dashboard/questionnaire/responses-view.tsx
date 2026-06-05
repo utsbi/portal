@@ -13,28 +13,18 @@ import {
   SectionLabel,
 } from "@/components/dashboard/common/ui";
 import type { ResponseRow } from "@/lib/data/questionnaire";
-import type {
-  AnswerValue,
-  FieldDef,
-  FormSchema,
-} from "@/lib/questionnaire/schema";
+import type { AnswerValue, FieldDef } from "@/lib/questionnaire/schema";
 import { cn } from "@/lib/utils";
 
 interface ResponsesViewProps {
   title: string;
-  schema: FormSchema;
   rows: ResponseRow[];
 }
 
-export function ResponsesView({
-  title,
-  schema,
-  rows,
-}: ResponsesViewProps) {
+export function ResponsesView({ title, rows }: ResponsesViewProps) {
   const [selected, setSelected] = useState<ResponseRow | null>(null);
   const submitted = rows.filter((r) => r.status === "submitted").length;
   const drafts = rows.filter((r) => r.status === "draft").length;
-  const answerable = schema.fields.filter((f) => f.type !== "section");
 
   return (
     <DashboardShell>
@@ -105,7 +95,7 @@ export function ResponsesView({
             {/* Detail */}
             <Panel>
               {selected ? (
-                <ResponseDetail row={selected} fields={answerable} />
+                <ResponseDetail row={selected} />
               ) : (
                 <p className="text-sm text-sbi-muted text-center py-12">
                   Select a submission to view its answers.
@@ -119,13 +109,8 @@ export function ResponsesView({
   );
 }
 
-function ResponseDetail({
-  row,
-  fields,
-}: {
-  row: ResponseRow;
-  fields: FieldDef[];
-}) {
+function ResponseDetail({ row }: { row: ResponseRow }) {
+  const fields = row.fields;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 pb-3 border-b border-sbi-dark-border/40">

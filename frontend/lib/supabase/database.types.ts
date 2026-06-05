@@ -373,6 +373,35 @@ export type Database = {
           },
         ];
       };
+      custom_form_schema_versions: {
+        Row: {
+          created_at: string;
+          fields: Json;
+          form_id: number;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          fields: Json;
+          form_id: number;
+          version: number;
+        };
+        Update: {
+          created_at?: string;
+          fields?: Json;
+          form_id?: number;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "custom_form_schema_versions_form_id_fkey";
+            columns: ["form_id"];
+            isOneToOne: false;
+            referencedRelation: "custom_form_schemas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       custom_form_schemas: {
         Row: {
           assigned_to: string[] | null;
