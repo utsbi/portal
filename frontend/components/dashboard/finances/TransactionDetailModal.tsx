@@ -1,7 +1,7 @@
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
-import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
+import { btnDanger, btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import type { BudgetTransaction } from "./types";
 
 interface TransactionDetailModalProps {
@@ -40,7 +40,7 @@ export function TransactionDetailModal({
           <div className="flex items-center justify-end gap-2">
             <button
               type="button"
-              className={btnGhost}
+              className={btnDanger}
               onClick={() => onDelete(transaction.id)}
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete

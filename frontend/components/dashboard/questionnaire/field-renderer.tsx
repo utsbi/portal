@@ -325,7 +325,7 @@ function FileField({
             disabled={downloading}
             aria-label="Download file"
             title="Download"
-            className="p-1 rounded text-sbi-muted hover:text-sbi-green transition-colors disabled:opacity-50"
+            className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors disabled:opacity-50"
           >
             {downloading ? (
               <Loader2 className="size-4 animate-spin" />
@@ -339,7 +339,7 @@ function FileField({
               onClick={handleRemove}
               aria-label="Remove file"
               title="Remove"
-              className="p-1 rounded text-sbi-muted hover:text-red-400 transition-colors"
+              className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
             >
               <X className="size-4" />
             </button>

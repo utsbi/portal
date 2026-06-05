@@ -1,57 +1,57 @@
 "use client";
 
 import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-  type KeyboardEvent,
-  type ChangeEvent,
-  type DragEvent,
-  type ClipboardEvent,
-} from "react";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import {
-  SendHorizontal,
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  FileText,
-  File as FileIcon,
-  Image as ImageIcon,
-  RotateCw,
   ArrowDown,
-  Reply,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  File as FileIcon,
+  FileText,
+  Image as ImageIcon,
+  Pencil,
   Pin,
   PinOff,
+  Plus,
+  Reply,
+  RotateCw,
   Search,
+  SendHorizontal,
+  Trash2,
+  X,
 } from "lucide-react";
-import { EmptyState, btnPrimary } from "@/components/dashboard/common/ui";
-import { cn } from "@/lib/utils";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { toastError } from "@/lib/notifications";
-import { createClient } from "@/lib/supabase/client";
-import { markRead, fetchLastRead } from "./read-state";
 import {
-  getCachedConv,
-  setCachedConv,
-  patchCachedMessages,
-  ensureHydrated,
-} from "@/lib/messages/conv-cache";
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { btnPrimary, EmptyState } from "@/components/dashboard/common/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { signWithCache } from "@/lib/messages/attachment-cache";
-import { renderMarkdown } from "./markdown";
+import {
+  ensureHydrated,
+  getCachedConv,
+  patchCachedMessages,
+  setCachedConv,
+} from "@/lib/messages/conv-cache";
 import {
   getNotificationPermission,
-  requestNotificationPermission,
   notifyNewMessage,
+  requestNotificationPermission,
 } from "@/lib/messages/notifications";
-import { useCmdK } from "./cmdk/CommandPalette";
+import { toastError } from "@/lib/notifications";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import type { Conversation } from "./ConversationList";
+import { useCmdK } from "./cmdk/CommandPalette";
+import { renderMarkdown } from "./markdown";
+import { fetchLastRead, markRead } from "./read-state";
 
 // ---- Types ----
 
@@ -125,7 +125,10 @@ function formatMessageTime(iso: string): string {
   });
 }
 
-function shouldShowDayHeader(curr: ThreadMessage, prev: ThreadMessage | undefined): boolean {
+function shouldShowDayHeader(
+  curr: ThreadMessage,
+  prev: ThreadMessage | undefined,
+): boolean {
   if (!prev) return true;
   const a = new Date(curr.createdAt);
   const b = new Date(prev.createdAt);
@@ -149,14 +152,21 @@ function formatDayHeader(iso: string): string {
 
   if (sameDay(d, today)) return "Today";
   if (sameDay(d, yesterday)) return "Yesterday";
-  return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+  return d.toLocaleDateString([], {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
 
 type AttachmentKind = "image" | "video" | "audio" | "pdf" | "file";
 
-function attachmentKind(name: string | null | undefined, mimeType?: string | null): AttachmentKind {
+function attachmentKind(
+  name: string | null | undefined,
+  mimeType?: string | null,
+): AttachmentKind {
   if (mimeType) {
     if (mimeType.startsWith("image/")) return "image";
     if (mimeType.startsWith("video/")) return "video";
@@ -165,7 +175,8 @@ function attachmentKind(name: string | null | undefined, mimeType?: string | nul
   }
   if (!name) return "file";
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  if (["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"].includes(ext)) return "image";
+  if (["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"].includes(ext))
+    return "image";
   if (["mp4", "webm", "mov", "m4v"].includes(ext)) return "video";
   if (["mp3", "wav", "ogg", "m4a", "aac"].includes(ext)) return "audio";
   if (ext === "pdf") return "pdf";
@@ -290,7 +301,11 @@ function ImageGrid({ images, onOpenLightbox }: ImageGridProps) {
             type="button"
             onClick={() => onOpenLightbox(targetImg)}
             className="relative block overflow-hidden rounded-xl cursor-pointer"
-            aria-label={isLastWithOverflow ? `Show all ${count} images` : "Open image preview"}
+            aria-label={
+              isLastWithOverflow
+                ? `Show all ${count} images`
+                : "Open image preview"
+            }
           >
             {url ? (
               <img
@@ -304,12 +319,17 @@ function ImageGrid({ images, onOpenLightbox }: ImageGridProps) {
               />
             ) : (
               <div className="w-[138px] h-[138px] flex items-center justify-center bg-sbi-dark-card/70">
-                <ImageIcon className="w-6 h-6 text-sbi-muted" strokeWidth={1.75} />
+                <ImageIcon
+                  className="w-6 h-6 text-sbi-muted"
+                  strokeWidth={1.75}
+                />
               </div>
             )}
             {isLastWithOverflow && (
               <div className="absolute inset-0 flex items-center justify-center bg-sbi-dark/70 rounded-xl">
-                <span className="text-white text-sm font-semibold">+{overflow}</span>
+                <span className="text-white text-sm font-semibold">
+                  +{overflow}
+                </span>
               </div>
             )}
           </button>
@@ -327,17 +347,33 @@ interface ImageThumbProps {
   wrapClass: string;
 }
 
-function ImageThumb({ attachment, url, onOpen, className, wrapClass }: ImageThumbProps) {
+function ImageThumb({
+  attachment,
+  url,
+  onOpen,
+  className,
+  wrapClass,
+}: ImageThumbProps) {
   if (!url) {
     return (
       <div className="flex items-center gap-3 rounded-xl border border-sbi-dark-border/60 bg-sbi-dark-card px-3 py-2.5 opacity-60">
-        <ImageIcon className="w-4 h-4 shrink-0 text-sbi-muted" strokeWidth={1.75} />
-        <span className="truncate max-w-[200px] text-xs text-sbi-muted">{attachment.name}</span>
+        <ImageIcon
+          className="w-4 h-4 shrink-0 text-sbi-muted"
+          strokeWidth={1.75}
+        />
+        <span className="truncate max-w-[200px] text-xs text-sbi-muted">
+          {attachment.name}
+        </span>
       </div>
     );
   }
   return (
-    <button type="button" onClick={onOpen} className={wrapClass} aria-label="Open image preview">
+    <button
+      type="button"
+      onClick={onOpen}
+      className={wrapClass}
+      aria-label="Open image preview"
+    >
       <img
         src={url}
         alt={attachment.name}
@@ -348,7 +384,9 @@ function ImageThumb({ attachment, url, onOpen, className, wrapClass }: ImageThum
         className={className}
         style={
           attachment.meta?.width && attachment.meta?.height
-            ? { aspectRatio: `${attachment.meta.width} / ${attachment.meta.height}` }
+            ? {
+                aspectRatio: `${attachment.meta.width} / ${attachment.meta.height}`,
+              }
             : undefined
         }
       />
@@ -363,7 +401,10 @@ interface AttachmentBubblesProps {
   onOpenLightbox: (attachment: Attachment) => void;
 }
 
-function AttachmentBubbles({ attachments, onOpenLightbox }: AttachmentBubblesProps) {
+function AttachmentBubbles({
+  attachments,
+  onOpenLightbox,
+}: AttachmentBubblesProps) {
   if (attachments.length === 0) return null;
 
   const imageGroup: Attachment[] = [];
@@ -396,9 +437,7 @@ function AttachmentBubbles({ attachments, onOpenLightbox }: AttachmentBubblesPro
           );
         }
         if (kind === "audio" && url) {
-          return (
-            <audio key={a.id} src={url} controls className="w-[260px]" />
-          );
+          return <audio key={a.id} src={url} controls className="w-[260px]" />;
         }
         return (
           <div
@@ -406,13 +445,21 @@ function AttachmentBubbles({ attachments, onOpenLightbox }: AttachmentBubblesPro
             className="flex items-center gap-3 rounded-xl border border-sbi-dark-border/60 bg-sbi-dark-card px-3 py-2.5"
           >
             {kind === "pdf" ? (
-              <FileText className="w-4 h-4 shrink-0 text-sbi-muted" strokeWidth={1.75} />
+              <FileText
+                className="w-4 h-4 shrink-0 text-sbi-muted"
+                strokeWidth={1.75}
+              />
             ) : (
-              <FileIcon className="w-4 h-4 shrink-0 text-sbi-muted" strokeWidth={1.75} />
+              <FileIcon
+                className="w-4 h-4 shrink-0 text-sbi-muted"
+                strokeWidth={1.75}
+              />
             )}
-            <span className="truncate max-w-[200px] text-xs text-white">{a.name}</span>
-            {url && (
-              kind === "pdf" ? (
+            <span className="truncate max-w-[200px] text-xs text-white">
+              {a.name}
+            </span>
+            {url &&
+              (kind === "pdf" ? (
                 <a
                   href={url}
                   target="_blank"
@@ -429,8 +476,7 @@ function AttachmentBubbles({ attachments, onOpenLightbox }: AttachmentBubblesPro
                 >
                   Download
                 </a>
-              )
-            )}
+              ))}
           </div>
         );
       })}
@@ -500,7 +546,10 @@ function PinnedStrip({ pinnedMessages, onJump }: PinnedStripProps) {
         onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-sbi-dark-card/30 transition-colors"
       >
-        <Pin className="w-3.5 h-3.5 text-sbi-green/80 shrink-0" strokeWidth={1.75} />
+        <Pin
+          className="w-3.5 h-3.5 text-sbi-green/80 shrink-0"
+          strokeWidth={1.75}
+        />
         <span className="text-[11px] text-sbi-muted-dark flex-1 text-left">
           {n} pinned message{n > 1 ? "s" : ""}
         </span>
@@ -521,7 +570,10 @@ function PinnedStrip({ pinnedMessages, onJump }: PinnedStripProps) {
               }}
               className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-sbi-dark-card/50 transition-colors cursor-pointer"
             >
-              <Pin className="w-3 h-3 text-sbi-green/60 shrink-0 mt-0.5" strokeWidth={1.75} />
+              <Pin
+                className="w-3 h-3 text-sbi-green/60 shrink-0 mt-0.5"
+                strokeWidth={1.75}
+              />
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.04em] text-sbi-muted-dark mb-0.5">
                   {m.senderRole === "director" ? "Director" : "Client"}
@@ -619,7 +671,8 @@ export function MessageThread({
   // start-reached event trigger a useless fetch (and spinner flash) on mount
   // for short conversations whose entire content fits in the viewport.
   const noMoreOlder = useRef(
-    !!initialCache && (initialCache.messages as ThreadMessage[]).length < PAGE_SIZE,
+    !!initialCache &&
+      (initialCache.messages as ThreadMessage[]).length < PAGE_SIZE,
   );
   // Track the oldest createdAt we've loaded for the "load older" cursor.
   // Seeded from cache so a remount-on-conv-switch starts with the right cursor.
@@ -632,7 +685,9 @@ export function MessageThread({
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
-  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<
+    PendingAttachment[]
+  >([]);
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
@@ -681,7 +736,9 @@ export function MessageThread({
 
   // Seeded from cache so the NEW-divider is already in place on first paint
   // when remounting on conv switch — no recomputation flash.
-  const newDividerBeforeId = useRef<number | null>(initialCache?.newDividerBeforeId ?? null);
+  const newDividerBeforeId = useRef<number | null>(
+    initialCache?.newDividerBeforeId ?? null,
+  );
   const dividerComputedForConv = useRef<string | null>(
     initialCache && conversationId ? conversationId : null,
   );
@@ -704,7 +761,11 @@ export function MessageThread({
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === id);
       if (idx >= 0) {
-        virtuosoRef.current?.scrollToIndex({ index: idx, align: "center", behavior: "smooth" });
+        virtuosoRef.current?.scrollToIndex({
+          index: idx,
+          align: "center",
+          behavior: "smooth",
+        });
       }
       return prev;
     });
@@ -719,7 +780,13 @@ export function MessageThread({
   // ---- loadOlder (prepend-on-scroll-up) ----
 
   const loadOlder = useCallback(async () => {
-    if (loadingOlder || noMoreOlder.current || !conversationId || !oldestCreatedAt.current) return;
+    if (
+      loadingOlder ||
+      noMoreOlder.current ||
+      !conversationId ||
+      !oldestCreatedAt.current
+    )
+      return;
     setLoadingOlder(true);
 
     const supabase = createClient();
@@ -746,22 +813,37 @@ export function MessageThread({
 
     // Sort ascending (oldest first), then prepend.
     const sorted = [...data].sort(
-      (a, b) => new Date(a.created_at as string).getTime() - new Date(b.created_at as string).getTime(),
+      (a, b) =>
+        new Date(a.created_at as string).getTime() -
+        new Date(b.created_at as string).getTime(),
     );
 
     const mapped: ThreadMessage[] = sorted.map((row) => {
-      const rawAttachments = Array.isArray(row.message_attachments) ? row.message_attachments : [];
+      const rawAttachments = Array.isArray(row.message_attachments)
+        ? row.message_attachments
+        : [];
       const attachments: Attachment[] = rawAttachments
         .slice()
-        .sort((a: { sort_index: number }, b: { sort_index: number }) => a.sort_index - b.sort_index)
-        .map((a: { id: number; path: string; name: string; mime_type: string | null; meta: unknown }) => ({
-          id: a.id,
-          path: a.path,
-          name: a.name,
-          mimeType: a.mime_type,
-          meta: (a.meta as AttachmentMeta | null) ?? null,
-          signedUrl: null,
-        }));
+        .sort(
+          (a: { sort_index: number }, b: { sort_index: number }) =>
+            a.sort_index - b.sort_index,
+        )
+        .map(
+          (a: {
+            id: number;
+            path: string;
+            name: string;
+            mime_type: string | null;
+            meta: unknown;
+          }) => ({
+            id: a.id,
+            path: a.path,
+            name: a.name,
+            mimeType: a.mime_type,
+            meta: (a.meta as AttachmentMeta | null) ?? null,
+            signedUrl: null,
+          }),
+        );
       // PostgREST returns 1:1 joins (message_unfurls.message_id is the PK
       // referencing messages.id) as a SINGLE object — not an array. Treat
       // both shapes so we don't drop the unfurl on the array-only path.
@@ -778,12 +860,16 @@ export function MessageThread({
         text: row.content ?? null,
         senderRole: (row.sender_role as "client" | "director") ?? "client",
         createdAt: (row.created_at as string) ?? new Date().toISOString(),
-        editedAt: (row as Record<string, unknown>).edited_at as string | null ?? null,
-        replyToId: (row as Record<string, unknown>).reply_to_id as number | null ?? null,
+        editedAt:
+          ((row as Record<string, unknown>).edited_at as string | null) ?? null,
+        replyToId:
+          ((row as Record<string, unknown>).reply_to_id as number | null) ??
+          null,
         attachments,
         status: "sent" as const,
         isPinned: Boolean((row as Record<string, unknown>).is_pinned),
-        pinnedAt: ((row as Record<string, unknown>).pinned_at as string | null) ?? null,
+        pinnedAt:
+          ((row as Record<string, unknown>).pinned_at as string | null) ?? null,
         unfurl: firstUnfurl ?? null,
       };
     });
@@ -803,17 +889,21 @@ export function MessageThread({
     }
     if (paths.length > 0) {
       const cli = createClient();
-      signWithCache(cli, paths, { width: 560, quality: 75 }).then((urlMap) => {
-        if (!aliveRef.current) return;
-        setMessages((prev) =>
-          prev.map((m) => ({
-            ...m,
-            attachments: m.attachments.map((a) =>
-              a.path && urlMap.has(a.path) ? { ...a, signedUrl: urlMap.get(a.path) ?? null } : a,
-            ),
-          })),
-        );
-      }).catch(() => {});
+      signWithCache(cli, paths, { width: 560, quality: 75 })
+        .then((urlMap) => {
+          if (!aliveRef.current) return;
+          setMessages((prev) =>
+            prev.map((m) => ({
+              ...m,
+              attachments: m.attachments.map((a) =>
+                a.path && urlMap.has(a.path)
+                  ? { ...a, signedUrl: urlMap.get(a.path) ?? null }
+                  : a,
+              ),
+            })),
+          );
+        })
+        .catch(() => {});
     }
   }, [conversationId, loadingOlder]);
 
@@ -867,7 +957,9 @@ export function MessageThread({
 
     // Data came back DESC; sort ASC for display.
     const sorted = [...msgsRes.data].sort(
-      (a, b) => new Date(a.created_at as string).getTime() - new Date(b.created_at as string).getTime(),
+      (a, b) =>
+        new Date(a.created_at as string).getTime() -
+        new Date(b.created_at as string).getTime(),
     );
 
     if (sorted.length < PAGE_SIZE) {
@@ -882,15 +974,26 @@ export function MessageThread({
         : [];
       const attachments: Attachment[] = rawAttachments
         .slice()
-        .sort((a: { sort_index: number }, b: { sort_index: number }) => a.sort_index - b.sort_index)
-        .map((a: { id: number; path: string; name: string; mime_type: string | null; meta: unknown }) => ({
-          id: a.id,
-          path: a.path,
-          name: a.name,
-          mimeType: a.mime_type,
-          meta: (a.meta as AttachmentMeta | null) ?? null,
-          signedUrl: null,
-        }));
+        .sort(
+          (a: { sort_index: number }, b: { sort_index: number }) =>
+            a.sort_index - b.sort_index,
+        )
+        .map(
+          (a: {
+            id: number;
+            path: string;
+            name: string;
+            mime_type: string | null;
+            meta: unknown;
+          }) => ({
+            id: a.id,
+            path: a.path,
+            name: a.name,
+            mimeType: a.mime_type,
+            meta: (a.meta as AttachmentMeta | null) ?? null,
+            signedUrl: null,
+          }),
+        );
       // PostgREST returns 1:1 joins (message_unfurls.message_id is the PK
       // referencing messages.id) as a SINGLE object — not an array. Treat
       // both shapes so we don't drop the unfurl on the array-only path.
@@ -907,12 +1010,16 @@ export function MessageThread({
         text: row.content ?? null,
         senderRole: (row.sender_role as "client" | "director") ?? "client",
         createdAt: (row.created_at as string) ?? new Date().toISOString(),
-        editedAt: (row as Record<string, unknown>).edited_at as string | null ?? null,
-        replyToId: (row as Record<string, unknown>).reply_to_id as number | null ?? null,
+        editedAt:
+          ((row as Record<string, unknown>).edited_at as string | null) ?? null,
+        replyToId:
+          ((row as Record<string, unknown>).reply_to_id as number | null) ??
+          null,
         attachments,
         status: "sent" as const,
         isPinned: Boolean((row as Record<string, unknown>).is_pinned),
-        pinnedAt: ((row as Record<string, unknown>).pinned_at as string | null) ?? null,
+        pinnedAt:
+          ((row as Record<string, unknown>).pinned_at as string | null) ?? null,
         unfurl: firstUnfurl ?? null,
       };
     });
@@ -934,7 +1041,10 @@ export function MessageThread({
     }
 
     if (allPaths.length > 0) {
-      const urlMap = await signWithCache(supabase, allPaths, { width: 560, quality: 75 });
+      const urlMap = await signWithCache(supabase, allPaths, {
+        width: 560,
+        quality: 75,
+      });
       if (!aliveRef.current) return;
       setMessages((prev) =>
         prev.map((m) => ({
@@ -1153,23 +1263,25 @@ export function MessageThread({
             );
             patchCachedMessages(conversationId, next);
             const cli = createClient();
-            signWithCache(cli, [row.path], { width: 560, quality: 75 }).then((urlMap) => {
-              const signed = urlMap.get(row.path) ?? null;
-              if (signed) {
-                setMessages((p) =>
-                  p.map((m) =>
-                    m.id === row.message_id
-                      ? {
-                          ...m,
-                          attachments: m.attachments.map((a) =>
-                            a.id === row.id ? { ...a, signedUrl: signed } : a,
-                          ),
-                        }
-                      : m,
-                  ),
-                );
-              }
-            }).catch(() => {});
+            signWithCache(cli, [row.path], { width: 560, quality: 75 })
+              .then((urlMap) => {
+                const signed = urlMap.get(row.path) ?? null;
+                if (signed) {
+                  setMessages((p) =>
+                    p.map((m) =>
+                      m.id === row.message_id
+                        ? {
+                            ...m,
+                            attachments: m.attachments.map((a) =>
+                              a.id === row.id ? { ...a, signedUrl: signed } : a,
+                            ),
+                          }
+                        : m,
+                    ),
+                  );
+                }
+              })
+              .catch(() => {});
             return next;
           });
         },
@@ -1227,7 +1339,7 @@ export function MessageThread({
       supabase.removeChannel(attachChannel);
       supabase.removeChannel(unfurlChannel);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
   // ---- Fetch sender profile id once ----
@@ -1267,7 +1379,9 @@ export function MessageThread({
 
     ch.on("presence", { event: "join" }, ({ key: joinKey, newPresences }) => {
       if (joinKey === key) return;
-      const typingPresences = (newPresences as unknown as Array<{ typing: boolean }>);
+      const typingPresences = newPresences as unknown as Array<{
+        typing: boolean;
+      }>;
       if (typingPresences.some((p) => p.typing)) setOtherTyping(true);
     });
 
@@ -1361,36 +1475,37 @@ export function MessageThread({
     if (!att?.path) return;
 
     if (lightbox.signedUrls.has(att.path)) {
-      setLightbox((lb) => lb ? { ...lb, loadingIndex: false } : lb);
+      setLightbox((lb) => (lb ? { ...lb, loadingIndex: false } : lb));
       return;
     }
 
-    setLightbox((lb) => lb ? { ...lb, loadingIndex: true } : lb);
+    setLightbox((lb) => (lb ? { ...lb, loadingIndex: true } : lb));
     const supabase = createClient();
-    signWithCache(supabase, [att.path], { expiresIn: 3600 }).then((urlMap) => {
-      const signed = urlMap.get(att.path!) ?? null;
-      if (!signed) {
-        setLightbox((lb) => lb ? { ...lb, loadingIndex: false } : lb);
-        return;
-      }
-      setLightbox((lb) => {
-        if (!lb) return lb;
-        const next = new Map(lb.signedUrls);
-        next.set(att.path!, signed);
-        return { ...lb, signedUrls: next, loadingIndex: false };
+    signWithCache(supabase, [att.path], { expiresIn: 3600 })
+      .then((urlMap) => {
+        const signed = urlMap.get(att.path!) ?? null;
+        if (!signed) {
+          setLightbox((lb) => (lb ? { ...lb, loadingIndex: false } : lb));
+          return;
+        }
+        setLightbox((lb) => {
+          if (!lb) return lb;
+          const next = new Map(lb.signedUrls);
+          next.set(att.path!, signed);
+          return { ...lb, signedUrls: next, loadingIndex: false };
+        });
+      })
+      .catch(() => {
+        setLightbox((lb) => (lb ? { ...lb, loadingIndex: false } : lb));
       });
-    }).catch(() => {
-      setLightbox((lb) => lb ? { ...lb, loadingIndex: false } : lb);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lightbox?.index, lightbox?.attachments]);
 
   // ---- Cmd+F search keyboard shortcut ----
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       const isMac =
-        typeof navigator !== "undefined" &&
-        /Mac/i.test(navigator.userAgent);
+        typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
       const modifier = isMac ? e.metaKey : e.ctrlKey;
       if (modifier && e.key === "f") {
         // Only intercept when focus is inside the thread surface.
@@ -1456,7 +1571,11 @@ export function MessageThread({
     if (targetId == null) return;
     const idx = messages.findIndex((m) => m.id === targetId);
     if (idx >= 0) {
-      virtuosoRef.current?.scrollToIndex({ index: idx, align: "center", behavior: "smooth" });
+      virtuosoRef.current?.scrollToIndex({
+        index: idx,
+        align: "center",
+        behavior: "smooth",
+      });
     }
   }, [searchActiveIdx, searchMatches, messages]);
 
@@ -1558,7 +1677,9 @@ export function MessageThread({
     }
 
     if (target && target.attachments.length > 0) {
-      const paths = target.attachments.map((a) => a.path).filter(Boolean) as string[];
+      const paths = target.attachments
+        .map((a) => a.path)
+        .filter(Boolean) as string[];
       if (paths.length > 0) {
         const supabase2 = createClient();
         await supabase2.storage.from("Message Attachments").remove(paths);
@@ -1626,7 +1747,11 @@ export function MessageThread({
     });
   }
 
-  const insertTextMessage = async (localId: number, text: string, replyToId?: number | null) => {
+  const insertTextMessage = async (
+    localId: number,
+    text: string,
+    replyToId?: number | null,
+  ) => {
     if (!conversationId) return;
 
     const supabase = createClient();
@@ -1640,7 +1765,9 @@ export function MessageThread({
     }
 
     setMessages((prev) => {
-      const withoutEcho = prev.filter((m) => m.id === localId || m.id !== result.id);
+      const withoutEcho = prev.filter(
+        (m) => m.id === localId || m.id !== result.id,
+      );
       return withoutEcho.map((m) =>
         m.id === localId ? { ...m, id: result.id, status: "sent" } : m,
       );
@@ -1658,7 +1785,12 @@ export function MessageThread({
       try {
         const dims = await extractImageMeta(file);
         meta = dims
-          ? { width: dims.width, height: dims.height, mimeType: file.type, sizeBytes: file.size }
+          ? {
+              width: dims.width,
+              height: dims.height,
+              mimeType: file.type,
+              sizeBytes: file.size,
+            }
           : { mimeType: file.type, sizeBytes: file.size };
       } catch {
         // ignore
@@ -1721,16 +1853,16 @@ export function MessageThread({
       return;
     }
 
-    const attachmentRows = (uploadResults as NonNullable<typeof uploadResults[number]>[]).map(
-      (r, idx) => ({
-        message_id: realMsgId,
-        path: r.storagePath,
-        name: files[idx].name,
-        mime_type: files[idx].mimeType || null,
-        meta: r.meta,
-        sort_index: idx,
-      }),
-    );
+    const attachmentRows = (
+      uploadResults as NonNullable<(typeof uploadResults)[number]>[]
+    ).map((r, idx) => ({
+      message_id: realMsgId,
+      path: r.storagePath,
+      name: files[idx].name,
+      mime_type: files[idx].mimeType || null,
+      meta: r.meta,
+      sort_index: idx,
+    }));
 
     const { error: attachError } = await supabase
       .from("message_attachments")
@@ -1745,25 +1877,36 @@ export function MessageThread({
       return;
     }
 
-    const paths = (uploadResults as NonNullable<typeof uploadResults[number]>[]).map((r) => r.storagePath);
+    const paths = (
+      uploadResults as NonNullable<(typeof uploadResults)[number]>[]
+    ).map((r) => r.storagePath);
     let urlMap = new Map<string, string>();
     try {
-      urlMap = await signWithCache(supabase, paths, { width: 560, quality: 75, expiresIn: 3600 });
+      urlMap = await signWithCache(supabase, paths, {
+        width: 560,
+        quality: 75,
+        expiresIn: 3600,
+      });
     } catch {
       // Fall back to local preview URLs.
     }
 
     setMessages((prev) => {
-      const withoutEcho = prev.filter((m) => m.id === localId || m.id !== realMsgId);
+      const withoutEcho = prev.filter(
+        (m) => m.id === localId || m.id !== realMsgId,
+      );
       return withoutEcho.map((m) => {
         if (m.id !== localId) return m;
         const updatedAttachments = m.attachments.map((a, idx) => {
-          const uploaded = (uploadResults as NonNullable<typeof uploadResults[number]>[])[idx];
+          const uploaded = (
+            uploadResults as NonNullable<(typeof uploadResults)[number]>[]
+          )[idx];
           return {
             ...a,
             id: Date.now() + idx,
             path: uploaded.storagePath,
-            signedUrl: urlMap.get(uploaded.storagePath) ?? a.localPreviewUrl ?? null,
+            signedUrl:
+              urlMap.get(uploaded.storagePath) ?? a.localPreviewUrl ?? null,
             pendingFile: null,
           };
         });
@@ -1811,16 +1954,18 @@ export function MessageThread({
 
     if (hasFiles) {
       const attachmentsCopy = [...pendingAttachments];
-      const optimisticAttachments: Attachment[] = attachmentsCopy.map((pa, i) => ({
-        id: -(localId + i),
-        path: null,
-        name: pa.name,
-        mimeType: pa.mimeType,
-        meta: null,
-        signedUrl: null,
-        localPreviewUrl: pa.previewUrl,
-        pendingFile: pa.file,
-      }));
+      const optimisticAttachments: Attachment[] = attachmentsCopy.map(
+        (pa, i) => ({
+          id: -(localId + i),
+          path: null,
+          name: pa.name,
+          mimeType: pa.mimeType,
+          meta: null,
+          signedUrl: null,
+          localPreviewUrl: pa.previewUrl,
+          pendingFile: pa.file,
+        }),
+      );
 
       setMessages((prev) => [
         ...prev,
@@ -1837,7 +1982,12 @@ export function MessageThread({
       setPendingAttachments([]);
       requestAnimationFrame(() => scrollToBottom());
 
-      await insertAttachmentsMessage(localId, attachmentsCopy, hasText ? query : null, replySnapshot?.id ?? null);
+      await insertAttachmentsMessage(
+        localId,
+        attachmentsCopy,
+        hasText ? query : null,
+        replySnapshot?.id ?? null,
+      );
       setSending(false);
       requestAnimationFrame(() => {
         textareaRef.current?.focus();
@@ -1895,7 +2045,9 @@ export function MessageThread({
       prev.map((m) => (m.id === msg.id ? { ...m, status: "sending" } : m)),
     );
 
-    const failedAttachments = msg.attachments.filter((a) => a.uploadFailed && a.pendingFile);
+    const failedAttachments = msg.attachments.filter(
+      (a) => a.uploadFailed && a.pendingFile,
+    );
     if (failedAttachments.length > 0) {
       const paPending: PendingAttachment[] = failedAttachments.map((a) => ({
         file: a.pendingFile as File,
@@ -1993,7 +2145,9 @@ export function MessageThread({
         file,
         name: file.name,
         mimeType: file.type,
-        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+        previewUrl: file.type.startsWith("image/")
+          ? URL.createObjectURL(file)
+          : null,
       }));
       return [...prev, ...newPending];
     });
@@ -2132,12 +2286,11 @@ export function MessageThread({
         prev.senderRole !== msg.senderRole ||
         showDayHeader ||
         showNewDivider ||
-        new Date(msg.createdAt).getTime() -
-          new Date(prev.createdAt).getTime() >
+        new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() >
           GROUP_GAP_MS;
 
       const repliedToMessage = msg.replyToId
-        ? messages.find((m) => m.id === msg.replyToId) ?? null
+        ? (messages.find((m) => m.id === msg.replyToId) ?? null)
         : null;
       const replyDeleted = msg.replyToId != null && !repliedToMessage;
 
@@ -2151,7 +2304,11 @@ export function MessageThread({
       const isActiveMatch = searchMatches[searchActiveIdx] === msg.id;
 
       return (
-        <div key={msg.id} className={`px-4${idx === 0 ? " pt-4" : ""}`} data-msg-id={msg.id}>
+        <div
+          key={msg.id}
+          className={`px-4${idx === 0 ? " pt-4" : ""}`}
+          data-msg-id={msg.id}
+        >
           {showDayHeader && (
             <div className="flex items-center gap-3 my-4">
               <div className="h-px flex-1 bg-sbi-dark-border/30" />
@@ -2220,9 +2377,7 @@ export function MessageThread({
                     {!isGroupStart && time && (
                       <span className="text-[10px] tabular-nums text-sbi-muted-dark whitespace-nowrap pointer-events-none">
                         {time}
-                        {msg.editedAt && (
-                          <span className="ml-1">· edited</span>
-                        )}
+                        {msg.editedAt && <span className="ml-1">· edited</span>}
                       </span>
                     )}
                     {msg.status === "sent" && !readOnly && (
@@ -2236,7 +2391,7 @@ export function MessageThread({
                               setEditingMessageId(msg.id);
                               setEditValue(msg.text ?? "");
                             }}
-                            className="flex h-6 w-6 items-center justify-center rounded text-sbi-muted hover:text-sbi-green transition-colors cursor-pointer"
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />
                           </button>
@@ -2250,7 +2405,7 @@ export function MessageThread({
                               setDeleteTargetId(msg.id);
                               setHoveredMessageId(null);
                             }}
-                            className="flex h-6 w-6 items-center justify-center rounded text-sbi-muted hover:text-red-400 transition-colors cursor-pointer"
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
                           </button>
@@ -2269,7 +2424,9 @@ export function MessageThread({
                         </button>
                         <button
                           type="button"
-                          aria-label={msg.isPinned ? "Unpin message" : "Pin message"}
+                          aria-label={
+                            msg.isPinned ? "Unpin message" : "Pin message"
+                          }
                           title={msg.isPinned ? "Unpin" : "Pin"}
                           onClick={() => togglePin(msg)}
                           className={`flex h-6 w-6 items-center justify-center rounded transition-colors cursor-pointer ${
@@ -2451,7 +2608,10 @@ export function MessageThread({
       {/* In-thread search bar */}
       {searchOpen && (
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-sbi-dark-border/30 bg-sbi-dark/95 backdrop-blur z-10">
-          <Search className="w-3.5 h-3.5 text-sbi-muted-dark shrink-0" strokeWidth={1.75} />
+          <Search
+            className="w-3.5 h-3.5 text-sbi-muted-dark shrink-0"
+            strokeWidth={1.75}
+          />
           <input
             ref={searchInputRef}
             value={searchQuery}
@@ -2462,7 +2622,9 @@ export function MessageThread({
                 setSearchQuery("");
                 setSearchMatches([]);
               } else if (e.key === "Enter") {
-                setSearchActiveIdx((i) => (i + 1) % Math.max(1, searchMatches.length));
+                setSearchActiveIdx(
+                  (i) => (i + 1) % Math.max(1, searchMatches.length),
+                );
               }
             }}
             placeholder="Search messages…"
@@ -2491,7 +2653,9 @@ export function MessageThread({
             aria-label="Next match"
             disabled={searchMatches.length === 0}
             onClick={() =>
-              setSearchActiveIdx((i) => (i + 1) % Math.max(1, searchMatches.length))
+              setSearchActiveIdx(
+                (i) => (i + 1) % Math.max(1, searchMatches.length),
+              )
             }
             className="flex h-6 w-6 items-center justify-center rounded text-sbi-muted hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
           >
@@ -2517,7 +2681,9 @@ export function MessageThread({
         {/* Drag-and-drop overlay */}
         {dragActive && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-sbi-dark/80 border-2 border-dashed border-sbi-green/40 rounded-md pointer-events-none">
-            <span className="text-sm text-sbi-green font-medium">Drop to attach</span>
+            <span className="text-sm text-sbi-green font-medium">
+              Drop to attach
+            </span>
           </div>
         )}
 
@@ -2576,7 +2742,10 @@ export function MessageThread({
               Header: () =>
                 loadingOlder ? (
                   <div className="flex justify-center py-3">
-                    <RotateCw className="w-4 h-4 text-sbi-muted animate-spin" strokeWidth={1.75} />
+                    <RotateCw
+                      className="w-4 h-4 text-sbi-muted animate-spin"
+                      strokeWidth={1.75}
+                    />
                   </div>
                 ) : noMoreOlder.current ? null : null,
             }}
@@ -2632,7 +2801,10 @@ export function MessageThread({
             <div className="order-1 flex items-start gap-2 px-3 py-2 rounded-lg border border-sbi-green/30 bg-sbi-green/5 w-full">
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.04em] text-sbi-green font-medium mb-0.5">
-                  Replying to {replyingTo.senderRole === senderRole ? "yourself" : "the other party"}
+                  Replying to{" "}
+                  {replyingTo.senderRole === senderRole
+                    ? "yourself"
+                    : "the other party"}
                 </div>
                 <div className="text-[10px] text-sbi-muted whitespace-pre-wrap line-clamp-2">
                   {replyingTo.text || "(attachment)"}
@@ -2666,13 +2838,21 @@ export function MessageThread({
                   ) : (
                     <div className="h-8 w-8 rounded flex items-center justify-center bg-sbi-dark shrink-0">
                       {pa.mimeType === "application/pdf" ? (
-                        <FileText className="w-4 h-4 text-sbi-muted" strokeWidth={1.5} />
+                        <FileText
+                          className="w-4 h-4 text-sbi-muted"
+                          strokeWidth={1.5}
+                        />
                       ) : (
-                        <FileIcon className="w-4 h-4 text-sbi-muted" strokeWidth={1.5} />
+                        <FileIcon
+                          className="w-4 h-4 text-sbi-muted"
+                          strokeWidth={1.5}
+                        />
                       )}
                     </div>
                   )}
-                  <span className="text-xs text-white truncate max-w-[120px]">{pa.name}</span>
+                  <span className="text-xs text-white truncate max-w-[120px]">
+                    {pa.name}
+                  </span>
                   <button
                     type="button"
                     onClick={() => removePendingAttachment(idx)}
@@ -2754,95 +2934,114 @@ export function MessageThread({
       />
 
       {/* Lightbox carousel */}
-      {lightbox && (() => {
-        const att = lightbox.attachments[lightbox.index];
-        const displayUrl = att?.path
-          ? (lightbox.signedUrls.get(att.path) ?? att.signedUrl ?? att.localPreviewUrl ?? null)
-          : (att?.signedUrl ?? att?.localPreviewUrl ?? null);
-        const total = lightbox.attachments.length;
-        const canPrev = lightbox.index > 0;
-        const canNext = lightbox.index < total - 1;
+      {lightbox &&
+        (() => {
+          const att = lightbox.attachments[lightbox.index];
+          const displayUrl = att?.path
+            ? (lightbox.signedUrls.get(att.path) ??
+              att.signedUrl ??
+              att.localPreviewUrl ??
+              null)
+            : (att?.signedUrl ?? att?.localPreviewUrl ?? null);
+          const total = lightbox.attachments.length;
+          const canPrev = lightbox.index > 0;
+          const canNext = lightbox.index < total - 1;
 
-        return (
-          <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-sbi-dark/90 p-6"
-            onClick={() => setLightbox(null)}
-            role="presentation"
-          >
-            {lightbox.loadingIndex && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <RotateCw className="w-6 h-6 text-sbi-muted animate-spin" strokeWidth={1.75} />
-              </div>
-            )}
-
-            <button
-              type="button"
-              aria-label="Previous image"
-              disabled={!canPrev}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (canPrev) setLightbox((lb) => lb ? { ...lb, index: lb.index - 1, loadingIndex: true } : lb);
-              }}
-              className="absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-sbi-muted hover:bg-white/10 hover:text-white transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-6 h-6" strokeWidth={1.75} />
-            </button>
-
-            <button
-              type="button"
-              aria-label="Next image"
-              disabled={!canNext}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (canNext) setLightbox((lb) => lb ? { ...lb, index: lb.index + 1, loadingIndex: true } : lb);
-              }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-sbi-muted hover:bg-white/10 hover:text-white transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="w-6 h-6" strokeWidth={1.75} />
-            </button>
-
-            {displayUrl && (
-              <img
-                src={displayUrl}
-                alt={att?.name ?? "Image preview"}
-                onClick={(e) => e.stopPropagation()}
-                className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-[0_24px_64px_-16px_rgba(0,0,0,0.8)]"
-              />
-            )}
-
+          return (
             <div
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4"
-              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-sbi-dark/90 p-6"
+              onClick={() => setLightbox(null)}
+              role="presentation"
             >
-              {total > 1 && (
-                <span className="text-xs text-sbi-muted-dark tabular-nums">
-                  {lightbox.index + 1} of {total}
-                </span>
+              {lightbox.loadingIndex && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <RotateCw
+                    className="w-6 h-6 text-sbi-muted animate-spin"
+                    strokeWidth={1.75}
+                  />
+                </div>
               )}
+
+              <button
+                type="button"
+                aria-label="Previous image"
+                disabled={!canPrev}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (canPrev)
+                    setLightbox((lb) =>
+                      lb
+                        ? { ...lb, index: lb.index - 1, loadingIndex: true }
+                        : lb,
+                    );
+                }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-sbi-muted hover:bg-white/10 hover:text-white transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-6 h-6" strokeWidth={1.75} />
+              </button>
+
+              <button
+                type="button"
+                aria-label="Next image"
+                disabled={!canNext}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (canNext)
+                    setLightbox((lb) =>
+                      lb
+                        ? { ...lb, index: lb.index + 1, loadingIndex: true }
+                        : lb,
+                    );
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full text-sbi-muted hover:bg-white/10 hover:text-white transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-6 h-6" strokeWidth={1.75} />
+              </button>
+
               {displayUrl && (
-                <a
-                  href={displayUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-sbi-muted hover:text-sbi-green transition-colors"
-                >
-                  Open original
-                </a>
+                <img
+                  src={displayUrl}
+                  alt={att?.name ?? "Image preview"}
+                  onClick={(e) => e.stopPropagation()}
+                  className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-[0_24px_64px_-16px_rgba(0,0,0,0.8)]"
+                />
               )}
+
+              <div
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {total > 1 && (
+                  <span className="text-xs text-sbi-muted-dark tabular-nums">
+                    {lightbox.index + 1} of {total}
+                  </span>
+                )}
+                {displayUrl && (
+                  <a
+                    href={displayUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-sbi-muted hover:text-sbi-green transition-colors"
+                  >
+                    Open original
+                  </a>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox(null);
+                }}
+                aria-label="Close preview"
+                className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full text-sbi-muted hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" strokeWidth={1.75} />
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
-              aria-label="Close preview"
-              className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full text-sbi-muted hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" strokeWidth={1.75} />
-            </button>
-          </div>
-        );
-      })()}
-
+          );
+        })()}
     </div>
   );
 }

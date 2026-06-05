@@ -186,7 +186,7 @@ function ProjectDetailInner() {
                       setEditingTask(row);
                       setTaskModalOpen(true);
                     }}
-                    className="rounded-md p-1.5 text-sbi-muted transition-colors hover:bg-white/5 hover:text-white"
+                    className="rounded-md p-1.5 text-sbi-muted transition-colors hover:bg-sbi-green/10 hover:text-sbi-green"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
