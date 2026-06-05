@@ -59,7 +59,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex justify-between items-end gap-4 mb-8 shrink-0",
+        "flex justify-between items-end gap-4 mb-6 shrink-0",
         className,
       )}
     >
@@ -86,7 +86,7 @@ export function SectionLabel({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center gap-4 mb-6", className)}>
+    <div className={cn("flex items-center gap-4 mb-4", className)}>
       <div className="w-10 h-px bg-sbi-green" />
       <span className="text-xs tracking-[0.25em] uppercase text-sbi-green">
         {children}
