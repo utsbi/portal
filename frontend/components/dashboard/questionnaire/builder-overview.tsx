@@ -11,7 +11,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -36,6 +36,7 @@ interface BuilderOverviewProps {
 }
 
 export function BuilderOverview({ forms }: BuilderOverviewProps) {
+  const reduce = useReducedMotion() ?? false;
   const totalForms = forms.length;
   const published = forms.filter((f) => f.isActive).length;
   const totalSubmitted = forms.reduce((acc, f) => acc + f.submittedCount, 0);
@@ -76,7 +77,7 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
           />
         ) : (
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
+            initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col gap-8"
@@ -115,13 +116,14 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
 }
 
 function FormCard({ form, index }: { form: DirectorFormView; index: number }) {
+  const reduce = useReducedMotion() ?? false;
   return (
     <motion.div
-      initial={{ opacity: 0, x: -8 }}
+      initial={reduce ? false : { opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{
         duration: 0.25,
-        delay: index * 0.04,
+        delay: reduce ? 0 : index * 0.04,
         ease: [0.22, 1, 0.36, 1],
       }}
     >

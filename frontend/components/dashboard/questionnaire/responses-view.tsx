@@ -8,7 +8,7 @@ import {
   Loader2,
   Paperclip,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -33,6 +33,7 @@ interface ResponsesViewProps {
 }
 
 export function ResponsesView({ title, rows }: ResponsesViewProps) {
+  const reduce = useReducedMotion() ?? false;
   const [selected, setSelected] = useState<ResponseRow | null>(null);
   const submitted = rows.filter((r) => r.status === "submitted").length;
   const drafts = rows.filter((r) => r.status === "draft").length;
@@ -72,7 +73,7 @@ export function ResponsesView({ title, rows }: ResponsesViewProps) {
           />
         ) : (
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
+            initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6"

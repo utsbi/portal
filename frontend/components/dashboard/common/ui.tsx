@@ -247,20 +247,27 @@ export const inputClass =
 // Button class language (outlined green → fills on hover; public-site match)
 // ---------------------------------------------------------------------------
 
+/** Focus-visible ring shared by every button token (keyboard a11y). */
+const btnFocus =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-sbi-dark";
+
 /** Primary action. Refined outline, not a loud solid fill. */
 export const btnPrimary =
   "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
   "bg-sbi-green/10 text-sbi-green border border-sbi-green/30 rounded-md cursor-pointer " +
-  "hover:bg-sbi-green hover:text-sbi-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
+  "hover:bg-sbi-green hover:text-sbi-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors " +
+  `${btnFocus} focus-visible:ring-sbi-green/50`;
 
 /** Secondary / neutral action. */
 export const btnGhost =
   "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
   "bg-transparent text-sbi-muted border border-sbi-dark-border/60 rounded-md cursor-pointer " +
-  "hover:text-white hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
+  "hover:text-white hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors " +
+  `${btnFocus} focus-visible:ring-white/30`;
 
 /** Destructive action. Red mirror of btnPrimary for delete/deny confirms. */
 export const btnDanger =
   "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
   "bg-red-500/10 text-red-300 border border-red-500/40 rounded-md cursor-pointer " +
-  "hover:bg-red-500/20 hover:text-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
+  "hover:bg-red-500/20 hover:text-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors " +
+  `${btnFocus} focus-visible:ring-red-500/50`;

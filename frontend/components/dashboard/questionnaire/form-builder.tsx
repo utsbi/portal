@@ -8,7 +8,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -66,6 +66,7 @@ export function FormBuilder({
   initialAssignedProjectIds = [],
 }: FormBuilderProps) {
   const router = useRouter();
+  const reduce = useReducedMotion() ?? false;
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
   const [fields, setFields] = useState<FieldDef[]>(initialSchema?.fields ?? []);
@@ -227,7 +228,7 @@ export function FormBuilder({
 
       <main className="flex-1 overflow-auto dashboard-scrollbar pb-10">
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-6 max-w-3xl"
@@ -329,6 +330,15 @@ export function FormBuilder({
 // Add-field bar
 // ---------------------------------------------------------------------------
 
+const FIELD_GROUPS: { label: string; types: FieldType[] }[] = [
+  {
+    label: "Text",
+    types: ["short_text", "paragraph", "number", "date", "time"],
+  },
+  { label: "Choice", types: ["radio", "checkboxes", "dropdown", "scale"] },
+  { label: "Media & layout", types: ["file", "section"] },
+];
+
 function AddFieldBar({ onAdd }: { onAdd: (type: FieldType) => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -341,19 +351,28 @@ function AddFieldBar({ onAdd }: { onAdd: (type: FieldType) => void }) {
         <Plus className="size-4" /> Add question or section
       </button>
       {open && (
-        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 rounded-lg bg-sbi-dark-card border border-sbi-dark-border/50">
-          {FIELD_TYPES.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => {
-                onAdd(t);
-                setOpen(false);
-              }}
-              className="text-left px-3 py-2 rounded-md text-xs text-white/80 hover:bg-sbi-green/10 hover:text-sbi-green transition-colors"
-            >
-              {FIELD_TYPE_LABELS[t]}
-            </button>
+        <div className="mt-2 flex flex-col gap-3 p-3 rounded-lg bg-sbi-dark-card border border-sbi-dark-border/50">
+          {FIELD_GROUPS.map((group) => (
+            <div key={group.label} className="flex flex-col gap-1">
+              <span className="px-1 text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark">
+                {group.label}
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                {group.types.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      onAdd(t);
+                      setOpen(false);
+                    }}
+                    className="text-left px-3 py-2 rounded-md text-xs text-white/80 hover:bg-sbi-green/10 hover:text-sbi-green transition-colors"
+                  >
+                    {FIELD_TYPE_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
