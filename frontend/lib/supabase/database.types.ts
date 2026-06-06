@@ -516,6 +516,33 @@ export type Database = {
           },
         ];
       };
+      custom_form_templates: {
+        Row: {
+          created_at: string;
+          created_by: string;
+          description: string | null;
+          fields: Json;
+          id: number;
+          name: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by: string;
+          description?: string | null;
+          fields?: Json;
+          id?: number;
+          name: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string;
+          description?: string | null;
+          fields?: Json;
+          id?: number;
+          name?: string;
+        };
+        Relationships: [];
+      };
       finances: {
         Row: {
           created_at: string;

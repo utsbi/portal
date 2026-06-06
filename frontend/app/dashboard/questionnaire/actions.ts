@@ -516,3 +516,50 @@ export async function updateFormSchedule(input: {
   revalidatePath(`${BUILDER_PATH}/${input.id}`);
   return {};
 }
+
+// ---------------------------------------------------------------------------
+// Director — custom templates (save current builder state, delete).
+// ---------------------------------------------------------------------------
+
+const TEMPLATES_PATH = "/dashboard/questionnaire/builder/templates";
+
+export async function saveFormAsTemplate(input: {
+  name: string;
+  description?: string;
+  schema: FormSchema;
+}): Promise<ActionResult<{ id: number }>> {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  const name = input.name.trim();
+  if (!name) return { error: "Give the template a name." };
+
+  const { data, error } = await gate.supabase
+    .from("custom_form_templates")
+    .insert({
+      name,
+      description: input.description?.trim() || null,
+      fields: serializeFormSchema(input.schema) as unknown as Json,
+      created_by: gate.userId,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+  revalidatePath(TEMPLATES_PATH);
+  return { id: data.id };
+}
+
+export async function deleteTemplate(input: {
+  id: number;
+}): Promise<ActionResult> {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  const { error } = await gate.supabase
+    .from("custom_form_templates")
+    .delete()
+    .eq("id", input.id)
+    .eq("created_by", gate.userId);
+  if (error) return { error: error.message };
+  revalidatePath(TEMPLATES_PATH);
+  return {};
+}

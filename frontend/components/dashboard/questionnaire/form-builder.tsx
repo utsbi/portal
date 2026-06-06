@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  FilePlus2,
   Globe,
   GripVertical,
   History,
@@ -21,6 +22,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { isActionError } from "@/app/dashboard/questionnaire/action-types";
 import {
   createForm,
+  saveFormAsTemplate,
   setAssignments,
   setFormActive,
   updateForm,
@@ -232,6 +234,19 @@ export function FormBuilder({
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
     );
 
+  const handleSaveTemplate = async () => {
+    if (!title.trim()) {
+      toastError("Give the form a title first.");
+      return;
+    }
+    const res = await saveFormAsTemplate({ name: title, description, schema });
+    if (isActionError(res)) {
+      toastError(res.error);
+      return;
+    }
+    toastSuccess("Saved as a template.");
+  };
+
   // Debounced autosave for existing forms: persists title/description/fields and
   // re-syncs assignments only when they changed. Skips the initial mount and any
   // moment a manual Save/Publish is in flight.
@@ -274,6 +289,13 @@ export function FormBuilder({
         action={
           <div className="flex items-center gap-2">
             {currentFormId !== undefined && <AutoSaveBadge state={autoSave} />}
+            <button
+              type="button"
+              className={cn(btnGhost, "h-9")}
+              onClick={handleSaveTemplate}
+            >
+              <FilePlus2 className="size-4" /> Save as template
+            </button>
             {currentFormId !== undefined && (
               <Link
                 href={`/dashboard/questionnaire/builder/${currentFormId}/history`}

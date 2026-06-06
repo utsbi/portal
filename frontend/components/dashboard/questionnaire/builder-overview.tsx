@@ -80,6 +80,12 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
               {t.name}
             </Link>
           ))}
+          <Link
+            href="/dashboard/questionnaire/builder/templates"
+            className="inline-flex h-8 items-center rounded-md px-2 text-xs text-sbi-green/80 transition-colors hover:text-sbi-green"
+          >
+            Manage templates →
+          </Link>
         </div>
 
         {forms.length === 0 ? (

@@ -658,3 +658,74 @@ export async function fetchFormHistory(
 
   return { formId, title: schema.title, currentVersion, versions };
 }
+
+// ---------------------------------------------------------------------------
+// DIRECTOR custom templates: list (subpage) + single (seed a new form).
+// ---------------------------------------------------------------------------
+
+export interface CustomTemplateView {
+  id: number;
+  name: string;
+  description: string | null;
+  questionCount: number;
+}
+
+export async function fetchTemplatesData(): Promise<
+  | { templates: CustomTemplateView[] }
+  | { redirect: string }
+  | { forbidden: true }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { redirect: "/login" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("uid", user.id)
+    .maybeSingle();
+  if (!profile) return { redirect: "/login" };
+  if (profile.role !== "director") return { forbidden: true };
+
+  const { data: rows } = await supabase
+    .from("custom_form_templates")
+    .select("id, name, description, fields")
+    .eq("created_by", user.id)
+    .order("created_at", { ascending: false });
+
+  const templates: CustomTemplateView[] = (rows ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    questionCount: countQuestions(parseFormSchema(r.fields)),
+  }));
+  return { templates };
+}
+
+export async function fetchCustomTemplate(
+  id: number,
+): Promise<{
+  name: string;
+  description: string | null;
+  schema: FormSchema;
+} | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data } = await supabase
+    .from("custom_form_templates")
+    .select("name, description, fields, created_by")
+    .eq("id", id)
+    .maybeSingle();
+  if (!data || data.created_by !== user.id) return null;
+  return {
+    name: data.name,
+    description: data.description,
+    schema: parseFormSchema(data.fields),
+  };
+}
