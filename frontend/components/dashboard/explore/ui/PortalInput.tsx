@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, type KeyboardEvent, type ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, Send, X, FileText, File, Mic, Settings2, Zap, Lightbulb, ChevronDown, Square, Loader2 } from 'lucide-react';
+import { Plus, Send, X, FileText, File, Mic, Settings2, Zap, Lightbulb, ChevronDown, Square, Loader2, Check } from 'lucide-react';
 import { useChat, type ModelPreference } from '@/lib/chat/chat-context';
 import {
   DropdownMenu,
@@ -71,17 +71,15 @@ interface PortalInputProps {
   onSubmit?: (query: string) => void;
   disabled?: boolean;
   animated?: boolean;
-  queueOnly?: boolean;
 }
 
-export function PortalInput({ onSubmit, disabled = false, animated = true, queueOnly = false }: PortalInputProps) {
+export function PortalInput({ onSubmit, disabled = false, animated = true }: PortalInputProps) {
   const [input, setInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
     messages,
     sendMessage,
-    queueMessage,
     addAttachment,
     removeAttachment,
     attachments,
@@ -99,20 +97,18 @@ export function PortalInput({ onSubmit, disabled = false, animated = true, queue
     
     const query = input.trim();
     setInput('');
-    
+
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
+      // Keep focus so the user can keep typing while the answer streams.
+      textareaRef.current.focus();
     }
-    
+
     if (onSubmit) {
       onSubmit(query);
     }
 
-    if (queueOnly) {
-      queueMessage(query);
-    } else {
-      await sendMessage(query);
-    }
+    await sendMessage(query);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -155,7 +151,6 @@ export function PortalInput({ onSubmit, disabled = false, animated = true, queue
   };
 
   const isBusy = isLoading || isStreaming;
-  const isDisabled = isBusy || disabled;
   const hasInput = input.trim().length > 0;
   const currentModel = modelOptions.find(m => m.id === modelPreference) || modelOptions[0];
 
@@ -234,14 +229,15 @@ export function PortalInput({ onSubmit, disabled = false, animated = true, queue
             </div>
           )}
 
-          {/* Text area */}
+          {/* Text area — stays typable while a response streams (only the
+              send action is blocked; the button becomes an interrupt). */}
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Ask anything ..."
-            disabled={isDisabled}
+            disabled={disabled}
             rows={1}
             className="w-full bg-transparent px-5 pt-5 pb-3 text-base text-white font-light tracking-wide placeholder:text-sbi-muted-dark resize-none focus:outline-none disabled:opacity-50 min-h-[52px] max-h-[200px]"
           />
@@ -255,7 +251,7 @@ export function PortalInput({ onSubmit, disabled = false, animated = true, queue
                 size="icon"
                 variant="ghost"
                 onClick={handleFileSelect}
-                disabled={isDisabled}
+                disabled={disabled}
                 className="h-9 w-9 text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50"
               >
                 <Plus className="w-5 h-5" strokeWidth={1.5} />
@@ -265,7 +261,7 @@ export function PortalInput({ onSubmit, disabled = false, animated = true, queue
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={isDisabled}
+                disabled={disabled}
                 className="h-9 px-3 text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50 gap-1.5"
               >
                 <Settings2 className="w-4 h-4" strokeWidth={1.5} />
@@ -281,7 +277,7 @@ export function PortalInput({ onSubmit, disabled = false, animated = true, queue
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={isDisabled}
+                    disabled={disabled}
                     className="h-9 px-3 text-sbi-muted hover:text-white hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50 gap-1.5"
                   >
                     <currentModel.icon className="w-4 h-4 text-sbi-green" strokeWidth={1.5} />
@@ -291,34 +287,38 @@ export function PortalInput({ onSubmit, disabled = false, animated = true, queue
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-64 rounded-xl bg-sbi-dark border border-sbi-dark-border p-1 shadow-xl"
+                  sideOffset={10}
+                  className="w-60 rounded-xl bg-sbi-dark border border-sbi-dark-border p-1.5 shadow-xl shadow-black/40"
                 >
-                  {modelOptions.map((model) => (
-                    <DropdownMenuItem
-                      key={model.id}
-                      onClick={() => setModelPreference(model.id)}
-                      className={`flex items-start gap-3 px-3 py-3 rounded-lg cursor-pointer transition-colors ${
-                        modelPreference === model.id
-                          ? 'bg-sbi-dark-card text-white'
-                          : 'text-sbi-muted hover:bg-sbi-dark-card hover:text-white'
-                      }`}
-                    >
-                      <model.icon
-                        className={`w-5 h-5 mt-0.5 ${
-                          modelPreference === model.id ? 'text-sbi-green' : 'text-sbi-muted'
-                        }`}
-                        strokeWidth={1.5}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{model.name}</span>
+                  <p className="px-2.5 pt-1 pb-1.5 text-[0.7rem] tracking-[0.2em] uppercase text-sbi-muted-dark">
+                    Response style
+                  </p>
+                  {modelOptions.map((model) => {
+                    const active = modelPreference === model.id;
+                    return (
+                      <DropdownMenuItem
+                        key={model.id}
+                        onClick={() => setModelPreference(model.id)}
+                        className="flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer text-sbi-muted focus:bg-sbi-dark-card focus:text-white"
+                      >
+                        <model.icon
+                          className={`w-4 h-4 shrink-0 ${active ? 'text-sbi-green' : 'text-sbi-muted-dark'}`}
+                          strokeWidth={1.5}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm ${active ? 'text-white' : ''}`}>
+                            {model.name}
+                          </div>
+                          <p className="text-xs text-sbi-muted-dark font-light">
+                            {model.description}
+                          </p>
                         </div>
-                        <p className="text-xs text-sbi-muted-dark mt-0.5 font-light">
-                          {model.description}
-                        </p>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
+                        {active && (
+                          <Check className="w-4 h-4 shrink-0 text-sbi-green" strokeWidth={2} />
+                        )}
+                      </DropdownMenuItem>
+                    );
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
 
