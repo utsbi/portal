@@ -3,6 +3,7 @@ import {
   countQuestions,
   type FieldDef,
   type FormSchema,
+  isAnswerableType,
   isAnswered,
   isFieldVisible,
   parseFormSchema,
@@ -70,7 +71,7 @@ function toAnswerMap(data: Json | undefined): AnswerMap {
 
 function fieldShim(fields: FieldDef[]) {
   return fields
-    .filter((f) => f.type !== "section")
+    .filter((f) => isAnswerableType(f.type))
     .map((f) => ({
       key: f.id,
       type: f.type,
@@ -144,7 +145,7 @@ export async function fetchQuestionnaireData(
 
     const visibleRequiredMissing = parsed.fields.some(
       (f) =>
-        f.type !== "section" &&
+        isAnswerableType(f.type) &&
         f.required &&
         isFieldVisible(f, answers) &&
         !isAnswered(answers[f.id] ?? null),
@@ -341,7 +342,7 @@ export async function fetchDirectorData(): Promise<
       version: s.version ?? 1,
       isActive: s.is_active !== false,
       questionCount: countQuestions(parsed),
-      fieldCount: parsed.fields.filter((f) => f.type !== "section").length,
+      fieldCount: parsed.fields.filter((f) => isAnswerableType(f.type)).length,
       sectionCount: parsed.fields.filter((f) => f.type === "section").length,
       assignedProjectIds: assignmentsByForm.get(s.id) ?? [],
       submissionCount: agg.total,
@@ -585,7 +586,7 @@ export async function fetchResponsesData(
       updatedAt: s.updated_at,
       schemaVersion: version,
       answers,
-      fields: rowSchema.fields.filter((f) => f.type !== "section"),
+      fields: rowSchema.fields.filter((f) => isAnswerableType(f.type)),
       missingRequired: missing,
     };
   });

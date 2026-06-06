@@ -47,6 +47,41 @@ export function FieldRenderer({
 }: FieldRendererProps) {
   const selectedArray = Array.isArray(value) ? value : [];
 
+  // Decorative blocks: render content, collect no answer.
+  if (field.type === "text") {
+    return (
+      <div className="flex flex-col gap-1.5">
+        {field.label && (
+          <h3 className="text-base font-light text-white">{field.label}</h3>
+        )}
+        {field.description && (
+          <p className="text-sm text-sbi-muted leading-relaxed whitespace-pre-wrap">
+            {field.description}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (field.type === "image") {
+    if (!field.imageUrl) return null;
+    return (
+      <figure className="flex flex-col gap-1.5">
+        {/* biome-ignore lint/performance/noImgElement: form images are arbitrary external/uploaded URLs, not statically known. */}
+        <img
+          src={field.imageUrl}
+          alt={field.label || "Form image"}
+          className="max-h-80 w-auto rounded-lg border border-sbi-dark-border/40 object-contain"
+        />
+        {field.label && (
+          <figcaption className="text-xs text-sbi-muted">
+            {field.label}
+          </figcaption>
+        )}
+      </figure>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline gap-1.5">

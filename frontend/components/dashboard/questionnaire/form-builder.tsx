@@ -12,11 +12,12 @@ import {
   Lock,
   Plus,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { isActionError } from "@/app/dashboard/questionnaire/action-types";
 import {
   createForm,
@@ -39,6 +40,7 @@ import {
 } from "@/components/dashboard/common/ui";
 import type { DirectorProject } from "@/lib/data/questionnaire";
 import { toastError, toastSuccess } from "@/lib/notifications";
+import { uploadFormImage } from "@/lib/questionnaire/image-upload";
 import {
   CHOICE_TYPES,
   type ConditionOperator,
@@ -50,6 +52,7 @@ import {
   type FormSchema,
   formWindowState,
   generateFieldId,
+  isAnswerableType,
 } from "@/lib/questionnaire/schema";
 import { cn } from "@/lib/utils";
 
@@ -110,7 +113,7 @@ export function FormBuilder({
   // Fields that can be referenced by conditional logic = answerable fields that
   // appear before the field being edited.
   const answerableBefore = (index: number): FieldDef[] =>
-    fields.slice(0, index).filter((f) => f.type !== "section");
+    fields.slice(0, index).filter((f) => isAnswerableType(f.type));
 
   const updateField = (id: string, patch: Partial<FieldDef>) =>
     setFields((prev) =>
@@ -729,7 +732,7 @@ const FIELD_GROUPS: { label: string; types: FieldType[] }[] = [
     types: ["short_text", "paragraph", "number", "date", "time"],
   },
   { label: "Choice", types: ["radio", "checkboxes", "dropdown", "scale"] },
-  { label: "Media & layout", types: ["file", "section"] },
+  { label: "Media & layout", types: ["image", "file", "text", "section"] },
 ];
 
 function AddFieldBar({ onAdd }: { onAdd: (type: FieldType) => void }) {
@@ -810,6 +813,17 @@ function FieldEditor({
   const [grabbed, setGrabbed] = useState(false);
   const isSection = field.type === "section";
   const isChoice = CHOICE_TYPES.includes(field.type);
+  const isImage = field.type === "image";
+  const isText = field.type === "text";
+  // Display-only blocks don't collect an answer: no required/validation/options.
+  const isDisplay = !isAnswerableType(field.type);
+  const labelHeading = isSection
+    ? "Section title"
+    : isText
+      ? "Heading (optional)"
+      : isImage
+        ? "Caption (optional)"
+        : "Question";
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: native HTML5 drag drop target; the real control is the grip <button> below.
@@ -883,9 +897,7 @@ function FieldEditor({
             {/* Label + type */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <span className={cn("block", labelClass)}>
-                  {isSection ? "Section title" : "Question"}
-                </span>
+                <span className={cn("block", labelClass)}>{labelHeading}</span>
                 <input
                   className={cn(inputClass, "mt-1.5")}
                   value={field.label}
@@ -921,18 +933,36 @@ function FieldEditor({
               </div>
             </div>
 
-            {/* Help text */}
-            <div>
-              <span className={cn("block", labelClass)}>Help text</span>
-              <input
-                className={cn(inputClass, "mt-1.5")}
-                value={field.description ?? ""}
-                placeholder="Optional"
-                onChange={(e) =>
-                  onChange({ description: e.target.value || undefined })
-                }
-              />
-            </div>
+            {/* Image source */}
+            {isImage && <ImageConfig field={field} onChange={onChange} />}
+
+            {/* Body text (text block) or help text (answerable) */}
+            {!isImage && (
+              <div>
+                <span className={cn("block", labelClass)}>
+                  {isText ? "Body text" : "Help text"}
+                </span>
+                {isText ? (
+                  <textarea
+                    className={cn(inputClass, "mt-1.5 min-h-20 resize-y")}
+                    value={field.description ?? ""}
+                    placeholder="Text shown to respondents"
+                    onChange={(e) =>
+                      onChange({ description: e.target.value || undefined })
+                    }
+                  />
+                ) : (
+                  <input
+                    className={cn(inputClass, "mt-1.5")}
+                    value={field.description ?? ""}
+                    placeholder="Optional"
+                    onChange={(e) =>
+                      onChange({ description: e.target.value || undefined })
+                    }
+                  />
+                )}
+              </div>
+            )}
 
             {/* Options editor */}
             {isChoice && (
@@ -948,12 +978,12 @@ function FieldEditor({
             )}
 
             {/* Validation */}
-            {!isSection && (
+            {!isDisplay && (
               <ValidationEditor field={field} onChange={onChange} />
             )}
 
             {/* Required + conditional */}
-            {!isSection && (
+            {!isDisplay && (
               <label className="flex items-center gap-2 text-xs text-white/80 cursor-pointer">
                 <input
                   type="checkbox"
@@ -1006,6 +1036,82 @@ function IconBtn({
     >
       {children}
     </button>
+  );
+}
+
+function ImageConfig({
+  field,
+  onChange,
+}: {
+  field: FieldDef;
+  onChange: (patch: Partial<FieldDef>) => void;
+}) {
+  const inputId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (inputRef.current) inputRef.current.value = "";
+    if (!file) return;
+    setErr(null);
+    setUploading(true);
+    const res = await uploadFormImage(file);
+    setUploading(false);
+    if (!res.url) {
+      setErr(res.error);
+      return;
+    }
+    onChange({ imageUrl: res.url });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className={cn("block", labelClass)}>Image</span>
+      <div className="flex items-center gap-2">
+        <input
+          className={inputClass}
+          placeholder="Paste an image URL"
+          value={field.imageUrl ?? ""}
+          onChange={(e) => onChange({ imageUrl: e.target.value || undefined })}
+        />
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={uploading}
+          onChange={handleFile}
+        />
+        <label
+          htmlFor={inputId}
+          className={cn(
+            btnGhost,
+            "h-9 px-3 shrink-0 cursor-pointer",
+            uploading && "pointer-events-none opacity-50",
+          )}
+        >
+          {uploading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <>
+              <Upload className="size-4" /> Upload
+            </>
+          )}
+        </label>
+      </div>
+      {field.imageUrl && (
+        // biome-ignore lint/performance/noImgElement: arbitrary uploaded/external image URL.
+        <img
+          src={field.imageUrl}
+          alt=""
+          className="max-h-40 w-auto rounded-md border border-sbi-dark-border/40 object-contain"
+        />
+      )}
+      {err && <p className="text-xs text-red-400">{err}</p>}
+    </div>
   );
 }
 

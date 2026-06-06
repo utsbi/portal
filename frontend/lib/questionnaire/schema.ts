@@ -22,7 +22,9 @@ export type FieldType =
   | "dropdown" // single-choice select
   | "scale" // linear scale / rating
   | "file" // file upload
-  | "section"; // page / section divider (not an answerable field)
+  | "section" // page / section divider (not an answerable field)
+  | "text" // decorative: heading + body text (no answer)
+  | "image"; // decorative: displayed image (no answer)
 
 export const FIELD_TYPES: FieldType[] = [
   "short_text",
@@ -36,12 +38,22 @@ export const FIELD_TYPES: FieldType[] = [
   "scale",
   "file",
   "section",
+  "text",
+  "image",
 ];
 
-/** Field types that hold an answer (everything except section dividers). */
+/** Display-only types that never collect an answer. */
+export const DISPLAY_TYPES: FieldType[] = ["section", "text", "image"];
+
+/** Field types that hold an answer (everything except display-only blocks). */
 export const ANSWERABLE_TYPES: FieldType[] = FIELD_TYPES.filter(
-  (t) => t !== "section",
+  (t) => !DISPLAY_TYPES.includes(t),
 );
+
+/** True when a field collects an answer (vs. a section/text/image block). */
+export function isAnswerableType(type: FieldType): boolean {
+  return !DISPLAY_TYPES.includes(type);
+}
 
 export const CHOICE_TYPES: FieldType[] = ["radio", "checkboxes", "dropdown"];
 
@@ -98,6 +110,8 @@ export interface FieldDef {
   options?: FieldOption[];
   placeholder?: string;
   validation?: FieldValidation;
+  /** Image block (type "image") source URL. */
+  imageUrl?: string;
   /**
    * When present, the field is shown only if ALL rules pass. Empty / absent =
    * always shown. Section dividers may also carry conditions to hide a whole
@@ -233,6 +247,7 @@ export function parseFormSchema(raw: unknown): FormSchema {
         typeof entry.placeholder === "string" ? entry.placeholder : undefined,
       options: parseOptions(entry.options),
       validation: parseValidation(entry.validation),
+      imageUrl: typeof entry.imageUrl === "string" ? entry.imageUrl : undefined,
       conditions: parseConditions(entry.conditions),
     });
   }
@@ -258,6 +273,7 @@ export function serializeFormSchema(schema: FormSchema): unknown[] {
       }
       if (Object.keys(v).length > 0) out.validation = v;
     }
+    if (f.imageUrl) out.imageUrl = f.imageUrl;
     if (f.conditions && f.conditions.length > 0) out.conditions = f.conditions;
     return out;
   });
@@ -317,7 +333,7 @@ export function validateAnswers(
 ): ValidationError[] {
   const errors: ValidationError[] = [];
   for (const field of schema.fields) {
-    if (field.type === "section") continue;
+    if (!isAnswerableType(field.type)) continue;
     if (!isFieldVisible(field, answers)) continue;
     const value = answers[field.id] ?? null;
     const answered = isAnswered(value);
@@ -392,11 +408,24 @@ export function generateFieldId(): string {
   return `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function defaultLabelForType(type: FieldType): string {
+  switch (type) {
+    case "section":
+      return "New section";
+    case "text":
+      return "Heading";
+    case "image":
+      return "";
+    default:
+      return "Untitled question";
+  }
+}
+
 export function defaultFieldForType(type: FieldType): FieldDef {
   const base: FieldDef = {
     id: generateFieldId(),
     type,
-    label: type === "section" ? "New section" : "Untitled question",
+    label: defaultLabelForType(type),
     required: false,
   };
   if (CHOICE_TYPES.includes(type)) {
@@ -407,6 +436,12 @@ export function defaultFieldForType(type: FieldType): FieldDef {
   }
   if (type === "scale") {
     base.validation = { min: 1, max: 5, step: 1 };
+  }
+  if (type === "text") {
+    base.description = "Add descriptive text here.";
+  }
+  if (type === "image") {
+    base.imageUrl = "";
   }
   return base;
 }
@@ -423,11 +458,13 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   scale: "Linear scale",
   file: "File upload",
   section: "Section",
+  text: "Text",
+  image: "Image",
 };
 
-/** Question count = answerable fields (sections excluded). */
+/** Question count = answerable fields (display blocks excluded). */
 export function countQuestions(schema: FormSchema): number {
-  return schema.fields.filter((f) => f.type !== "section").length;
+  return schema.fields.filter((f) => isAnswerableType(f.type)).length;
 }
 
 // ---------------------------------------------------------------------------

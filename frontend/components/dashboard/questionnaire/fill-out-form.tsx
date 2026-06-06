@@ -23,6 +23,7 @@ import {
   type FieldDef,
   type FormSchema,
   formWindowState,
+  isAnswerableType,
   isAnswered,
   isFieldVisible,
   validateAnswers,
@@ -142,7 +143,7 @@ export function FillOutForm({
 
   // Progress over currently-visible answerable fields (respects conditional logic).
   const visibleAnswerable = schema.fields.filter(
-    (f) => f.type !== "section" && isFieldVisible(f, answers),
+    (f) => isAnswerableType(f.type) && isFieldVisible(f, answers),
   );
   const answeredCount = visibleAnswerable.filter((f) =>
     isAnswered(answers[f.id] ?? null),

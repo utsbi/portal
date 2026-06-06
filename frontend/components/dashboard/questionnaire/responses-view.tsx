@@ -28,6 +28,7 @@ import {
   type AnswerValue,
   type FieldDef,
   type FormSchema,
+  isAnswerableType,
   isAnswered,
 } from "@/lib/questionnaire/schema";
 import { cn } from "@/lib/utils";
@@ -264,7 +265,7 @@ function ResponsesSummary({
 }) {
   const submittedRows = rows.filter((r) => r.status === "submitted");
   const total = submittedRows.length;
-  const answerable = schema.fields.filter((f) => f.type !== "section");
+  const answerable = schema.fields.filter((f) => isAnswerableType(f.type));
 
   return (
     <motion.div
