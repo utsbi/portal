@@ -41,8 +41,8 @@ export function ResponsesView({ title, rows }: ResponsesViewProps) {
   return (
     <DashboardShell>
       <PageHeader
-        title={`${title} — Responses`}
-        subtitle={`${submitted} submitted · ${drafts} in progress`}
+        title={title}
+        subtitle={`Responses · ${submitted} submitted · ${drafts} in progress`}
         action={
           <div className="flex items-center gap-2">
             {rows.length > 0 && (
@@ -76,55 +76,57 @@ export function ResponsesView({ title, rows }: ResponsesViewProps) {
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6"
+            className="flex flex-col gap-4"
           >
-            {/* List */}
-            <div className="flex flex-col gap-2">
-              <SectionLabel>Submissions</SectionLabel>
-              {rows.map((row) => (
-                <button
-                  key={row.submissionId}
-                  type="button"
-                  onClick={() => setSelected(row)}
-                  className={cn(
-                    "w-full text-left px-4 py-3 rounded-lg border transition-colors",
-                    selected?.submissionId === row.submissionId
-                      ? "border-sbi-green/40 bg-sbi-green/5"
-                      : "border-sbi-dark-border/40 bg-sbi-dark-card/30 hover:border-white/20",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    {row.status === "submitted" ? (
-                      <CheckCircle2 className="size-3.5 text-sbi-green" />
-                    ) : (
-                      <Clock className="size-3.5 text-amber-400" />
+            <SectionLabel>Submissions</SectionLabel>
+            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
+              {/* List */}
+              <div className="flex flex-col gap-2">
+                {rows.map((row) => (
+                  <button
+                    key={row.submissionId}
+                    type="button"
+                    onClick={() => setSelected(row)}
+                    className={cn(
+                      "w-full text-left px-4 py-3 rounded-lg border transition-colors",
+                      selected?.submissionId === row.submissionId
+                        ? "border-sbi-green/40 bg-sbi-green/5"
+                        : "border-sbi-dark-border/40 bg-sbi-dark-card/30 hover:border-white/20",
                     )}
-                    <span className="text-xs text-white/85 truncate">
-                      {responderLabel(row)}
-                    </span>
-                    <span className="ml-auto text-[10px] text-sbi-muted-dark">
-                      v{row.schemaVersion}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-sbi-muted">
-                    {row.status === "submitted"
-                      ? `Submitted ${formatDate(row.submittedAt)}`
-                      : `Draft · updated ${formatDate(row.updatedAt)}`}
-                  </p>
-                </button>
-              ))}
-            </div>
+                  >
+                    <div className="flex items-center gap-2">
+                      {row.status === "submitted" ? (
+                        <CheckCircle2 className="size-3.5 text-sbi-green" />
+                      ) : (
+                        <Clock className="size-3.5 text-amber-400" />
+                      )}
+                      <span className="text-xs text-white/85 truncate">
+                        {responderLabel(row)}
+                      </span>
+                      <span className="ml-auto text-[10px] text-sbi-muted-dark">
+                        v{row.schemaVersion}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-sbi-muted">
+                      {row.status === "submitted"
+                        ? `Submitted ${formatDate(row.submittedAt)}`
+                        : `Draft · updated ${formatDate(row.updatedAt)}`}
+                    </p>
+                  </button>
+                ))}
+              </div>
 
-            {/* Detail */}
-            <Panel>
-              {selected ? (
-                <ResponseDetail row={selected} />
-              ) : (
-                <p className="text-sm text-sbi-muted text-center py-12">
-                  Select a submission to view its answers.
-                </p>
-              )}
-            </Panel>
+              {/* Detail */}
+              <Panel>
+                {selected ? (
+                  <ResponseDetail row={selected} />
+                ) : (
+                  <p className="text-sm text-sbi-muted text-center py-12">
+                    Select a submission to view its answers.
+                  </p>
+                )}
+              </Panel>
+            </div>
           </motion.div>
         )}
       </main>

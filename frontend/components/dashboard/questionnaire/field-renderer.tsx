@@ -6,6 +6,7 @@ import {
   btnGhost,
   inputClass,
   labelClass,
+  SelectField,
 } from "@/components/dashboard/common/ui";
 import {
   createAttachmentSignedUrl,
@@ -119,8 +120,7 @@ export function FieldRenderer({
       )}
 
       {field.type === "dropdown" && (
-        <select
-          className={inputClass}
+        <SelectField
           value={typeof value === "string" ? value : ""}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
@@ -131,7 +131,7 @@ export function FieldRenderer({
               {opt.label}
             </option>
           ))}
-        </select>
+        </SelectField>
       )}
 
       {field.type === "radio" && (

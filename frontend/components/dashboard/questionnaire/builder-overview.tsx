@@ -86,11 +86,13 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
               <StatTile
                 label="Total Forms"
                 value={totalForms}
+                sublabel="Drafts and published"
                 icon={<ClipboardList className="h-4 w-4" />}
               />
               <StatTile
                 label="Published"
                 value={published}
+                sublabel="Visible to clients"
                 tone="accent"
                 icon={<CheckCircle2 className="h-4 w-4" />}
               />

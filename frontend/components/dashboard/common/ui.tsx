@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
+import type { ReactNode, SelectHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export { Modal } from "./Modal";
@@ -242,6 +243,32 @@ export const labelClass =
 export const inputClass =
   "w-full bg-sbi-dark-card text-white border border-sbi-dark-border/50 rounded-md px-3 py-2 text-sm " +
   "placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/50 transition-colors disabled:opacity-50";
+
+/**
+ * Dark <select> with a custom chevron inset from the right edge (the native
+ * arrow sits flush against the border). `className` lands on the wrapper so
+ * layout utilities like margins still work; pass select props through directly.
+ */
+export function SelectField({
+  className,
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className={cn("relative", className)}>
+      <select
+        {...props}
+        className={cn(inputClass, "w-full appearance-none pr-9")}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        aria-hidden
+        className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-sbi-muted-dark"
+      />
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Button class language (outlined green → fills on hover; public-site match)

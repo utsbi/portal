@@ -28,6 +28,7 @@ import {
   PageHeader,
   Panel,
   SectionLabel,
+  SelectField,
 } from "@/components/dashboard/common/ui";
 import type { DirectorProject } from "@/lib/data/questionnaire";
 import { toastError, toastSuccess } from "@/lib/notifications";
@@ -567,8 +568,8 @@ function FieldEditor({
               </div>
               <div>
                 <span className={cn("block", labelClass)}>Type</span>
-                <select
-                  className={cn(inputClass, "mt-1.5")}
+                <SelectField
+                  className="mt-1.5"
                   value={field.type}
                   onChange={(e) => {
                     const type = e.target.value as FieldType;
@@ -590,7 +591,7 @@ function FieldEditor({
                       {FIELD_TYPE_LABELS[t]}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
             </div>
 
@@ -912,8 +913,7 @@ function ConditionEditor({
 
       {enabled && rule && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <select
-            className={inputClass}
+          <SelectField
             value={rule.fieldId}
             onChange={(e) =>
               onChange({
@@ -926,9 +926,8 @@ function ConditionEditor({
                 {f.label}
               </option>
             ))}
-          </select>
-          <select
-            className={inputClass}
+          </SelectField>
+          <SelectField
             value={rule.operator}
             onChange={(e) =>
               onChange({
@@ -943,11 +942,10 @@ function ConditionEditor({
                 {OPERATOR_LABELS[op]}
               </option>
             ))}
-          </select>
+          </SelectField>
           {needsValue &&
             (refField?.options && refField.options.length > 0 ? (
-              <select
-                className={inputClass}
+              <SelectField
                 value={rule.value ?? ""}
                 onChange={(e) =>
                   onChange({ conditions: [{ ...rule, value: e.target.value }] })
@@ -959,7 +957,7 @@ function ConditionEditor({
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             ) : (
               <input
                 className={inputClass}
