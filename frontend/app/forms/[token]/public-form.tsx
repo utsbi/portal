@@ -269,7 +269,7 @@ export function PublicForm({
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
                   siteKey={TURNSTILE_SITE_KEY}
-                  options={{ theme: "dark" }}
+                  options={{ theme: "dark", appearance: "interaction-only" }}
                   onSuccess={(t) => setTurnstileToken(t)}
                   onError={() => setTurnstileToken(null)}
                   onExpire={() => setTurnstileToken(null)}

@@ -247,23 +247,35 @@ export function FormBuilder({
     toastSuccess("Saved as a template.");
   };
 
-  // Debounced autosave for existing forms: persists title/description/fields and
-  // re-syncs assignments only when they changed. Skips the initial mount and any
-  // moment a manual Save/Publish is in flight.
+  // Debounced autosave. Once the form has a title it persists on its own: a
+  // brand-new form is auto-created on the first edit (then updated), so there is
+  // no "save first" step. Skips the initial mount and any moment a manual
+  // Save/Publish is in flight. Does not toggle `saving` (that would re-trigger
+  // this effect and loop) — create/update are inlined here.
   useEffect(() => {
     if (skipFirstAutosave.current) {
       skipFirstAutosave.current = false;
       return;
     }
-    if (currentFormId === undefined || !title.trim() || saving) return;
+    if (!title.trim() || saving) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(async () => {
-      const id = currentFormId;
       setAutoSave("saving");
-      const res = await updateForm({ id, title, description, schema });
-      if (isActionError(res)) {
-        setAutoSave("error");
-        return;
+      let id = currentFormId;
+      if (id === undefined) {
+        const res = await createForm({ title, description, schema });
+        if (isActionError(res)) {
+          setAutoSave("error");
+          return;
+        }
+        id = res.id;
+        setCurrentFormId(res.id);
+      } else {
+        const res = await updateForm({ id, title, description, schema });
+        if (isActionError(res)) {
+          setAutoSave("error");
+          return;
+        }
       }
       const assignedKey = JSON.stringify([...assigned].sort((a, b) => a - b));
       if (assignedKey !== lastAssignedRef.current) {
@@ -288,7 +300,7 @@ export function FormBuilder({
         }
         action={
           <div className="flex items-center gap-2">
-            {currentFormId !== undefined && <AutoSaveBadge state={autoSave} />}
+            <AutoSaveBadge state={autoSave} />
             <button
               type="button"
               className={cn(btnGhost, "h-9")}
@@ -866,9 +878,9 @@ function FieldEditor({
         onDragEndItem();
       }}
       className={cn(
-        "rounded-xl transition-all",
+        "rounded-xl border-2 border-transparent transition-colors",
         isDragging && "opacity-40",
-        isOver && "ring-2 ring-sbi-green/50",
+        isOver && "border-sbi-green/60",
       )}
     >
       <Panel
@@ -1073,6 +1085,9 @@ function ImageConfig({
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const url = field.imageUrl ?? "";
+  const isUploaded = url.includes("/questionnaire-images/");
+
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (inputRef.current) inputRef.current.value = "";
@@ -1088,46 +1103,81 @@ function ImageConfig({
     onChange({ imageUrl: res.url });
   };
 
+  const handleRemove = () => {
+    setErr(null);
+    onChange({ imageUrl: undefined });
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <span className={cn("block", labelClass)}>Image</span>
-      <div className="flex items-center gap-2">
-        <input
-          className={inputClass}
-          placeholder="Paste an image URL"
-          value={field.imageUrl ?? ""}
-          onChange={(e) => onChange({ imageUrl: e.target.value || undefined })}
-        />
-        <input
-          ref={inputRef}
-          id={inputId}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          disabled={uploading}
-          onChange={handleFile}
-        />
-        <label
-          htmlFor={inputId}
-          className={cn(
-            btnGhost,
-            "h-9 px-3 shrink-0 cursor-pointer",
-            uploading && "pointer-events-none opacity-50",
+
+      {isUploaded ? (
+        // Uploaded: hide the raw URL; just show status + remove.
+        <div className="flex items-center gap-2 rounded-md border border-sbi-dark-border/50 bg-sbi-dark-card px-3 py-2">
+          <Check className="size-4 text-sbi-green shrink-0" />
+          <span className="flex-1 text-sm text-white/85">Image uploaded</span>
+          <button
+            type="button"
+            onClick={handleRemove}
+            className={cn(btnGhost, "h-8 px-3 text-[11px] shrink-0")}
+          >
+            <Trash2 className="size-3.5" /> Remove
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <input
+            className={inputClass}
+            placeholder="Paste an image URL"
+            value={url}
+            onChange={(e) =>
+              onChange({ imageUrl: e.target.value || undefined })
+            }
+          />
+          <input
+            ref={inputRef}
+            id={inputId}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={uploading}
+            onChange={handleFile}
+          />
+          <label
+            htmlFor={inputId}
+            className={cn(
+              btnGhost,
+              "h-9 px-3 shrink-0 cursor-pointer",
+              uploading && "pointer-events-none opacity-50",
+            )}
+          >
+            {uploading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <>
+                <Upload className="size-4" /> Upload
+              </>
+            )}
+          </label>
+          {url && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              aria-label="Remove image"
+              title="Remove"
+              className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+            >
+              <Trash2 className="size-4" />
+            </button>
           )}
-        >
-          {uploading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <>
-              <Upload className="size-4" /> Upload
-            </>
-          )}
-        </label>
-      </div>
-      {field.imageUrl && (
+        </div>
+      )}
+
+      {url && (
         // biome-ignore lint/performance/noImgElement: arbitrary uploaded/external image URL.
         <img
-          src={field.imageUrl}
+          src={url}
           alt=""
           className="max-h-40 w-auto rounded-md border border-sbi-dark-border/40 object-contain"
         />
@@ -1158,12 +1208,62 @@ function OptionsEditor({
       },
     ]);
   const remove = (i: number) => onChange(options.filter((_, idx) => idx !== i));
+  const move = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= options.length) return;
+    const next = [...options];
+    const [m] = next.splice(from, 1);
+    next.splice(to, 0, m);
+    onChange(next);
+  };
+
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+  const [grabbedIdx, setGrabbedIdx] = useState<number | null>(null);
 
   return (
     <div className="flex flex-col gap-2">
       <span className={cn("block", labelClass)}>Options</span>
       {options.map((opt, i) => (
-        <div key={opt.value} className="flex items-center gap-2">
+        // biome-ignore lint/a11y/noStaticElementInteractions: native drag drop target; the grip <button> is the control.
+        <div
+          key={opt.value}
+          draggable={grabbedIdx === i}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = "move";
+            setDragIdx(i);
+          }}
+          onDragEnter={() => setOverIdx(i)}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (dragIdx !== null) move(dragIdx, i);
+            setDragIdx(null);
+            setOverIdx(null);
+          }}
+          onDragEnd={() => {
+            setGrabbedIdx(null);
+            setDragIdx(null);
+            setOverIdx(null);
+          }}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md border border-transparent transition-colors",
+            dragIdx === i && "opacity-40",
+            overIdx === i &&
+              dragIdx !== null &&
+              dragIdx !== i &&
+              "border-sbi-green/60",
+          )}
+        >
+          <button
+            type="button"
+            aria-label="Drag to reorder option"
+            title="Drag to reorder"
+            onMouseDown={() => setGrabbedIdx(i)}
+            onMouseUp={() => setGrabbedIdx(null)}
+            className="flex shrink-0 items-center justify-center cursor-grab active:cursor-grabbing touch-none p-0.5 text-sbi-muted-dark hover:text-sbi-muted transition-colors"
+          >
+            <GripVertical className="size-4" />
+          </button>
           <input
             className={inputClass}
             value={opt.label}
@@ -1246,12 +1346,14 @@ function ValidationEditor({
           value={v.minLength}
           onChange={(n) => set({ minLength: n })}
           allowEmpty
+          hint={wordEstimate(v.minLength)}
         />
         <NumberInput
           label="Max length"
           value={v.maxLength}
           onChange={(n) => set({ maxLength: n })}
           allowEmpty
+          hint={wordEstimate(v.maxLength)}
         />
       </div>
     );
@@ -1277,20 +1379,35 @@ function ValidationEditor({
   return null;
 }
 
+/** Rough word estimate from a character count (~6 chars per word w/ spaces). */
+function wordEstimate(chars: number | undefined): string | undefined {
+  if (!chars || chars < 1) return undefined;
+  return `~${Math.max(1, Math.round(chars / 6))} words`;
+}
+
 function NumberInput({
   label,
   value,
   onChange,
   allowEmpty,
+  hint,
 }: {
   label: string;
   value: number | undefined;
   onChange: (n: number | undefined) => void;
   allowEmpty?: boolean;
+  hint?: string;
 }) {
   return (
     <div>
-      <span className={cn("block", labelClass)}>{label}</span>
+      <div className="flex h-4 items-baseline justify-between gap-2 overflow-hidden">
+        <span className={cn(labelClass, "shrink-0")}>{label}</span>
+        {hint && (
+          <span className="truncate text-[11px] italic text-sbi-muted-dark">
+            {hint}
+          </span>
+        )}
+      </div>
       <input
         type="number"
         className={cn(inputClass, "mt-1.5")}

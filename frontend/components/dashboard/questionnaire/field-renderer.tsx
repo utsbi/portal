@@ -244,6 +244,24 @@ export function FieldRenderer({
           </p>
         ))}
 
+      {(field.type === "short_text" || field.type === "paragraph") &&
+        field.validation?.maxLength !== undefined && (
+          <div className="flex justify-end">
+            <span
+              className={cn(
+                "text-[11px] tabular-nums",
+                (typeof value === "string" ? value.length : 0) >
+                  field.validation.maxLength
+                  ? "text-red-400"
+                  : "text-sbi-muted-dark",
+              )}
+            >
+              {typeof value === "string" ? value.length : 0} /{" "}
+              {field.validation.maxLength}
+            </span>
+          </div>
+        )}
+
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );
