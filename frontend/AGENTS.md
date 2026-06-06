@@ -190,6 +190,7 @@ NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 SUPABASE_SECRET_KEY=
 TURNSTILE_SECRET_KEY=
 N8N_CONTACT_WEBHOOK_URL=
+DISCORD_FORM_WEBHOOK_URL=
 BASIC_AUTH_USER=
 BASIC_AUTH_PASSWORD=
 GOOGLE_CLIENT_ID=
@@ -203,6 +204,7 @@ GOOGLE_REDIRECT_URI=
 | `SUPABASE_SECRET_KEY` | Server only | Service role key for admin APIs, Google OAuth token storage, seed scripts |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | Client / server | Cloudflare Turnstile (contact form) |
 | `N8N_CONTACT_WEBHOOK_URL` | Server only | n8n webhook for contact form submissions |
+| `DISCORD_FORM_WEBHOOK_URL` | Server only | Optional. Discord webhook notified on each questionnaire submission (no-op if unset) |
 | `BASIC_AUTH_*` | Server only | HTTP basic auth for protected routes |
 | `GOOGLE_*` | Server only | Google Calendar OAuth for dashboard contact/calendar APIs |
 

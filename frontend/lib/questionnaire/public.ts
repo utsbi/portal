@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { notifyFormSubmission } from "@/lib/questionnaire/notify";
 import {
   type AnswerMap,
   type FormSchema,
@@ -203,5 +204,12 @@ export async function submitPublicForm(
     submitter_email: email,
   });
   if (error) return { error: "Could not submit. Please try again." };
+
+  await notifyFormSubmission({
+    formId: row.id,
+    via: "public",
+    submitterName: name,
+    submitterEmail: email,
+  });
   return { ok: true };
 }

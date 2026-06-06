@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { notifyFormSubmission } from "@/lib/questionnaire/notify";
 import { generatePublicToken, hashPassword } from "@/lib/questionnaire/public";
 import type { AnswerMap } from "@/lib/questionnaire/schema";
 import {
@@ -318,6 +319,11 @@ export async function submitForm(input: {
     .single();
 
   if (error) return { error: error.message };
+  await notifyFormSubmission({
+    formId: input.formId,
+    via: "portal",
+    userId: gate.userId,
+  });
   revalidatePath(QUESTIONNAIRE_PATH);
   return { submissionId: data.id };
 }
