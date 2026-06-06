@@ -11,7 +11,7 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isActionError } from "@/app/dashboard/questionnaire/action-types";
 import {
   createForm,
@@ -55,6 +55,8 @@ interface FormBuilderProps {
   initialAssignedProjectIds?: number[];
 }
 
+type AutoSaveState = "idle" | "saving" | "saved" | "error";
+
 export function FormBuilder({
   mode,
   formId,
@@ -75,6 +77,15 @@ export function FormBuilder({
   const [saving, setSaving] = useState(false);
   const [currentFormId, setCurrentFormId] = useState<number | undefined>(
     formId,
+  );
+
+  // Autosave (existing forms only; creating a new form stays an explicit Save
+  // so we don't auto-create empty drafts).
+  const [autoSave, setAutoSave] = useState<AutoSaveState>("idle");
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipFirstAutosave = useRef(true);
+  const lastAssignedRef = useRef<string>(
+    JSON.stringify([...initialAssignedProjectIds].sort((a, b) => a - b)),
   );
 
   // Fields that can be referenced by conditional logic = answerable fields that
@@ -156,10 +167,15 @@ export function FormBuilder({
   };
 
   const handleSave = async () => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     const id = await persist();
     if (id === null) return;
     // Sync assignments + active state.
     await setAssignments({ formId: id, projectIds: assigned });
+    lastAssignedRef.current = JSON.stringify(
+      [...assigned].sort((a, b) => a - b),
+    );
+    setAutoSave("saved");
     toastSuccess("Form saved.");
     if (mode === "create") {
       router.push(`/dashboard/questionnaire/builder/${id}`);
@@ -170,6 +186,7 @@ export function FormBuilder({
   };
 
   const handlePublishToggle = async () => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     const id = await persist();
     if (id === null) return;
     const next = !active;
@@ -179,6 +196,10 @@ export function FormBuilder({
       return;
     }
     await setAssignments({ formId: id, projectIds: assigned });
+    lastAssignedRef.current = JSON.stringify(
+      [...assigned].sort((a, b) => a - b),
+    );
+    setAutoSave("saved");
     setActive(next);
     toastSuccess(next ? "Form published." : "Form unpublished.");
     router.refresh();
@@ -188,6 +209,36 @@ export function FormBuilder({
     setAssigned((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
     );
+
+  // Debounced autosave for existing forms: persists title/description/fields and
+  // re-syncs assignments only when they changed. Skips the initial mount and any
+  // moment a manual Save/Publish is in flight.
+  useEffect(() => {
+    if (skipFirstAutosave.current) {
+      skipFirstAutosave.current = false;
+      return;
+    }
+    if (currentFormId === undefined || !title.trim() || saving) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(async () => {
+      const id = currentFormId;
+      setAutoSave("saving");
+      const res = await updateForm({ id, title, description, schema });
+      if (isActionError(res)) {
+        setAutoSave("error");
+        return;
+      }
+      const assignedKey = JSON.stringify([...assigned].sort((a, b) => a - b));
+      if (assignedKey !== lastAssignedRef.current) {
+        const ares = await setAssignments({ formId: id, projectIds: assigned });
+        if (!isActionError(ares)) lastAssignedRef.current = assignedKey;
+      }
+      setAutoSave("saved");
+    }, 1000);
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+  }, [title, description, schema, assigned, currentFormId, saving]);
 
   return (
     <DashboardShell>
@@ -200,6 +251,7 @@ export function FormBuilder({
         }
         action={
           <div className="flex items-center gap-2">
+            {currentFormId !== undefined && <AutoSaveBadge state={autoSave} />}
             <Link
               href="/dashboard/questionnaire/builder"
               className={cn(btnGhost, "h-9")}
@@ -324,6 +376,20 @@ export function FormBuilder({
       </main>
     </DashboardShell>
   );
+}
+
+function AutoSaveBadge({ state }: { state: AutoSaveState }) {
+  if (state === "saving")
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-sbi-muted">
+        <Loader2 className="size-3 animate-spin" /> Saving…
+      </span>
+    );
+  if (state === "saved")
+    return <span className="text-xs text-sbi-green/80">Saved</span>;
+  if (state === "error")
+    return <span className="text-xs text-red-400">Couldn’t save</span>;
+  return <span className="text-xs text-sbi-muted-dark">Autosaves changes</span>;
 }
 
 // ---------------------------------------------------------------------------
