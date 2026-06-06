@@ -120,7 +120,7 @@ export function ExploreChat() {
   const searchParams = useSearchParams();
   const {
     messages,
-    sessionId,
+    sessionPublicId,
     clearChat,
     cancelRequest,
     processPendingMessage,
@@ -128,14 +128,13 @@ export function ExploreChat() {
   } = useChat();
   const mountedRef = useRef(false);
 
+  // The session is identified in the URL by its opaque public_id (uuid).
   const urlSession = searchParams.get('session');
-  const targetSessionId = urlSession ? Number.parseInt(urlSession, 10) : null;
-  const targetIsValid = targetSessionId !== null && !Number.isNaN(targetSessionId);
 
   // Mount-time hydration: pick exactly one of load / process-pending / redirect.
   useEffect(() => {
-    if (targetIsValid && targetSessionId !== null) {
-      loadSession(targetSessionId);
+    if (urlSession) {
+      loadSession(urlSession);
     } else if (messages.length > 0) {
       processPendingMessage();
     } else {
@@ -145,12 +144,13 @@ export function ExploreChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Push session id into the URL whenever it diverges (new sessions created server-side).
+  // Reflect the conversation's public_id in the URL once we have it (e.g. after
+  // the backend creates a new session for the first message).
   useEffect(() => {
-    if (sessionId !== null && sessionId !== targetSessionId) {
-      router.replace(`/dashboard/explore?session=${sessionId}`, { scroll: false });
+    if (sessionPublicId && sessionPublicId !== urlSession) {
+      router.replace(`/dashboard/explore?session=${sessionPublicId}`, { scroll: false });
     }
-  }, [sessionId, targetSessionId, router]);
+  }, [sessionPublicId, urlSession, router]);
 
   // Cleanup on page unload/refresh.
   useEffect(() => {

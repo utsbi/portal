@@ -26,6 +26,7 @@ export interface DisplayMessage {
 
 export interface SessionSummary {
   id: number;
+  public_id: string;
   title: string | null;
   updated_at: string | null;
   project_id: number | null;
@@ -34,6 +35,7 @@ export interface SessionSummary {
 interface ChatContextType {
   messages: DisplayMessage[];
   sessionId: number | null;
+  sessionPublicId: string | null;
   loadingPhase: LoadingPhase;
   isLoading: boolean;
   error: string | null;
@@ -51,7 +53,7 @@ interface ChatContextType {
   editAndResend: (messageId: string, newContent: string) => Promise<void>;
   regenerateResponse: () => Promise<void>;
   newSession: () => void;
-  loadSession: (sessionId: number) => Promise<void>;
+  loadSession: (publicId: string) => Promise<void>;
   listSessions: () => Promise<SessionSummary[]>;
   renameSession: (sessionId: number, title: string) => Promise<void>;
   deleteSession: (sessionId: number) => Promise<void>;
@@ -62,6 +64,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [sessionId, setSessionIdState] = useState<number | null>(null);
+  const [sessionPublicId, setSessionPublicIdState] = useState<string | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
@@ -82,6 +85,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     sessionIdRef.current = id;
     setSessionIdState(id);
   }, []);
+
+  const setSessionPublicId = useCallback((pid: string | null) => {
+    setSessionPublicIdState(pid);
+  }, []);
+
+  // Resolve a session's opaque public_id from its bigint id (used after the
+  // backend creates a new session and only returns the numeric id).
+  const syncPublicId = useCallback(async (id: number) => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("client_chat_sessions")
+      .select("public_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (data?.public_id) setSessionPublicId(data.public_id as string);
+  }, [setSessionPublicId]);
 
   const collectSessionAttachments = useCallback((msgs: DisplayMessage[], extraAttachments?: AttachmentFile[]): AttachmentFile[] => {
     const seen = new Set<string>();
@@ -161,7 +180,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           }
         },
         (newSessionId) => {
-          if (sessionIdRef.current !== newSessionId) setSessionId(newSessionId);
+          if (sessionIdRef.current !== newSessionId) {
+            setSessionId(newSessionId);
+            void syncPublicId(newSessionId);
+          }
         },
       );
 
@@ -202,7 +224,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [modelPreference, handlePhase, setSessionId]);
+  }, [modelPreference, handlePhase, setSessionId, syncPublicId]);
 
   const sendMessage = useCallback(async (query: string) => {
     if (!query.trim()) return;
@@ -381,14 +403,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoadingPhase("idle");
     setError(null);
     setSessionId(null);
-  }, [setSessionId]);
+    setSessionPublicId(null);
+  }, [setSessionId, setSessionPublicId]);
 
   const clearChat = useCallback(() => {
     // Alias retained for legacy callers (page unmount cleanup). Same behavior as newSession.
     newSession();
   }, [newSession]);
 
-  const loadSession = useCallback(async (id: number) => {
+  const loadSession = useCallback(async (publicId: string) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -398,10 +421,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoadingPhase("idle");
 
     const supabase = createClient();
+    // Resolve the opaque public_id to the bigint id (RLS scopes to the owner).
+    const { data: session, error: sessErr } = await supabase
+      .from("client_chat_sessions")
+      .select("id, public_id")
+      .eq("public_id", publicId)
+      .maybeSingle();
+
+    if (sessErr || !session) {
+      setError("Conversation not found.");
+      return;
+    }
+
     const { data, error: fetchErr } = await supabase
       .from("client_chat_messages")
       .select("id, role, content, sources, attachments, is_cancelled, created_at")
-      .eq("session_id", id)
+      .eq("session_id", session.id)
       .order("created_at", { ascending: true });
 
     if (fetchErr) {
@@ -424,14 +459,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setMessages(hydrated);
     setAttachments([]);
     setLoadingAttachments([]);
-    setSessionId(id);
-  }, [setSessionId]);
+    setSessionId(session.id);
+    setSessionPublicId(session.public_id as string);
+  }, [setSessionId, setSessionPublicId]);
 
   const listSessions = useCallback(async (): Promise<SessionSummary[]> => {
     const supabase = createClient();
     const { data, error: fetchErr } = await supabase
       .from("client_chat_sessions")
-      .select("id, title, updated_at, project_id")
+      .select("id, public_id, title, updated_at, project_id")
       .order("updated_at", { ascending: false, nullsFirst: false });
 
     if (fetchErr) {
@@ -472,6 +508,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       value={{
         messages,
         sessionId,
+        sessionPublicId,
         loadingPhase,
         isLoading,
         error,
