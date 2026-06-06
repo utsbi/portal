@@ -320,3 +320,41 @@ export async function submitForm(input: {
   revalidatePath(QUESTIONNAIRE_PATH);
   return { submissionId: data.id };
 }
+
+// ---------------------------------------------------------------------------
+// Director — restore a previous form version (non-destructive).
+// Re-applies a snapshot's fields as a new edit; the DB trigger bumps the
+// version + snapshots it, so prior versions are preserved.
+// ---------------------------------------------------------------------------
+
+export async function restoreFormVersion(input: {
+  formId: number;
+  version: number;
+}): Promise<ActionResult<{ version: number }>> {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  if (!(await ownsForm(gate.supabase, gate.userId, input.formId))) {
+    return { error: "Form not found or not owned by you" };
+  }
+
+  const { data: snap } = await gate.supabase
+    .from("custom_form_schema_versions")
+    .select("fields")
+    .eq("form_id", input.formId)
+    .eq("version", input.version)
+    .maybeSingle();
+  if (!snap) return { error: "That version no longer exists" };
+
+  const { data, error } = await gate.supabase
+    .from("custom_form_schemas")
+    .update({ fields: snap.fields })
+    .eq("id", input.formId)
+    .select("version")
+    .single();
+
+  if (error) return { error: error.message };
+  revalidatePath(BUILDER_PATH);
+  revalidatePath(`${BUILDER_PATH}/${input.formId}`);
+  revalidatePath(`${BUILDER_PATH}/${input.formId}/history`);
+  return { version: data.version ?? input.version };
+}

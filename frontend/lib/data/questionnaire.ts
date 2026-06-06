@@ -566,3 +566,68 @@ export async function fetchResponsesData(
 
   return { formId, title: schema.title, schema: parsed, rows };
 }
+
+// ---------------------------------------------------------------------------
+// DIRECTOR form version history: every snapshotted version of a form's fields.
+// ---------------------------------------------------------------------------
+
+export interface FormVersionView {
+  version: number;
+  createdAt: string | null;
+  questionCount: number;
+  sectionCount: number;
+  schema: FormSchema;
+  isCurrent: boolean;
+}
+
+export interface FormHistoryData {
+  formId: number;
+  title: string;
+  currentVersion: number;
+  versions: FormVersionView[];
+}
+
+export async function fetchFormHistory(
+  formId: number,
+): Promise<
+  | FormHistoryData
+  | { redirect: string }
+  | { forbidden: true }
+  | { notFound: true }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { redirect: "/login" };
+
+  const { data: schema } = await supabase
+    .from("custom_form_schemas")
+    .select("id, title, version, created_by")
+    .eq("id", formId)
+    .maybeSingle();
+  if (!schema) return { notFound: true };
+  if (schema.created_by !== user.id) return { forbidden: true };
+
+  const currentVersion = schema.version ?? 1;
+
+  const { data: rows } = await supabase
+    .from("custom_form_schema_versions")
+    .select("version, fields, created_at")
+    .eq("form_id", formId)
+    .order("version", { ascending: false });
+
+  const versions: FormVersionView[] = (rows ?? []).map((r) => {
+    const parsed = parseFormSchema(r.fields);
+    return {
+      version: r.version,
+      createdAt: r.created_at,
+      questionCount: countQuestions(parsed),
+      sectionCount: parsed.fields.filter((f) => f.type === "section").length,
+      schema: parsed,
+      isCurrent: r.version === currentVersion,
+    };
+  });
+
+  return { formId, title: schema.title, currentVersion, versions };
+}

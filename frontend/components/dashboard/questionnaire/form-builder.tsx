@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Copy,
   GripVertical,
+  History,
   Loader2,
   Plus,
   Trash2,
@@ -253,6 +254,14 @@ export function FormBuilder({
         action={
           <div className="flex items-center gap-2">
             {currentFormId !== undefined && <AutoSaveBadge state={autoSave} />}
+            {currentFormId !== undefined && (
+              <Link
+                href={`/dashboard/questionnaire/builder/${currentFormId}/history`}
+                className={cn(btnGhost, "h-9")}
+              >
+                <History className="size-4" /> History
+              </Link>
+            )}
             <Link
               href="/dashboard/questionnaire/builder"
               className={cn(btnGhost, "h-9")}
