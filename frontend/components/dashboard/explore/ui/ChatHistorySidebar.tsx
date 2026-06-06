@@ -3,6 +3,7 @@
 import {
   History,
   MessageSquarePlus,
+  MessagesSquare,
   MoreHorizontal,
   PanelRightClose,
   Pencil,
@@ -11,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { motion, type Variants } from "motion/react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -40,35 +41,45 @@ const NOTION_EASE = [0.165, 0.84, 0.44, 1] as const;
 
 // Three states, morphing the SAME element so float->dock tweens smoothly:
 //  - hidden: parked off the right edge, transparent
-//  - peek:   floating rounded card, inset from the edges, with a drop shadow
-//  - locked: docked flush, square corners, no shadow
+//  - peek:   ~70%-height panel hugging the right edge; only the LEFT corners are
+//            rounded (the right side sits on the edge), with a leftward shadow
+//  - locked: docked flush full-height, square corners, no shadow
 const panelVariants: Variants = {
   hidden: {
     x: SIDEBAR_WIDTH + 24,
     opacity: 0,
-    top: 12,
-    right: 12,
-    bottom: 12,
-    borderRadius: 12,
-    boxShadow: "0 24px 60px -12px rgba(0,0,0,0)",
+    top: "7.5%",
+    bottom: "7.5%",
+    right: 0,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    boxShadow: "-10px 0 50px -12px rgba(0,0,0,0)",
   },
   peek: {
     x: 0,
     opacity: 1,
-    top: 12,
-    right: 12,
-    bottom: 12,
-    borderRadius: 12,
-    boxShadow: "0 24px 60px -12px rgba(0,0,0,0.75)",
+    top: "7.5%",
+    bottom: "7.5%",
+    right: 0,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    boxShadow: "-10px 0 50px -12px rgba(0,0,0,0.7)",
   },
   locked: {
     x: 0,
     opacity: 1,
-    top: 0,
+    top: "0%",
+    bottom: "0%",
     right: 0,
-    bottom: 0,
-    borderRadius: 0,
-    boxShadow: "0 24px 60px -12px rgba(0,0,0,0)",
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    boxShadow: "-10px 0 50px -12px rgba(0,0,0,0)",
   },
 };
 
@@ -92,7 +103,6 @@ function bucketFor(iso: string | null): Bucket {
 }
 
 export function ChatHistorySidebar() {
-  const router = useRouter();
   const {
     listSessions,
     loadSession,
@@ -127,11 +137,12 @@ export function ChatHistorySidebar() {
     } catch {}
   }, []);
 
-  // Load the conversation list whenever the panel opens.
+  // Prefetch the conversation list on mount (so it's instant the first time the
+  // panel is opened), and refresh it whenever the panel opens. Only show the
+  // loading state on the very first fetch; later refreshes update silently.
   useEffect(() => {
-    if (!open) return;
     let cancelled = false;
-    setLoading(true);
+    if (sessions.length === 0) setLoading(true);
     listSessions()
       .then((list) => {
         if (!cancelled) setSessions(list);
@@ -142,6 +153,7 @@ export function ChatHistorySidebar() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, listSessions]);
 
   useEffect(() => {
@@ -178,16 +190,21 @@ export function ChatHistorySidebar() {
     if (!pinned) setPeek(false);
   };
 
-  const handleSelect = async (publicId: string) => {
+  // The sidebar always lives inside the Explore surface, so switch conversations
+  // by mutating chat state + the URL directly (history.replaceState) rather than
+  // navigating. A Next navigation would remount the surface (and, because the
+  // URL was previously set with replaceState, router.push to /new is a no-op
+  // since Next still thinks it's there). This keeps it instant and reliable.
+  const handleSelect = (publicId: string) => {
     collapseIfFloating();
-    await loadSession(publicId);
-    router.replace(`/dashboard/explore?session=${publicId}`, { scroll: false });
+    void loadSession(publicId);
+    window.history.replaceState(null, "", `/dashboard/explore/${publicId}`);
   };
 
   const handleNewChat = () => {
     collapseIfFloating();
     newSession();
-    router.push("/dashboard");
+    window.history.replaceState(null, "", "/dashboard/explore/new");
   };
 
   const beginRename = (s: SessionSummary) => {
@@ -216,7 +233,8 @@ export function ChatHistorySidebar() {
     setDeleteTarget(null);
     if (sessionId === target.id) {
       collapseIfFloating();
-      router.push("/dashboard");
+      newSession();
+      window.history.replaceState(null, "", "/dashboard/explore/new");
     }
   };
 
@@ -245,24 +263,24 @@ export function ChatHistorySidebar() {
 
   return (
     <>
-      {/* Collapsed trigger + edge hover zone (hidden while pinned). */}
+      {/* Collapsed affordance: an always-visible tab on the right edge so the
+          panel is discoverable. Hovering peeks it open; clicking locks it. A thin
+          edge strip widens the hover target. Both hide once the panel is open. */}
       {!pinned && (
         <>
-          {/* Invisible full-height strip on the right edge that peeks on hover. */}
           <div
-            className="absolute top-0 right-0 z-30 h-full w-3"
+            className="absolute top-0 right-0 z-30 h-full w-4"
             onMouseEnter={openPeek}
           />
-          {/* Visible collapsed handle. */}
           <button
             type="button"
             onMouseEnter={openPeek}
-            onClick={openPeek}
+            onClick={togglePin}
             aria-label="Open chat history"
-            title="Chat history"
+            title="Chat history — hover to peek, click to keep open"
             className={cn(
-              "absolute top-4 right-4 z-30 h-9 w-9 inline-flex items-center justify-center rounded-full text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark-card/40 transition-opacity duration-150",
-              open && "opacity-0 pointer-events-none",
+              "absolute right-0 top-1/2 -translate-y-1/2 z-30 inline-flex items-center justify-center rounded-l-xl border border-r-0 border-sbi-dark-border bg-sbi-dark-card py-4 pl-2.5 pr-2 text-sbi-muted shadow-lg shadow-black/30 transition-all duration-200 hover:text-sbi-green hover:pr-3",
+              open && "opacity-0 pointer-events-none translate-x-4",
             )}
           >
             <History className="h-4 w-4" strokeWidth={1.5} />
@@ -286,7 +304,7 @@ export function ChatHistorySidebar() {
           zIndex: 40,
           pointerEvents: open ? "auto" : "none",
         }}
-        className="flex flex-col overflow-hidden bg-sbi-dark border border-sbi-dark-border"
+        className="flex flex-col overflow-hidden bg-sbi-dark border border-sbi-dark-border/50 border-t-sbi-dark-border/20"
         aria-hidden={!open}
       >
         <div className="flex items-center justify-between px-3 pt-4 pb-2">
@@ -311,7 +329,7 @@ export function ChatHistorySidebar() {
         <div className="px-3 space-y-2">
           <div className="relative">
             <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sbi-muted-dark"
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sbi-muted"
               strokeWidth={1.5}
             />
             <input
@@ -319,17 +337,25 @@ export function ChatHistorySidebar() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search…"
-              className="w-full h-8 pl-8 pr-3 rounded-md bg-sbi-dark-card/40 text-[13px] text-white placeholder:text-sbi-muted-dark focus:outline-none focus:bg-sbi-dark-card/70 transition-colors"
+              className="w-full h-8 pl-8 pr-3 rounded-md bg-sbi-dark-card/60 border border-sbi-dark-border text-[13px] text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
             />
           </div>
           <button
             type="button"
             onClick={handleNewChat}
-            className="w-full flex items-center gap-2 px-2 h-8 rounded-md text-[13px] text-sbi-muted hover:text-white hover:bg-sbi-dark-card/50 transition-colors"
+            className="w-full flex items-center gap-2 px-2 h-8 rounded-md text-[13px] text-sbi-muted hover:text-white hover:bg-sbi-dark-card/60 transition-colors"
           >
             <MessageSquarePlus className="h-4 w-4" strokeWidth={1.5} />
             New chat
           </button>
+          <Link
+            href="/dashboard/chats"
+            onClick={collapseIfFloating}
+            className="w-full flex items-center gap-2 px-2 h-8 rounded-md text-[13px] text-sbi-muted hover:text-white hover:bg-sbi-dark-card/60 transition-colors"
+          >
+            <MessagesSquare className="h-4 w-4" strokeWidth={1.5} />
+            All chats
+          </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto dashboard-scrollbar px-2 pt-2 pb-3 mt-1">
@@ -364,8 +390,8 @@ export function ChatHistorySidebar() {
                       className={cn(
                         "group/item relative flex items-center rounded-md transition-colors",
                         isActive
-                          ? "bg-sbi-dark-card/60"
-                          : "hover:bg-sbi-dark-card/50",
+                          ? "bg-sbi-green/10"
+                          : "hover:bg-sbi-dark-card/60",
                       )}
                     >
                       {isEditing ? (
