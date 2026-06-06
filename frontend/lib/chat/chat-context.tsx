@@ -36,6 +36,7 @@ interface ChatContextType {
   messages: DisplayMessage[];
   sessionId: number | null;
   sessionPublicId: string | null;
+  sessionTitle: string | null;
   loadingPhase: LoadingPhase;
   isLoading: boolean;
   error: string | null;
@@ -44,8 +45,6 @@ interface ChatContextType {
   modelPreference: ModelPreference;
   setModelPreference: (model: ModelPreference) => void;
   sendMessage: (query: string) => Promise<void>;
-  queueMessage: (query: string) => void;
-  processPendingMessage: () => Promise<void>;
   addAttachment: (file: File) => Promise<void>;
   removeAttachment: (filename: string) => void;
   clearChat: () => void;
@@ -53,7 +52,7 @@ interface ChatContextType {
   editAndResend: (messageId: string, newContent: string) => Promise<void>;
   regenerateResponse: () => Promise<void>;
   newSession: () => void;
-  loadSession: (publicId: string) => Promise<void>;
+  loadSession: (publicId: string) => Promise<boolean>;
   listSessions: () => Promise<SessionSummary[]>;
   renameSession: (sessionId: number, title: string) => Promise<void>;
   deleteSession: (sessionId: number) => Promise<void>;
@@ -65,6 +64,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [sessionId, setSessionIdState] = useState<number | null>(null);
   const [sessionPublicId, setSessionPublicIdState] = useState<string | null>(null);
+  const [sessionTitle, setSessionTitle] = useState<string | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
@@ -73,11 +73,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
   const sessionIdRef = useRef<number | null>(null);
-  const pendingQueryRef = useRef<{
-    query: string;
-    savedAttachments: AttachmentFile[];
-    history: ChatMessage[];
-  } | null>(null);
 
   const isLoading = loadingPhase !== "idle" && loadingPhase !== "complete" && loadingPhase !== "error";
 
@@ -96,10 +91,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("client_chat_sessions")
-      .select("public_id")
+      .select("public_id, title")
       .eq("id", id)
       .maybeSingle();
     if (data?.public_id) setSessionPublicId(data.public_id as string);
+    if (data) setSessionTitle((data.title as string | null) ?? null);
   }, [setSessionPublicId]);
 
   const collectSessionAttachments = useCallback((msgs: DisplayMessage[], extraAttachments?: AttachmentFile[]): AttachmentFile[] => {
@@ -211,6 +207,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }]);
         setLoadingPhase("complete");
       }
+      // The backend auto-titles the session after the first turn; refresh the
+      // title (and public_id) so the header updates from "Untitled".
+      if (sessionIdRef.current !== null) void syncPublicId(sessionIdRef.current);
       return true;
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -254,44 +253,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const ok = await runAgent(query, history, allAttachments, abortController);
     if (ok) setAttachments([]);
   }, [messages, attachments, runAgent, collectSessionAttachments]);
-
-  const queueMessage = useCallback((query: string) => {
-    if (!query.trim()) return;
-
-    const messageAttachments: MessageAttachment[] = attachments.map(a => ({
-      filename: a.filename,
-      content: a.content,
-    }));
-
-    const userMessage: DisplayMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: query,
-      attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
-      timestamp: new Date(),
-    };
-
-    const history: ChatMessage[] = messages.map(m => ({ role: m.role, content: m.content }));
-    const allAttachments = collectSessionAttachments(messages, attachments);
-
-    pendingQueryRef.current = { query, savedAttachments: allAttachments, history };
-
-    setMessages(prev => [...prev, userMessage]);
-    setAttachments([]);
-  }, [attachments, messages, collectSessionAttachments]);
-
-  const processPendingMessage = useCallback(async () => {
-    const pending = pendingQueryRef.current;
-    if (!pending) return;
-    pendingQueryRef.current = null;
-
-    setError(null);
-    cancelledRef.current = false;
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    await runAgent(pending.query, pending.history, pending.savedAttachments, abortController);
-  }, [runAgent]);
 
   const addAttachment = useCallback(async (file: File) => {
     const filename = file.name;
@@ -396,7 +357,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    pendingQueryRef.current = null;
     setMessages([]);
     setAttachments([]);
     setLoadingAttachments([]);
@@ -404,6 +364,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setError(null);
     setSessionId(null);
     setSessionPublicId(null);
+    setSessionTitle(null);
   }, [setSessionId, setSessionPublicId]);
 
   const clearChat = useCallback(() => {
@@ -416,7 +377,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    pendingQueryRef.current = null;
     setError(null);
     setLoadingPhase("idle");
 
@@ -424,14 +384,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Resolve the opaque public_id to the bigint id (RLS scopes to the owner).
     const { data: session, error: sessErr } = await supabase
       .from("client_chat_sessions")
-      .select("id, public_id")
+      .select("id, public_id, title")
       .eq("public_id", publicId)
       .maybeSingle();
 
     if (sessErr || !session) {
-      setError("Conversation not found.");
-      return;
+      return false;
     }
+
+    setSessionTitle((session.title as string | null) ?? null);
 
     const { data, error: fetchErr } = await supabase
       .from("client_chat_messages")
@@ -441,7 +402,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     if (fetchErr) {
       setError(`Failed to load session: ${fetchErr.message}`);
-      return;
+      return false;
     }
 
     const hydrated: DisplayMessage[] = (data ?? [])
@@ -461,6 +422,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoadingAttachments([]);
     setSessionId(session.id);
     setSessionPublicId(session.public_id as string);
+    return true;
   }, [setSessionId, setSessionPublicId]);
 
   const listSessions = useCallback(async (): Promise<SessionSummary[]> => {
@@ -509,6 +471,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages,
         sessionId,
         sessionPublicId,
+        sessionTitle,
         loadingPhase,
         isLoading,
         error,
@@ -517,8 +480,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         modelPreference,
         setModelPreference,
         sendMessage,
-        queueMessage,
-        processPendingMessage,
         addAttachment,
         removeAttachment,
         clearChat,
