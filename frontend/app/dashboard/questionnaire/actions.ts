@@ -425,3 +425,42 @@ export async function updateFormSharing(input: {
   revalidatePath(`${BUILDER_PATH}/${input.id}`);
   return { token: update.public_token ?? cur?.public_token ?? null };
 }
+
+// ---------------------------------------------------------------------------
+// Director — duplicate a form. Copies title/description/questions into a new
+// draft owned by the caller. Sharing (visibility/token/password) is NOT copied:
+// the duplicate starts internal so it never silently shares a public link.
+// ---------------------------------------------------------------------------
+
+export async function duplicateForm(input: {
+  id: number;
+}): Promise<ActionResult<{ id: number }>> {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+
+  const { data: src } = await gate.supabase
+    .from("custom_form_schemas")
+    .select("title, description, fields, created_by")
+    .eq("id", input.id)
+    .maybeSingle();
+  if (!src) return { error: "Form not found" };
+  if (src.created_by !== gate.userId) {
+    return { error: "Form not found or not owned by you" };
+  }
+
+  const { data, error } = await gate.supabase
+    .from("custom_form_schemas")
+    .insert({
+      title: `${src.title} (copy)`,
+      description: src.description,
+      fields: src.fields,
+      is_active: false,
+      created_by: gate.userId,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+  revalidatePath(BUILDER_PATH);
+  return { id: data.id };
+}

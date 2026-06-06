@@ -4,6 +4,7 @@ import {
   BarChart3,
   CheckCircle2,
   ClipboardList,
+  Copy,
   FileEdit,
   Loader2,
   Plus,
@@ -16,7 +17,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { isActionError } from "@/app/dashboard/questionnaire/action-types";
-import { deleteForm } from "@/app/dashboard/questionnaire/actions";
+import {
+  deleteForm,
+  duplicateForm,
+} from "@/app/dashboard/questionnaire/actions";
 import {
   btnGhost,
   btnPrimary,
@@ -29,6 +33,7 @@ import {
 } from "@/components/dashboard/common/ui";
 import type { DirectorFormView } from "@/lib/data/questionnaire";
 import { toastError, toastSuccess } from "@/lib/notifications";
+import { FORM_TEMPLATES } from "@/lib/questionnaire/templates";
 import { cn } from "@/lib/utils";
 
 interface BuilderOverviewProps {
@@ -61,6 +66,22 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
       />
 
       <main className="flex-1 overflow-auto dashboard-scrollbar">
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark">
+            Start from a template
+          </span>
+          {FORM_TEMPLATES.map((t) => (
+            <Link
+              key={t.id}
+              href={`/dashboard/questionnaire/builder/new?template=${t.id}`}
+              title={t.description}
+              className="inline-flex h-8 items-center rounded-md border border-sbi-dark-border/50 bg-sbi-dark-card px-3 text-xs text-sbi-muted transition-colors hover:border-sbi-green/40 hover:text-sbi-green"
+            >
+              {t.name}
+            </Link>
+          ))}
+        </div>
+
         {forms.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="h-6 w-6" />}
@@ -169,10 +190,46 @@ function FormCard({ form, index }: { form: DirectorFormView; index: number }) {
           >
             <FileEdit className="size-3.5" /> Edit
           </Link>
+          <DuplicateFormButton form={form} />
           <DeleteFormButton form={form} />
         </div>
       </Panel>
     </motion.div>
+  );
+}
+
+function DuplicateFormButton({ form }: { form: DirectorFormView }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  const handleDuplicate = async () => {
+    setBusy(true);
+    const res = await duplicateForm({ id: form.id });
+    if (isActionError(res)) {
+      toastError(res.error);
+      setBusy(false);
+      return;
+    }
+    toastSuccess("Form duplicated.");
+    router.push(`/dashboard/questionnaire/builder/${res.id}`);
+    router.refresh();
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={`Duplicate ${form.title}`}
+      title="Duplicate"
+      disabled={busy}
+      onClick={handleDuplicate}
+      className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors disabled:opacity-50"
+    >
+      {busy ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <Copy className="size-3.5" />
+      )}
+    </button>
   );
 }
 
