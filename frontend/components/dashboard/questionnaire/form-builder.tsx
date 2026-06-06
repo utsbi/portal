@@ -457,7 +457,7 @@ function FieldEditor({
             title="Drag to reorder"
             onMouseDown={() => setGrabbed(true)}
             onMouseUp={() => setGrabbed(false)}
-            className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 text-sbi-muted-dark hover:text-sbi-muted transition-colors"
+            className="flex shrink-0 items-center justify-center cursor-grab active:cursor-grabbing touch-none p-0.5 text-sbi-muted-dark hover:text-sbi-muted transition-colors"
           >
             <GripVertical className="size-4" />
           </button>
