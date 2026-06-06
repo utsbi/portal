@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Loader2 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,12 +15,14 @@ import {
   Panel,
   SectionLabel,
 } from "@/components/dashboard/common/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import {
   type AnswerMap,
   type AnswerValue,
   type FieldDef,
   type FormSchema,
+  isAnswered,
   isFieldVisible,
   validateAnswers,
 } from "@/lib/questionnaire/schema";
@@ -49,11 +51,13 @@ export function FillOutForm({
   initialStatus,
 }: FillOutFormProps) {
   const router = useRouter();
+  const reduce = useReducedMotion() ?? false;
   const [answers, setAnswers] = useState<AnswerMap>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(initialStatus === "submitted");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const dirtyRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -94,7 +98,8 @@ export function FillOutForm({
     });
   };
 
-  const handleSubmit = async () => {
+  // Validate first; only open the confirm step once the form is actually valid.
+  const handleSubmit = () => {
     const validationErrors = validateAnswers(schema, answers);
     if (validationErrors.length > 0) {
       const map: Record<string, string> = {};
@@ -107,9 +112,14 @@ export function FillOutForm({
       );
       return;
     }
+    setConfirmOpen(true);
+  };
+
+  const doSubmit = async () => {
     setSubmitting(true);
     const res = await submitForm({ formId, projectId, answers });
     setSubmitting(false);
+    setConfirmOpen(false);
     if (isActionError(res)) {
       toastError(res.error);
       return;
@@ -122,6 +132,14 @@ export function FillOutForm({
   // Group fields into sections for rendering. A leading run before any section
   // divider forms an implicit first section.
   const groups = groupBySection(schema.fields);
+
+  // Progress over currently-visible answerable fields (respects conditional logic).
+  const visibleAnswerable = schema.fields.filter(
+    (f) => f.type !== "section" && isFieldVisible(f, answers),
+  );
+  const answeredCount = visibleAnswerable.filter((f) =>
+    isAnswered(answers[f.id] ?? null),
+  ).length;
 
   return (
     <DashboardShell>
@@ -137,7 +155,7 @@ export function FillOutForm({
 
       <main className="flex-1 overflow-auto dashboard-scrollbar pb-8">
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-6 max-w-2xl"
@@ -182,7 +200,14 @@ export function FillOutForm({
 
           {/* Footer actions */}
           <div className="flex items-center justify-between gap-4">
-            <SaveIndicator state={saveState} submitted={submitted} />
+            <div className="flex flex-col gap-0.5">
+              {!submitted && visibleAnswerable.length > 0 && (
+                <span className="text-xs text-sbi-muted tabular-nums">
+                  {answeredCount} of {visibleAnswerable.length} answered
+                </span>
+              )}
+              <SaveIndicator state={saveState} submitted={submitted} />
+            </div>
             {!submitted && (
               <button
                 type="button"
@@ -202,6 +227,16 @@ export function FillOutForm({
           </div>
         </motion.div>
       </main>
+
+      <ConfirmDialog
+        opened={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Submit your answers?"
+        description="Once you submit, this form locks and you won't be able to edit your answers. Review them first if you're unsure."
+        confirmLabel="Submit"
+        cancelLabel="Keep editing"
+        onConfirm={doSubmit}
+      />
     </DashboardShell>
   );
 }
