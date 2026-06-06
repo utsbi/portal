@@ -252,7 +252,9 @@ function formatDate(iso: string | null): string {
 
 /** Best display name for a responder: name → email → shortened uid. */
 function responderLabel(row: ResponseRow): string {
-  return row.userName ?? row.userEmail ?? `${row.userId.slice(0, 8)}…`;
+  if (row.userName) return row.userName;
+  if (row.userEmail) return row.userEmail;
+  return row.userId ? `${row.userId.slice(0, 8)}…` : "Anonymous";
 }
 
 // ---------------------------------------------------------------------------
@@ -296,7 +298,7 @@ function exportResponsesCsv(title: string, rows: ResponseRow[]): void {
   ];
 
   const body = rows.map((row) => [
-    row.userName ?? row.userId,
+    row.userName ?? row.userId ?? "Anonymous",
     row.userEmail ?? "",
     row.status,
     row.submittedAt ?? "",

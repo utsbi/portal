@@ -1,11 +1,15 @@
 "use client";
 
 import {
+  Check,
   ChevronDown,
   Copy,
+  Globe,
   GripVertical,
   History,
+  Link2,
   Loader2,
+  Lock,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -19,6 +23,7 @@ import {
   setAssignments,
   setFormActive,
   updateForm,
+  updateFormSharing,
 } from "@/app/dashboard/questionnaire/actions";
 import {
   btnGhost,
@@ -55,6 +60,9 @@ interface FormBuilderProps {
   initialActive?: boolean;
   projects: DirectorProject[];
   initialAssignedProjectIds?: number[];
+  initialVisibility?: "internal" | "link" | "password";
+  initialPublicToken?: string | null;
+  initialHasPassword?: boolean;
 }
 
 type AutoSaveState = "idle" | "saving" | "saved" | "error";
@@ -68,6 +76,9 @@ export function FormBuilder({
   initialActive = false,
   projects,
   initialAssignedProjectIds = [],
+  initialVisibility = "internal",
+  initialPublicToken = null,
+  initialHasPassword = false,
 }: FormBuilderProps) {
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
@@ -348,6 +359,16 @@ export function FormBuilder({
             )}
           </Panel>
 
+          {/* Sharing (existing forms only) */}
+          {currentFormId !== undefined && (
+            <SharingPanel
+              formId={currentFormId}
+              initialVisibility={initialVisibility}
+              initialPublicToken={initialPublicToken}
+              initialHasPassword={initialHasPassword}
+            />
+          )}
+
           {/* Fields */}
           <div className="flex flex-col gap-3">
             <SectionLabel>Questions</SectionLabel>
@@ -400,6 +421,179 @@ function AutoSaveBadge({ state }: { state: AutoSaveState }) {
   if (state === "error")
     return <span className="text-xs text-red-400">Couldn’t save</span>;
   return <span className="text-xs text-sbi-muted-dark">Autosaves changes</span>;
+}
+
+// ---------------------------------------------------------------------------
+// Sharing panel — visibility (internal / link / password) + share link
+// ---------------------------------------------------------------------------
+
+type Visibility = "internal" | "link" | "password";
+
+const VISIBILITY_OPTIONS: {
+  value: Visibility;
+  label: string;
+  hint: string;
+  icon: typeof Globe;
+}[] = [
+  {
+    value: "internal",
+    label: "Internal",
+    hint: "Only clients on assigned projects",
+    icon: Lock,
+  },
+  {
+    value: "link",
+    label: "Anyone with link",
+    hint: "No account needed",
+    icon: Link2,
+  },
+  {
+    value: "password",
+    label: "Password",
+    hint: "Link + a password",
+    icon: Globe,
+  },
+];
+
+function SharingPanel({
+  formId,
+  initialVisibility,
+  initialPublicToken,
+  initialHasPassword,
+}: {
+  formId: number;
+  initialVisibility: Visibility;
+  initialPublicToken: string | null;
+  initialHasPassword: boolean;
+}) {
+  const [visibility, setVisibility] = useState<Visibility>(initialVisibility);
+  const [token, setToken] = useState<string | null>(initialPublicToken);
+  const [hasPassword, setHasPassword] = useState(initialHasPassword);
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const shareLink =
+    token && typeof window !== "undefined"
+      ? `${window.location.origin}/forms/${token}`
+      : "";
+
+  const handleApply = async () => {
+    setSaving(true);
+    const res = await updateFormSharing({
+      id: formId,
+      visibility,
+      password: password || undefined,
+    });
+    setSaving(false);
+    if (isActionError(res)) {
+      toastError(res.error);
+      return;
+    }
+    setToken(res.token);
+    if (visibility === "password" && password) setHasPassword(true);
+    if (visibility !== "password") setHasPassword(false);
+    setPassword("");
+    toastSuccess("Sharing updated.");
+  };
+
+  const handleCopy = async () => {
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toastError("Couldn't copy. Copy the link manually.");
+    }
+  };
+
+  return (
+    <Panel className="flex flex-col gap-4">
+      <SectionLabel>Sharing</SectionLabel>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {VISIBILITY_OPTIONS.map((opt) => {
+          const on = visibility === opt.value;
+          const Icon = opt.icon;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setVisibility(opt.value)}
+              className={cn(
+                "flex flex-col gap-1 rounded-md border px-3 py-2.5 text-left transition-colors",
+                on
+                  ? "border-sbi-green/40 bg-sbi-green/5"
+                  : "border-sbi-dark-border/50 bg-sbi-dark-card hover:border-white/30",
+              )}
+            >
+              <span className="flex items-center gap-1.5 text-xs text-white/90">
+                <Icon className="size-3.5" /> {opt.label}
+              </span>
+              <span className="text-[11px] text-sbi-muted-dark">
+                {opt.hint}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {visibility === "password" && (
+        <div>
+          <span className={cn("block", labelClass)}>
+            {hasPassword ? "Change password" : "Set password"}
+          </span>
+          <input
+            type="password"
+            className={cn(inputClass, "mt-1.5")}
+            value={password}
+            placeholder={
+              hasPassword
+                ? "Leave blank to keep current"
+                : "At least 6 characters"
+            }
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+      )}
+
+      {visibility !== "internal" && shareLink && (
+        <div className="flex items-center gap-2">
+          <input
+            readOnly
+            value={shareLink}
+            className={cn(inputClass, "font-jetbrains-mono text-xs")}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={cn(btnGhost, "h-9 px-3 shrink-0")}
+          >
+            {copied ? (
+              <>
+                <Check className="size-4" /> Copied
+              </>
+            ) : (
+              <>
+                <Copy className="size-4" /> Copy
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleApply}
+        disabled={saving}
+        className={cn(btnPrimary, "h-9 self-start")}
+      >
+        {saving ? <Loader2 className="size-4 animate-spin" /> : "Apply sharing"}
+      </button>
+    </Panel>
+  );
 }
 
 // ---------------------------------------------------------------------------

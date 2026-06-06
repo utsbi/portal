@@ -32,6 +32,8 @@ interface FieldRendererProps {
   disabled?: boolean;
   /** Required by the `file` type to namespace uploads under the form. */
   formId: number;
+  /** File uploads need an authed user (storage RLS); off for public forms. */
+  allowFileUpload?: boolean;
 }
 
 export function FieldRenderer({
@@ -41,6 +43,7 @@ export function FieldRenderer({
   error,
   disabled,
   formId,
+  allowFileUpload = true,
 }: FieldRendererProps) {
   const selectedArray = Array.isArray(value) ? value : [];
 
@@ -192,14 +195,19 @@ export function FieldRenderer({
         />
       )}
 
-      {field.type === "file" && (
-        <FileField
-          value={value}
-          onChange={onChange}
-          disabled={disabled}
-          formId={formId}
-        />
-      )}
+      {field.type === "file" &&
+        (allowFileUpload ? (
+          <FileField
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            formId={formId}
+          />
+        ) : (
+          <p className="text-xs text-sbi-muted border border-dashed border-sbi-dark-border/60 rounded-md px-3 py-3">
+            File uploads aren't available on this form.
+          </p>
+        ))}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>

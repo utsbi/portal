@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { generatePublicToken, hashPassword } from "@/lib/questionnaire/public";
 import type { AnswerMap } from "@/lib/questionnaire/schema";
 import {
   type FormSchema,
@@ -357,4 +358,64 @@ export async function restoreFormVersion(input: {
   revalidatePath(`${BUILDER_PATH}/${input.formId}`);
   revalidatePath(`${BUILDER_PATH}/${input.formId}/history`);
   return { version: data.version ?? input.version };
+}
+
+// ---------------------------------------------------------------------------
+// Director — configure sharing (visibility + capability token + password).
+// Switching to internal clears the token + password. Going public mints a token
+// if none exists. A non-empty password sets a new hash; empty keeps the
+// existing one (password forms require a hash to exist).
+// ---------------------------------------------------------------------------
+
+export async function updateFormSharing(input: {
+  id: number;
+  visibility: "internal" | "link" | "password";
+  password?: string;
+}): Promise<ActionResult<{ token: string | null }>> {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  if (!(await ownsForm(gate.supabase, gate.userId, input.id))) {
+    return { error: "Form not found or not owned by you" };
+  }
+
+  const { data: cur } = await gate.supabase
+    .from("custom_form_schemas")
+    .select("public_token, public_password_hash")
+    .eq("id", input.id)
+    .maybeSingle();
+
+  const update: {
+    visibility: string;
+    public_token?: string | null;
+    public_password_hash?: string | null;
+  } = { visibility: input.visibility };
+
+  if (input.visibility === "internal") {
+    update.public_token = null;
+    update.public_password_hash = null;
+  } else {
+    update.public_token = cur?.public_token ?? generatePublicToken();
+    if (input.visibility === "password") {
+      if (typeof input.password === "string" && input.password.length > 0) {
+        if (input.password.length < 6) {
+          return { error: "Password must be at least 6 characters." };
+        }
+        update.public_password_hash = hashPassword(input.password);
+      } else if (!cur?.public_password_hash) {
+        return { error: "Set a password for password-protected forms." };
+      }
+    } else {
+      update.public_password_hash = null;
+    }
+  }
+
+  const { error } = await gate.supabase
+    .from("custom_form_schemas")
+    .update(update)
+    .eq("id", input.id);
+  if (error) return { error: error.message };
+
+  revalidatePath(BUILDER_PATH);
+  revalidatePath(`${BUILDER_PATH}/${input.id}`);
+  return { token: update.public_token ?? cur?.public_token ?? null };
 }

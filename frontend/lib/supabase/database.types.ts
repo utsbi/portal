@@ -411,9 +411,12 @@ export type Database = {
           fields: Json;
           id: number;
           is_active: boolean | null;
+          public_password_hash: string | null;
+          public_token: string | null;
           title: string;
           updated_at: string | null;
           version: number;
+          visibility: string;
         };
         Insert: {
           assigned_to?: string[] | null;
@@ -423,9 +426,12 @@ export type Database = {
           fields?: Json;
           id?: number;
           is_active?: boolean | null;
+          public_password_hash?: string | null;
+          public_token?: string | null;
           title: string;
           updated_at?: string | null;
           version?: number;
+          visibility?: string;
         };
         Update: {
           assigned_to?: string[] | null;
@@ -435,9 +441,12 @@ export type Database = {
           fields?: Json;
           id?: number;
           is_active?: boolean | null;
+          public_password_hash?: string | null;
+          public_token?: string | null;
           title?: string;
           updated_at?: string | null;
           version?: number;
+          visibility?: string;
         };
         Relationships: [];
       };
@@ -451,8 +460,10 @@ export type Database = {
           schema_version: number;
           status: string;
           submitted_at: string | null;
+          submitter_email: string | null;
+          submitter_name: string | null;
           updated_at: string | null;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           created_at?: string | null;
@@ -463,8 +474,10 @@ export type Database = {
           schema_version?: number;
           status?: string;
           submitted_at?: string | null;
+          submitter_email?: string | null;
+          submitter_name?: string | null;
           updated_at?: string | null;
-          user_id?: string;
+          user_id?: string | null;
         };
         Update: {
           created_at?: string | null;
@@ -475,8 +488,10 @@ export type Database = {
           schema_version?: number;
           status?: string;
           submitted_at?: string | null;
+          submitter_email?: string | null;
+          submitter_name?: string | null;
           updated_at?: string | null;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {

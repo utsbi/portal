@@ -29,6 +29,9 @@ export default async function EditFormPage({
       initialActive={result.isActive}
       projects={result.projects}
       initialAssignedProjectIds={result.assignedProjectIds}
+      initialVisibility={result.visibility}
+      initialPublicToken={result.publicToken}
+      initialHasPassword={result.hasPassword}
     />
   );
 }

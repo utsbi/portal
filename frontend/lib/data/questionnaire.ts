@@ -371,6 +371,9 @@ export interface EditFormData {
   schema: FormSchema;
   assignedProjectIds: number[];
   projects: DirectorProject[];
+  visibility: "internal" | "link" | "password";
+  publicToken: string | null;
+  hasPassword: boolean;
 }
 
 export async function fetchEditFormData(
@@ -394,7 +397,9 @@ export async function fetchEditFormData(
 
   const { data: schema } = await supabase
     .from("custom_form_schemas")
-    .select("id, title, description, fields, version, is_active, created_by")
+    .select(
+      "id, title, description, fields, version, is_active, created_by, visibility, public_token, public_password_hash",
+    )
     .eq("id", formId)
     .maybeSingle();
   if (!schema) return { notFound: true };
@@ -422,6 +427,11 @@ export async function fetchEditFormData(
     })
     .filter((x): x is DirectorProject => x !== null);
 
+  const visibility =
+    schema.visibility === "link" || schema.visibility === "password"
+      ? schema.visibility
+      : "internal";
+
   return {
     id: schema.id,
     title: schema.title,
@@ -433,6 +443,9 @@ export async function fetchEditFormData(
       .map((a) => a.project_id)
       .filter((x): x is number => x != null),
     projects,
+    visibility,
+    publicToken: schema.public_token,
+    hasPassword: !!schema.public_password_hash,
   };
 }
 
@@ -442,10 +455,11 @@ export async function fetchEditFormData(
 
 export interface ResponseRow {
   submissionId: number;
-  userId: string;
-  /** Responder display name (from profiles); null if no profile row. */
+  /** Auth uid for internal submissions; null for anonymous public ones. */
+  userId: string | null;
+  /** Responder name (profile for internal, captured submitter for public). */
   userName: string | null;
-  /** Responder email (from profiles); null if unset. */
+  /** Responder email (profile for internal, captured submitter for public). */
   userEmail: string | null;
   projectId: number | null;
   status: "draft" | "submitted";
@@ -497,15 +511,17 @@ export async function fetchResponsesData(
   const { data: submissions } = await supabase
     .from("custom_form_submissions")
     .select(
-      "id, user_id, project_id, status, submitted_at, updated_at, schema_version, data",
+      "id, user_id, project_id, status, submitted_at, updated_at, schema_version, data, submitter_name, submitter_email",
     )
     .eq("form_id", formId)
     .order("updated_at", { ascending: false });
 
   // Resolve responder identities (uid -> name/email) so the viewer shows who
-  // answered instead of a raw UUID.
+  // answered instead of a raw UUID. Anonymous public submissions have no uid.
   const responderIds = Array.from(
-    new Set((submissions ?? []).map((s) => s.user_id)),
+    new Set(
+      (submissions ?? []).map((s) => s.user_id).filter((x): x is string => !!x),
+    ),
   );
   const profileByUid = new Map<
     string,
@@ -547,12 +563,12 @@ export async function fetchResponsesData(
     const version = s.schema_version ?? 1;
     const rowSchema = schemaForVersion(version);
     const missing = validateAnswers(rowSchema, answers).length > 0;
-    const profile = profileByUid.get(s.user_id) ?? null;
+    const profile = s.user_id ? (profileByUid.get(s.user_id) ?? null) : null;
     return {
       submissionId: s.id,
       userId: s.user_id,
-      userName: profile?.name ?? null,
-      userEmail: profile?.email ?? null,
+      userName: profile?.name ?? s.submitter_name ?? null,
+      userEmail: profile?.email ?? s.submitter_email ?? null,
       projectId: s.project_id,
       status: (s.status as "draft" | "submitted") ?? "draft",
       submittedAt: s.submitted_at,
