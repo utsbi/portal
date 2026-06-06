@@ -23,6 +23,7 @@ import {
   setAssignments,
   setFormActive,
   updateForm,
+  updateFormSchedule,
   updateFormSharing,
 } from "@/app/dashboard/questionnaire/actions";
 import {
@@ -47,6 +48,7 @@ import {
   type FieldDef,
   type FieldType,
   type FormSchema,
+  formWindowState,
   generateFieldId,
 } from "@/lib/questionnaire/schema";
 import { cn } from "@/lib/utils";
@@ -63,6 +65,8 @@ interface FormBuilderProps {
   initialVisibility?: "internal" | "link" | "password";
   initialPublicToken?: string | null;
   initialHasPassword?: boolean;
+  initialOpensAt?: string | null;
+  initialClosesAt?: string | null;
 }
 
 type AutoSaveState = "idle" | "saving" | "saved" | "error";
@@ -79,6 +83,8 @@ export function FormBuilder({
   initialVisibility = "internal",
   initialPublicToken = null,
   initialHasPassword = false,
+  initialOpensAt = null,
+  initialClosesAt = null,
 }: FormBuilderProps) {
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
@@ -359,13 +365,20 @@ export function FormBuilder({
             )}
           </Panel>
 
-          {/* Sharing (existing forms only) */}
+          {/* Sharing + schedule (existing forms only) */}
           {currentFormId !== undefined && (
             <SharingPanel
               formId={currentFormId}
               initialVisibility={initialVisibility}
               initialPublicToken={initialPublicToken}
               initialHasPassword={initialHasPassword}
+            />
+          )}
+          {currentFormId !== undefined && (
+            <SchedulePanel
+              formId={currentFormId}
+              initialOpensAt={initialOpensAt}
+              initialClosesAt={initialClosesAt}
             />
           )}
 
@@ -592,6 +605,116 @@ function SharingPanel({
       >
         {saving ? <Loader2 className="size-4 animate-spin" /> : "Apply sharing"}
       </button>
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Schedule panel — optional open/close window
+// ---------------------------------------------------------------------------
+
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToIso(v: string): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function SchedulePanel({
+  formId,
+  initialOpensAt,
+  initialClosesAt,
+}: {
+  formId: number;
+  initialOpensAt: string | null;
+  initialClosesAt: string | null;
+}) {
+  const [opensAt, setOpensAt] = useState(isoToLocalInput(initialOpensAt));
+  const [closesAt, setClosesAt] = useState(isoToLocalInput(initialClosesAt));
+  const [savedOpens, setSavedOpens] = useState(initialOpensAt);
+  const [savedCloses, setSavedCloses] = useState(initialClosesAt);
+  const [saving, setSaving] = useState(false);
+
+  const state = formWindowState(savedOpens, savedCloses);
+
+  const handleSave = async () => {
+    const o = localInputToIso(opensAt);
+    const c = localInputToIso(closesAt);
+    setSaving(true);
+    const res = await updateFormSchedule({
+      id: formId,
+      opensAt: o,
+      closesAt: c,
+    });
+    setSaving(false);
+    if (isActionError(res)) {
+      toastError(res.error);
+      return;
+    }
+    setSavedOpens(o);
+    setSavedCloses(c);
+    toastSuccess("Schedule updated.");
+  };
+
+  return (
+    <Panel className="flex flex-col gap-4">
+      <SectionLabel>Schedule</SectionLabel>
+      <p className="-mt-2 text-xs text-sbi-muted-dark">
+        Optional. The form only accepts submissions inside this window. Leave a
+        field blank for no bound.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <span className={cn("block", labelClass)}>Opens</span>
+          <input
+            type="datetime-local"
+            className={cn(inputClass, "mt-1.5")}
+            value={opensAt}
+            onChange={(e) => setOpensAt(e.target.value)}
+          />
+        </div>
+        <div>
+          <span className={cn("block", labelClass)}>Closes</span>
+          <input
+            type="datetime-local"
+            className={cn(inputClass, "mt-1.5")}
+            value={closesAt}
+            onChange={(e) => setClosesAt(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs">
+          {state === "open" ? (
+            <span className="text-sbi-green/80">
+              Currently accepting responses
+            </span>
+          ) : state === "not_yet" ? (
+            <span className="text-amber-400">Not open yet</span>
+          ) : (
+            <span className="text-red-400">Closed</span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className={cn(btnPrimary, "h-9")}
+        >
+          {saving ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            "Apply schedule"
+          )}
+        </button>
+      </div>
     </Panel>
   );
 }

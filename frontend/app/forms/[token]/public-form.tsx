@@ -15,6 +15,7 @@ import {
   type AnswerMap,
   type AnswerValue,
   type FormSchema,
+  type FormWindowState,
   isFieldVisible,
   validateAnswers,
 } from "@/lib/questionnaire/schema";
@@ -26,6 +27,7 @@ interface PublicFormProps {
   title: string;
   description: string | null;
   requiresPassword: boolean;
+  windowState: FormWindowState;
   schema: FormSchema | null;
 }
 
@@ -36,6 +38,7 @@ export function PublicForm({
   title,
   description,
   requiresPassword,
+  windowState,
   schema: initialSchema,
 }: PublicFormProps) {
   const [schema, setSchema] = useState<FormSchema | null>(initialSchema);
@@ -131,7 +134,21 @@ export function PublicForm({
           )}
         </div>
 
-        {submitted ? (
+        {windowState !== "open" ? (
+          <Panel className="flex flex-col items-center text-center gap-3 py-12">
+            <Lock className="size-8 text-sbi-muted" />
+            <h2 className="text-lg font-light">
+              {windowState === "not_yet"
+                ? "This form isn't open yet"
+                : "This form is closed"}
+            </h2>
+            <p className="text-sm text-sbi-muted max-w-sm">
+              {windowState === "not_yet"
+                ? "Check back later. The form will accept responses once it opens."
+                : "This form is no longer accepting responses."}
+            </p>
+          </Panel>
+        ) : submitted ? (
           <Panel className="flex flex-col items-center text-center gap-3 py-12">
             <CheckCircle2 className="size-8 text-sbi-green" />
             <h2 className="text-lg font-light">Thank you</h2>

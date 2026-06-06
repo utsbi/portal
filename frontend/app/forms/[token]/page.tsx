@@ -25,6 +25,7 @@ export default async function PublicFormPage({
       title={form.title}
       description={form.description}
       requiresPassword={form.requiresPassword}
+      windowState={form.windowState}
       schema={form.schema}
     />
   );

@@ -5,6 +5,8 @@ import { notifyFormSubmission } from "@/lib/questionnaire/notify";
 import {
   type AnswerMap,
   type FormSchema,
+  type FormWindowState,
+  formWindowState,
   parseFormSchema,
   validateAnswers,
 } from "@/lib/questionnaire/schema";
@@ -82,6 +84,8 @@ interface PublicFormRow {
   fields: Json;
   version: number;
   is_active: boolean | null;
+  opens_at: string | null;
+  closes_at: string | null;
 }
 
 async function loadPublicFormRow(token: string): Promise<PublicFormRow | null> {
@@ -91,7 +95,7 @@ async function loadPublicFormRow(token: string): Promise<PublicFormRow | null> {
   const { data } = await supabase
     .from("custom_form_schemas")
     .select(
-      "id, title, description, visibility, public_password_hash, fields, version, is_active",
+      "id, title, description, visibility, public_password_hash, fields, version, is_active, opens_at, closes_at",
     )
     .eq("public_token", token)
     .maybeSingle();
@@ -105,23 +109,29 @@ export interface PublicFormView {
   title: string;
   description: string | null;
   requiresPassword: boolean;
-  /** Only present when no password gate (password forms reveal it on unlock). */
+  windowState: FormWindowState;
+  /** Present only when open AND no password gate (password reveals on unlock). */
   schema: FormSchema | null;
 }
 
 /** Public-facing metadata. Never returns the password hash; gates the schema
- *  behind the password for password-protected forms. */
+ *  behind the password and the open/close window. */
 export async function getPublicForm(
   token: string,
 ): Promise<PublicFormView | null> {
   const row = await loadPublicFormRow(token);
   if (!row) return null;
   const requiresPassword = row.visibility === "password";
+  const windowState = formWindowState(row.opens_at, row.closes_at);
   return {
     title: row.title,
     description: row.description,
     requiresPassword,
-    schema: requiresPassword ? null : parseFormSchema(row.fields),
+    windowState,
+    schema:
+      requiresPassword || windowState !== "open"
+        ? null
+        : parseFormSchema(row.fields),
   };
 }
 
@@ -158,6 +168,16 @@ export async function submitPublicForm(
 ): Promise<{ ok: true } | { error: string }> {
   const row = await loadPublicFormRow(input.token);
   if (!row) return { error: "This form is not available." };
+
+  const windowState = formWindowState(row.opens_at, row.closes_at);
+  if (windowState !== "open") {
+    return {
+      error:
+        windowState === "not_yet"
+          ? "This form is not open yet."
+          : "This form is closed.",
+    };
+  }
 
   // Re-verify the password gate server-side on submit (never trust the client).
   if (row.visibility === "password") {

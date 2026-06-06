@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,6 +22,7 @@ import {
   type AnswerValue,
   type FieldDef,
   type FormSchema,
+  formWindowState,
   isAnswered,
   isFieldVisible,
   validateAnswers,
@@ -37,6 +38,8 @@ interface FillOutFormProps {
   schema: FormSchema;
   initialAnswers: AnswerMap;
   initialStatus: "draft" | "submitted" | null;
+  opensAt: string | null;
+  closesAt: string | null;
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -49,9 +52,13 @@ export function FillOutForm({
   schema,
   initialAnswers,
   initialStatus,
+  opensAt,
+  closesAt,
 }: FillOutFormProps) {
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
+  const windowState = formWindowState(opensAt, closesAt);
+  const closed = windowState !== "open";
   const [answers, setAnswers] = useState<AnswerMap>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -169,6 +176,17 @@ export function FillOutForm({
             </div>
           )}
 
+          {!submitted && closed && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-400/5 border border-amber-400/20">
+              <AlertCircle className="size-4 text-amber-400 shrink-0" />
+              <p className="text-sm text-amber-300">
+                {windowState === "not_yet"
+                  ? "This form isn't open yet, so it can't be submitted."
+                  : "This form is closed and no longer accepting responses."}
+              </p>
+            </div>
+          )}
+
           {groups.map((group, gi) => (
             <Panel key={group.key} className="flex flex-col gap-5">
               {group.section ? (
@@ -190,7 +208,7 @@ export function FillOutForm({
                     field={field}
                     value={answers[field.id] ?? null}
                     error={errors[field.id]}
-                    disabled={submitted}
+                    disabled={submitted || closed}
                     formId={formId}
                     onChange={(v) => setAnswer(field.id, v)}
                   />
@@ -208,7 +226,15 @@ export function FillOutForm({
               )}
               <SaveIndicator state={saveState} submitted={submitted} />
             </div>
-            {!submitted && (
+            {submitted ? (
+              <button
+                type="button"
+                className={cn(btnGhost)}
+                onClick={() => setSubmitted(false)}
+              >
+                Edit answers
+              </button>
+            ) : closed ? null : (
               <button
                 type="button"
                 className={cn(btnPrimary)}

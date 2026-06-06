@@ -189,6 +189,8 @@ export interface FillOutData {
   answers: AnswerMap;
   submissionId: number | null;
   status: "draft" | "submitted" | null;
+  opensAt: string | null;
+  closesAt: string | null;
 }
 
 export async function fetchFillOutData(
@@ -204,7 +206,9 @@ export async function fetchFillOutData(
   const [{ data: schema }, { data: submission }] = await Promise.all([
     supabase
       .from("custom_form_schemas")
-      .select("id, title, description, fields, version, is_active")
+      .select(
+        "id, title, description, fields, version, is_active, opens_at, closes_at",
+      )
       .eq("id", formId)
       .maybeSingle(),
     supabase
@@ -227,6 +231,8 @@ export async function fetchFillOutData(
     answers: submission ? toAnswerMap(submission.data) : {},
     submissionId: submission?.id ?? null,
     status: (submission?.status as "draft" | "submitted" | null) ?? null,
+    opensAt: schema.opens_at,
+    closesAt: schema.closes_at,
   };
 }
 
@@ -374,6 +380,8 @@ export interface EditFormData {
   visibility: "internal" | "link" | "password";
   publicToken: string | null;
   hasPassword: boolean;
+  opensAt: string | null;
+  closesAt: string | null;
 }
 
 export async function fetchEditFormData(
@@ -398,7 +406,7 @@ export async function fetchEditFormData(
   const { data: schema } = await supabase
     .from("custom_form_schemas")
     .select(
-      "id, title, description, fields, version, is_active, created_by, visibility, public_token, public_password_hash",
+      "id, title, description, fields, version, is_active, created_by, visibility, public_token, public_password_hash, opens_at, closes_at",
     )
     .eq("id", formId)
     .maybeSingle();
@@ -446,6 +454,8 @@ export async function fetchEditFormData(
     visibility,
     publicToken: schema.public_token,
     hasPassword: !!schema.public_password_hash,
+    opensAt: schema.opens_at,
+    closesAt: schema.closes_at,
   };
 }
 

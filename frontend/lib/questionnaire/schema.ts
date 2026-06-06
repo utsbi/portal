@@ -429,3 +429,26 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
 export function countQuestions(schema: FormSchema): number {
   return schema.fields.filter((f) => f.type !== "section").length;
 }
+
+// ---------------------------------------------------------------------------
+// Scheduled open/close window
+// ---------------------------------------------------------------------------
+
+export type FormWindowState = "open" | "not_yet" | "closed";
+
+/** Where the current time falls relative to a form's opens_at / closes_at. */
+export function formWindowState(
+  opensAt: string | null | undefined,
+  closesAt: string | null | undefined,
+  nowMs: number = Date.now(),
+): FormWindowState {
+  if (opensAt) {
+    const t = Date.parse(opensAt);
+    if (!Number.isNaN(t) && t > nowMs) return "not_yet";
+  }
+  if (closesAt) {
+    const t = Date.parse(closesAt);
+    if (!Number.isNaN(t) && t < nowMs) return "closed";
+  }
+  return "open";
+}

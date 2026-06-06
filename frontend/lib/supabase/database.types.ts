@@ -409,8 +409,10 @@ export type Database = {
           created_by: string | null;
           description: string | null;
           fields: Json;
+          closes_at: string | null;
           id: number;
           is_active: boolean | null;
+          opens_at: string | null;
           public_password_hash: string | null;
           public_token: string | null;
           title: string;
@@ -424,8 +426,10 @@ export type Database = {
           created_by?: string | null;
           description?: string | null;
           fields?: Json;
+          closes_at?: string | null;
           id?: number;
           is_active?: boolean | null;
+          opens_at?: string | null;
           public_password_hash?: string | null;
           public_token?: string | null;
           title: string;
@@ -439,8 +443,10 @@ export type Database = {
           created_by?: string | null;
           description?: string | null;
           fields?: Json;
+          closes_at?: string | null;
           id?: number;
           is_active?: boolean | null;
+          opens_at?: string | null;
           public_password_hash?: string | null;
           public_token?: string | null;
           title?: string;

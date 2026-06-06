@@ -33,6 +33,8 @@ export default async function FillOutPage({
       schema={result.schema}
       initialAnswers={result.answers}
       initialStatus={result.status}
+      opensAt={result.opensAt}
+      closesAt={result.closesAt}
     />
   );
 }

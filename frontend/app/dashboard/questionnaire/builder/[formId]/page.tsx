@@ -32,6 +32,8 @@ export default async function EditFormPage({
       initialVisibility={result.visibility}
       initialPublicToken={result.publicToken}
       initialHasPassword={result.hasPassword}
+      initialOpensAt={result.opensAt}
+      initialClosesAt={result.closesAt}
     />
   );
 }

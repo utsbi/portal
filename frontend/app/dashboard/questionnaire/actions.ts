@@ -6,6 +6,7 @@ import { generatePublicToken, hashPassword } from "@/lib/questionnaire/public";
 import type { AnswerMap } from "@/lib/questionnaire/schema";
 import {
   type FormSchema,
+  formWindowState,
   parseFormSchema,
   serializeFormSchema,
   validateAnswers,
@@ -243,14 +244,24 @@ export async function setAssignments(input: {
 async function loadSchema(
   supabase: Awaited<ReturnType<typeof createClient>>,
   formId: number,
-): Promise<{ schema: FormSchema; version: number } | null> {
+): Promise<{
+  schema: FormSchema;
+  version: number;
+  opensAt: string | null;
+  closesAt: string | null;
+} | null> {
   const { data } = await supabase
     .from("custom_form_schemas")
-    .select("fields, version, is_active")
+    .select("fields, version, is_active, opens_at, closes_at")
     .eq("id", formId)
     .maybeSingle();
   if (!data || data.is_active === false) return null;
-  return { schema: parseFormSchema(data.fields), version: data.version ?? 1 };
+  return {
+    schema: parseFormSchema(data.fields),
+    version: data.version ?? 1,
+    opensAt: data.opens_at,
+    closesAt: data.closes_at,
+  };
 }
 
 export async function saveDraft(input: {
@@ -294,6 +305,16 @@ export async function submitForm(input: {
 
   const meta = await loadSchema(gate.supabase, input.formId);
   if (!meta) return { error: "Form not found or inactive" };
+
+  const windowState = formWindowState(meta.opensAt, meta.closesAt);
+  if (windowState !== "open") {
+    return {
+      error:
+        windowState === "not_yet"
+          ? "This form is not open yet."
+          : "This form is closed.",
+    };
+  }
 
   const errors = validateAnswers(meta.schema, input.answers);
   if (errors.length > 0) {
@@ -463,4 +484,35 @@ export async function duplicateForm(input: {
   if (error) return { error: error.message };
   revalidatePath(BUILDER_PATH);
   return { id: data.id };
+}
+
+// ---------------------------------------------------------------------------
+// Director — set the scheduled open/close window (either bound may be null).
+// ---------------------------------------------------------------------------
+
+export async function updateFormSchedule(input: {
+  id: number;
+  opensAt: string | null;
+  closesAt: string | null;
+}): Promise<ActionResult> {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  if (!(await ownsForm(gate.supabase, gate.userId, input.id))) {
+    return { error: "Form not found or not owned by you" };
+  }
+  if (
+    input.opensAt &&
+    input.closesAt &&
+    Date.parse(input.closesAt) <= Date.parse(input.opensAt)
+  ) {
+    return { error: "Close time must be after the open time." };
+  }
+
+  const { error } = await gate.supabase
+    .from("custom_form_schemas")
+    .update({ opens_at: input.opensAt, closes_at: input.closesAt })
+    .eq("id", input.id);
+  if (error) return { error: error.message };
+  revalidatePath(`${BUILDER_PATH}/${input.id}`);
+  return {};
 }
