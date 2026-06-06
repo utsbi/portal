@@ -423,8 +423,8 @@ export function ChatMessage({ message, isLatestAssistant = false }: ChatMessageP
 
   return (
     <div ref={containerRef} className="flex items-start gap-4 mb-6">
-      {/* AI Avatar */}
-      <div className="relative shrink-0 mt-1">
+      {/* AI Avatar — top-aligned with, and centered to, the first line of text */}
+      <div className="relative shrink-0">
         <div className="w-8 h-8 rounded-full bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center">
           {message.isCancelled ? (
             <div className="w-2.5 h-2.5 bg-sbi-muted/60 rounded-full" />

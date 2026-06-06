@@ -70,10 +70,10 @@ export function ChatLoading() {
   return (
     <div
       ref={containerRef}
-      className="flex items-start gap-4 opacity-0 translate-y-2"
+      className="flex items-center gap-4 opacity-0 translate-y-2"
     >
       {/* AI Green Avatar glowing dot */}
-      <div className="relative shrink-0 mt-1">
+      <div className="relative shrink-0">
         <div className="w-8 h-8 rounded-full bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center">
           <div className="w-2.5 h-2.5 bg-sbi-green rounded-full animate-pulse" />
         </div>
