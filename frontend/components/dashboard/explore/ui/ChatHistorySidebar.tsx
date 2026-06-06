@@ -10,6 +10,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { motion, type Variants } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -32,6 +33,44 @@ const BUCKET_ORDER = [
 type Bucket = (typeof BUCKET_ORDER)[number];
 
 const PIN_STORAGE_KEY = "chat-history-pinned";
+
+// Notion's sidebar feel: ease + duration lifted from its actual implementation.
+const SIDEBAR_WIDTH = 288; // matches w-72
+const NOTION_EASE = [0.165, 0.84, 0.44, 1] as const;
+
+// Three states, morphing the SAME element so float->dock tweens smoothly:
+//  - hidden: parked off the right edge, transparent
+//  - peek:   floating rounded card, inset from the edges, with a drop shadow
+//  - locked: docked flush, square corners, no shadow
+const panelVariants: Variants = {
+  hidden: {
+    x: SIDEBAR_WIDTH + 24,
+    opacity: 0,
+    top: 12,
+    right: 12,
+    bottom: 12,
+    borderRadius: 12,
+    boxShadow: "0 24px 60px -12px rgba(0,0,0,0)",
+  },
+  peek: {
+    x: 0,
+    opacity: 1,
+    top: 12,
+    right: 12,
+    bottom: 12,
+    borderRadius: 12,
+    boxShadow: "0 24px 60px -12px rgba(0,0,0,0.75)",
+  },
+  locked: {
+    x: 0,
+    opacity: 1,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 0,
+    boxShadow: "0 24px 60px -12px rgba(0,0,0,0)",
+  },
+};
 
 function startOfDay(ms: number): number {
   const x = new Date(ms);
@@ -202,6 +241,7 @@ export function ChatHistorySidebar() {
 
   const hasAny = sessions.length > 0;
   const noMatches = hasAny && grouped.length === 0;
+  const visualState = pinned ? "locked" : peek ? "peek" : "hidden";
 
   return (
     <>
@@ -230,19 +270,23 @@ export function ChatHistorySidebar() {
         </>
       )}
 
-      {/* The panel. Floating + rounded when peeking; docked flush when pinned. */}
-      <aside
+      {/* The panel. One element that morphs between floating-peek and docked-lock
+          so the float->dock transition tweens (x, inset, radius, shadow) instead
+          of snapping between class sets. */}
+      <motion.aside
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
-        className={cn(
-          "absolute z-40 flex flex-col bg-sbi-dark transition-[transform,opacity] duration-200 ease-out",
-          pinned
-            ? "inset-y-0 right-0 w-72 border-l border-sbi-dark-border"
-            : "top-3 right-3 bottom-3 w-72 rounded-xl border border-sbi-dark-border shadow-2xl shadow-black/60",
-          open
-            ? "translate-x-0 opacity-100"
-            : "translate-x-[110%] opacity-0 pointer-events-none",
-        )}
+        initial={false}
+        animate={visualState}
+        variants={panelVariants}
+        transition={{ duration: 0.3, ease: NOTION_EASE }}
+        style={{
+          position: "absolute",
+          width: SIDEBAR_WIDTH,
+          zIndex: 40,
+          pointerEvents: open ? "auto" : "none",
+        }}
+        className="flex flex-col overflow-hidden bg-sbi-dark border border-sbi-dark-border"
         aria-hidden={!open}
       >
         <div className="flex items-center justify-between px-3 pt-4 pb-2">
@@ -405,7 +449,7 @@ export function ChatHistorySidebar() {
               </div>
             ))}
         </div>
-      </aside>
+      </motion.aside>
 
       <ConfirmDialog
         opened={deleteTarget !== null}
