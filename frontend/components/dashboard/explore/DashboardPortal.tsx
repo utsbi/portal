@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import gsap from 'gsap';
-import { motion } from 'motion/react';
-import { useParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
-import { useChat } from '@/lib/chat/chat-context';
-import { AmbientGrid } from './ui/AmbientGrid';
-import { ChatHistorySidebar } from './ui/ChatHistorySidebar';
-import { ChatMessages } from './ui/ChatMessages';
-import { FloatingNodes } from './ui/FloatingNodes';
-import { PortalHero } from './ui/PortalHero';
-import { PortalInput } from './ui/PortalInput';
-import { SuggestionChips } from './ui/SuggestionChips';
+import gsap from "gsap";
+import { motion } from "motion/react";
+import { useParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useChat } from "@/lib/chat/chat-context";
+import { cn } from "@/lib/utils";
+import { AmbientGrid } from "./ui/AmbientGrid";
+import { ChatMessages } from "./ui/ChatMessages";
+import { FloatingNodes } from "./ui/FloatingNodes";
+import { PortalHero } from "./ui/PortalHero";
+import { PortalInput } from "./ui/PortalInput";
+import { SourcesPanel } from "./ui/SourcesPanel";
+import { SuggestionChips } from "./ui/SuggestionChips";
 
 /**
  * The single Explore surface for both the new-chat welcome and an active thread.
@@ -29,7 +29,9 @@ import { SuggestionChips } from './ui/SuggestionChips';
  */
 export function ExplorePortal() {
   const params = useParams<{ chatId?: string[] }>();
-  const chatId = Array.isArray(params.chatId) ? params.chatId[0] : params.chatId;
+  const chatId = Array.isArray(params.chatId)
+    ? params.chatId[0]
+    : params.chatId;
   const containerRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
@@ -43,7 +45,7 @@ export function ExplorePortal() {
     cancelRequest,
   } = useChat();
 
-  const isNewRoute = !chatId || chatId === 'new';
+  const isNewRoute = !chatId || chatId === "new";
   const showWelcome = messages.length === 0;
 
   // Mirror the open session id into a ref so the hydrate effect always compares
@@ -64,7 +66,7 @@ export function ExplorePortal() {
           // Unknown / inaccessible conversation -> drop to a fresh chat.
           if (!ok) {
             newSession();
-            window.history.replaceState(null, '', '/dashboard/explore/new');
+            window.history.replaceState(null, "", "/dashboard/explore/new");
           }
         });
       }
@@ -101,8 +103,8 @@ export function ExplorePortal() {
       cancelRequest();
       clearChat();
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [clearChat, cancelRequest]);
 
   useEffect(() => {
@@ -124,9 +126,11 @@ export function ExplorePortal() {
     if (!containerRef.current || !isReady || !showWelcome) return;
 
     const ctx = gsap.context(() => {
-      const heroElements = containerRef.current?.querySelectorAll('.hero-content');
-      const ambientElements = containerRef.current?.querySelectorAll('.ambient-element');
-      const chips = containerRef.current?.querySelectorAll('.suggestion-chip');
+      const heroElements =
+        containerRef.current?.querySelectorAll(".hero-content");
+      const ambientElements =
+        containerRef.current?.querySelectorAll(".ambient-element");
+      const chips = containerRef.current?.querySelectorAll(".suggestion-chip");
 
       // The composer's entrance/position is owned by framer-motion (layout), not GSAP.
       if (!heroElements || !ambientElements || !chips) return;
@@ -135,7 +139,7 @@ export function ExplorePortal() {
       gsap.set(ambientElements, { opacity: 0 });
       gsap.set(chips, { opacity: 0, y: 15, scale: 0.95 });
 
-      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
       tl.to(heroElements, { opacity: 1, y: 0, duration: 0.8, stagger: 0.1 }, 0)
         .to(ambientElements, { opacity: 1, duration: 2, stagger: 0.2 }, 0)
         .to(
@@ -144,7 +148,7 @@ export function ExplorePortal() {
             opacity: 1,
             y: 0,
             scale: 1,
-            visibility: 'visible',
+            visibility: "visible",
             duration: 0.6,
             stagger: 0.05,
           },
@@ -163,8 +167,9 @@ export function ExplorePortal() {
       <FloatingNodes />
       <AmbientGrid />
 
-      {/* Chat history (hover-to-peek / lock-to-dock, self-positioned on the right) */}
-      <ChatHistorySidebar />
+      {/* Sources for the latest answer (hover-to-peek / lock-to-dock, right edge).
+          Hides itself entirely when the latest answer cites no documents. */}
+      <SourcesPanel />
 
       {/* Ambient accents — faded in by GSAP on the welcome screen, static otherwise */}
       {showWelcome ? (
@@ -191,7 +196,7 @@ export function ExplorePortal() {
         <div className="absolute top-0 inset-x-0 z-20 flex justify-center px-4 pt-3 pointer-events-none">
           <div className="max-w-md rounded-full bg-sbi-dark/70 backdrop-blur-sm border border-sbi-dark-border/50 px-4 py-1.5">
             <span className="block text-xs font-medium text-white/80 truncate">
-              {sessionTitle || 'Untitled'}
+              {sessionTitle || "Untitled"}
             </span>
           </div>
         </div>
@@ -203,7 +208,12 @@ export function ExplorePortal() {
         framer-motion `layout` smoothly animates it from centered (welcome) to
         the bottom (thread). Mirrors claude.ai.
       */}
-      <div className={cn('relative z-10 flex flex-col h-full', showWelcome && 'justify-center')}>
+      <div
+        className={cn(
+          "relative z-10 flex flex-col h-full",
+          showWelcome && "justify-center",
+        )}
+      >
         {showWelcome ? (
           <div className="shrink-0 w-full max-w-3xl mx-auto px-4 mb-2">
             <PortalHero />
