@@ -1,30 +1,35 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import gsap from "gsap";
 import {
-  Compass,
-  MessageSquare,
-  DollarSign,
-  Repeat,
-  Calendar,
-  FolderOpen,
-  FileText,
-  MailQuestion,
-  ChevronUp,
-  User,
   Bell,
-  Settings,
+  Calendar,
+  ChevronUp,
+  Compass,
+  DollarSign,
+  FileText,
+  FolderOpen,
   HelpCircle,
   LogOut,
   type LucideIcon,
+  MailQuestion,
+  MessageSquare,
+  MessageSquarePlus,
+  MessagesSquare,
+  Repeat,
+  Search,
+  Settings,
+  User,
 } from "lucide-react";
-import gsap from "gsap";
-import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { ChatHistoryNav } from "@/components/dashboard/explore/ui/ChatHistoryNav";
+import { useChat } from "@/lib/chat/chat-context";
 import { useProject } from "@/lib/project/project-context";
 import { useSidebar } from "@/lib/sidebar/sidebar-context";
-import { useChat } from "@/lib/chat/chat-context";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 interface NavItem {
   title: string;
@@ -121,11 +126,11 @@ function NavLink({ item, isActive, baseUrl, isCollapsed }: NavLinkProps) {
 }
 
 export function AppSidebar() {
-  const { state, open } = useSidebar();
+  const { state, open, setOpen } = useSidebar();
   const pathname = usePathname();
   const router = useRouter();
   const { user, activeProject, projects, switchProject } = useProject();
-  const { cancelRequest, clearChat } = useChat();
+  const { cancelRequest, clearChat, newSession } = useChat();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -151,6 +156,56 @@ export function AppSidebar() {
   };
 
   const isOnDashboardRoot = pathname === baseUrl;
+
+  // The Explore route gets a contextual chat-history list in the sidebar, and the
+  // sidebar auto-expands there to surface it.
+  const isExplore =
+    pathname === baseUrl || pathname.startsWith(`${baseUrl}/explore`);
+  const showChatHistory = isExplore && !isCollapsed;
+
+  // Auto-expand on entering Explore (so the history is visible), but remember a
+  // manual collapse for the rest of the session and stop auto-expanding once the
+  // user opts out. The pre-Explore open state is restored when leaving.
+  const userCollapsedOnExploreRef = useRef(false);
+  const wasExploreRef = useRef(false);
+  const preExploreOpenRef = useRef(open);
+  const lastOpenRef = useRef(open);
+
+  useEffect(() => {
+    const wasExplore = wasExploreRef.current;
+    if (isExplore && !wasExplore) {
+      preExploreOpenRef.current = open;
+      if (!userCollapsedOnExploreRef.current) setOpen(true);
+    } else if (!isExplore && wasExplore) {
+      setOpen(preExploreOpenRef.current);
+    }
+    wasExploreRef.current = isExplore;
+  }, [isExplore, open, setOpen]);
+
+  // Treat a collapse performed while on Explore as an explicit opt-out.
+  useEffect(() => {
+    const prev = lastOpenRef.current;
+    lastOpenRef.current = open;
+    if (isExplore && prev && !open) userCollapsedOnExploreRef.current = true;
+  }, [open, isExplore]);
+
+  // When the collapsed rail's search icon expands the sidebar, focus the history
+  // search box once ChatHistoryNav mounts. A ref (not state) so it survives the
+  // expand->mount gap and never steals focus on a plain auto-expand.
+  const pendingSearchFocusRef = useRef(false);
+
+  // Collapsed-rail chat actions (Explore only). New chat / search expand-and-focus
+  // mutate state + URL directly, matching the in-surface navigation pattern.
+  const handleCollapsedNewChat = () => {
+    newSession();
+    window.history.replaceState(null, "", "/dashboard/explore/new");
+  };
+
+  const handleCollapsedSearch = () => {
+    pendingSearchFocusRef.current = true;
+    userCollapsedOnExploreRef.current = false; // explicit expand re-enables auto-expand
+    setOpen(true);
+  };
 
   const handleLogoClick = () => {
     if (isOnDashboardRoot) {
@@ -189,7 +244,10 @@ export function AppSidebar() {
   // Close project menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target as Node)) {
+      if (
+        projectMenuRef.current &&
+        !projectMenuRef.current.contains(event.target as Node)
+      ) {
         setIsProjectMenuOpen(false);
       }
     };
@@ -199,7 +257,9 @@ export function AppSidebar() {
 
   const userRole = user?.role;
   const filterByRole = (items: NavItem[]) =>
-    items.filter((item) => !item.roles || (userRole && item.roles.includes(userRole)));
+    items.filter(
+      (item) => !item.roles || (userRole && item.roles.includes(userRole)),
+    );
   const showProjectSwitcher = userRole === "director" || userRole === "member";
 
   return (
@@ -234,6 +294,8 @@ export function AppSidebar() {
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              role="img"
+              aria-label="SBI"
               className="size-4 text-sbi-green"
             >
               <circle cx="12" cy="12" r="10" />
@@ -249,7 +311,11 @@ export function AppSidebar() {
                 SBI
               </span>
               <span className="text-[9px] tracking-widest text-sbi-muted uppercase">
-                {user?.role === 'director' ? 'Director Portal' : user?.role === 'member' ? 'Member Portal' : 'Client Portal'}
+                {user?.role === "director"
+                  ? "Director Portal"
+                  : user?.role === "member"
+                    ? "Member Portal"
+                    : "Client Portal"}
               </span>
             </div>
           )}
@@ -258,17 +324,26 @@ export function AppSidebar() {
 
       {/* Project Switcher (directors/members only) */}
       {showProjectSwitcher && !isCollapsed && (
-        <div ref={projectMenuRef} className="relative px-3 py-3 border-b border-sbi-dark-border/30">
+        <div
+          ref={projectMenuRef}
+          className="relative px-3 py-3 border-b border-sbi-dark-border/30"
+        >
           <button
             type="button"
             onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
             className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-sbi-dark-card/40 border border-sbi-dark-border/30 hover:border-sbi-green/30 transition-colors cursor-pointer"
           >
             <div className="flex flex-col text-left min-w-0">
-              <span className="text-[10px] tracking-widest uppercase text-sbi-muted">Project</span>
-              <span className="text-sm text-white truncate">{activeProject?.companyName || "Select project"}</span>
+              <span className="text-[10px] tracking-widest uppercase text-sbi-muted">
+                Project
+              </span>
+              <span className="text-sm text-white truncate">
+                {activeProject?.companyName || "Select project"}
+              </span>
             </div>
-            <ChevronUp className={`size-4 text-sbi-muted transition-transform ${isProjectMenuOpen ? "" : "rotate-180"}`} />
+            <ChevronUp
+              className={`size-4 text-sbi-muted transition-transform ${isProjectMenuOpen ? "" : "rotate-180"}`}
+            />
           </button>
           {isProjectMenuOpen && (
             <div className="absolute top-full left-3 right-3 mt-1 bg-sbi-dark border border-sbi-dark-border/50 rounded-lg overflow-hidden shadow-2xl shadow-black/50 z-50">
@@ -298,51 +373,119 @@ export function AppSidebar() {
       {!showProjectSwitcher && !isCollapsed && activeProject && (
         <div className="px-3 py-3 border-b border-sbi-dark-border/30">
           <div className="px-3 py-2">
-            <span className="text-[10px] tracking-widest uppercase text-sbi-muted">Project</span>
-            <p className="text-sm text-white truncate">{activeProject.companyName}</p>
+            <span className="text-[10px] tracking-widest uppercase text-sbi-muted">
+              Project
+            </span>
+            <p className="text-sm text-white truncate">
+              {activeProject.companyName}
+            </p>
           </div>
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2">
-        {/* Main Navigation */}
-        <div className="space-y-1">
-          {filterByRole(mainItems).map((item) => (
-            <NavLink
-              key={item.title}
-              item={item}
-              isActive={isActive(item.path)}
-              baseUrl={baseUrl}
-              isCollapsed={isCollapsed}
-            />
-          ))}
-        </div>
-
-        {/* Divider */}
-        <div className="my-4 mx-3 h-px bg-linear-to-r from-transparent via-sbi-dark-border/50 to-transparent" />
-
-        {/* Documents Section */}
-        <div className="space-y-1">
-          {!isCollapsed && (
-            <div className="px-3 mb-2">
-              <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted font-light">
-                Documents
-              </span>
-            </div>
+      {/* Navigation. On Explore the primary nav stays fixed at its natural height
+          and the chat-history list takes the remaining space with its own scroll;
+          elsewhere the nav itself scrolls. */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <nav
+          className={cn(
+            "overflow-y-auto overflow-x-hidden py-4 px-2",
+            showChatHistory ? "shrink-0" : "flex-1",
           )}
-          {filterByRole(documentItems).map((item) => (
-            <NavLink
-              key={item.title}
-              item={item}
-              isActive={isActive(item.path)}
-              baseUrl={baseUrl}
-              isCollapsed={isCollapsed}
-            />
-          ))}
-        </div>
+        >
+          {/* Main Navigation */}
+          <div className="space-y-1">
+            {filterByRole(mainItems).map((item) => (
+              <NavLink
+                key={item.title}
+                item={item}
+                isActive={isActive(item.path)}
+                baseUrl={baseUrl}
+                isCollapsed={isCollapsed}
+              />
+            ))}
+          </div>
 
-      </nav>
+          {/* Divider */}
+          <div className="my-4 mx-3 h-px bg-linear-to-r from-transparent via-sbi-dark-border/50 to-transparent" />
+
+          {/* Documents Section */}
+          <div className="space-y-1">
+            {!isCollapsed && (
+              <div className="px-3 mb-2">
+                <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted font-light">
+                  Documents
+                </span>
+              </div>
+            )}
+            {filterByRole(documentItems).map((item) => (
+              <NavLink
+                key={item.title}
+                item={item}
+                isActive={isActive(item.path)}
+                baseUrl={baseUrl}
+                isCollapsed={isCollapsed}
+              />
+            ))}
+          </div>
+
+          {/* Collapsed chat rail (Explore only): the essential chat actions stay
+              reachable on the icon rail. Search expands the sidebar and focuses
+              the history search box. */}
+          {isExplore && isCollapsed && (
+            <>
+              <div className="my-4 mx-3 h-px bg-linear-to-r from-transparent via-sbi-dark-border/50 to-transparent" />
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={handleCollapsedNewChat}
+                  title="New chat"
+                  aria-label="New chat"
+                  className="group relative w-full flex items-center justify-center px-3 py-2.5 text-sbi-muted hover:text-white transition-colors duration-300"
+                >
+                  <MessageSquarePlus
+                    className="size-[18px] group-hover:text-sbi-green transition-colors duration-300"
+                    strokeWidth={1.5}
+                  />
+                  <span className="absolute inset-0 bg-sbi-green/0 group-hover:bg-sbi-green/5 transition-colors duration-300 rounded-lg -z-10" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCollapsedSearch}
+                  title="Search chats"
+                  aria-label="Search chats"
+                  className="group relative w-full flex items-center justify-center px-3 py-2.5 text-sbi-muted hover:text-white transition-colors duration-300"
+                >
+                  <Search
+                    className="size-[18px] group-hover:text-sbi-green transition-colors duration-300"
+                    strokeWidth={1.5}
+                  />
+                  <span className="absolute inset-0 bg-sbi-green/0 group-hover:bg-sbi-green/5 transition-colors duration-300 rounded-lg -z-10" />
+                </button>
+                <Link
+                  href="/dashboard/chats"
+                  title="All chats"
+                  aria-label="All chats"
+                  className="group relative w-full flex items-center justify-center px-3 py-2.5 text-sbi-muted hover:text-white transition-colors duration-300"
+                >
+                  <MessagesSquare
+                    className="size-[18px] group-hover:text-sbi-green transition-colors duration-300"
+                    strokeWidth={1.5}
+                  />
+                  <span className="absolute inset-0 bg-sbi-green/0 group-hover:bg-sbi-green/5 transition-colors duration-300 rounded-lg -z-10" />
+                </Link>
+              </div>
+            </>
+          )}
+        </nav>
+
+        {/* Contextual chat history (Explore only) */}
+        {showChatHistory && (
+          <div className="flex-1 min-h-0 flex flex-col border-t border-sbi-dark-border/30">
+            <ChatHistoryNav focusSearchRef={pendingSearchFocusRef} />
+          </div>
+        )}
+      </div>
 
       {/* User Profile Footer */}
       <div
@@ -351,9 +494,13 @@ export function AppSidebar() {
       >
         {/* User Menu Popup */}
         {isUserMenuOpen && (
-          <div className={`absolute bottom-full mb-1 bg-sbi-dark border border-sbi-dark-border/50 rounded-lg overflow-hidden shadow-2xl shadow-black/50 z-50 ${
-            isCollapsed ? "left-full ml-2 bottom-0 w-56" : "left-0 right-0 mx-2"
-          }`}>
+          <div
+            className={`absolute bottom-full mb-1 bg-sbi-dark border border-sbi-dark-border/50 rounded-lg overflow-hidden shadow-2xl shadow-black/50 z-50 ${
+              isCollapsed
+                ? "left-full ml-2 bottom-0 w-56"
+                : "left-0 right-0 mx-2"
+            }`}
+          >
             {/* User info header */}
             <div className="px-3 py-3 border-b border-sbi-dark-border/30">
               <div className="flex items-center gap-3">
@@ -376,7 +523,10 @@ export function AppSidebar() {
             <div className="py-1">
               <button
                 type="button"
-                onClick={() => { router.push("/dashboard/settings?section=profile"); setIsUserMenuOpen(false); }}
+                onClick={() => {
+                  router.push("/dashboard/settings?section=profile");
+                  setIsUserMenuOpen(false);
+                }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
               >
                 <User className="size-4" strokeWidth={1.5} />
@@ -384,7 +534,10 @@ export function AppSidebar() {
               </button>
               <button
                 type="button"
-                onClick={() => { router.push("/dashboard/settings?section=notifications"); setIsUserMenuOpen(false); }}
+                onClick={() => {
+                  router.push("/dashboard/settings?section=notifications");
+                  setIsUserMenuOpen(false);
+                }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
               >
                 <Bell className="size-4" strokeWidth={1.5} />
@@ -392,7 +545,10 @@ export function AppSidebar() {
               </button>
               <button
                 type="button"
-                onClick={() => { router.push("/dashboard/settings"); setIsUserMenuOpen(false); }}
+                onClick={() => {
+                  router.push("/dashboard/settings");
+                  setIsUserMenuOpen(false);
+                }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
               >
                 <Settings className="size-4" strokeWidth={1.5} />
