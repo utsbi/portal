@@ -84,7 +84,7 @@ export function CategoryGrid({
                 <button
                   type="button"
                   onClick={onEdit}
-                  className="p-1 text-sbi-muted hover:text-white rounded"
+                  className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors"
                   aria-label={`Edit ${cat.name}`}
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -94,7 +94,7 @@ export function CategoryGrid({
                 <button
                   type="button"
                   onClick={() => onDeleteCategory(cat.id)}
-                  className="p-1 text-sbi-muted hover:text-rose-400 rounded"
+                  className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
                   aria-label={`Delete ${cat.name}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

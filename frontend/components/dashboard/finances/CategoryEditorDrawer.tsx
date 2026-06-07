@@ -186,7 +186,7 @@ export function CategoryEditorDrawer({
                       ? `Has ${txCount} transaction${txCount === 1 ? "" : "s"} — reassign or delete them before removing this category`
                       : "Remove category"
                   }
-                  className="flex h-9 items-center justify-center rounded text-sbi-muted hover:text-rose-400 disabled:text-sbi-muted-dark/40 disabled:hover:text-sbi-muted-dark/40 disabled:cursor-not-allowed"
+                  className="flex h-9 items-center justify-center rounded-md text-sbi-muted transition-colors hover:text-red-400 hover:bg-red-500/10 disabled:text-sbi-muted-dark/40 disabled:hover:bg-transparent disabled:hover:text-sbi-muted-dark/40 disabled:cursor-not-allowed"
                   aria-label="Remove category"
                 >
                   <Trash2 className="h-4 w-4" />

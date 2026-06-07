@@ -334,6 +334,74 @@ export type Database = {
           },
         ];
       };
+      custom_form_assignments: {
+        Row: {
+          created_at: string;
+          form_id: number;
+          id: number;
+          project_id: number | null;
+          user_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          form_id: number;
+          id?: number;
+          project_id?: number | null;
+          user_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          form_id?: number;
+          id?: number;
+          project_id?: number | null;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "custom_form_assignments_form_id_fkey";
+            columns: ["form_id"];
+            isOneToOne: false;
+            referencedRelation: "custom_form_schemas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "custom_form_assignments_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      custom_form_schema_versions: {
+        Row: {
+          created_at: string;
+          fields: Json;
+          form_id: number;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          fields: Json;
+          form_id: number;
+          version: number;
+        };
+        Update: {
+          created_at?: string;
+          fields?: Json;
+          form_id?: number;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "custom_form_schema_versions_form_id_fkey";
+            columns: ["form_id"];
+            isOneToOne: false;
+            referencedRelation: "custom_form_schemas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       custom_form_schemas: {
         Row: {
           assigned_to: string[] | null;
@@ -341,10 +409,16 @@ export type Database = {
           created_by: string | null;
           description: string | null;
           fields: Json;
+          closes_at: string | null;
           id: number;
           is_active: boolean | null;
+          opens_at: string | null;
+          public_password_hash: string | null;
+          public_token: string | null;
           title: string;
           updated_at: string | null;
+          version: number;
+          visibility: string;
         };
         Insert: {
           assigned_to?: string[] | null;
@@ -352,10 +426,16 @@ export type Database = {
           created_by?: string | null;
           description?: string | null;
           fields?: Json;
+          closes_at?: string | null;
           id?: number;
           is_active?: boolean | null;
+          opens_at?: string | null;
+          public_password_hash?: string | null;
+          public_token?: string | null;
           title: string;
           updated_at?: string | null;
+          version?: number;
+          visibility?: string;
         };
         Update: {
           assigned_to?: string[] | null;
@@ -363,10 +443,16 @@ export type Database = {
           created_by?: string | null;
           description?: string | null;
           fields?: Json;
+          closes_at?: string | null;
           id?: number;
           is_active?: boolean | null;
+          opens_at?: string | null;
+          public_password_hash?: string | null;
+          public_token?: string | null;
           title?: string;
           updated_at?: string | null;
+          version?: number;
+          visibility?: string;
         };
         Relationships: [];
       };
@@ -377,8 +463,13 @@ export type Database = {
           form_id: number;
           id: number;
           project_id: number | null;
+          schema_version: number;
+          status: string;
+          submitted_at: string | null;
+          submitter_email: string | null;
+          submitter_name: string | null;
           updated_at: string | null;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           created_at?: string | null;
@@ -386,8 +477,13 @@ export type Database = {
           form_id: number;
           id?: number;
           project_id?: number | null;
+          schema_version?: number;
+          status?: string;
+          submitted_at?: string | null;
+          submitter_email?: string | null;
+          submitter_name?: string | null;
           updated_at?: string | null;
-          user_id?: string;
+          user_id?: string | null;
         };
         Update: {
           created_at?: string | null;
@@ -395,8 +491,13 @@ export type Database = {
           form_id?: number;
           id?: number;
           project_id?: number | null;
+          schema_version?: number;
+          status?: string;
+          submitted_at?: string | null;
+          submitter_email?: string | null;
+          submitter_name?: string | null;
           updated_at?: string | null;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
@@ -414,6 +515,33 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      custom_form_templates: {
+        Row: {
+          created_at: string;
+          created_by: string;
+          description: string | null;
+          fields: Json;
+          id: number;
+          name: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by: string;
+          description?: string | null;
+          fields?: Json;
+          id?: number;
+          name: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string;
+          description?: string | null;
+          fields?: Json;
+          id?: number;
+          name?: string;
+        };
+        Relationships: [];
       };
       finances: {
         Row: {

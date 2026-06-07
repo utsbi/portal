@@ -109,7 +109,7 @@ export function TransactionsTable({
                 e.stopPropagation();
                 onEditTransaction(row);
               }}
-              className="p-1 text-sbi-muted hover:text-white rounded"
+              className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors"
               aria-label="Edit transaction"
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -122,7 +122,7 @@ export function TransactionsTable({
                 e.stopPropagation();
                 onDeleteTransaction(row.id);
               }}
-              className="p-1 text-sbi-muted hover:text-rose-400 rounded"
+              className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
               aria-label="Delete transaction"
             >
               <Trash2 className="h-3.5 w-3.5" />
