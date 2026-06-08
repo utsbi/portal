@@ -22,7 +22,9 @@ const NOTION_EASE = [0.165, 0.84, 0.44, 1] as const;
 //  - locked: docked flush full-height, square corners, no shadow
 const panelVariants: Variants = {
   hidden: {
-    x: DEFAULT_WIDTH + 24,
+    // Translate fully past its own right edge so it clears even when the width
+    // is capped to 90vw on narrow screens. 110% > any capped width.
+    x: "110%",
     opacity: 0,
     top: "7.5%",
     bottom: "7.5%",
@@ -91,6 +93,10 @@ export function HoverPeekPanel({
 }: HoverPeekPanelProps) {
   const [pinned, setPinned] = useState(false);
   const [peek, setPeek] = useState(false);
+  // Hover-peek is a fine-pointer affordance only. On touch (coarse pointer) the
+  // hover events never fire reliably, so we gate them off and let users tap the
+  // edge handle to toggle the panel instead.
+  const [canHover, setCanHover] = useState(true);
   const open = pinned || peek;
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -100,6 +106,16 @@ export function HoverPeekPanel({
       if (localStorage.getItem(storageKey) === "1") setPinned(true);
     } catch {}
   }, [storageKey]);
+
+  // Detect whether the primary pointer can hover (mouse/trackpad vs touch).
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const update = () => setCanHover(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
 
   const openPeek = useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -140,20 +156,29 @@ export function HoverPeekPanel({
           edge strip widens the hover target. Both hide once the panel is open. */}
       {!pinned && (
         <>
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: purely a mouse
-              hover-target widener; the adjacent button is the keyboard affordance. */}
-          <div
-            className="absolute top-0 right-0 z-30 h-full w-4"
-            onMouseEnter={openPeek}
-          />
+          {/* The right-edge handle. On fine pointers a tall invisible strip
+              (::before) widens the hover target so the peek triggers a little
+              before the cursor reaches the visible tab; on touch it's a plain
+              tap target. It's the keyboard affordance too (focusable button,
+              Enter/Space pin it open). */}
           <button
             type="button"
-            onMouseEnter={openPeek}
+            onMouseEnter={canHover ? openPeek : undefined}
             onClick={togglePin}
             aria-label={tabLabel}
-            title={`${title} — hover to peek, click to keep open`}
+            aria-expanded={open}
+            title={
+              canHover
+                ? `${title} — hover to peek, click to keep open`
+                : `${title} — tap to open`
+            }
             className={cn(
               "absolute right-0 top-1/2 -translate-y-1/2 z-30 inline-flex items-center justify-center rounded-l-xl border border-r-0 border-sbi-dark-border bg-sbi-dark-card py-4 pl-2.5 pr-2 text-sbi-muted shadow-lg shadow-black/30 transition-all duration-200 hover:text-sbi-green hover:pr-3",
+              // Fine-pointer hover-target widener: an invisible full-height strip
+              // along the right edge so the peek can trigger before the cursor
+              // lands on the visible tab. No-op for touch.
+              canHover &&
+                "before:absolute before:top-1/2 before:right-0 before:h-screen before:max-h-[100vh] before:w-4 before:-translate-y-1/2 before:content-['']",
               open && "opacity-0 pointer-events-none translate-x-4",
             )}
           >
@@ -166,15 +191,17 @@ export function HoverPeekPanel({
           so the float->dock transition tweens (x, inset, radius, shadow) instead
           of snapping between class sets. */}
       <motion.aside
-        onMouseEnter={cancelClose}
-        onMouseLeave={scheduleClose}
+        onMouseEnter={canHover ? cancelClose : undefined}
+        onMouseLeave={canHover ? scheduleClose : undefined}
         initial={false}
         animate={visualState}
         variants={panelVariants}
         transition={{ duration: 0.3, ease: NOTION_EASE }}
         style={{
           position: "absolute",
-          width,
+          // Cap to the viewport on narrow screens so the fixed 288px panel never
+          // overflows; respects the requested width on roomy layouts.
+          width: `min(${width}px, 90vw)`,
           zIndex: 40,
           pointerEvents: open ? "auto" : "none",
         }}
