@@ -154,6 +154,48 @@ export async function unlockPublicForm(
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Conservative, generous payload caps for the public (unauthenticated) submit
+// path. Persistence here uses the service role with no RLS, so an attacker
+// could otherwise store arbitrary keys / arbitrarily large values as a
+// storage / DoS vector. These limits sit well above any realistic form and are
+// layered ON TOP OF the schema-based answer validation below, never replacing
+// it.
+const MAX_ANSWER_ENTRIES = 500; // distinct keys in the answer map
+const MAX_TOTAL_ANSWERS_BYTES = 256 * 1024; // serialized JSON length, 256 KB
+const MAX_SINGLE_VALUE_BYTES = 50 * 1024; // any one answer value, 50 KB
+
+/**
+ * Reject answer maps that exceed conservative size/count bounds before they are
+ * persisted. Returns a generic, user-safe message (no internals leaked) so the
+ * caller can surface a 400-style error; returns null when within bounds.
+ */
+function checkAnswerBounds(answers: AnswerMap): string | null {
+  const tooLarge = "Your submission is too large. Please shorten your answers.";
+
+  const keys = Object.keys(answers);
+  if (keys.length > MAX_ANSWER_ENTRIES) return tooLarge;
+
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(answers);
+  } catch {
+    // Non-serializable (e.g. circular) payloads are rejected outright.
+    return tooLarge;
+  }
+  if (serialized.length > MAX_TOTAL_ANSWERS_BYTES) return tooLarge;
+
+  for (const key of keys) {
+    const value = answers[key];
+    if (value == null) continue;
+    const valueLength = Array.isArray(value)
+      ? value.reduce((sum, item) => sum + String(item).length, 0)
+      : String(value).length;
+    if (valueLength > MAX_SINGLE_VALUE_BYTES) return tooLarge;
+  }
+
+  return null;
+}
+
 export interface PublicSubmitInput {
   token: string;
   password?: string;
@@ -211,6 +253,10 @@ export async function submitPublicForm(
       }.`,
     };
   }
+
+  // Conservative size/count guard on the persisted payload (storage/DoS).
+  const boundsError = checkAnswerBounds(input.answers);
+  if (boundsError) return { error: boundsError };
 
   const supabase = createAdminClient();
   const { error } = await supabase.from("custom_form_submissions").insert({
