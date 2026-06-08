@@ -1,5 +1,4 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from typing import List
 from datetime import datetime
 
 from app.explore.schemas.document import DocumentUploadResponse

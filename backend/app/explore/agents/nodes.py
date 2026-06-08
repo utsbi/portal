@@ -9,6 +9,7 @@ from app.explore.agents.prompts import (
     GENERATE_RESPONSE_PROMPT,
     QUERY_REWRITER_PROMPT,
     SEMANTIC_ROUTER_PROMPT,
+    TITLE_GENERATOR_PROMPT,
 )
 from app.explore.services.rag_service import RAGService
 
@@ -62,6 +63,44 @@ def format_history(history: List[Dict[str, str]]) -> str:
         formatted.append(f"{role}: {content}")
 
     return "\n".join(formatted)
+
+
+def _fallback_title(query: str, max_len: int = 60) -> str:
+    """Deterministic title fallback: first line of the query, trimmed to max_len."""
+    first_line = (query or "").strip().splitlines()[0] if query.strip() else ""
+    first_line = first_line.strip() or "New Conversation"
+    if len(first_line) > max_len:
+        first_line = first_line[: max_len - 1].rstrip() + "…"  # ellipsis
+    return first_line
+
+
+async def generate_title(query: str) -> str:
+    """Generate a concise conversation title from the first user message.
+
+    Best-effort: uses ``FAST_MODEL`` for a short, descriptive title and falls
+    back to a trimmed slice of the query if the LLM call fails or returns empty,
+    so titling never blocks or breaks a chat turn.
+    """
+    if not query or not query.strip():
+        return _fallback_title(query)
+
+    try:
+        title_prompt = TITLE_GENERATOR_PROMPT.format(query=query.strip()[:2000])
+        response = await openrouter_client.chat.completions.create(
+            model=settings.fast_model,
+            messages=[{"role": "user", "content": title_prompt}],
+        )
+        title = (response.choices[0].message.content or "").strip()
+        # Strip stray wrapping quotes the model may add despite instructions.
+        title = title.strip('"').strip("'").strip()
+        if title:
+            # Keep titles short even if the model ignores the word limit.
+            return title if len(title) <= 80 else title[:79].rstrip() + "…"
+        logger.warning("Title generator returned empty, using fallback")
+    except Exception as e:
+        logger.warning(f"Title generation failed, using fallback: {e}")
+
+    return _fallback_title(query)
 
 
 def _direct_response_text(query: str) -> Optional[str]:
@@ -405,11 +444,16 @@ async def format_sources(state: Dict[str, Any]) -> Dict[str, Any]:
 
             if source_key not in seen_files:
                 seen_files.add(source_key)
+                # Prefer the reranker's relevance score (the accurate second-stage
+                # signal) when present; fall back to the first-stage similarity so
+                # the chip still shows a meaningful score if reranking was skipped.
+                rerank_score = doc.get("rerank_score")
+                relevance = rerank_score if rerank_score is not None else doc.get("similarity_score", 0.0)
                 sources.append({
                     "content": doc.get("content", "")[:500],
                     "filename": filename,
                     "page_number": page,
-                    "relevance_score": doc.get("similarity_score", 0.0),
+                    "relevance_score": relevance,
                 })
 
     return {**state, "sources": sources}

@@ -120,6 +120,20 @@ Output Rules:
 Rewrite the message now:"""
 
 
+# Prompt for generating a short conversation title from the first user message
+TITLE_GENERATOR_PROMPT = """You are titling a chat conversation for a project-management assistant. Generate a concise, descriptive title for a conversation that opens with the user message below.
+
+User message:
+{query}
+
+Rules:
+- 3 to 6 words. Title Case. No trailing punctuation.
+- Capture the topic/intent, not the phrasing (e.g. "Roof Insulation Spec Review", not "Can you check this?").
+- Do NOT wrap the output in quotes. Do NOT add labels, explanations, or emojis.
+
+Output only the title:"""
+
+
 # Prompt for semantic routing when session attachments are present
 SEMANTIC_ROUTER_PROMPT = """You are a high-precision Query Router for a RAG system. Your sole purpose is to classify the User Question into exactly one of three execution paths based on Intent and Reference.
 
