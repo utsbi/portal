@@ -239,7 +239,8 @@ export function ChatsView() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search chats…"
-            className="w-full h-11 pl-10 pr-4 rounded-xl bg-sbi-dark-card/60 border border-sbi-dark-border text-sm text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
+            aria-label="Search chats"
+            className="w-full h-11 pl-10 pr-4 rounded-md bg-sbi-dark-card/60 border border-sbi-dark-border/50 text-sm text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/50 transition-colors"
           />
         </div>
 

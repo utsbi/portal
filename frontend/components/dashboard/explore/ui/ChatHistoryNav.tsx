@@ -283,7 +283,7 @@ export function ChatHistoryNav({ focusSearchRef }: ChatHistoryNavProps = {}) {
         </div>
         <div className="relative">
           <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sbi-muted"
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sbi-muted"
             strokeWidth={1.5}
           />
           <input
@@ -292,7 +292,8 @@ export function ChatHistoryNav({ focusSearchRef }: ChatHistoryNavProps = {}) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search…"
-            className="w-full h-8 pl-8 pr-3 rounded-md bg-sbi-dark-card/60 border border-sbi-dark-border text-[13px] text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
+            aria-label="Search conversations"
+            className="w-full h-8 pl-9 pr-3 rounded-md bg-sbi-dark-card/60 border border-sbi-dark-border/50 text-[13px] text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/50 transition-colors"
           />
         </div>
         <button

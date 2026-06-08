@@ -62,6 +62,7 @@ interface ChatContextType {
   loadingPhase: LoadingPhase;
   isLoading: boolean;
   error: string | null;
+  clearError: () => void;
   attachments: AttachmentFile[];
   loadingAttachments: string[];
   modelPreference: ModelPreference;
@@ -363,6 +364,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setAttachments((prev) => prev.filter((a) => a.filename !== filename));
   }, []);
 
+  const clearError = useCallback(() => setError(null), []);
+
   const cancelRequest = useCallback(() => {
     cancelledRef.current = true;
     if (abortControllerRef.current) {
@@ -647,6 +650,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         loadingPhase,
         isLoading,
         error,
+        clearError,
         attachments,
         loadingAttachments,
         modelPreference,

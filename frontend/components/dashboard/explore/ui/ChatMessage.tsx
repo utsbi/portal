@@ -59,6 +59,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
         <button
           type="button"
           onClick={handleCopy}
+          aria-label="Copy code"
           className="p-1 text-sbi-muted hover:text-white transition-colors"
           title="Copy code"
         >
@@ -360,6 +361,7 @@ export function ChatMessage({
               <button
                 type="button"
                 onClick={handleCopy}
+                aria-label="Copy message"
                 className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
                 title="Copy"
               >
@@ -372,6 +374,7 @@ export function ChatMessage({
               <button
                 type="button"
                 onClick={handleEdit}
+                aria-label="Edit message"
                 className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
                 title="Edit"
               >
@@ -386,6 +389,9 @@ export function ChatMessage({
                 <button
                   type="button"
                   onClick={() => setIsExpanded(!isExpanded)}
+                  aria-label={
+                    isExpanded ? "Collapse message" : "Expand message"
+                  }
                   className="absolute top-2 right-2 p-1 text-sbi-muted hover:text-white hover:bg-sbi-dark rounded-lg transition-colors z-10"
                   title={isExpanded ? "Collapse" : "Expand"}
                 >
@@ -516,6 +522,7 @@ export function ChatMessage({
                 type="button"
                 onClick={regenerateResponse}
                 disabled={isLoading}
+                aria-label="Regenerate response"
                 className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Redo"
               >
@@ -526,6 +533,7 @@ export function ChatMessage({
               <button
                 type="button"
                 onClick={handleCopy}
+                aria-label="Copy response"
                 className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
                 title="Copy Reponse"
               >
@@ -538,6 +546,7 @@ export function ChatMessage({
             )}
             <button
               type="button"
+              aria-label="More options"
               className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
               title="More"
             >
