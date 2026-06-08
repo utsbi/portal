@@ -179,6 +179,14 @@ export function AppSidebar() {
   const lastOpenRef = useRef(open);
 
   useEffect(() => {
+    // Desktop only: auto-expand on Explore and restore the prior state on leave.
+    // On mobile the sidebar is a trigger-driven slide-over (dismissed on navigation
+    // below), so it must never auto-open over the content — Explore is the landing
+    // page, and auto-opening there would cover the screen on every visit.
+    if (isMobile) {
+      wasExploreRef.current = isExplore;
+      return;
+    }
     const wasExplore = wasExploreRef.current;
     if (isExplore && !wasExplore) {
       preExploreOpenRef.current = open;
@@ -187,7 +195,7 @@ export function AppSidebar() {
       setOpen(preExploreOpenRef.current);
     }
     wasExploreRef.current = isExplore;
-  }, [isExplore, open, setOpen]);
+  }, [isExplore, open, setOpen, isMobile]);
 
   // Treat a collapse performed while on Explore as an explicit opt-out.
   useEffect(() => {
