@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  MessageSquare,
   MessageSquarePlus,
   MoreHorizontal,
   Pencil,
@@ -11,6 +12,14 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  btnPrimary,
+  DashboardShell,
+  EmptyState,
+  inputClass,
+  PageHeader,
+  Panel,
+} from "@/components/dashboard/common/ui";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu,
@@ -213,46 +222,54 @@ export function ChatsView() {
   };
 
   return (
-    <div className="absolute inset-0 overflow-y-auto dashboard-scrollbar">
-      <div className="w-full max-w-3xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-light tracking-tight text-white">
-            Chats
-          </h1>
-          <button
-            type="button"
-            onClick={handleNewChat}
-            className="inline-flex items-center gap-2 px-3 h-9 rounded-lg border border-sbi-dark-border bg-sbi-dark-card/40 text-sm text-sbi-muted hover:text-sbi-green hover:border-sbi-green/30 transition-colors"
-          >
-            <MessageSquarePlus className="h-4 w-4" strokeWidth={1.5} />
+    <DashboardShell className="max-w-3xl">
+      <PageHeader
+        title="Chats"
+        action={
+          <button type="button" onClick={handleNewChat} className={btnPrimary}>
+            <MessageSquarePlus className="h-3.5 w-3.5" strokeWidth={1.5} />
             New chat
           </button>
-        </div>
+        }
+      />
 
-        <div className="relative mb-2">
-          <Search
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-sbi-muted"
-            strokeWidth={1.5}
-          />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search chats…"
-            aria-label="Search chats"
-            className="w-full h-11 pl-10 pr-4 rounded-md bg-sbi-dark-card/60 border border-sbi-dark-border/50 text-sm text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/50 transition-colors"
-          />
-        </div>
+      <div className="relative mb-4 shrink-0">
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sbi-muted-dark"
+          strokeWidth={1.5}
+        />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search chats…"
+          aria-label="Search chats"
+          className={cn(inputClass, "pl-9")}
+        />
+      </div>
 
+      <Panel className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar">
         {loading && (
           <div className="py-12 text-center text-sm text-sbi-muted-dark">
             Loading…
           </div>
         )}
         {!loading && sessionList.length === 0 && (
-          <div className="py-12 text-center text-sm text-sbi-muted-dark">
-            No conversations yet.
-          </div>
+          <EmptyState
+            icon={<MessageSquare size={24} />}
+            title="No conversations yet"
+            description="Start a new chat to explore your project with the AI portal."
+            action={
+              <button
+                type="button"
+                onClick={handleNewChat}
+                className={btnPrimary}
+              >
+                <MessageSquarePlus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                New chat
+              </button>
+            }
+          />
         )}
         {!loading && sessionList.length > 0 && filteredCount === 0 && (
           <div className="py-12 text-center text-sm text-sbi-muted-dark">
@@ -283,7 +300,7 @@ export function ChatsView() {
             </div>
           </div>
         )}
-      </div>
+      </Panel>
 
       <ConfirmDialog
         opened={deleteTarget !== null}
@@ -302,6 +319,6 @@ export function ChatsView() {
         danger
         onConfirm={confirmDelete}
       />
-    </div>
+    </DashboardShell>
   );
 }
