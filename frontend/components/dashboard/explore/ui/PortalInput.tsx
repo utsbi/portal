@@ -272,13 +272,16 @@ export function PortalInput({
                 <Plus className="w-5 h-5" strokeWidth={1.5} />
               </Button>
 
-              {/* Tools button */}
+              {/* Tools button — feature not yet available. Kept visible but
+                  inert so the affordance reads as "coming", not broken. */}
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={disabled}
-                aria-label="Tools"
-                className="h-9 px-3 text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50 gap-1.5"
+                disabled
+                aria-disabled="true"
+                aria-label="Tools (coming soon)"
+                title="Coming soon"
+                className="h-9 px-3 text-sbi-muted rounded-full opacity-50 cursor-not-allowed gap-1.5"
               >
                 <Settings2 className="w-4 h-4" strokeWidth={1.5} />
                 <span className="text-sm font-light">Tools</span>

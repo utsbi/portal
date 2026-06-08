@@ -63,6 +63,10 @@ interface ChatContextType {
   isLoading: boolean;
   error: string | null;
   clearError: () => void;
+  // True when the most recent loadSession() failed to hydrate a conversation
+  // (unknown id, RLS, or fetch error). Lets the surface show an empty/error
+  // state instead of a blank thread. Reset on any successful load / new session.
+  loadFailed: boolean;
   attachments: AttachmentFile[];
   loadingAttachments: string[];
   modelPreference: ModelPreference;
@@ -96,6 +100,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [sessionTitle, setSessionTitle] = useState<string | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [modelPreference, setModelPreference] =
     useState<ModelPreference>("fast");
@@ -482,6 +487,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoadingAttachments([]);
     setLoadingPhase("idle");
     setError(null);
+    setLoadFailed(false);
     setSessionId(null);
     setSessionPublicId(null);
     setSessionTitle(null);
@@ -499,6 +505,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         abortControllerRef.current = null;
       }
       setError(null);
+      setLoadFailed(false);
       setLoadingPhase("idle");
 
       const supabase = createClient();
@@ -510,6 +517,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (sessErr || !session) {
+        setLoadFailed(true);
         return false;
       }
 
@@ -525,6 +533,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (fetchErr) {
         setError(`Failed to load session: ${fetchErr.message}`);
+        setLoadFailed(true);
         return false;
       }
 
@@ -544,6 +553,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setMessages(hydrated);
       setAttachments([]);
       setLoadingAttachments([]);
+      setLoadFailed(false);
       setSessionId(session.id);
       setSessionPublicId(session.public_id as string);
       return true;
@@ -651,6 +661,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         isLoading,
         error,
         clearError,
+        loadFailed,
         attachments,
         loadingAttachments,
         modelPreference,
