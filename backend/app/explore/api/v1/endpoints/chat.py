@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import datetime
 
-from app.explore.schemas.chat import ChatRequest, ChatResponse, ChatMessage, SourceDocument
+from app.explore.schemas.chat import ChatRequest
 from app.explore.agents.explore import run_explore_agent_streaming
 from app.explore.api.deps import get_current_user_id
 from app.explore.services.pdf_parser import PDFParser
