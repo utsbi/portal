@@ -51,9 +51,11 @@ async def chat(request: ChatRequest, raw_request: Request, user_id: str = Depend
         except asyncio.CancelledError:
             logger.info("SSE stream cancelled")
             return
-        except Exception as e:
-            logger.error(f"SSE stream error: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        except Exception:
+            # Log the full exception server-side, but never leak internals to
+            # the client — return a generic error message instead.
+            logger.error("SSE stream error", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An internal error occurred'})}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -117,8 +119,10 @@ async def extract_file_text(
             "file_type": file_type
         }
 
-    except Exception as e:
+    except Exception:
+        # Log the full exception server-side; return a generic client message.
+        logger.error("Failed to extract text from file", exc_info=True)
         raise HTTPException(
             status_code=400,
-            detail=f"Failed to extract text from file: {str(e)}"
+            detail="Failed to extract text from file"
         )

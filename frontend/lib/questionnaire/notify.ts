@@ -8,6 +8,24 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // must never fail the submission itself.
 // ---------------------------------------------------------------------------
 
+// Sanitize user-controlled text before embedding it in a Discord message.
+// Neutralizes markdown control chars, @everyone/@here and <@...> mentions, and
+// link/codeblock injection, then length-limits the result.
+function sanitizeForDiscord(value: string, maxLength = 256): string {
+  return (
+    value
+      // Defang mentions: @everyone / @here / <@123> / <@&123> / <#123>.
+      .replace(/@(everyone|here)/gi, "@​$1")
+      .replace(/<(@[!&]?|#)(\d+)>/g, "<​$1$2>")
+      // Escape Discord markdown / formatting control characters.
+      .replace(/([\\*_~`|>[\]()#-])/g, "\\$1")
+      // Collapse newlines so a submitter can't inject extra embed lines.
+      .replace(/[\r\n]+/g, " ")
+      .trim()
+      .slice(0, maxLength)
+  );
+}
+
 interface NotifyInput {
   formId: number;
   via: "portal" | "public";
@@ -42,8 +60,13 @@ export async function notifyFormSubmission(input: NotifyInput): Promise<void> {
     }
     if (!submitter) submitter = input.submitterEmail?.trim() || "Anonymous";
 
-    const lines = [`From: ${submitter}`];
-    if (input.submitterEmail) lines.push(`Email: ${input.submitterEmail}`);
+    // Sanitize user-controlled fields before embedding (markdown / mention /
+    // link injection). `title` and the resolved profile name are not
+    // submitter-controlled, but sanitizing the combined value is harmless.
+    const lines = [`From: ${sanitizeForDiscord(submitter)}`];
+    if (input.submitterEmail) {
+      lines.push(`Email: ${sanitizeForDiscord(input.submitterEmail)}`);
+    }
     lines.push(`Via: ${input.via === "public" ? "public link" : "portal"}`);
 
     await fetch(url, {
