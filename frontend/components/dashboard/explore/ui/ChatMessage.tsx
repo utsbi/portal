@@ -217,7 +217,6 @@ export function ChatMessage({
   const [isEditing, setIsEditing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
   const { editAndResend, isLoading, regenerateResponse } = useChat();
 
@@ -319,12 +318,7 @@ export function ChatMessage({
   // User message
   if (isUser) {
     return (
-      <div
-        ref={containerRef}
-        className="flex justify-end mb-6"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
+      <div ref={containerRef} className="group flex justify-end mb-6">
         {/* Content column, right aligned, set width */}
         <div className="flex flex-col items-end gap-2 max-w-[80%] overflow-hidden">
           {/* Attached files, horizontal row, right-aligned */}
@@ -356,7 +350,11 @@ export function ChatMessage({
           <div className="flex items-start gap-2 min-w-0 w-full justify-end">
             {/* Action buttons - left of msg bubble, aligned top */}
             <div
-              className={`flex items-center gap-1 shrink-0 pt-2 transition-opacity duration-200 ${isHovered && !isEditing ? "opacity-100" : "opacity-0"}`}
+              className={`flex items-center gap-1 shrink-0 pt-2 transition-opacity duration-200 ${
+                isEditing
+                  ? "opacity-0"
+                  : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+              }`}
             >
               <button
                 type="button"
@@ -454,6 +452,19 @@ export function ChatMessage({
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Cancelled before any content streamed in: skip the avatar + bubble shell
+  // and surface a minimal inline note rather than an orphaned empty block.
+  if (message.isCancelled && !displayContent) {
+    return (
+      <div ref={containerRef} className="flex items-center gap-2 mb-6 pl-12">
+        <span className="w-1.5 h-1.5 rounded-full bg-sbi-muted/60 shrink-0" />
+        <p className="text-sbi-muted italic text-sm font-light">
+          Response was cancelled
+        </p>
       </div>
     );
   }

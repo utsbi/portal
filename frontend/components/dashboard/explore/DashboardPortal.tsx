@@ -5,7 +5,6 @@ import { motion } from "motion/react";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@/lib/chat/chat-context";
-import { cn } from "@/lib/utils";
 import { AmbientGrid } from "./ui/AmbientGrid";
 import { ChatMessages } from "./ui/ChatMessages";
 import { FloatingNodes } from "./ui/FloatingNodes";
@@ -43,10 +42,25 @@ export function ExplorePortal() {
     newSession,
     clearChat,
     cancelRequest,
+    isLoading,
+    loadFailed,
   } = useChat();
 
   const isNewRoute = !chatId || chatId === "new";
-  const showWelcome = messages.length === 0;
+  // A revisited/loaded thread that ended up empty (failed load, or no messages
+  // while nothing is in flight) gets a small explicit state instead of the
+  // new-chat welcome hero or a blank scroll region.
+  const showEmptyState =
+    messages.length === 0 && !isNewRoute && !isLoading && loadFailed;
+  const showWelcome = messages.length === 0 && !showEmptyState;
+  // Announce the active conversation / generating state to screen readers.
+  const liveAnnouncement = loadFailed
+    ? "Could not load this conversation."
+    : isLoading
+      ? `Generating a response in ${sessionTitle || "this conversation"}.`
+      : showWelcome
+        ? "New conversation."
+        : `Viewing conversation: ${sessionTitle || "Untitled"}.`;
 
   // Mirror the open session id into a ref so the hydrate effect always compares
   // against the *current* value, not a stale closure (the effect deliberately
@@ -194,8 +208,8 @@ export function ExplorePortal() {
           until the backend auto-titles it after the first response). */}
       {!showWelcome && (
         <div className="absolute top-0 inset-x-0 z-20 flex justify-center px-4 pt-3 pointer-events-none">
-          <div className="max-w-md rounded-full bg-sbi-dark/70 backdrop-blur-sm border border-sbi-dark-border/50 px-4 py-1.5">
-            <span className="block text-xs font-medium text-white/80 truncate">
+          <div className="min-w-[8rem] max-w-md rounded-full bg-sbi-dark/70 backdrop-blur-sm border border-sbi-dark-border/50 px-4 py-1.5">
+            <span className="block text-xs font-medium text-white/80 text-center truncate">
               {sessionTitle || "Untitled"}
             </span>
           </div>
@@ -208,15 +222,33 @@ export function ExplorePortal() {
         framer-motion `layout` smoothly animates it from centered (welcome) to
         the bottom (thread). Mirrors claude.ai.
       */}
-      <div
-        className={cn(
-          "relative z-10 flex flex-col h-full",
-          showWelcome && "justify-center",
-        )}
-      >
+      <div className="relative z-10 flex flex-col h-full">
+        {/* SR-only live region: announces the active conversation and generating
+            state so screen-reader users aren't left guessing which thread they're
+            in or whether a response is in flight. */}
+        <p aria-live="polite" className="sr-only">
+          {liveAnnouncement}
+        </p>
+
         {showWelcome ? (
-          <div className="shrink-0 w-full max-w-3xl mx-auto px-4 mb-2">
-            <PortalHero />
+          // Welcome state: clamp + scroll so the hero, composer, and suggestion
+          // chips never get cut off on short viewports.
+          <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar flex items-center justify-center">
+            <div className="shrink-0 w-full max-w-3xl mx-auto px-4 py-6">
+              <PortalHero />
+            </div>
+          </div>
+        ) : showEmptyState ? (
+          <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar flex items-center justify-center">
+            <div className="w-full max-w-md mx-auto px-4 text-center">
+              <p className="text-sm font-medium text-white/80">
+                This conversation couldn't be loaded
+              </p>
+              <p className="mt-2 text-xs text-sbi-muted-dark font-light leading-relaxed">
+                It may have been deleted or is no longer available. Start a new
+                message below to keep going.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar">
