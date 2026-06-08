@@ -192,6 +192,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       try {
         let assistantId: string | null = null;
 
+        // Brand-new conversation: mint the chat's uuid client-side so the URL is
+        // correct before the first response (the API route creates the session
+        // with it). syncPublicId reconciles from the DB afterwards as a safety net.
+        let newPublicId: string | null = null;
+        if (sessionIdRef.current === null) {
+          newPublicId = crypto.randomUUID();
+          setSessionPublicId(newPublicId);
+        }
+
         const response = await sendChatMessage(
           {
             query,
@@ -200,6 +209,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             include_sources: true,
             model_preference: modelPreference,
             session_id: sessionIdRef.current,
+            public_id: newPublicId,
           },
           abortController.signal,
           handlePhase,
@@ -285,7 +295,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         abortControllerRef.current = null;
       }
     },
-    [modelPreference, handlePhase, setSessionId, syncPublicId],
+    [
+      modelPreference,
+      handlePhase,
+      setSessionId,
+      setSessionPublicId,
+      syncPublicId,
+    ],
   );
 
   const sendMessage = useCallback(
