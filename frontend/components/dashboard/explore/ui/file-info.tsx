@@ -5,7 +5,21 @@ import type { ReactNode } from "react";
  * Maps a filename to a small file-type badge, label, and accent color. Shared by
  * the chat message attachments, inline citations, and the Sources panel so the
  * visual language for a document is identical everywhere it appears.
+ *
+ * All badges share ONE tinted-neutral family (sbi-dark-card chip, sbi-dark-border
+ * outline, muted glyph) — files are differentiated by their label/glyph, never by
+ * saturated fills. Brand: restrained, no loud color.
  */
+
+/** Shared monochrome chip wrapper for every file-type badge. */
+function Chip({ children }: { children: ReactNode }) {
+  return (
+    <div className="w-6 h-6 rounded-lg bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center text-sbi-muted">
+      {children}
+    </div>
+  );
+}
+
 export function getFileInfo(filename: string): {
   icon: ReactNode;
   label: string;
@@ -17,37 +31,41 @@ export function getFileInfo(filename: string): {
     case "pdf":
       return {
         icon: (
-          <div className="w-6 h-6 bg-red-500 rounded-lg text-[9px] font-bold text-white flex items-center justify-center">
-            PDF
-          </div>
+          <Chip>
+            <span className="text-[8px] font-bold tracking-tight">PDF</span>
+          </Chip>
         ),
         label: "PDF",
-        color: "text-red-400",
+        color: "text-sbi-muted",
       };
     case "doc":
     case "docx":
       return {
         icon: (
-          <div className="w-6 h-6 bg-blue-600 rounded-lg text-[9px] font-bold text-white flex items-center justify-center">
-            W
-          </div>
+          <Chip>
+            <span className="text-[9px] font-bold">W</span>
+          </Chip>
         ),
         label: "DOCX",
-        color: "text-blue-400",
+        color: "text-sbi-muted",
       };
     case "txt":
       return {
         icon: (
-          <div className="w-6 h-6 bg-blue-400 rounded-lg flex items-center justify-center">
-            <FileText className="w-3.5 h-3.5 text-white" />
-          </div>
+          <Chip>
+            <FileText className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </Chip>
         ),
         label: "TXT",
-        color: "text-blue-300",
+        color: "text-sbi-muted",
       };
     default:
       return {
-        icon: <File className="w-6 h-6 text-sbi-muted" />,
+        icon: (
+          <Chip>
+            <File className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </Chip>
+        ),
         label: ext.toUpperCase() || "FILE",
         color: "text-sbi-muted",
       };

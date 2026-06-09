@@ -1,15 +1,27 @@
-'use client';
+"use client";
 
-import React, { useState, useRef, type KeyboardEvent, type ChangeEvent } from 'react';
-import { Button } from '@/components/ui/button';
-import { Plus, Send, X, FileText, File, Mic, Settings2, Zap, Lightbulb, ChevronDown, Square, Loader2, Check } from 'lucide-react';
-import { useChat, type ModelPreference } from '@/lib/chat/chat-context';
+import {
+  Check,
+  ChevronDown,
+  Lightbulb,
+  Loader2,
+  Plus,
+  Send,
+  Settings2,
+  Square,
+  X,
+  Zap,
+} from "lucide-react";
+import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
+import { type ModelPreference, useChat } from "@/lib/chat/chat-context";
+import { getFileInfo } from "./file-info";
 
 type ModelType = ModelPreference;
 
@@ -22,50 +34,18 @@ interface ModelOption {
 
 const modelOptions: ModelOption[] = [
   {
-    id: 'fast',
-    name: 'Fast',
-    description: 'Answers quickly',
+    id: "fast",
+    name: "Fast",
+    description: "Answers quickly",
     icon: Zap,
   },
   {
-    id: 'thinking',
-    name: 'Thinking',
-    description: 'Solves complex problems',
+    id: "thinking",
+    name: "Thinking",
+    description: "Solves complex problems",
     icon: Lightbulb,
   },
 ];
-
-function getFileInfo(filename: string): { icon: React.ReactNode; label: string; color: string } {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-
-  switch (ext) {
-    case 'pdf':
-      return {
-        icon: <div className="w-6 h-6 bg-red-500 rounded-lg text-[9px] font-bold text-white flex items-center justify-center">PDF</div>,
-        label: 'PDF',
-        color: 'text-red-400',
-      };
-    case 'doc':
-    case 'docx':
-      return {
-        icon: <div className="w-6 h-6 bg-blue-600 rounded-lg text-[9px] font-bold text-white flex items-center justify-center">W</div>,
-        label: 'DOCX',
-        color: 'text-blue-400',
-      };
-    case 'txt':
-      return {
-        icon: <div className="w-6 h-6 bg-blue-400 rounded-lg flex items-center justify-center"><FileText className="w-3.5 h-3.5 text-white" /></div>,
-        label: 'TXT',
-        color: 'text-blue-300',
-      };
-    default:
-      return {
-        icon: <File className="w-6 h-6 text-sbi-muted" />,
-        label: ext.toUpperCase() || 'FILE',
-        color: 'text-sbi-muted',
-      };
-  }
-}
 
 interface PortalInputProps {
   onSubmit?: (query: string) => void;
@@ -73,8 +53,12 @@ interface PortalInputProps {
   animated?: boolean;
 }
 
-export function PortalInput({ onSubmit, disabled = false, animated = true }: PortalInputProps) {
-  const [input, setInput] = useState('');
+export function PortalInput({
+  onSubmit,
+  disabled = false,
+  animated = true,
+}: PortalInputProps) {
+  const [input, setInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
@@ -88,18 +72,20 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
     modelPreference,
     setModelPreference,
     cancelRequest,
+    error,
+    clearError,
   } = useChat();
 
-  const isStreaming = messages.some(m => m.isStreaming);
+  const isStreaming = messages.some((m) => m.isStreaming);
 
   const handleSubmit = async () => {
     if (!input.trim() || isBusy || disabled) return;
-    
+
     const query = input.trim();
-    setInput('');
+    setInput("");
 
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = "auto";
       // Keep focus so the user can keep typing while the answer streams.
       textareaRef.current.focus();
     }
@@ -112,7 +98,7 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
@@ -120,9 +106,9 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
 
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    
+
     const textarea = e.target;
-    textarea.style.height = 'auto';
+    textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
   };
 
@@ -136,9 +122,11 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
 
     for (const file of Array.from(files)) {
       const name = file.name.toLowerCase();
-      const isAccepted = file.type === 'application/pdf'
-        || file.type.startsWith('text/')
-        || name.endsWith('.doc') || name.endsWith('.docx');
+      const isAccepted =
+        file.type === "application/pdf" ||
+        file.type.startsWith("text/") ||
+        name.endsWith(".doc") ||
+        name.endsWith(".docx");
       if (isAccepted) {
         await addAttachment(file);
       }
@@ -146,16 +134,41 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
 
     // Reset file input
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   };
 
   const isBusy = isLoading || isStreaming;
   const hasInput = input.trim().length > 0;
-  const currentModel = modelOptions.find(m => m.id === modelPreference) || modelOptions[0];
+  const currentModel =
+    modelOptions.find((m) => m.id === modelPreference) || modelOptions[0];
 
   return (
-    <div className={`input-container space-y-3 ${animated ? 'opacity-0 translate-y-8' : ''}`}>
+    <div
+      className={`input-container space-y-3 ${animated ? "opacity-0 translate-y-8" : ""}`}
+    >
+      {/* Inline error banner — surfaces send failures and attachment-read
+          errors (both flow through the shared chat `error` state). Muted red,
+          restrained, dismissable. */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-start justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-2.5"
+        >
+          <p className="text-red-400 text-xs font-light leading-relaxed">
+            {error}
+          </p>
+          <button
+            type="button"
+            onClick={clearError}
+            aria-label="Dismiss error"
+            className="shrink-0 text-red-400/70 hover:text-red-300 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </button>
+        </div>
+      )}
+
       {/* Main user input container */}
       <div className="relative group">
         {/* Hidden file input */}
@@ -189,7 +202,7 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm text-white/60 font-light truncate max-w-[120px]">
-                        {filename.replace(/\.[^/.]+$/, '')}
+                        {filename.replace(/\.[^/.]+$/, "")}
                       </span>
                       <span className={`text-xs ${fileInfo.color} opacity-60`}>
                         {fileInfo.label}
@@ -210,7 +223,7 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
                     {fileInfo.icon}
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm text-white font-light truncate max-w-[120px]">
-                        {attachment.filename.replace(/\.[^/.]+$/, '')}
+                        {attachment.filename.replace(/\.[^/.]+$/, "")}
                       </span>
                       <span className={`text-xs ${fileInfo.color}`}>
                         {fileInfo.label}
@@ -237,6 +250,7 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Ask anything ..."
+            aria-label="Message"
             disabled={disabled}
             rows={1}
             className="w-full bg-transparent px-5 pt-5 pb-3 text-base text-white font-light tracking-wide placeholder:text-sbi-muted-dark resize-none focus:outline-none disabled:opacity-50 min-h-[52px] max-h-[200px]"
@@ -252,17 +266,22 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
                 variant="ghost"
                 onClick={handleFileSelect}
                 disabled={disabled}
+                aria-label="Attach file"
                 className="h-9 w-9 text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50"
               >
                 <Plus className="w-5 h-5" strokeWidth={1.5} />
               </Button>
 
-              {/* Tools button */}
+              {/* Tools button — feature not yet available. Kept visible but
+                  inert so the affordance reads as "coming", not broken. */}
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={disabled}
-                className="h-9 px-3 text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50 gap-1.5"
+                disabled
+                aria-disabled="true"
+                aria-label="Tools (coming soon)"
+                title="Coming soon"
+                className="h-9 px-3 text-sbi-muted rounded-full opacity-50 cursor-not-allowed gap-1.5"
               >
                 <Settings2 className="w-4 h-4" strokeWidth={1.5} />
                 <span className="text-sm font-light">Tools</span>
@@ -278,10 +297,16 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
                     size="sm"
                     variant="ghost"
                     disabled={disabled}
+                    aria-label={`Response style: ${currentModel.name}`}
                     className="h-9 px-3 text-sbi-muted hover:text-white hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50 gap-1.5"
                   >
-                    <currentModel.icon className="w-4 h-4 text-sbi-green" strokeWidth={1.5} />
-                    <span className="text-sm font-light">{currentModel.name}</span>
+                    <currentModel.icon
+                      className="w-4 h-4 text-sbi-green"
+                      strokeWidth={1.5}
+                    />
+                    <span className="text-sm font-light">
+                      {currentModel.name}
+                    </span>
                     <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
                   </Button>
                 </DropdownMenuTrigger>
@@ -302,11 +327,13 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
                         className="flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer text-sbi-muted focus:bg-sbi-dark-card focus:text-white"
                       >
                         <model.icon
-                          className={`w-4 h-4 shrink-0 ${active ? 'text-sbi-green' : 'text-sbi-muted-dark'}`}
+                          className={`w-4 h-4 shrink-0 ${active ? "text-sbi-green" : "text-sbi-muted-dark"}`}
                           strokeWidth={1.5}
                         />
                         <div className="flex-1 min-w-0">
-                          <div className={`text-sm ${active ? 'text-white' : ''}`}>
+                          <div
+                            className={`text-sm ${active ? "text-white" : ""}`}
+                          >
                             {model.name}
                           </div>
                           <p className="text-xs text-sbi-muted-dark font-light">
@@ -314,7 +341,10 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
                           </p>
                         </div>
                         {active && (
-                          <Check className="w-4 h-4 shrink-0 text-sbi-green" strokeWidth={2} />
+                          <Check
+                            className="w-4 h-4 shrink-0 text-sbi-green"
+                            strokeWidth={2}
+                          />
                         )}
                       </DropdownMenuItem>
                     );
@@ -322,34 +352,36 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Send / Stop / Mic button with transition */}
+              {/* Send / Stop button. Empty input shows a disabled send affordance
+                  (reduced opacity), not a mic — no voice feature is implied. */}
               {isBusy ? (
                 <Button
                   size="icon"
                   variant="ghost"
                   onClick={cancelRequest}
+                  aria-label="Stop generating"
                   className="h-9 w-9 rounded-full bg-sbi-dark-card border border-sbi-dark-border text-white hover:bg-sbi-dark hover:border-sbi-muted transition-all duration-300"
                   title="Stop generating"
                 >
-                  <Square className="w-3.5 h-3.5 fill-current" strokeWidth={0} />
+                  <Square
+                    className="w-3.5 h-3.5 fill-current"
+                    strokeWidth={0}
+                  />
                 </Button>
               ) : (
                 <Button
                   size="icon"
                   variant="ghost"
                   onClick={hasInput ? handleSubmit : undefined}
-                  disabled={disabled || (hasInput && !input.trim())}
-                  className={`h-9 w-9 rounded-full transition-all duration-300 ${
+                  disabled={disabled || !hasInput}
+                  aria-label="Send message"
+                  className={`h-9 w-9 rounded-full transition-all duration-300 disabled:opacity-50 ${
                     hasInput
-                      ? 'bg-sbi-green text-sbi-dark hover:bg-sbi-green/90'
-                      : 'text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark'
-                  } disabled:opacity-50`}
+                      ? "bg-sbi-green/10 text-sbi-green border border-sbi-green/30 hover:bg-sbi-green hover:text-sbi-dark"
+                      : "text-sbi-muted"
+                  }`}
                 >
-                  {hasInput ? (
-                    <Send className="w-4 h-4" strokeWidth={2} />
-                  ) : (
-                    <Mic className="w-5 h-5" strokeWidth={1.5} />
-                  )}
+                  <Send className="w-4 h-4" strokeWidth={2} />
                 </Button>
               )}
             </div>
@@ -362,4 +394,3 @@ export function PortalInput({ onSubmit, disabled = false, animated = true }: Por
     </div>
   );
 }
-
