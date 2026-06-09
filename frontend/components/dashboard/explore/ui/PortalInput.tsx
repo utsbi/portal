@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Lightbulb,
   Loader2,
+  Mic,
   Plus,
   Send,
   Settings2,
@@ -12,7 +13,14 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -77,6 +85,165 @@ export function PortalInput({
   } = useChat();
 
   const isStreaming = messages.some((m) => m.isStreaming);
+
+  // --- Voice input (speech-to-text) ---------------------------------------
+  // idle: ready. recording: capturing mic. transcribing: posting to the
+  // server-proxied AssemblyAI route. unavailable: mic disabled (permission
+  // denied or the server reports the feature isn't configured — 501).
+  type VoiceState = "idle" | "recording" | "transcribing" | "unavailable";
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [voiceHint, setVoiceHint] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const releaseStream = useCallback(() => {
+    for (const track of streamRef.current?.getTracks() ?? []) {
+      track.stop();
+    }
+    streamRef.current = null;
+  }, []);
+
+  // Insert transcribed text into the composer: append with a leading space if
+  // there's existing content, then refocus so the user can keep editing.
+  const insertTranscript = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setInput((prev) => (prev ? `${prev.trimEnd()} ${trimmed}` : trimmed));
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (ta) {
+        ta.focus();
+        ta.style.height = "auto";
+        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+      }
+    });
+  }, []);
+
+  const transcribeBlob = useCallback(
+    async (blob: Blob) => {
+      if (blob.size === 0) {
+        setVoiceState("idle");
+        return;
+      }
+      setVoiceState("transcribing");
+      setVoiceHint(null);
+      try {
+        const res = await fetch("/api/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: blob,
+        });
+        if (res.status === 501) {
+          // Feature not configured server-side: disable the mic for good.
+          setVoiceState("unavailable");
+          setVoiceHint("Voice input isn't available");
+          return;
+        }
+        if (!res.ok) {
+          setVoiceState("idle");
+          setVoiceHint("Couldn't transcribe audio. Try again.");
+          return;
+        }
+        const data = (await res.json()) as { text?: string };
+        insertTranscript(data.text ?? "");
+        setVoiceState("idle");
+      } catch {
+        setVoiceState("idle");
+        setVoiceHint("Couldn't transcribe audio. Try again.");
+      }
+    },
+    [insertTranscript],
+  );
+
+  const stopRecording = useCallback(() => {
+    stopTimer();
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }, [stopTimer]);
+
+  const startRecording = useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices) {
+      setVoiceState("unavailable");
+      setVoiceHint("Voice input isn't available");
+      return;
+    }
+    setVoiceHint(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      audioChunksRef.current = [];
+
+      const preferred = "audio/webm";
+      const mimeType =
+        typeof MediaRecorder !== "undefined" &&
+        MediaRecorder.isTypeSupported(preferred)
+          ? preferred
+          : undefined;
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined,
+      );
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        releaseStream();
+        const blob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        audioChunksRef.current = [];
+        void transcribeBlob(blob);
+      };
+
+      recorder.start();
+      setVoiceState("recording");
+      setElapsed(0);
+      stopTimer();
+      timerRef.current = setInterval(() => {
+        setElapsed((s) => s + 1);
+      }, 1000);
+    } catch {
+      releaseStream();
+      // Permission denied (or no device): disable and hint at mic access.
+      setVoiceState("unavailable");
+      setVoiceHint("Enable mic access to use voice input");
+    }
+  }, [releaseStream, stopTimer, transcribeBlob]);
+
+  // Clean up the stream/timer if the component unmounts mid-recording.
+  useEffect(() => {
+    return () => {
+      stopTimer();
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+      releaseStream();
+    };
+  }, [stopTimer, releaseStream]);
+
+  const handleMicClick = () => {
+    if (voiceState === "recording") {
+      stopRecording();
+    } else if (voiceState === "idle") {
+      void startRecording();
+    }
+  };
+
+  const formatElapsed = (s: number) =>
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   const handleSubmit = async () => {
     if (!input.trim() || isBusy || disabled) return;
@@ -167,6 +334,15 @@ export function PortalInput({
             <X className="w-3.5 h-3.5" strokeWidth={1.5} />
           </button>
         </div>
+      )}
+
+      {/* Voice input hint — surfaces transcription failures and the disabled
+          state for the mic. Quiet and restrained; auto-clears on next action. */}
+      {voiceHint && (
+        <output className="flex items-center gap-2 px-1 text-sbi-muted text-xs font-light">
+          <Mic className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
+          <span>{voiceHint}</span>
+        </output>
       )}
 
       {/* Main user input container */}
@@ -286,6 +462,60 @@ export function PortalInput({
                 <Settings2 className="w-4 h-4" strokeWidth={1.5} />
                 <span className="text-sm font-light">Tools</span>
               </Button>
+
+              {/* Voice input (speech-to-text). Real recording -> server-proxied
+                  AssemblyAI -> inserts text into the composer. Idle shows a mic;
+                  recording shows a pulsing dot + elapsed time + stop control;
+                  transcribing shows a spinner; unavailable disables the mic. */}
+              {voiceState === "recording" ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleMicClick}
+                  aria-label="Stop recording"
+                  aria-pressed="true"
+                  title="Stop recording"
+                  className="h-9 px-3 rounded-full text-sbi-green hover:text-sbi-green hover:bg-sbi-green/10 transition-colors duration-300 gap-2"
+                >
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-sbi-green opacity-60 animate-ping" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-sbi-green" />
+                  </span>
+                  <span className="text-sm font-light tabular-nums">
+                    {formatElapsed(elapsed)}
+                  </span>
+                  <Square className="w-3 h-3 fill-current" strokeWidth={0} />
+                </Button>
+              ) : voiceState === "transcribing" ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled
+                  aria-label="Transcribing audio"
+                  aria-busy="true"
+                  className="h-9 px-3 rounded-full text-sbi-muted gap-2 disabled:opacity-100"
+                >
+                  <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+                  <span className="text-sm font-light">Transcribing</span>
+                </Button>
+              ) : (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleMicClick}
+                  disabled={disabled || voiceState === "unavailable"}
+                  aria-label="Start voice input"
+                  aria-pressed="false"
+                  title={
+                    voiceState === "unavailable"
+                      ? (voiceHint ?? "Voice input isn't available")
+                      : "Start voice input"
+                  }
+                  className="h-9 w-9 text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50"
+                >
+                  <Mic className="w-5 h-5" strokeWidth={1.5} />
+                </Button>
+              )}
             </div>
 
             {/* Right side - Model picker and send button */}
