@@ -44,12 +44,6 @@ GREETING_RESPONSE = (
     "How may I assist you with your project today?"
 )
 
-NO_CONTEXT_FOOTER = (
-    "\n\n---\n\n> **Note:** No specific documents were found in your project "
-    "files related to this query. You can upload relevant documents or ask me "
-    "to search for something else."
-)
-
 
 def format_history(history: List[Dict[str, str]]) -> str:
     """Format conversation history for prompts."""
@@ -388,11 +382,9 @@ async def generate_response_streaming(
             answer = "I was unable to generate a response. Please try rephrasing your question."
             yield {"type": "delta", "text": answer}
 
-        # If no context was found, append a note (and stream it so the UI sees it).
-        if (not context or context == "No relevant documents found.") and "No relevant documents" not in answer:
-            yield {"type": "delta", "text": NO_CONTEXT_FOOTER}
-            answer = f"{answer}{NO_CONTEXT_FOOTER}"
-
+        # No hardcoded "no documents found" footer: the model now phrases a brief,
+        # natural note about missing project documents itself, and only for genuine
+        # project-data questions (see GENERATE_RESPONSE_PROMPT).
         yield {"type": "state", "state": {**state, "response": answer}}
 
     except Exception:
