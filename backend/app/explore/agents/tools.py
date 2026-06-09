@@ -1,19 +1,36 @@
 """Tool definitions and dispatch for the Explore agent tool-calling loop.
 
-Exposes two tools to the model:
+Exposes these tools to the model:
   - ``search_documents`` — RAG over the client's uploaded project documents.
   - ``search_sbi_knowledge`` — curated org knowledge about SBI and the portal.
+  - ``get_lifecycle_status`` — live lifecycle task status for the caller's project(s).
+  - ``get_questionnaire_status`` — live questionnaire/form status for the caller.
+  - ``get_reports`` — live project reports for the caller's project(s).
 
 ``TOOLS`` is the OpenAI function-calling schema list passed to the chat
 completion. ``execute_tool`` dispatches a single tool call and returns the tool
 result text plus any citation sources (only ``search_documents`` yields sources).
+
+SECURITY — multi-tenant isolation
+----------------------------------
+The live-data tools below read cross-tenant-sensitive rows. EVERY query is
+scoped strictly to the authenticated caller, using the same identity the rest
+of the backend uses: the ``client_id`` (the Supabase ``auth.users`` uid) that
+the chat endpoint derives from the bearer token and threads through
+``execute_tool``. A caller's accessible projects are resolved server-side via
+``profiles.uid = client_id`` -> ``profiles.id`` -> ``project_members.project_id``;
+no project id ever comes from the model/user input. If a caller belongs to no
+project, the tools return an empty/"no data" summary rather than an unscoped
+query, so another tenant's rows can never be returned.
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from app.explore.agents.nodes import rag_service
+from app.explore.db.supabase import supabase
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +107,48 @@ TOOLS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_lifecycle_status",
+            "description": (
+                "Get the LIVE status of the client's project lifecycle tasks "
+                "(progress, what's done, in progress, blocked, or pending "
+                "approval, and upcoming due dates). Use this for questions like "
+                "'how is my project going?', 'what's left to do?', 'what's "
+                "blocked?', or 'what's due next?'. This reads live database "
+                "status, not documents."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_questionnaire_status",
+            "description": (
+                "Get the LIVE status of the client's questionnaires/intake forms: "
+                "which forms are assigned, which are still pending, drafted, or "
+                "already submitted. Use this for 'do I have any forms to fill "
+                "out?', 'did I submit the questionnaire?', or 'what's left for me "
+                "to complete?'."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_reports",
+            "description": (
+                "Get the LIVE list of reports filed for the client's project(s), "
+                "including their subject and current status. Use this for 'what "
+                "reports do I have?', 'what's the status of my report?', or "
+                "'any updates on my reports?'."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
 ]
 
 
@@ -141,6 +200,267 @@ def _search_sbi_knowledge(query: str) -> Tuple[str, List[Dict[str, Any]]]:
     return SBI_KNOWLEDGE, []
 
 
+# --- Live-data tools (read-only, strictly scoped to the caller) --------------
+#
+# Ownership model (verified against the live schema):
+#   client_id (auth uid, uuid)
+#     -> profiles.uid == client_id          -> profiles.id (bigint)
+#     -> project_members.profile_id == id   -> project_members.project_id[] (the
+#                                              ONLY projects this caller may read)
+# Domain tables then scope to those project ids:
+#   lifecycle:      lifecycle_projects.project_id IN (ids)
+#                     -> lifecycle_tasks.lifecycle_project_id IN (lifecycle ids)
+#   questionnaire:  custom_form_submissions.project_id IN (ids)
+#                     AND user_id == client_id   (the caller's own submissions)
+#                   custom_form_assignments.project_id IN (ids)  (forms assigned)
+#   reports:        tickets.ticket_type == 'report' AND project_id IN (ids)
+#
+# No project id is ever taken from model/user input; an empty project list short
+# -circuits to a "no data" summary so an unscoped (cross-tenant) query is
+# impossible.
+
+
+async def _caller_project_ids(client_id: str) -> List[int]:
+    """Resolve the project ids the caller is a member of. Empty list if none.
+
+    This is the single source of tenant scoping for every live-data tool. A
+    blank ``client_id`` (which should never reach here for an authenticated
+    request) yields ``[]`` so nothing is queried.
+    """
+    if not client_id or not client_id.strip():
+        return []
+
+    def _query() -> List[int]:
+        profile = (
+            supabase.table("profiles")
+            .select("id")
+            .eq("uid", client_id)
+            .limit(1)
+            .execute()
+        )
+        if not profile.data:
+            return []
+        profile_id = profile.data[0]["id"]
+
+        members = (
+            supabase.table("project_members")
+            .select("project_id")
+            .eq("profile_id", profile_id)
+            .execute()
+        )
+        ids: List[int] = []
+        for row in members.data or []:
+            pid = row.get("project_id")
+            if pid is not None:
+                ids.append(pid)
+        return ids
+
+    return await asyncio.to_thread(_query)
+
+
+def _summarize_counts(label: str, counts: Dict[str, int]) -> str:
+    """Render ``label: a=1, b=2`` for non-zero buckets, in a stable order."""
+    parts = [f"{k.replace('_', ' ')}: {v}" for k, v in counts.items() if v]
+    return f"{label} — " + (", ".join(parts) if parts else "none") + "."
+
+
+async def _get_lifecycle_status(client_id: str) -> str:
+    """Summarize the caller's lifecycle tasks, scoped to their project(s)."""
+    project_ids = await _caller_project_ids(client_id)
+    if not project_ids:
+        return (
+            "No project is associated with your account, so there is no "
+            "lifecycle status to report."
+        )
+
+    def _query() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        lifecycle = (
+            supabase.table("lifecycle_projects")
+            .select("id, title, completed")
+            .in_("project_id", project_ids)
+            .execute()
+        )
+        lifecycle_rows = lifecycle.data or []
+        lifecycle_ids = [row["id"] for row in lifecycle_rows]
+        if not lifecycle_ids:
+            return lifecycle_rows, []
+        tasks = (
+            supabase.table("lifecycle_tasks")
+            .select("title, status, due_date, tentative")
+            .in_("lifecycle_project_id", lifecycle_ids)
+            .order("due_date")
+            .execute()
+        )
+        return lifecycle_rows, tasks.data or []
+
+    lifecycle_rows, tasks = await asyncio.to_thread(_query)
+
+    if not lifecycle_rows:
+        return (
+            "Your project does not have a lifecycle plan set up yet, so there "
+            "are no lifecycle tasks to report."
+        )
+    if not tasks:
+        return "Your project lifecycle has no tasks yet."
+
+    # Count by status across the known enum buckets (extra/unknown statuses are
+    # still counted so a schema change never silently drops data).
+    order = ["not_started", "in_progress", "pending_approval", "blocked", "completed"]
+    counts: Dict[str, int] = {s: 0 for s in order}
+    for t in tasks:
+        status = str(t.get("status") or "unknown")
+        counts[status] = counts.get(status, 0) + 1
+
+    total = len(tasks)
+    done = counts.get("completed", 0)
+    lines = [
+        _summarize_counts(f"Lifecycle progress ({done}/{total} tasks completed)", counts)
+    ]
+
+    blocked = [t for t in tasks if t.get("status") == "blocked"]
+    if blocked:
+        names = ", ".join(str(t.get("title") or "untitled") for t in blocked[:5])
+        lines.append(f"Blocked: {names}.")
+
+    # Upcoming (not-yet-completed) tasks by due date, soonest first.
+    upcoming = [
+        t for t in tasks if t.get("status") != "completed" and t.get("due_date")
+    ]
+    if upcoming:
+        nxt = upcoming[:3]
+        items = "; ".join(
+            f"{t.get('title') or 'untitled'} (due {t.get('due_date')}"
+            + (", tentative" if t.get("tentative") else "")
+            + ")"
+            for t in nxt
+        )
+        lines.append(f"Next up: {items}.")
+
+    return "\n".join(lines)
+
+
+async def _get_questionnaire_status(client_id: str) -> str:
+    """Summarize the caller's questionnaire/form status, scoped to them.
+
+    Submissions are scoped to BOTH the caller's project(s) and the caller's own
+    ``user_id`` so one client never sees another client's answers on a shared
+    project. Assignments are scoped to the caller's project(s).
+    """
+    project_ids = await _caller_project_ids(client_id)
+    if not project_ids:
+        return (
+            "No project is associated with your account, so there are no "
+            "questionnaires to report."
+        )
+
+    def _query() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        assignments = (
+            supabase.table("custom_form_assignments")
+            .select("form_id, custom_form_schemas(title)")
+            .in_("project_id", project_ids)
+            .execute()
+        )
+        submissions = (
+            supabase.table("custom_form_submissions")
+            .select("form_id, status, submitted_at, custom_form_schemas(title)")
+            .in_("project_id", project_ids)
+            .eq("user_id", client_id)
+            .execute()
+        )
+        return assignments.data or [], submissions.data or []
+
+    assignments, submissions = await asyncio.to_thread(_query)
+
+    if not assignments and not submissions:
+        return "You have no questionnaires assigned and none submitted."
+
+    def _title(row: Dict[str, Any]) -> str:
+        schema = row.get("custom_form_schemas")
+        if isinstance(schema, dict) and schema.get("title"):
+            return str(schema["title"])
+        return f"form #{row.get('form_id')}"
+
+    # Status of the caller's own submissions, keyed by form.
+    sub_by_form: Dict[Any, Dict[str, Any]] = {}
+    for s in submissions:
+        sub_by_form[s.get("form_id")] = s
+
+    assigned_titles = {row.get("form_id"): _title(row) for row in assignments}
+    # Fall back to submission titles for any form submitted but not in assignments.
+    for s in submissions:
+        assigned_titles.setdefault(s.get("form_id"), _title(s))
+
+    submitted: List[str] = []
+    draft: List[str] = []
+    pending: List[str] = []
+    for form_id, title in assigned_titles.items():
+        sub = sub_by_form.get(form_id)
+        status = (sub or {}).get("status")
+        if status == "submitted":
+            submitted.append(title)
+        elif status == "draft":
+            draft.append(title)
+        else:
+            pending.append(title)
+
+    counts = {
+        "submitted": len(submitted),
+        "draft (in progress)": len(draft),
+        "not started": len(pending),
+    }
+    lines = [_summarize_counts("Questionnaires", counts)]
+    if pending:
+        lines.append("Not started: " + ", ".join(pending[:5]) + ".")
+    if draft:
+        lines.append("In progress (draft): " + ", ".join(draft[:5]) + ".")
+    if submitted:
+        lines.append("Submitted: " + ", ".join(submitted[:5]) + ".")
+    return "\n".join(lines)
+
+
+async def _get_reports(client_id: str) -> str:
+    """Summarize reports filed for the caller's project(s).
+
+    Reports are ``tickets`` rows with ``ticket_type = 'report'``. Scoped to the
+    caller's project(s); a report with no project is never returned to avoid any
+    cross-tenant leak.
+    """
+    project_ids = await _caller_project_ids(client_id)
+    if not project_ids:
+        return (
+            "No project is associated with your account, so there are no "
+            "reports to report."
+        )
+
+    def _query() -> List[Dict[str, Any]]:
+        result = (
+            supabase.table("tickets")
+            .select("subject, title, status, created_at")
+            .eq("ticket_type", "report")
+            .in_("project_id", project_ids)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return result.data or []
+
+    reports = await asyncio.to_thread(_query)
+    if not reports:
+        return "There are no reports filed for your project(s)."
+
+    counts: Dict[str, int] = {}
+    for r in reports:
+        status = str(r.get("status") or "unknown")
+        counts[status] = counts.get(status, 0) + 1
+
+    lines = [_summarize_counts(f"Reports ({len(reports)} total)", counts)]
+    recent = reports[:5]
+    for r in recent:
+        subject = r.get("subject") or r.get("title") or "(no subject)"
+        status = r.get("status") or "unknown"
+        lines.append(f"- {subject} — status: {status}")
+    return "\n".join(lines)
+
+
 async def execute_tool(
     name: str, args: Dict[str, Any], client_id: str
 ) -> Tuple[str, List[Dict[str, Any]]]:
@@ -156,6 +476,12 @@ async def execute_tool(
         if name == "search_sbi_knowledge":
             query = str(args.get("query", "")) if args else ""
             return _search_sbi_knowledge(query)
+        if name == "get_lifecycle_status":
+            return await _get_lifecycle_status(client_id), []
+        if name == "get_questionnaire_status":
+            return await _get_questionnaire_status(client_id), []
+        if name == "get_reports":
+            return await _get_reports(client_id), []
         logger.warning(f"Unknown tool requested: {name}")
         return f"Unknown tool '{name}'. No action taken.", []
     except Exception:

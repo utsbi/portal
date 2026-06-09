@@ -1,5 +1,5 @@
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List
 
 from openai import AsyncOpenAI
 
@@ -22,27 +22,6 @@ openrouter_client = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
 )
 
-
-HELP_RESPONSE = """I'm here to help you with your construction and sustainability projects. Here's what I can do:
-
-### Document Analysis
-- **Search and answer** questions about your project documents and specifications
-- **Summarize** meeting notes, reports, and technical documents
-
-### Project Tracking
-- **Track** project progress, deadlines, and deliverables
-- **Extract action items** from meeting notes and documents
-
-### Insights
-- **Analyze** your project data and provide actionable insights
-- **Compare** information across multiple documents
-
-Feel free to ask me anything about your project, or upload documents for me to analyze."""
-
-GREETING_RESPONSE = (
-    "Hello. I'm your **Project Manager Assistant** for SBI. "
-    "How may I assist you with your project today?"
-)
 
 NO_CONTEXT_FOOTER = (
     "\n\n---\n\n> **Note:** No specific documents were found in your project "
@@ -103,33 +82,12 @@ async def generate_title(query: str) -> str:
     return _fallback_title(query)
 
 
-def _direct_response_text(query: str) -> Optional[str]:
-    """Canned response for greeting/help direct route. None if not a direct case."""
-    query_lower = query.lower().strip()
-    if any(query_lower.startswith(g) for g in ["hello", "hi", "hey", "good"]):
-        return GREETING_RESPONSE
-    if "help" in query_lower or "what can you" in query_lower:
-        return HELP_RESPONSE
-    return None
-
-
 async def rewrite_query(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Phase 1 (Thinking): Check greetings/help, rewrite query."""
+    """Phase 1 (Thinking): rewrite the query into a standalone search query."""
     query = state.get("query", "")
     history = state.get("history", [])
 
     logger.info(f"Rewrite query: '{query[:100]}' (history={len(history)} msgs)")
-
-    # Greetings and help (no LLM needed)
-    query_lower = query.lower().strip()
-    greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"]
-    if any(query_lower.startswith(g) for g in greetings):
-        logger.info("Route: direct (greeting detected)")
-        return {**state, "route": "direct", "route_reason": "Greeting detected", "standalone_query": query}
-
-    if query_lower in ["help", "what can you do", "what can you help with"]:
-        logger.info("Route: direct (help request)")
-        return {**state, "route": "direct", "route_reason": "Help request", "standalone_query": query}
 
     # Query rewriting (conversation history exists)
     standalone_query = query
@@ -348,14 +306,6 @@ async def generate_response_streaming(
         f"context_length={len(context)}, history={len(history)} msgs"
     )
 
-    # Direct route (greetings, help) — emit canned text as a single delta.
-    if route == "direct":
-        canned = _direct_response_text(query)
-        if canned is not None:
-            yield {"type": "delta", "text": canned}
-            yield {"type": "state", "state": {**state, "response": canned}}
-            return
-
     formatted_history = format_history(history)
     sources_list = _format_sources_list(state.get("sources", []))
     user_prompt = GENERATE_RESPONSE_PROMPT.format(
@@ -414,7 +364,6 @@ async def format_sources(state: Dict[str, Any]) -> Dict[str, Any]:
       - retrieve:   Only RAG sources
       - attachment: Only attached file(s)
       - hybrid:     Both attached files and RAG sources
-      - direct:     No sources
     """
     retrieved_docs = state.get("retrieved_docs", [])
     attachments = state.get("attachments", [])

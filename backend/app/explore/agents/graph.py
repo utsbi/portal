@@ -26,11 +26,15 @@ async def run_graph_streaming(
          ``execute_tool``; ``search_documents`` results contribute citation
          sources.
       3. Emit ``phase: generating`` and produce the FINAL answer as a STREAMING
-         completion WITHOUT tools, yielding ``delta`` events per token.
+         completion WITHOUT tools, yielding ``delta`` events per token. On
+         thinking-model turns the model's reasoning tokens stream first as
+         ``reasoning`` events (best-effort; fast models emit none).
       4. Emit a single ``result`` event with the full answer and sources.
 
-    The SSE contract (title / phase / delta / result) is preserved exactly; the
-    endpoint owns the ``session`` event, so it is never emitted here.
+    The SSE contract (title / phase / delta / result) is preserved exactly; a
+    ``reasoning`` event is additive and carries ephemeral thinking tokens that
+    are shown live but never persisted. The endpoint owns the ``session`` event,
+    so it is never emitted here.
     """
     # Imported lazily to keep import-time side effects (OpenAI client creation)
     # out of module import and mirror the previous graph.py structure.
@@ -168,18 +172,30 @@ async def run_graph_streaming(
 
     answer_parts: List[str] = []
     try:
+        # Request reasoning tokens. Thinking models (think_model) interleave
+        # reasoning before the answer; flash/fast models simply emit none, which
+        # is fine — reasoning is best-effort and never required. OpenRouter takes
+        # the reasoning config via extra_body.
         stream = await openrouter_client.chat.completions.create(
             model=model,
             messages=messages,
             stream=True,
+            extra_body={"reasoning": {"effort": "medium"}},
         )
         async for chunk in stream:
             if not chunk.choices:
                 continue
-            delta = chunk.choices[0].delta.content
-            if delta:
-                answer_parts.append(delta)
-                yield {"type": "delta", "text": delta}
+            delta = chunk.choices[0].delta
+            # Reasoning/thinking tokens stream BEFORE the answer. Forward them as
+            # a separate ``reasoning`` event so the UI can show "Thinking" live;
+            # they are ephemeral (not persisted) and never part of the answer.
+            reasoning = getattr(delta, "reasoning", None)
+            if reasoning:
+                yield {"type": "reasoning", "text": reasoning}
+            content = delta.content
+            if content:
+                answer_parts.append(content)
+                yield {"type": "delta", "text": content}
     except Exception:
         logger.exception("Final response generation failed")
         if not answer_parts:
