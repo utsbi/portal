@@ -24,7 +24,7 @@ class ChatRequest(BaseModel):
     attachments: List[AttachmentFile] = Field(default=[], description="Temporary file attachments for this session")
     include_sources: bool = Field(default=True, description="Whether to include source documents in response")
     model_preference: Optional[str] = Field(
-        default=None, 
+        default=None,
         description="LLM model preference: 'fast' for speed, 'thinking' for complex reasoning"
     )
 

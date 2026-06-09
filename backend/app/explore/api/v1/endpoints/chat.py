@@ -34,7 +34,7 @@ async def chat(request: ChatRequest, raw_request: Request, user_id: str = Depend
                 client_id=user_id,
                 history=history,
                 attachments=attachments,
-                model_preference=request.model_preference or "fast"
+                model_preference=request.model_preference or "fast",
             ):
                 if await raw_request.is_disconnected():
                     logger.info("Client disconnected, stopping SSE stream")

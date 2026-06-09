@@ -1,5 +1,6 @@
 import logging
 from typing import List, Dict, Any, Optional
+import httpx
 from openai import AsyncOpenAI
 from app.explore.core.config import settings
 from app.explore.db.supabase import supabase
@@ -25,7 +26,7 @@ class RAGService:
                 "model": settings.embedding_model,
                 "input": text,
             }
-            if settings.EMBEDDING_DIMENSIONS is not None:
+            if settings.embedding_dimensions:
                 params["dimensions"] = settings.embedding_dimensions
 
             result = await self.client.embeddings.create(**params)
@@ -160,6 +161,81 @@ class RAGService:
 
         return sorted_results[:limit]
 
+    async def rerank(self, query: str, documents: List[Dict[str, Any]],
+        top_n: int) -> List[Dict[str, Any]]:
+        """Re-score candidate documents against the query with a cross-encoder.
+
+        Uses OpenRouter's hosted rerank endpoint (Cohere Rerank), which scores
+        each (query, document) pair far more accurately than the embedding
+        similarity used for first-stage retrieval. Returns the ``top_n`` highest
+        scoring documents, each annotated with a ``rerank_score``.
+
+        Reranking is best-effort: if it is disabled or the call fails for any
+        reason, we fall back to the pre-rerank ordering (truncated to ``top_n``)
+        so a reranker hiccup never breaks chat.
+        """
+        if not settings.rerank_model or len(documents) <= 1:
+            return documents[:top_n]
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    "https://openrouter.ai/api/v1/rerank",
+                    headers={"Authorization": f"Bearer {settings.api_key}"},
+                    json={
+                        "model": settings.rerank_model,
+                        "query": query,
+                        "documents": [d.get("content", "") for d in documents],
+                        "top_n": top_n,
+                    },
+                )
+                resp.raise_for_status()
+                results = resp.json().get("results", [])
+
+            reranked: List[Dict[str, Any]] = []
+            for r in results:
+                idx = r.get("index")
+                if idx is None or idx < 0 or idx >= len(documents):
+                    continue
+                doc = dict(documents[idx])
+                doc["rerank_score"] = r.get("relevance_score")
+                reranked.append(doc)
+
+            if reranked:
+                logger.info(
+                    f"Reranked {len(documents)} candidates -> {len(reranked)} "
+                    f"(model={settings.rerank_model})"
+                )
+                return reranked
+
+            logger.warning("Rerank returned no usable results, using pre-rerank order")
+        except Exception as e:
+            logger.warning(f"Rerank failed, using pre-rerank order: {e}")
+
+        return documents[:top_n]
+
+    async def retrieve_relevant(self, query: str, client_id: str,
+        top_n: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Retrieve the most relevant documents for a query (two-stage).
+
+        Stage 1: hybrid search widens to ``rerank_candidates`` candidates.
+        Stage 2: the reranker re-scores them and keeps the top ``top_n``.
+
+        This is the entry point chat turns should use; the returned list is the
+        single source of truth for both the prompt context and the citation
+        sources, keeping the model's ``[n]`` markers aligned with the rendered
+        source chips.
+        """
+        keep = top_n if top_n is not None else settings.rerank_top_n
+        candidates = await self.hybrid_search(
+            query=query,
+            client_id=client_id,
+            limit=settings.rerank_candidates,
+        )
+        if not candidates:
+            return []
+        return await self.rerank(query=query, documents=candidates, top_n=keep)
+
     async def _keyword_search(self, query: str, client_id: str,
         limit: int = 10) -> List[Dict[str, Any]]:
         """Perform keyword-based full-text search."""
@@ -215,9 +291,41 @@ class RAGService:
 
     async def get_context_for_query(self, query: str, client_id: str,
         attachments: Optional[List[Dict[str, str]]] = None,
+        retrieved_docs: Optional[List[Dict[str, Any]]] = None,
         max_context_length: int = 200_000) -> str:
-        """Build a context string for the LLM from retrieved documents and attachments."""
-        context_parts = []
+        """Build a context string for the LLM from retrieved documents and attachments.
+
+        If ``retrieved_docs`` is provided, it is used directly (no DB call); this
+        lets callers run a single ``hybrid_search`` per turn and reuse the same
+        ranked docs for both the prompt context and the citation source list,
+        keeping the prompt's ``[n]`` markers aligned with the rendered sources.
+        Falls back to running its own ``hybrid_search`` when ``retrieved_docs`` is
+        None for backward compatibility.
+        """
+        if retrieved_docs is None:
+            retrieved_docs = await self.hybrid_search(
+                query=query,
+                client_id=client_id,
+                limit=5,
+            )
+
+        return self.build_context_string(
+            retrieved_docs=retrieved_docs,
+            attachments=attachments,
+            max_context_length=max_context_length,
+        )
+
+    @staticmethod
+    def build_context_string(
+        retrieved_docs: List[Dict[str, Any]],
+        attachments: Optional[List[Dict[str, str]]] = None,
+        max_context_length: int = 200_000,
+    ) -> str:
+        """Render a prompt context string from already-retrieved docs + attachments.
+
+        Pure (no I/O) so it can be reused wherever docs were fetched once.
+        """
+        context_parts: List[str] = []
         current_length = 0
 
         if attachments:
@@ -228,13 +336,6 @@ class RAGService:
                     context_parts.append(att_text)
                     current_length += len(att_text)
 
-        # Retrieve relevant documents from the vector store
-        retrieved_docs = await self.hybrid_search(
-            query=query,
-            client_id=client_id,
-            limit=5
-        )
-
         if retrieved_docs:
             context_parts.append("\n=== Retrieved Documents ===\n")
             for doc in retrieved_docs:
@@ -243,7 +344,7 @@ class RAGService:
                 page = metadata.get("page_number", "")
                 page_str = f" (Page {page})" if page else ""
 
-                doc_text = f"\n[Source: {filename}{page_str}]\n{doc['content']}\n"
+                doc_text = f"\n[Source: {filename}{page_str}]\n{doc.get('content', '')}\n"
 
                 if current_length + len(doc_text) < max_context_length:
                     context_parts.append(doc_text)
