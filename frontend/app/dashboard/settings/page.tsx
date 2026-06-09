@@ -1,7 +1,45 @@
 "use client";
 
-import { Calendar, Users, Shield, Plus, Trash2, UserPlus, Check, Loader2, User, Lock, Bell, Search, Pencil, ExternalLink, AlertCircle, type LucideIcon } from "lucide-react";
+import {
+  AlertCircle,
+  Bell,
+  Calendar,
+  Check,
+  ExternalLink,
+  Loader2,
+  Lock,
+  type LucideIcon,
+  Pencil,
+  Plus,
+  Search,
+  Shield,
+  Trash2,
+  User,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Modal } from "@/components/dashboard/common/Modal";
+import {
+  btnDanger,
+  btnGhost,
+  btnPrimary,
+  DashboardShell,
+  EmptyState,
+  inputClass,
+  PageHeader,
+  Panel,
+  SectionLabel,
+} from "@/components/dashboard/common/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -9,40 +47,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { toastSuccess, toastError } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 import {
-  DashboardShell,
-  PageHeader,
-  SectionLabel,
-  Panel,
-  EmptyState,
-  inputClass,
-  btnPrimary,
-  btnGhost,
-  btnDanger,
-} from "@/components/dashboard/common/ui";
-import {
-  createAccount,
-  listAccounts,
-  deleteAccount,
-  updateAccount,
-  listProjects,
-  listProjectMembers,
   assignMemberToProject,
-  removeMemberFromProject,
-  listUnassignedMembers,
   assignOwnerToProject,
-  listAvailableOwners,
+  createAccount,
+  deleteAccount,
   getMyAccount,
-  updateMyProfile,
-  updateMyPassword,
+  listAccounts,
+  listAvailableOwners,
+  listProjectMembers,
+  listProjects,
+  listUnassignedMembers,
+  removeMemberFromProject,
+  updateAccount,
   updateMyNotificationPrefs,
+  updateMyPassword,
+  updateMyProfile,
 } from "./actions";
 import {
   DEFAULT_NOTIFICATION_PREFS,
@@ -107,7 +131,13 @@ interface MyAccount {
 // Section configuration
 // ---------------------------------------------------------------------------
 
-type SectionId = "profile" | "security" | "notifications" | "calendar" | "team" | "accounts";
+type SectionId =
+  | "profile"
+  | "security"
+  | "notifications"
+  | "calendar"
+  | "team"
+  | "accounts";
 
 interface SectionDef {
   id: SectionId;
@@ -120,21 +150,49 @@ interface SectionDef {
 const SECTIONS: SectionDef[] = [
   { id: "profile", label: "Profile", icon: User, group: "personal" },
   { id: "security", label: "Security", icon: Lock, group: "personal" },
-  { id: "notifications", label: "Notifications", icon: Bell, group: "personal" },
-  { id: "calendar", label: "Calendar", icon: Calendar, group: "workspace", directorOnly: true },
-  { id: "team", label: "Team", icon: Users, group: "workspace", directorOnly: true },
-  { id: "accounts", label: "Accounts", icon: Shield, group: "workspace", directorOnly: true },
+  {
+    id: "notifications",
+    label: "Notifications",
+    icon: Bell,
+    group: "personal",
+  },
+  {
+    id: "calendar",
+    label: "Calendar",
+    icon: Calendar,
+    group: "workspace",
+    directorOnly: true,
+  },
+  {
+    id: "team",
+    label: "Team",
+    icon: Users,
+    group: "workspace",
+    directorOnly: true,
+  },
+  {
+    id: "accounts",
+    label: "Accounts",
+    icon: Shield,
+    group: "workspace",
+    directorOnly: true,
+  },
 ];
 
 const SECTION_IDS = SECTIONS.map((s) => s.id);
 
 function roleBadgeColor(role: string) {
   switch (role) {
-    case "director": return "bg-amber-500/10 text-amber-400 border-amber-500/30";
-    case "client": return "bg-blue-500/10 text-blue-400 border-blue-500/30";
-    case "member": return "bg-sbi-green/10 text-sbi-green border-sbi-green/30";
-    case "owner": return "bg-purple-500/10 text-purple-400 border-purple-500/30";
-    default: return "bg-white/10 text-white/70 border-white/20";
+    case "director":
+      return "bg-amber-500/10 text-amber-400 border-amber-500/30";
+    case "client":
+      return "bg-blue-500/10 text-blue-400 border-blue-500/30";
+    case "member":
+      return "bg-sbi-green/10 text-sbi-green border-sbi-green/30";
+    case "owner":
+      return "bg-purple-500/10 text-purple-400 border-purple-500/30";
+    default:
+      return "bg-white/10 text-white/70 border-white/20";
   }
 }
 
@@ -171,7 +229,9 @@ function SettingsPageInner() {
     (id: SectionId) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("section", id);
-      router.replace(`/dashboard/settings?${params.toString()}`, { scroll: false });
+      router.replace(`/dashboard/settings?${params.toString()}`, {
+        scroll: false,
+      });
     },
     [router, searchParams],
   );
@@ -187,7 +247,11 @@ function SettingsPageInner() {
     <DashboardShell className="overflow-y-auto">
       <PageHeader
         title="Settings"
-        subtitle={isDirector ? "Manage your account and the portal workspace" : "Manage your account"}
+        subtitle={
+          isDirector
+            ? "Manage your account and the portal workspace"
+            : "Manage your account"
+        }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-8 lg:gap-12 pb-8">
@@ -203,7 +267,9 @@ function SettingsPageInner() {
           {activeSection === "notifications" && <NotificationsSection />}
           {activeSection === "calendar" && isDirector && <CalendarSection />}
           {activeSection === "team" && isDirector && <TeamSection />}
-          {activeSection === "accounts" && isDirector && <AccountsSection currentUserId={user.id} />}
+          {activeSection === "accounts" && isDirector && (
+            <AccountsSection currentUserId={user.id} />
+          )}
         </div>
       </div>
     </DashboardShell>
@@ -228,9 +294,19 @@ function SettingsNav({
 
   return (
     <nav className="md:sticky md:top-0 self-start space-y-7">
-      <NavGroup label="Personal" sections={personal} active={activeSection} onSelect={onSelect} />
+      <NavGroup
+        label="Personal"
+        sections={personal}
+        active={activeSection}
+        onSelect={onSelect}
+      />
       {workspace.length > 0 && (
-        <NavGroup label="Workspace" sections={workspace} active={activeSection} onSelect={onSelect} />
+        <NavGroup
+          label="Workspace"
+          sections={workspace}
+          active={activeSection}
+          onSelect={onSelect}
+        />
       )}
     </nav>
   );
@@ -261,7 +337,9 @@ function NavGroup({
               type="button"
               onClick={() => onSelect(s.id)}
               className={`group relative w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-light transition-colors cursor-pointer ${
-                isActive ? "text-white bg-sbi-green/5" : "text-sbi-muted hover:text-white hover:bg-white/[0.02]"
+                isActive
+                  ? "text-white bg-sbi-green/5"
+                  : "text-sbi-muted hover:text-white hover:bg-white/[0.02]"
               }`}
             >
               <span
@@ -271,7 +349,9 @@ function NavGroup({
               />
               <s.icon
                 className={`size-4 transition-colors ${
-                  isActive ? "text-sbi-green" : "text-sbi-muted-dark group-hover:text-sbi-green/70"
+                  isActive
+                    ? "text-sbi-green"
+                    : "text-sbi-muted-dark group-hover:text-sbi-green/70"
                 }`}
                 strokeWidth={1.5}
               />
@@ -288,7 +368,8 @@ function NavGroup({
 // Shared classes
 // ---------------------------------------------------------------------------
 
-const labelClass = "text-[11px] tracking-[0.15em] uppercase text-sbi-muted-dark font-light";
+const labelClass =
+  "text-[11px] tracking-[0.15em] uppercase text-sbi-muted-dark font-light";
 
 function useClickOutside<T extends HTMLElement>(
   ref: React.RefObject<T | null>,
@@ -320,7 +401,8 @@ function useEscapeKey(onEscape: () => void, enabled: boolean) {
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  if (parts.length >= 2)
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   return parts[0]?.substring(0, 2).toUpperCase() || "??";
 }
 
@@ -368,16 +450,24 @@ function ProfileSection() {
   const isDirty =
     name.trim() !== account.name ||
     (department.trim() || null) !== (account.department || null);
-  const showDepartment = account.role === "member" || account.role === "director";
+  const showDepartment =
+    account.role === "member" || account.role === "director";
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const result = await updateMyProfile({ name, department: department.trim() || null });
+    const result = await updateMyProfile({
+      name,
+      department: department.trim() || null,
+    });
     if (result.error) {
       toastError(result.error, "Couldn't save profile");
     } else {
-      const next = { ...account, name: name.trim(), department: department.trim() || null };
+      const next = {
+        ...account,
+        name: name.trim(),
+        department: department.trim() || null,
+      };
       setAccount(next);
       toastSuccess("Profile saved.");
     }
@@ -389,7 +479,8 @@ function ProfileSection() {
       <Panel>
         <SectionLabel>Profile</SectionLabel>
         <p className="text-sbi-muted text-sm mb-6">
-          How you appear inside the portal. Your email is your sign-in and cannot be changed here.
+          How you appear inside the portal. Your email is your sign-in and
+          cannot be changed here.
         </p>
 
         <form onSubmit={handleSave} className="space-y-5">
@@ -398,7 +489,9 @@ function ProfileSection() {
               {initialsOf(account.name)}
             </div>
             <div className="min-w-0">
-              <p className="text-white text-base font-light truncate">{account.name}</p>
+              <p className="text-white text-base font-light truncate">
+                {account.name}
+              </p>
               <p className="text-sbi-muted text-sm truncate">{account.email}</p>
               <span
                 className={`mt-2 inline-block text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}
@@ -426,20 +519,30 @@ function ProfileSection() {
                 type="email"
                 value={account.email ?? ""}
                 readOnly
-                className={cn(inputClass, "mt-1 cursor-not-allowed text-sbi-muted")}
+                className={cn(
+                  inputClass,
+                  "mt-1 cursor-not-allowed text-sbi-muted",
+                )}
               />
             </div>
             {showDepartment && (
               <div className="sm:col-span-2">
                 <label className={labelClass}>Department</label>
-                <Select value={department || "__none__"} onValueChange={(v) => setDepartment(v === "__none__" ? "" : v)}>
+                <Select
+                  value={department || "__none__"}
+                  onValueChange={(v) =>
+                    setDepartment(v === "__none__" ? "" : v)
+                  }
+                >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="No department" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">No department</SelectItem>
                     {DEPARTMENTS.map((d) => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -448,7 +551,11 @@ function ProfileSection() {
           </div>
 
           <div className="flex justify-end pt-2">
-            <button type="submit" disabled={!isDirty || saving} className={btnPrimary}>
+            <button
+              type="submit"
+              disabled={!isDirty || saving}
+              className={btnPrimary}
+            >
               {saving ? "Saving…" : "Save changes"}
             </button>
           </div>
@@ -493,7 +600,9 @@ function SecuritySection() {
     // is refreshed for the same user; on failure we know it's wrong before
     // touching the auth record.
     const supabase = createClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
     if (!authUser?.email) {
       setError("Couldn't read your current session. Please sign in again.");
       setSaving(false);
@@ -533,7 +642,8 @@ function SecuritySection() {
       <Panel>
         <SectionLabel>Password</SectionLabel>
         <p className="text-sbi-muted text-sm mb-6">
-          Choose a new password at least 8 characters long. You'll stay signed in on this device.
+          Choose a new password at least 8 characters long. You'll stay signed
+          in on this device.
         </p>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
@@ -573,7 +683,9 @@ function SecuritySection() {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={saving || !currentPassword || !newPassword || !confirmPassword}
+              disabled={
+                saving || !currentPassword || !newPassword || !confirmPassword
+              }
               className={btnPrimary}
             >
               {saving ? "Updating…" : "Update password"}
@@ -604,6 +716,7 @@ function SecuritySection() {
         title="Sign out everywhere?"
         description="You'll be signed out on every device including this one. You'll need to sign in again."
         confirmLabel="Sign out everywhere"
+        danger
         onConfirm={handleSignOutEverywhere}
       />
     </div>
@@ -614,12 +727,36 @@ function SecuritySection() {
 // Notifications section
 // ---------------------------------------------------------------------------
 
-const NOTIFICATION_ITEMS: { key: keyof NotificationPrefs; label: string; description: string }[] = [
-  { key: "messages", label: "New messages", description: "Email me when I receive a portal message." },
-  { key: "calendar", label: "Calendar events", description: "Email me when an event involving me is created or changes." },
-  { key: "requests", label: "Request updates", description: "Email me when a request I'm involved in changes status." },
-  { key: "reports", label: "New reports", description: "Email me when a new report is published to my project." },
-  { key: "weeklyDigest", label: "Weekly digest", description: "A Monday summary of what changed last week." },
+const NOTIFICATION_ITEMS: {
+  key: keyof NotificationPrefs;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "messages",
+    label: "New messages",
+    description: "Email me when I receive a portal message.",
+  },
+  {
+    key: "calendar",
+    label: "Calendar events",
+    description: "Email me when an event involving me is created or changes.",
+  },
+  {
+    key: "requests",
+    label: "Request updates",
+    description: "Email me when a request I'm involved in changes status.",
+  },
+  {
+    key: "reports",
+    label: "New reports",
+    description: "Email me when a new report is published to my project.",
+  },
+  {
+    key: "weeklyDigest",
+    label: "Weekly digest",
+    description: "A Monday summary of what changed last week.",
+  },
 ];
 
 function NotificationsSection() {
@@ -661,7 +798,8 @@ function NotificationsSection() {
     (k) => prefs[k] !== initial[k],
   );
 
-  const toggle = (k: keyof NotificationPrefs) => setPrefs({ ...prefs, [k]: !prefs[k] });
+  const toggle = (k: keyof NotificationPrefs) =>
+    setPrefs({ ...prefs, [k]: !prefs[k] });
 
   const handleSave = async () => {
     setSaving(true);
@@ -682,17 +820,27 @@ function NotificationsSection() {
       <Panel>
         <SectionLabel>Email notifications</SectionLabel>
         <p className="text-sbi-muted text-sm mb-6">
-          Choose what reaches your inbox. Anything turned off still appears inside the portal.
+          Choose what reaches your inbox. Anything turned off still appears
+          inside the portal.
         </p>
 
         <ul className="divide-y divide-sbi-dark-border/30">
           {NOTIFICATION_ITEMS.map((item) => (
-            <li key={item.key} className="flex items-start justify-between gap-6 py-4 first:pt-0 last:pb-0">
+            <li
+              key={item.key}
+              className="flex items-start justify-between gap-6 py-4 first:pt-0 last:pb-0"
+            >
               <div className="min-w-0">
                 <p className="text-sm text-white">{item.label}</p>
-                <p className="text-xs text-sbi-muted-dark mt-0.5">{item.description}</p>
+                <p className="text-xs text-sbi-muted-dark mt-0.5">
+                  {item.description}
+                </p>
               </div>
-              <Toggle checked={prefs[item.key]} onChange={() => toggle(item.key)} label={item.label} />
+              <Toggle
+                checked={prefs[item.key]}
+                onChange={() => toggle(item.key)}
+                label={item.label}
+              />
             </li>
           ))}
         </ul>
@@ -701,7 +849,12 @@ function NotificationsSection() {
           <button type="button" onClick={handleReset} className={btnGhost}>
             Reset to defaults
           </button>
-          <button type="button" onClick={handleSave} disabled={!isDirty || saving} className={btnPrimary}>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!isDirty || saving}
+            className={btnPrimary}
+          >
             {saving ? "Saving…" : "Save changes"}
           </button>
         </div>
@@ -743,7 +896,11 @@ function Toggle({
 // Calendar section (director only) — richer 3-state UI
 // ---------------------------------------------------------------------------
 
-type CalendarConnectionStatus = "loading" | "not_connected" | "no_calendar" | "connected";
+type CalendarConnectionStatus =
+  | "loading"
+  | "not_connected"
+  | "no_calendar"
+  | "connected";
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   no_refresh_token:
@@ -775,7 +932,9 @@ function CalendarSection() {
     setError("");
     try {
       const supabase = createClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
 
       let savedCalendarId: string | null = null;
       let savedLastSynced: string | null = null;
@@ -788,9 +947,13 @@ function CalendarSection() {
           .single();
         const googleConfig = (profile?.config as Record<string, unknown> | null)
           ?.google as Record<string, unknown> | undefined;
-        savedCalendarId = (googleConfig?.calendar_id as string | undefined) ?? null;
-        savedLastSynced = (googleConfig?.last_synced_at as string | undefined) ?? null;
-        setConnectedEmail((profile?.email as string | undefined) ?? authUser.email ?? "");
+        savedCalendarId =
+          (googleConfig?.calendar_id as string | undefined) ?? null;
+        savedLastSynced =
+          (googleConfig?.last_synced_at as string | undefined) ?? null;
+        setConnectedEmail(
+          (profile?.email as string | undefined) ?? authUser.email ?? "",
+        );
         setLastSyncedAt(savedLastSynced);
         if (savedCalendarId) setSelectedCalendarId(savedCalendarId);
       }
@@ -839,7 +1002,9 @@ function CalendarSection() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Process ?google=connected|error callback flags — strip after reading
   useEffect(() => {
@@ -847,11 +1012,14 @@ function CalendarSection() {
     if (!googleParam) return;
 
     if (googleParam === "connected") {
-      toastSuccess("Google Calendar connected. Pick a calendar below if you haven't yet.");
+      toastSuccess(
+        "Google Calendar connected. Pick a calendar below if you haven't yet.",
+      );
     } else if (googleParam === "error") {
       const reason = searchParams.get("reason") ?? "";
       const msg =
-        OAUTH_ERROR_MESSAGES[reason] ?? "Couldn't connect Google Calendar. Please try again.";
+        OAUTH_ERROR_MESSAGES[reason] ??
+        "Couldn't connect Google Calendar. Please try again.";
       setError(msg);
     }
 
@@ -860,7 +1028,12 @@ function CalendarSection() {
     params.delete("google");
     params.delete("reason");
     const next = params.toString();
-    router.replace(next ? `/dashboard/settings?${next}` : "/dashboard/settings?section=calendar", { scroll: false });
+    router.replace(
+      next
+        ? `/dashboard/settings?${next}`
+        : "/dashboard/settings?section=calendar",
+      { scroll: false },
+    );
   }, [searchParams, router]);
 
   const handleSelectCalendar = async (calendarId: string) => {
@@ -895,7 +1068,9 @@ function CalendarSection() {
     setDisconnectBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/contact/auth/google/disconnect", { method: "POST" });
+      const res = await fetch("/api/contact/auth/google/disconnect", {
+        method: "POST",
+      });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
         setSelectedCalendarId("");
@@ -924,18 +1099,18 @@ function CalendarSection() {
       <Panel>
         <SectionLabel>Google Calendar</SectionLabel>
         <p className="text-sbi-muted text-sm mb-5">
-          Connect your Google Calendar so clients can see your availability and scheduled events.
+          Connect your Google Calendar so clients can see your availability and
+          scheduled events.
         </p>
 
         {status === "loading" && (
           <div className="flex items-center gap-2 text-sbi-muted text-sm">
-            <Loader2 className="size-4 animate-spin" /> Checking your connection…
+            <Loader2 className="size-4 animate-spin" /> Checking your
+            connection…
           </div>
         )}
 
-        {status === "not_connected" && (
-          <CalendarIntroPanel />
-        )}
+        {status === "not_connected" && <CalendarIntroPanel />}
 
         {status === "no_calendar" && (
           <CalendarPickPanel
@@ -1048,11 +1223,18 @@ function CalendarPickPanel({
       <div className="flex items-center gap-2">
         <span className="size-1.5 rounded-full bg-sbi-green" />
         <span className="text-sm text-white">
-          Connected{email ? <> as <span className="text-sbi-green">{email}</span></> : null}
+          Connected
+          {email ? (
+            <>
+              {" "}
+              as <span className="text-sbi-green">{email}</span>
+            </>
+          ) : null}
         </span>
       </div>
       <p className="text-sbi-muted text-sm">
-        Pick which calendar the portal should read from. We'll only show events where your client is invited.
+        Pick which calendar the portal should read from. We'll only show events
+        where your client is invited.
       </p>
 
       <div className="space-y-1.5">
@@ -1091,7 +1273,8 @@ function CalendarPickPanel({
       </div>
 
       <p className="text-xs text-sbi-muted-dark">
-        Most directors pick a dedicated "Client meetings" calendar so studio standups don't leak through.
+        Most directors pick a dedicated "Client meetings" calendar so studio
+        standups don't leak through.
       </p>
     </div>
   );
@@ -1123,7 +1306,9 @@ function CalendarConnectedPanel({
           <span className="size-1.5 rounded-full bg-sbi-green" />
           <span className="text-sm text-white">
             Connected · reading from{" "}
-            <span className="text-white">{calendar?.summary ?? "selected calendar"}</span>
+            <span className="text-white">
+              {calendar?.summary ?? "selected calendar"}
+            </span>
           </span>
         </div>
         <div className="text-xs text-sbi-muted ml-3.5">
@@ -1160,7 +1345,8 @@ function formatRelative(iso: string | null): string | null {
   if (diffMs < 0) return null;
   const minutes = Math.round(diffMs / 60000);
   if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  if (minutes < 60)
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
   const days = Math.round(hours / 24);
@@ -1175,13 +1361,21 @@ function TeamSection() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [membersLoaded, setMembersLoaded] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
+    null,
+  );
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
-  const [unassignedMembers, setUnassignedMembers] = useState<UnassignedMember[]>([]);
+  const [unassignedMembers, setUnassignedMembers] = useState<
+    UnassignedMember[]
+  >([]);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [assignQuery, setAssignQuery] = useState("");
-  const [memberToRemove, setMemberToRemove] = useState<ProjectMember | null>(null);
-  const [availableOwners, setAvailableOwners] = useState<{ id: number; name: string; email: string }[]>([]);
+  const [memberToRemove, setMemberToRemove] = useState<ProjectMember | null>(
+    null,
+  );
+  const [availableOwners, setAvailableOwners] = useState<
+    { id: number; name: string; email: string }[]
+  >([]);
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
   const [ownerQuery, setOwnerQuery] = useState("");
 
@@ -1214,7 +1408,8 @@ function TeamSection() {
     const res = await listProjects();
     if (res.projects) {
       setProjects(res.projects);
-      if (res.projects.length > 0) setSelectedProjectId((curr) => curr ?? res.projects[0].id);
+      if (res.projects.length > 0)
+        setSelectedProjectId((curr) => curr ?? res.projects[0].id);
     }
     setProjectsLoaded(true);
   }, []);
@@ -1239,7 +1434,8 @@ function TeamSection() {
     const q = ownerQuery.trim().toLowerCase();
     if (!q) return availableOwners;
     return availableOwners.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q),
+      (c) =>
+        c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q),
     );
   }, [availableOwners, ownerQuery]);
 
@@ -1254,7 +1450,9 @@ function TeamSection() {
     }
   };
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
   useEffect(() => {
     if (!selectedProjectId) return;
     let cancelled = false;
@@ -1302,19 +1500,25 @@ function TeamSection() {
   // Inline loading matches the Accounts pattern — header + selector stay
   // visible, only the table area shows the spinner during the first fetch
   // or while switching projects.
-  const isLoading = !projectsLoaded || (selectedProjectId !== null && !membersLoaded);
+  const isLoading =
+    !projectsLoaded || (selectedProjectId !== null && !membersLoaded);
 
   const memberCount = projectMembers.filter((m) => m.role === "member").length;
-  const directorCount = projectMembers.filter((m) => m.role === "director").length;
+  const directorCount = projectMembers.filter(
+    (m) => m.role === "director",
+  ).length;
   const ownerCount = projectMembers.filter((m) => m.role === "owner").length;
   const hasOwner = ownerCount > 0;
-  const countLine = projectMembers.length === 0
-    ? null
-    : [
-        ownerCount > 0 ? `${ownerCount} owner` : null,
-        `${memberCount} member${memberCount === 1 ? "" : "s"}`,
-        `${directorCount} director${directorCount === 1 ? "" : "s"}`,
-      ].filter(Boolean).join(" · ");
+  const countLine =
+    projectMembers.length === 0
+      ? null
+      : [
+          ownerCount > 0 ? `${ownerCount} owner` : null,
+          `${memberCount} member${memberCount === 1 ? "" : "s"}`,
+          `${directorCount} director${directorCount === 1 ? "" : "s"}`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -1334,70 +1538,83 @@ function TeamSection() {
                 </button>
                 {showOwnerDropdown && (
                   <div className="absolute top-full mt-2 right-0 w-96 bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
-                      <div className="p-2 border-b border-sbi-dark-border/40">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark" strokeWidth={1.5} />
-                          <input
-                            type="text"
-                            autoFocus
-                            value={ownerQuery}
-                            onChange={(e) => setOwnerQuery(e.target.value)}
-                            placeholder="Search clients"
-                            className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
-                          />
-                        </div>
+                    <div className="p-2 border-b border-sbi-dark-border/40">
+                      <div className="relative">
+                        <Search
+                          className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark"
+                          strokeWidth={1.5}
+                        />
+                        <input
+                          type="text"
+                          autoFocus
+                          value={ownerQuery}
+                          onChange={(e) => setOwnerQuery(e.target.value)}
+                          placeholder="Search clients"
+                          className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
+                        />
                       </div>
-                      <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">
-                        <span>Available clients</span>
-                        <span className="tabular-nums">
-                          {filteredOwners.length}
-                          {ownerQuery && filteredOwners.length !== availableOwners.length
-                            ? ` of ${availableOwners.length}`
-                            : ""}
-                        </span>
-                      </div>
-                      <div className="flex-1 overflow-y-auto py-1">
-                        {availableOwners.length === 0 ? (
-                          <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
-                            No unassigned clients available.
-                          </p>
-                        ) : filteredOwners.length === 0 ? (
-                          <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
-                            No matches for <span className="text-sbi-muted">"{ownerQuery}"</span>.
-                          </p>
-                        ) : (
-                          filteredOwners.map((c) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => handleAssignOwner(c.id)}
-                              className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors cursor-pointer focus:bg-white/5 focus:outline-none"
-                            >
-                              <div className="text-sm text-white truncate">{c.name}</div>
-                              <div className="text-xs text-sbi-muted-dark truncate">{c.email}</div>
-                            </button>
-                          ))
-                        )}
-                      </div>
+                    </div>
+                    <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">
+                      <span>Available clients</span>
+                      <span className="tabular-nums">
+                        {filteredOwners.length}
+                        {ownerQuery &&
+                        filteredOwners.length !== availableOwners.length
+                          ? ` of ${availableOwners.length}`
+                          : ""}
+                      </span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto py-1">
+                      {availableOwners.length === 0 ? (
+                        <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
+                          No unassigned clients available.
+                        </p>
+                      ) : filteredOwners.length === 0 ? (
+                        <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
+                          No matches for{" "}
+                          <span className="text-sbi-muted">"{ownerQuery}"</span>
+                          .
+                        </p>
+                      ) : (
+                        filteredOwners.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => handleAssignOwner(c.id)}
+                            className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors cursor-pointer focus:bg-white/5 focus:outline-none"
+                          >
+                            <div className="text-sm text-white truncate">
+                              {c.name}
+                            </div>
+                            <div className="text-xs text-sbi-muted-dark truncate">
+                              {c.email}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             )}
             <div className="relative" ref={assignDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-              disabled={!selectedProjectId}
-              className={btnPrimary}
-            >
-              <UserPlus className="size-4" />
-              Assign member
-            </button>
-            {showAssignDropdown && (
-              <div className="absolute top-full mt-2 right-0 w-96 bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
+              <button
+                type="button"
+                onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                disabled={!selectedProjectId}
+                className={btnPrimary}
+              >
+                <UserPlus className="size-4" />
+                Assign member
+              </button>
+              {showAssignDropdown && (
+                <div className="absolute top-full mt-2 right-0 w-96 bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
                   <div className="p-2 border-b border-sbi-dark-border/40">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark" strokeWidth={1.5} />
+                      <Search
+                        className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark"
+                        strokeWidth={1.5}
+                      />
                       <input
                         type="text"
                         autoFocus
@@ -1412,7 +1629,8 @@ function TeamSection() {
                     <span>Available members</span>
                     <span className="tabular-nums">
                       {filteredUnassigned.length}
-                      {assignQuery && filteredUnassigned.length !== unassignedMembers.length
+                      {assignQuery &&
+                      filteredUnassigned.length !== unassignedMembers.length
                         ? ` of ${unassignedMembers.length}`
                         : ""}
                     </span>
@@ -1424,7 +1642,8 @@ function TeamSection() {
                       </p>
                     ) : filteredUnassigned.length === 0 ? (
                       <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
-                        No matches for <span className="text-sbi-muted">"{assignQuery}"</span>.
+                        No matches for{" "}
+                        <span className="text-sbi-muted">"{assignQuery}"</span>.
                       </p>
                     ) : (
                       filteredUnassigned.map((m) => (
@@ -1435,21 +1654,25 @@ function TeamSection() {
                           className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors cursor-pointer focus:bg-white/5 focus:outline-none"
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm text-white truncate">{m.name}</div>
+                            <div className="text-sm text-white truncate">
+                              {m.name}
+                            </div>
                             {m.department && (
                               <span className="shrink-0 text-[10px] tracking-[0.15em] uppercase text-sbi-muted-dark">
                                 {m.department}
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-sbi-muted-dark truncate">{m.email}</div>
+                          <div className="text-xs text-sbi-muted-dark truncate">
+                            {m.email}
+                          </div>
                         </button>
                       ))
                     )}
                   </div>
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1462,17 +1685,27 @@ function TeamSection() {
               disabled={projects.length === 0}
             >
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder={projects.length === 0 ? "No projects yet" : "Select a project"} />
+                <SelectValue
+                  placeholder={
+                    projects.length === 0
+                      ? "No projects yet"
+                      : "Select a project"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {projects.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.company_name}</SelectItem>
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.company_name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           {countLine && (
-            <p className="text-xs text-sbi-muted-dark tabular-nums pb-2.5">{countLine}</p>
+            <p className="text-xs text-sbi-muted-dark tabular-nums pb-2.5">
+              {countLine}
+            </p>
           )}
         </div>
 
@@ -1482,7 +1715,8 @@ function TeamSection() {
           </div>
         ) : projectMembers.length === 0 ? (
           <p className="text-sm text-sbi-muted-dark py-3">
-            No one's on this project yet. Use <span className="text-sbi-muted">Assign member</span> above.
+            No one's on this project yet. Use{" "}
+            <span className="text-sbi-muted">Assign member</span> above.
           </p>
         ) : (
           <div className="border border-sbi-dark-border/30 rounded-md overflow-hidden">
@@ -1497,51 +1731,55 @@ function TeamSection() {
                 ? `Added by ${pm.assigner.name}${pm.created_at ? ` on ${new Date(pm.created_at).toLocaleDateString()}` : ""}`
                 : undefined;
               return (
-              <div
-                key={pm.id}
-                className="grid grid-cols-[1.2fr_1.8fr_96px_32px] gap-3 items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
-              >
-                <div className="text-sm text-white truncate">{pm.profiles.name}</div>
-                <div className="text-xs text-sbi-muted truncate flex items-center gap-2 min-w-0">
-                  <span className="truncate">{pm.profiles.email}</span>
-                  {pm.assigner && (
+                <div
+                  key={pm.id}
+                  className="grid grid-cols-[1.2fr_1.8fr_96px_32px] gap-3 items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
+                >
+                  <div className="text-sm text-white truncate">
+                    {pm.profiles.name}
+                  </div>
+                  <div className="text-xs text-sbi-muted truncate flex items-center gap-2 min-w-0">
+                    <span className="truncate">{pm.profiles.email}</span>
+                    {pm.assigner && (
+                      <span
+                        title={assignedTooltip}
+                        className="shrink-0 text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark/70"
+                      >
+                        · by {pm.assigner.name.split(" ")[0]}
+                      </span>
+                    )}
+                  </div>
+                  <div>
                     <span
-                      title={assignedTooltip}
-                      className="shrink-0 text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark/70"
+                      className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}
                     >
-                      · by {pm.assigner.name.split(" ")[0]}
+                      {pm.role}
                     </span>
-                  )}
+                  </div>
+                  <div className="flex justify-end">
+                    {pm.role === "member" && !pm.synthetic ? (
+                      <button
+                        type="button"
+                        onClick={() => setMemberToRemove(pm)}
+                        aria-label={`Remove ${pm.profiles.name} from project`}
+                        title={`Remove ${pm.profiles.name} from project`}
+                        className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        aria-label="Directors can't be removed from a project"
+                        title="Directors can't be removed from a project"
+                        className="p-1.5 rounded-md text-sbi-muted-dark/40 cursor-not-allowed"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <span className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}>
-                    {pm.role}
-                  </span>
-                </div>
-                <div className="flex justify-end">
-                  {pm.role === "member" && !pm.synthetic ? (
-                    <button
-                      type="button"
-                      onClick={() => setMemberToRemove(pm)}
-                      aria-label={`Remove ${pm.profiles.name} from project`}
-                      title={`Remove ${pm.profiles.name} from project`}
-                      className="text-red-400/50 hover:text-red-400 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      aria-label="Directors can't be removed from a project"
-                      title="Directors can't be removed from a project"
-                      className="text-red-400/25 cursor-not-allowed"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
               );
             })}
           </div>
@@ -1556,8 +1794,12 @@ function TeamSection() {
         description={
           memberToRemove ? (
             <p>
-              Remove <span className="text-white font-medium">{memberToRemove.profiles.name}</span>{" "}
-              from this project? Their account stays; only the project assignment is removed.
+              Remove{" "}
+              <span className="text-white font-medium">
+                {memberToRemove.profiles.name}
+              </span>{" "}
+              from this project? Their account stays; only the project
+              assignment is removed.
             </p>
           ) : null
         }
@@ -1579,9 +1821,12 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState({
-    email: "", password: "", name: "",
+    email: "",
+    password: "",
+    name: "",
     role: "member" as "client" | "director" | "member",
-    companyName: "", department: "",
+    companyName: "",
+    department: "",
   });
   const [createError, setCreateError] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
@@ -1596,12 +1841,15 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     setAccountsLoaded(true);
   }, []);
 
-  useEffect(() => { loadAccounts(); }, [loadAccounts]);
+  useEffect(() => {
+    loadAccounts();
+  }, [loadAccounts]);
 
   const counts = useMemo(() => {
     const acc = { director: 0, member: 0, client: 0 };
     for (const a of accounts) {
-      if (a.role === "director" || a.role === "member" || a.role === "client") acc[a.role]++;
+      if (a.role === "director" || a.role === "member" || a.role === "client")
+        acc[a.role]++;
     }
     return acc;
   }, [accounts]);
@@ -1610,7 +1858,12 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     const q = query.trim().toLowerCase();
     return accounts
       .filter((a) => filter === "all" || a.role === filter)
-      .filter((a) => !q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
+      .filter(
+        (a) =>
+          !q ||
+          a.name.toLowerCase().includes(q) ||
+          a.email.toLowerCase().includes(q),
+      )
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [accounts, filter, query]);
 
@@ -1625,10 +1878,20 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     } else {
       const createdName = createForm.name;
       setShowCreateForm(false);
-      setCreateForm({ email: "", password: "", name: "", role: "member", companyName: "", department: "" });
+      setCreateForm({
+        email: "",
+        password: "",
+        name: "",
+        role: "member",
+        companyName: "",
+        department: "",
+      });
       loadAccounts();
       if (res.warning) {
-        toastError(res.warning, `Account created for ${createdName}, with a warning`);
+        toastError(
+          res.warning,
+          `Account created for ${createdName}, with a warning`,
+        );
       } else {
         toastSuccess(`Account created for ${createdName}.`);
       }
@@ -1664,7 +1927,10 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
         </div>
 
         {showCreateForm && (
-          <form onSubmit={handleCreate} className="mb-6 p-4 bg-sbi-dark/50 border border-sbi-dark-border/20 rounded-lg space-y-3">
+          <form
+            onSubmit={handleCreate}
+            className="mb-6 p-4 bg-sbi-dark/50 border border-sbi-dark-border/20 rounded-lg space-y-3"
+          >
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Name</label>
@@ -1672,7 +1938,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   type="text"
                   required
                   value={createForm.name}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm((f) => ({ ...f, name: e.target.value }))
+                  }
                   className={cn(inputClass, "mt-1")}
                 />
               </div>
@@ -1682,7 +1950,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   type="email"
                   required
                   value={createForm.email}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm((f) => ({ ...f, email: e.target.value }))
+                  }
                   className={cn(inputClass, "mt-1")}
                 />
               </div>
@@ -1692,7 +1962,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   type="password"
                   required
                   value={createForm.password}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm((f) => ({ ...f, password: e.target.value }))
+                  }
                   className={cn(inputClass, "mt-1")}
                 />
               </div>
@@ -1700,7 +1972,12 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 <label className={labelClass}>Role</label>
                 <Select
                   value={createForm.role}
-                  onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v as "client" | "director" | "member" }))}
+                  onValueChange={(v) =>
+                    setCreateForm((f) => ({
+                      ...f,
+                      role: v as "client" | "director" | "member",
+                    }))
+                  }
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue />
@@ -1719,7 +1996,12 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                     type="text"
                     required
                     value={createForm.companyName}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, companyName: e.target.value }))}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({
+                        ...f,
+                        companyName: e.target.value,
+                      }))
+                    }
                     className={cn(inputClass, "mt-1")}
                   />
                 </div>
@@ -1729,26 +2011,40 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   <label className={labelClass}>Department</label>
                   <Select
                     value={createForm.department || undefined}
-                    onValueChange={(v) => setCreateForm((f) => ({ ...f, department: v }))}
+                    onValueChange={(v) =>
+                      setCreateForm((f) => ({ ...f, department: v }))
+                    }
                   >
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Choose a department…" />
                     </SelectTrigger>
                     <SelectContent>
                       {DEPARTMENTS.map((d) => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
             </div>
-            {createError && <p className="text-red-400 text-sm">{createError}</p>}
+            {createError && (
+              <p className="text-red-400 text-sm">{createError}</p>
+            )}
             <div className="flex gap-2">
-              <button type="submit" disabled={createLoading} className={btnPrimary}>
+              <button
+                type="submit"
+                disabled={createLoading}
+                className={btnPrimary}
+              >
                 {createLoading ? "Creating…" : "Create"}
               </button>
-              <button type="button" onClick={() => setShowCreateForm(false)} className={btnGhost}>
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                className={btnGhost}
+              >
                 Cancel
               </button>
             </div>
@@ -1770,7 +2066,10 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           <>
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark" strokeWidth={1.5} />
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark"
+                  strokeWidth={1.5}
+                />
                 <input
                   type="text"
                   value={query}
@@ -1780,10 +2079,30 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 />
               </div>
               <div className="flex items-center gap-1 text-xs">
-                <FilterChip label="All" count={accounts.length} active={filter === "all"} onClick={() => setFilter("all")} />
-                <FilterChip label="Directors" count={counts.director} active={filter === "director"} onClick={() => setFilter("director")} />
-                <FilterChip label="Members" count={counts.member} active={filter === "member"} onClick={() => setFilter("member")} />
-                <FilterChip label="Clients" count={counts.client} active={filter === "client"} onClick={() => setFilter("client")} />
+                <FilterChip
+                  label="All"
+                  count={accounts.length}
+                  active={filter === "all"}
+                  onClick={() => setFilter("all")}
+                />
+                <FilterChip
+                  label="Directors"
+                  count={counts.director}
+                  active={filter === "director"}
+                  onClick={() => setFilter("director")}
+                />
+                <FilterChip
+                  label="Members"
+                  count={counts.member}
+                  active={filter === "member"}
+                  onClick={() => setFilter("member")}
+                />
+                <FilterChip
+                  label="Clients"
+                  count={counts.client}
+                  active={filter === "client"}
+                  onClick={() => setFilter("client")}
+                />
               </div>
             </div>
 
@@ -1805,15 +2124,23 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                     key={account.id}
                     className="grid grid-cols-[1.3fr_1.7fr_92px_120px_28px] gap-3 items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
                   >
-                    <div className="text-sm text-white truncate">{account.name}</div>
-                    <div className="text-xs text-sbi-muted truncate">{account.email}</div>
+                    <div className="text-sm text-white truncate">
+                      {account.name}
+                    </div>
+                    <div className="text-xs text-sbi-muted truncate">
+                      {account.email}
+                    </div>
                     <div>
-                      <span className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}>
+                      <span
+                        className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}
+                      >
                         {account.role}
                       </span>
                     </div>
                     <div className="text-xs text-sbi-muted-dark truncate">
-                      {account.department || <span className="text-sbi-muted-dark/40">—</span>}
+                      {account.department || (
+                        <span className="text-sbi-muted-dark/40">—</span>
+                      )}
                     </div>
                     <div className="flex justify-end items-center gap-3">
                       <button
@@ -1821,7 +2148,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                         onClick={() => setAccountToEdit(account)}
                         aria-label={`Edit ${account.name}'s account`}
                         title={`Edit ${account.name}'s account`}
-                        className="text-sbi-muted-dark/70 hover:text-sbi-green transition-colors cursor-pointer"
+                        className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer"
                       >
                         <Pencil className="size-4" strokeWidth={1.5} />
                       </button>
@@ -1831,7 +2158,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                           onClick={() => setAccountToDelete(account)}
                           aria-label={`Delete ${account.name}'s account`}
                           title={`Delete ${account.name}'s account`}
-                          className="text-red-400/50 hover:text-red-400 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -1841,7 +2168,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                           disabled
                           aria-label="Cannot delete your own account"
                           title="Cannot delete your own account"
-                          className="text-red-400/25 cursor-not-allowed"
+                          className="p-1.5 rounded-md text-sbi-muted-dark/40 cursor-not-allowed"
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -1859,7 +2186,10 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
         account={accountToEdit}
         currentUserId={currentUserId}
         onClose={() => setAccountToEdit(null)}
-        onSaved={() => { setAccountToEdit(null); loadAccounts(); }}
+        onSaved={() => {
+          setAccountToEdit(null);
+          loadAccounts();
+        }}
       />
 
       <ConfirmDialog
@@ -1872,10 +2202,15 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
             <>
               <p className="mb-2">
                 You're about to permanently delete{" "}
-                <span className="text-white font-medium">{accountToDelete.name}</span>{" "}
+                <span className="text-white font-medium">
+                  {accountToDelete.name}
+                </span>{" "}
                 ({accountToDelete.email}).
               </p>
-              <p>This removes their profile, project memberships, and auth account. This cannot be undone.</p>
+              <p>
+                This removes their profile, project memberships, and auth
+                account. This cannot be undone.
+              </p>
             </>
           ) : null
         }
@@ -1967,7 +2302,10 @@ function EditAccountModal({
                 type="email"
                 value={account.email}
                 readOnly
-                className={cn(inputClass, "mt-1 cursor-not-allowed text-sbi-muted")}
+                className={cn(
+                  inputClass,
+                  "mt-1 cursor-not-allowed text-sbi-muted",
+                )}
               />
               <p className="text-[11px] text-sbi-muted-dark mt-1">
                 Email changes require re-verification and aren't supported here.
@@ -1977,7 +2315,9 @@ function EditAccountModal({
               <label className={labelClass}>Role</label>
               <Select
                 value={role}
-                onValueChange={(v) => setRole(v as "client" | "director" | "member")}
+                onValueChange={(v) =>
+                  setRole(v as "client" | "director" | "member")
+                }
                 disabled={isSelf}
               >
                 <SelectTrigger className="mt-1">
@@ -1996,7 +2336,8 @@ function EditAccountModal({
               )}
               {!isSelf && roleChanged && (
                 <p className="text-[11px] text-amber-400/80 mt-1">
-                  Changing the role removes any project assignments tied to the old role.
+                  Changing the role removes any project assignments tied to the
+                  old role.
                 </p>
               )}
             </div>
@@ -2005,7 +2346,9 @@ function EditAccountModal({
                 <label className={labelClass}>Department</label>
                 <Select
                   value={department || "__none__"}
-                  onValueChange={(v) => setDepartment(v === "__none__" ? "" : v)}
+                  onValueChange={(v) =>
+                    setDepartment(v === "__none__" ? "" : v)
+                  }
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="No department" />
@@ -2013,7 +2356,9 @@ function EditAccountModal({
                   <SelectContent>
                     <SelectItem value="__none__">No department</SelectItem>
                     {DEPARTMENTS.map((d) => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -2061,7 +2406,9 @@ function FilterChip({
       <span>{label}</span>
       <span
         className={`tabular-nums text-[10px] px-1.5 py-px rounded-sm ${
-          active ? "bg-sbi-green/15 text-sbi-green" : "bg-sbi-dark-border/40 text-sbi-muted-dark"
+          active
+            ? "bg-sbi-green/15 text-sbi-green"
+            : "bg-sbi-dark-border/40 text-sbi-muted-dark"
         }`}
       >
         {count}

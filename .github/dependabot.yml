@@ -1,0 +1,27 @@
+# Dependabot configuration.
+# Groups routine minor/patch bumps into one weekly PR per ecosystem to cut
+# noise; security updates still ship immediately and ungrouped by default.
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # If the `uv` ecosystem is unavailable on this account, switch to `pip`
+  # against /backend (Dependabot reads pyproject.toml / uv.lock either way).
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

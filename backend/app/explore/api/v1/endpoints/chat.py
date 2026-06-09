@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import datetime
 
-from app.explore.schemas.chat import ChatRequest, ChatResponse, ChatMessage, SourceDocument
+from app.explore.schemas.chat import ChatRequest
 from app.explore.agents.explore import run_explore_agent_streaming
 from app.explore.api.deps import get_current_user_id
 from app.explore.services.pdf_parser import PDFParser
@@ -34,7 +34,7 @@ async def chat(request: ChatRequest, raw_request: Request, user_id: str = Depend
                 client_id=user_id,
                 history=history,
                 attachments=attachments,
-                model_preference=request.model_preference or "fast"
+                model_preference=request.model_preference or "fast",
             ):
                 if await raw_request.is_disconnected():
                     logger.info("Client disconnected, stopping SSE stream")
@@ -51,9 +51,11 @@ async def chat(request: ChatRequest, raw_request: Request, user_id: str = Depend
         except asyncio.CancelledError:
             logger.info("SSE stream cancelled")
             return
-        except Exception as e:
-            logger.error(f"SSE stream error: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        except Exception:
+            # Log the full exception server-side, but never leak internals to
+            # the client — return a generic error message instead.
+            logger.error("SSE stream error", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An internal error occurred'})}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -117,8 +119,10 @@ async def extract_file_text(
             "file_type": file_type
         }
 
-    except Exception as e:
+    except Exception:
+        # Log the full exception server-side; return a generic client message.
+        logger.error("Failed to extract text from file", exc_info=True)
         raise HTTPException(
             status_code=400,
-            detail=f"Failed to extract text from file: {str(e)}"
+            detail="Failed to extract text from file"
         )

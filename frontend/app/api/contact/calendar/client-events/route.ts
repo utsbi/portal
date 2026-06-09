@@ -1,6 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
   const v = process.env[name];
@@ -49,10 +50,49 @@ export async function GET(req: Request) {
       );
     }
 
-    const supabaseAdmin = createClient(
+    // --- Auth + authorization gate -----------------------------------------
+    // This endpoint builds a service-role client below, which bypasses RLS.
+    // Require an authenticated caller and verify they actually belong to the
+    // requested project (director or owner) BEFORE reading any calendar PII.
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supabaseAdmin = createAdminClient(
       must("NEXT_PUBLIC_SUPABASE_URL"),
       must("SUPABASE_SECRET_KEY"),
     );
+
+    // Resolve the caller's profile.
+    const { data: callerProfile, error: callerErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("uid", user.id)
+      .single();
+    if (callerErr || !callerProfile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    // Verify the caller is a member (director or owner) of the requested
+    // project. Never trust the project_id query param on its own.
+    const { data: membership } = await supabaseAdmin
+      .from("project_members")
+      .select("role")
+      .eq("project_id", projectId)
+      .eq("profile_id", callerProfile.id)
+      .in("role", ["director", "owner"])
+      .maybeSingle();
+    if (!membership) {
+      return NextResponse.json(
+        { error: "You do not have access to this project" },
+        { status: 403 },
+      );
+    }
 
     const { data: project, error: projectErr } = await supabaseAdmin
       .from("projects")

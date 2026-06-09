@@ -5,8 +5,10 @@ import {
   Bell,
   Calendar,
   ChevronUp,
+  ClipboardList,
   Compass,
   DollarSign,
+  FileEdit,
   FileText,
   FolderOpen,
   HelpCircle,
@@ -51,6 +53,18 @@ const documentItems: NavItem[] = [
   { title: "Files", path: "/files", icon: FolderOpen },
   { title: "Reports", path: "/reports", icon: FileText },
   { title: "Requests", path: "/requests", icon: MailQuestion },
+  {
+    title: "Questionnaire",
+    path: "/questionnaire",
+    icon: ClipboardList,
+    roles: ["client"],
+  },
+  {
+    title: "Form Builder",
+    path: "/questionnaire/builder",
+    icon: FileEdit,
+    roles: ["director"],
+  },
 ];
 
 // Settings is accessed from the user profile menu, not the nav

@@ -18,6 +18,9 @@ async def run_graph_streaming(
 
     Delta events carry token chunks from the model. The final yield is a
     result event with the complete response and source citations.
+
+    On the first turn of a conversation (empty ``history``) a ``title`` event is
+    also emitted with an auto-generated conversation title.
     """
     from app.explore.agents.nodes import (
         rewrite_query,
@@ -25,12 +28,15 @@ async def run_graph_streaming(
         retrieve_context,
         generate_response_streaming,
         format_sources,
+        generate_title,
     )
+
+    history = history or []
 
     state: Dict[str, Any] = {
         "query": query,
         "client_id": client_id,
-        "history": history or [],
+        "history": history,
         "attachments": attachments or [],
         "model_preference": model_preference,
         "standalone_query": "",
@@ -41,6 +47,12 @@ async def run_graph_streaming(
         "response": "",
         "sources": [],
     }
+
+    # First turn (no prior history): generate a concise conversation title so the
+    # client can label the session. Best-effort and additive — never blocks the turn.
+    if not history:
+        title = await generate_title(query)
+        yield {"type": "title", "title": title}
 
     yield {"type": "phase", "phase": "thinking"}
     state = await rewrite_query(state)

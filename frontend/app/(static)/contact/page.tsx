@@ -1,11 +1,12 @@
 "use client";
 
+import { Turnstile } from "@marsidev/react-turnstile";
 import { Instagram, Linkedin, Mail, MapPin, Send } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
 
 import { BlueprintGrid } from "@/components/blueprint-grid";
+import { ContactSubjectDropdown } from "@/components/contact-subject-dropdown";
 import { PageHero } from "@/components/page-hero";
 
 const contactInfo = {
@@ -333,23 +334,14 @@ export default function ContactPage() {
                   >
                     Subject
                   </label>
-                  <select
+                  <ContactSubjectDropdown
                     id="subject"
-                    name="subject"
+                    options={subjectOptions}
                     value={formState.subject}
-                    onChange={handleChange}
-                    className="w-full py-3 bg-transparent border-b border-sbi-dark-border focus:border-sbi-green focus:outline-none text-white transition-colors appearance-none cursor-pointer"
-                  >
-                    {subjectOptions.map((option) => (
-                      <option
-                        key={option.value}
-                        value={option.value}
-                        className="bg-sbi-dark text-white"
-                      >
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(subject) =>
+                      setFormState((prev) => ({ ...prev, subject }))
+                    }
+                  />
                 </div>
 
                 <div className="group">

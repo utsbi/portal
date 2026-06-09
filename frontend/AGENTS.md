@@ -8,7 +8,7 @@ Next.js 16 App Router codebase for the Sustainable Building Initiative portal.
 bun install           # Install dependencies (prefer bun over npm/yarn)
 bun dev               # Dev server with Turbopack on localhost:3000
 bun build             # Production build
-bun lint              # Run Next.js + Biome linting
+bun lint              # Run Biome (biome check)
 ```
 
 **No test framework configured.** No test commands available.
@@ -18,7 +18,7 @@ bun lint              # Run Next.js + Biome linting
 ```
 app/
   (static)/            # Public pages (home, about, contact, projects, outreach, login)
-  (dashboard)/         # Protected routes (Supabase auth required)
+  dashboard/           # Protected routes (Supabase auth required)
   api/                 # API routes
   error/               # Error page
   auth/                # Auth flows (password reset, etc.)
@@ -29,7 +29,8 @@ components/
     explore/           # AI portal components
     [feature]/         # Feature-specific (reports, messages, etc.)
 lib/
-  supabase/            # Client/server/middleware utilities
+  supabase/            # Client/server helpers + proxy.ts session refresh utility
+proxy.ts               # Next.js 16 proxy (formerly middleware) — refreshes Supabase session
   utils.ts             # Utility functions (cn for className merging)
 assets/                # Static assets (fonts, images, logos)
 public/models/         # 3D models
@@ -160,7 +161,7 @@ export async function myAction(formData: FormData) {
 }
 ```
 
-Routes under `(dashboard)/` are auto-protected by middleware.
+Routes under `dashboard/` are auto-protected: `proxy.ts` (Next.js 16's renamed middleware) refreshes the Supabase session via `lib/supabase/middleware.ts` on matched routes (`/dashboard/:path*`, `/auth/:path*`, `/login`) and sets security headers.
 
 ## Error Handling
 
@@ -190,6 +191,7 @@ NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 SUPABASE_SECRET_KEY=
 TURNSTILE_SECRET_KEY=
 N8N_CONTACT_WEBHOOK_URL=
+DISCORD_FORM_WEBHOOK_URL=
 BASIC_AUTH_USER=
 BASIC_AUTH_PASSWORD=
 GOOGLE_CLIENT_ID=
@@ -203,6 +205,7 @@ GOOGLE_REDIRECT_URI=
 | `SUPABASE_SECRET_KEY` | Server only | Service role key for admin APIs, Google OAuth token storage, seed scripts |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | Client / server | Cloudflare Turnstile (contact form) |
 | `N8N_CONTACT_WEBHOOK_URL` | Server only | n8n webhook for contact form submissions |
+| `DISCORD_FORM_WEBHOOK_URL` | Server only | Optional. Discord webhook notified on each questionnaire submission (no-op if unset) |
 | `BASIC_AUTH_*` | Server only | HTTP basic auth for protected routes |
 | `GOOGLE_*` | Server only | Google Calendar OAuth for dashboard contact/calendar APIs |
 
@@ -211,7 +214,7 @@ GOOGLE_REDIRECT_URI=
 | Task | Location | Notes |
 |------|----------|-------|
 | New public page | `app/(static)/your-page/page.tsx` | Add layout.tsx if needed |
-| Protected route | `app/(dashboard)/dashboard/your-route/` | Auto-protected |
+| Protected route | `app/dashboard/your-route/` | Auto-protected via `proxy.ts` |
 | Dashboard component | `components/dashboard/` | Group by feature |
 | shadcn primitive | `components/ui/` | Radix-based |
 | API endpoint | `app/api/your-endpoint/route.ts` | Named exports (GET, POST) |
