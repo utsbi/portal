@@ -6,14 +6,20 @@ from app.explore.agents.graph import run_graph_streaming
 async def run_explore_agent_streaming(
     query: str,
     client_id: str,
+    access_token: str,
     history: Optional[List[Dict[str, str]]] = None,
     attachments: Optional[List[Dict[str, str]]] = None,
     model_preference: str = "fast",
 ) -> AsyncGenerator[Dict[str, Any], None]:
-    """Streaming entry point that yields SSE phase events, token deltas, and a final result."""
+    """Streaming entry point that yields SSE phase events, token deltas, and a final result.
+
+    ``access_token`` is the caller's validated Supabase JWT, threaded through to
+    the live-data tools so their queries run under the caller's RLS context.
+    """
     async for event in run_graph_streaming(
         query=query,
         client_id=client_id,
+        access_token=access_token,
         history=history or [],
         attachments=attachments or [],
         model_preference=model_preference,

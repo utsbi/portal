@@ -25,6 +25,14 @@ the chat endpoint derives from the bearer token and threads through
 no project id ever comes from the model/user input. If a caller belongs to no
 project, the tools return an empty/"no data" summary rather than an unscoped
 query, so another tenant's rows can never be returned.
+
+DEFENSE-IN-DEPTH — RLS. In addition to the manual scoping above, the live-data
+tools now run their PostgREST queries under the CALLER'S row-level-security
+context: ``execute_tool`` builds a per-request client from the caller's
+validated JWT (``user_client(access_token)``) so Supabase enforces tenant
+isolation in the database itself, independent of (and on top of) the manual
+``project_id`` / ``user_id`` filters. The service-role ``supabase`` client is no
+longer used by these tools.
 """
 
 import asyncio
@@ -32,8 +40,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from supabase import Client
+
 from app.explore.agents.nodes import rag_service
-from app.explore.db.supabase import supabase
+from app.explore.db.supabase import user_client
 
 logger = logging.getLogger(__name__)
 
@@ -268,19 +278,20 @@ def _search_sbi_knowledge(query: str) -> Tuple[str, List[Dict[str, Any]]]:
 # impossible.
 
 
-async def _caller_project_ids(client_id: str) -> List[int]:
+async def _caller_project_ids(db: Client, client_id: str) -> List[int]:
     """Resolve the project ids the caller is a member of. Empty list if none.
 
     This is the single source of tenant scoping for every live-data tool. A
     blank ``client_id`` (which should never reach here for an authenticated
-    request) yields ``[]`` so nothing is queried.
+    request) yields ``[]`` so nothing is queried. Queries run on ``db`` (the
+    caller's RLS-scoped client), so RLS applies on top of the manual filters.
     """
     if not client_id or not client_id.strip():
         return []
 
     def _query() -> List[int]:
         profile = (
-            supabase.table("profiles")
+            db.table("profiles")
             .select("id")
             .eq("uid", client_id)
             .limit(1)
@@ -291,7 +302,7 @@ async def _caller_project_ids(client_id: str) -> List[int]:
         profile_id = profile.data[0]["id"]
 
         members = (
-            supabase.table("project_members")
+            db.table("project_members")
             .select("project_id")
             .eq("profile_id", profile_id)
             .execute()
@@ -312,9 +323,9 @@ def _summarize_counts(label: str, counts: Dict[str, int]) -> str:
     return f"{label} — " + (", ".join(parts) if parts else "none") + "."
 
 
-async def _get_lifecycle_status(client_id: str) -> str:
+async def _get_lifecycle_status(db: Client, client_id: str) -> str:
     """Summarize the caller's lifecycle tasks, scoped to their project(s)."""
-    project_ids = await _caller_project_ids(client_id)
+    project_ids = await _caller_project_ids(db, client_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there is no "
@@ -323,7 +334,7 @@ async def _get_lifecycle_status(client_id: str) -> str:
 
     def _query() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         lifecycle = (
-            supabase.table("lifecycle_projects")
+            db.table("lifecycle_projects")
             .select("id, title, completed")
             .in_("project_id", project_ids)
             .execute()
@@ -333,7 +344,7 @@ async def _get_lifecycle_status(client_id: str) -> str:
         if not lifecycle_ids:
             return lifecycle_rows, []
         tasks = (
-            supabase.table("lifecycle_tasks")
+            db.table("lifecycle_tasks")
             .select("title, status, due_date, tentative")
             .in_("lifecycle_project_id", lifecycle_ids)
             .order("due_date")
@@ -387,14 +398,14 @@ async def _get_lifecycle_status(client_id: str) -> str:
     return "\n".join(lines)
 
 
-async def _get_questionnaire_status(client_id: str) -> str:
+async def _get_questionnaire_status(db: Client, client_id: str) -> str:
     """Summarize the caller's questionnaire/form status, scoped to them.
 
     Submissions are scoped to BOTH the caller's project(s) and the caller's own
     ``user_id`` so one client never sees another client's answers on a shared
     project. Assignments are scoped to the caller's project(s).
     """
-    project_ids = await _caller_project_ids(client_id)
+    project_ids = await _caller_project_ids(db, client_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there are no "
@@ -403,13 +414,13 @@ async def _get_questionnaire_status(client_id: str) -> str:
 
     def _query() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         assignments = (
-            supabase.table("custom_form_assignments")
+            db.table("custom_form_assignments")
             .select("form_id, custom_form_schemas(title)")
             .in_("project_id", project_ids)
             .execute()
         )
         submissions = (
-            supabase.table("custom_form_submissions")
+            db.table("custom_form_submissions")
             .select("form_id, status, submitted_at, custom_form_schemas(title)")
             .in_("project_id", project_ids)
             .eq("user_id", client_id)
@@ -466,14 +477,14 @@ async def _get_questionnaire_status(client_id: str) -> str:
     return "\n".join(lines)
 
 
-async def _get_reports(client_id: str) -> str:
+async def _get_reports(db: Client, client_id: str) -> str:
     """Summarize reports filed for the caller's project(s).
 
     Reports are ``tickets`` rows with ``ticket_type = 'report'``. Scoped to the
     caller's project(s); a report with no project is never returned to avoid any
     cross-tenant leak.
     """
-    project_ids = await _caller_project_ids(client_id)
+    project_ids = await _caller_project_ids(db, client_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there are no "
@@ -482,7 +493,7 @@ async def _get_reports(client_id: str) -> str:
 
     def _query() -> List[Dict[str, Any]]:
         result = (
-            supabase.table("tickets")
+            db.table("tickets")
             .select("subject, title, status, created_at")
             .eq("ticket_type", "report")
             .in_("project_id", project_ids)
@@ -515,7 +526,7 @@ def _fmt_money(amount: float, currency: str = "USD") -> str:
     return f"{symbol}{amount:,.2f}" + ("" if symbol else f" {currency}")
 
 
-async def _get_finance_summary(client_id: str) -> str:
+async def _get_finance_summary(db: Client, client_id: str) -> str:
     """Summarize the caller's project budget(s), scoped to their project(s).
 
     Reads ``project_budgets`` (one per project), the ``budget_categories``
@@ -523,7 +534,7 @@ async def _get_finance_summary(client_id: str) -> str:
     Every query is scoped to budgets whose ``project_id`` is in the caller's
     project list, so another tenant's finances can never be returned.
     """
-    project_ids = await _caller_project_ids(client_id)
+    project_ids = await _caller_project_ids(db, client_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there is no "
@@ -534,7 +545,7 @@ async def _get_finance_summary(client_id: str) -> str:
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]
     ]:
         budgets = (
-            supabase.table("project_budgets")
+            db.table("project_budgets")
             .select("id, currency")
             .in_("project_id", project_ids)
             .execute()
@@ -544,13 +555,13 @@ async def _get_finance_summary(client_id: str) -> str:
         if not budget_ids:
             return budget_rows, [], []
         categories = (
-            supabase.table("budget_categories")
+            db.table("budget_categories")
             .select("budget_id, expected_amount")
             .in_("budget_id", budget_ids)
             .execute()
         )
         transactions = (
-            supabase.table("budget_transactions")
+            db.table("budget_transactions")
             .select("description, amount, occurred_on")
             .in_("budget_id", budget_ids)
             .order("occurred_on", desc=True)
@@ -591,7 +602,7 @@ async def _get_finance_summary(client_id: str) -> str:
     return "\n".join(lines)
 
 
-async def _get_requests(client_id: str) -> str:
+async def _get_requests(db: Client, client_id: str) -> str:
     """Summarize the caller's submitted requests, scoped to their project(s).
 
     Requests are ``tickets`` rows with ``ticket_type = 'request'`` (the
@@ -599,7 +610,7 @@ async def _get_requests(client_id: str) -> str:
     Scoped to the caller's project(s); a request with no project is never
     returned to avoid any cross-tenant leak.
     """
-    project_ids = await _caller_project_ids(client_id)
+    project_ids = await _caller_project_ids(db, client_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there are no "
@@ -608,7 +619,7 @@ async def _get_requests(client_id: str) -> str:
 
     def _query() -> List[Dict[str, Any]]:
         result = (
-            supabase.table("tickets")
+            db.table("tickets")
             .select("subject, title, status, created_at")
             .eq("ticket_type", "request")
             .in_("project_id", project_ids)
@@ -661,12 +672,19 @@ async def _get_calendar_events(client_id: str) -> str:
 
 
 async def execute_tool(
-    name: str, args: Dict[str, Any], client_id: str
+    name: str, args: Dict[str, Any], client_id: str, access_token: str
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Dispatch a single tool call.
 
     Returns ``(result_text, sources)``. Never raises: a tool failure is returned
     as an error string so the agent loop can continue the turn.
+
+    The five live-data tools build a single RLS-scoped PostgREST client from the
+    caller's ``access_token`` (``user_client``) so their queries run under the
+    caller's row-level-security context (defense-in-depth on top of the manual
+    ``project_id`` / ``user_id`` filters). ``search_documents`` (RAG RPC is
+    param-scoped + SECURITY DEFINER), ``search_sbi_knowledge`` (static), and
+    ``get_calendar_events`` (stub) need no database client.
     """
     try:
         if name == "search_documents":
@@ -676,15 +694,20 @@ async def execute_tool(
             query = str(args.get("query", "")) if args else ""
             return _search_sbi_knowledge(query)
         if name == "get_lifecycle_status":
-            return await _get_lifecycle_status(client_id), []
+            db = user_client(access_token)
+            return await _get_lifecycle_status(db, client_id), []
         if name == "get_questionnaire_status":
-            return await _get_questionnaire_status(client_id), []
+            db = user_client(access_token)
+            return await _get_questionnaire_status(db, client_id), []
         if name == "get_reports":
-            return await _get_reports(client_id), []
+            db = user_client(access_token)
+            return await _get_reports(db, client_id), []
         if name == "get_finance_summary":
-            return await _get_finance_summary(client_id), []
+            db = user_client(access_token)
+            return await _get_finance_summary(db, client_id), []
         if name == "get_requests":
-            return await _get_requests(client_id), []
+            db = user_client(access_token)
+            return await _get_requests(db, client_id), []
         if name == "get_calendar_events":
             return await _get_calendar_events(client_id), []
         logger.warning(f"Unknown tool requested: {name}")

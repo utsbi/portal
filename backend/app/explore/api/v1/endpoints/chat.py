@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app.explore.schemas.chat import ChatRequest
 from app.explore.agents.explore import run_explore_agent_streaming
-from app.explore.api.deps import get_current_user_id
+from app.explore.api.deps import AuthContext, get_auth_context, get_current_user_id
 from app.explore.services.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 @router.post("/")
-async def chat(request: ChatRequest, raw_request: Request, user_id: str = Depends(get_current_user_id)):
+async def chat(request: ChatRequest, raw_request: Request, auth: AuthContext = Depends(get_auth_context)):
     """Chat with the Explore AI Agent via SSE streaming."""
     history = [
         {"role": msg.role, "content": msg.content}
@@ -31,7 +31,8 @@ async def chat(request: ChatRequest, raw_request: Request, user_id: str = Depend
         try:
             async for event in run_explore_agent_streaming(
                 query=request.query,
-                client_id=user_id,
+                client_id=auth.user_id,
+                access_token=auth.access_token,
                 history=history,
                 attachments=attachments,
                 model_preference=request.model_preference or "fast",
