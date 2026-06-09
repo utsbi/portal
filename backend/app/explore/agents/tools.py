@@ -6,6 +6,9 @@ Exposes these tools to the model:
   - ``get_lifecycle_status`` — live lifecycle task status for the caller's project(s).
   - ``get_questionnaire_status`` — live questionnaire/form status for the caller.
   - ``get_reports`` — live project reports for the caller's project(s).
+  - ``get_finance_summary`` — live budget/spend summary for the caller's project(s).
+  - ``get_requests`` — live client requests (``tickets`` with ``ticket_type='request'``).
+  - ``get_calendar_events`` — upcoming Google Calendar events for the caller (see note).
 
 ``TOOLS`` is the OpenAI function-calling schema list passed to the chat
 completion. ``execute_tool`` dispatches a single tool call and returns the tool
@@ -149,6 +152,46 @@ TOOLS: List[Dict[str, Any]] = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_finance_summary",
+            "description": (
+                "Get the LIVE budget/finance summary for the client's project(s): "
+                "total budgeted amount, total spent, remaining balance, and a few "
+                "recent transactions. Use this for 'what's my budget?', 'how much "
+                "have we spent?', 'what's left in the budget?', or 'any recent "
+                "expenses?'. This reads live financial records, not documents."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_requests",
+            "description": (
+                "Get the LIVE list of requests the client has submitted to their "
+                "SBI team (support/change requests — NOT reports), including each "
+                "request's subject, status, and date. Use this for 'what requests "
+                "have I made?', 'is my request still open?', or 'what's the status "
+                "of my request?'."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_calendar_events",
+            "description": (
+                "Get the client's upcoming calendar events (meetings) scheduled "
+                "with their SBI team. Use this for 'what meetings do I have?', "
+                "'when is my next meeting?', or 'what's on my calendar?'."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
 ]
 
 
@@ -214,6 +257,11 @@ def _search_sbi_knowledge(query: str) -> Tuple[str, List[Dict[str, Any]]]:
 #                     AND user_id == client_id   (the caller's own submissions)
 #                   custom_form_assignments.project_id IN (ids)  (forms assigned)
 #   reports:        tickets.ticket_type == 'report' AND project_id IN (ids)
+#   requests:       tickets.ticket_type == 'request' AND project_id IN (ids)
+#   finance:        project_budgets.project_id IN (ids)
+#                     -> budget_categories.budget_id IN (budget ids)  (the budget)
+#                     -> budget_transactions.budget_id IN (budget ids)  (the spend)
+#   calendar:       Google Calendar (OAuth), not Supabase — see _get_calendar_events
 #
 # No project id is ever taken from model/user input; an empty project list short
 # -circuits to a "no data" summary so an unscoped (cross-tenant) query is
@@ -461,6 +509,157 @@ async def _get_reports(client_id: str) -> str:
     return "\n".join(lines)
 
 
+def _fmt_money(amount: float, currency: str = "USD") -> str:
+    """Render a numeric amount as a currency string (e.g. ``$1,234.50``)."""
+    symbol = "$" if currency.upper() == "USD" else ""
+    return f"{symbol}{amount:,.2f}" + ("" if symbol else f" {currency}")
+
+
+async def _get_finance_summary(client_id: str) -> str:
+    """Summarize the caller's project budget(s), scoped to their project(s).
+
+    Reads ``project_budgets`` (one per project), the ``budget_categories``
+    expected amounts (the "budget"), and ``budget_transactions`` (the "spend").
+    Every query is scoped to budgets whose ``project_id`` is in the caller's
+    project list, so another tenant's finances can never be returned.
+    """
+    project_ids = await _caller_project_ids(client_id)
+    if not project_ids:
+        return (
+            "No project is associated with your account, so there is no "
+            "finance summary to report."
+        )
+
+    def _query() -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]
+    ]:
+        budgets = (
+            supabase.table("project_budgets")
+            .select("id, currency")
+            .in_("project_id", project_ids)
+            .execute()
+        )
+        budget_rows = budgets.data or []
+        budget_ids = [row["id"] for row in budget_rows]
+        if not budget_ids:
+            return budget_rows, [], []
+        categories = (
+            supabase.table("budget_categories")
+            .select("budget_id, expected_amount")
+            .in_("budget_id", budget_ids)
+            .execute()
+        )
+        transactions = (
+            supabase.table("budget_transactions")
+            .select("description, amount, occurred_on")
+            .in_("budget_id", budget_ids)
+            .order("occurred_on", desc=True)
+            .execute()
+        )
+        return budget_rows, categories.data or [], transactions.data or []
+
+    budgets, categories, transactions = await asyncio.to_thread(_query)
+
+    if not budgets:
+        return (
+            "Your project does not have a budget set up yet, so there is no "
+            "finance summary to report."
+        )
+
+    currency = str(budgets[0].get("currency") or "USD")
+    total_budget = sum(float(c.get("expected_amount") or 0) for c in categories)
+    total_spent = sum(float(t.get("amount") or 0) for t in transactions)
+    remaining = total_budget - total_spent
+
+    lines = [
+        "Finance summary — "
+        f"total budget: {_fmt_money(total_budget, currency)}, "
+        f"spent: {_fmt_money(total_spent, currency)}, "
+        f"remaining: {_fmt_money(remaining, currency)}."
+    ]
+
+    if transactions:
+        lines.append("Recent transactions:")
+        for t in transactions[:5]:
+            desc = t.get("description") or "(no description)"
+            amount = _fmt_money(float(t.get("amount") or 0), currency)
+            on = t.get("occurred_on")
+            lines.append(f"- {desc}: {amount}" + (f" ({on})" if on else ""))
+    else:
+        lines.append("No transactions recorded yet.")
+
+    return "\n".join(lines)
+
+
+async def _get_requests(client_id: str) -> str:
+    """Summarize the caller's submitted requests, scoped to their project(s).
+
+    Requests are ``tickets`` rows with ``ticket_type = 'request'`` (the
+    non-report ticket type, mirroring the dashboard's ``fetchRequests`` filter).
+    Scoped to the caller's project(s); a request with no project is never
+    returned to avoid any cross-tenant leak.
+    """
+    project_ids = await _caller_project_ids(client_id)
+    if not project_ids:
+        return (
+            "No project is associated with your account, so there are no "
+            "requests to report."
+        )
+
+    def _query() -> List[Dict[str, Any]]:
+        result = (
+            supabase.table("tickets")
+            .select("subject, title, status, created_at")
+            .eq("ticket_type", "request")
+            .in_("project_id", project_ids)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return result.data or []
+
+    requests = await asyncio.to_thread(_query)
+    if not requests:
+        return "You have not submitted any requests for your project(s)."
+
+    counts: Dict[str, int] = {}
+    for r in requests:
+        status = str(r.get("status") or "unknown")
+        counts[status] = counts.get(status, 0) + 1
+
+    lines = [_summarize_counts(f"Requests ({len(requests)} total)", counts)]
+    for r in requests[:5]:
+        subject = r.get("subject") or r.get("title") or "(no subject)"
+        status = r.get("status") or "unknown"
+        created = r.get("created_at")
+        suffix = f" (submitted {str(created)[:10]})" if created else ""
+        lines.append(f"- {subject} — status: {status}{suffix}")
+    return "\n".join(lines)
+
+
+async def _get_calendar_events(client_id: str) -> str:
+    """Upcoming Google Calendar events for the caller.
+
+    Calendar data lives in Google Calendar (OAuth), not Supabase: the frontend
+    route ``/api/contact/calendar/client-events`` refreshes a connected
+    director's Google token (stored in ``profiles.config.google``) and matches
+    events to the client by attendee email. The backend does not currently carry
+    the Google OAuth client credentials (``GOOGLE_CLIENT_ID``/``_SECRET``) in its
+    settings, so the token-refresh + Calendar API path cannot be performed here
+    safely without guessing config. Until that is wired up, this returns a clear
+    not-available message rather than broken/guessed Google code.
+    """
+    # TODO(confirm): wire Google Calendar — add GOOGLE_CLIENT_ID/SECRET to the
+    # backend settings, resolve the caller's project + a connected director's
+    # refresh_token from profiles.config.google, exchange it for an access token,
+    # and call the Calendar v3 events.list API (httpx) filtered to the caller's
+    # attendee email, mirroring frontend/app/api/contact/calendar/client-events.
+    return (
+        "Calendar access isn't wired up yet, so I can't pull your upcoming "
+        "meetings here. You can view your scheduled events on the Calendar page "
+        "of the portal."
+    )
+
+
 async def execute_tool(
     name: str, args: Dict[str, Any], client_id: str
 ) -> Tuple[str, List[Dict[str, Any]]]:
@@ -482,6 +681,12 @@ async def execute_tool(
             return await _get_questionnaire_status(client_id), []
         if name == "get_reports":
             return await _get_reports(client_id), []
+        if name == "get_finance_summary":
+            return await _get_finance_summary(client_id), []
+        if name == "get_requests":
+            return await _get_requests(client_id), []
+        if name == "get_calendar_events":
+            return await _get_calendar_events(client_id), []
         logger.warning(f"Unknown tool requested: {name}")
         return f"Unknown tool '{name}'. No action taken.", []
     except Exception:

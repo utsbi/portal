@@ -53,6 +53,9 @@ const toolActions: { label: string; prompt: string }[] = [
   { label: "Summarize my project", prompt: "Summarize my project." },
   { label: "Questionnaire status", prompt: "What is my questionnaire status?" },
   { label: "Latest reports", prompt: "Show me my latest reports." },
+  { label: "Finance summary", prompt: "Give me my project's finance summary." },
+  { label: "My requests", prompt: "What's the status of my requests?" },
+  { label: "Upcoming events", prompt: "What meetings do I have coming up?" },
   { label: "Find a document", prompt: "Help me find a document." },
   { label: "What is SBI?", prompt: "What is SBI?" },
 ];
