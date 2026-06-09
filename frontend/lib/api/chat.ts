@@ -29,6 +29,9 @@ export interface ChatRequest {
   include_sources?: boolean;
   model_preference?: "fast" | "thinking";
   session_id?: number | null;
+  // Client-minted opaque chat id (uuid) for a brand-new conversation, so the URL
+  // is known before the first response. Ignored when session_id is set.
+  public_id?: string | null;
 }
 
 export interface ChatResponse {
@@ -61,12 +64,15 @@ export async function sendChatMessage(
       include_sources: request.include_sources ?? true,
       model_preference: request.model_preference ?? "fast",
       session_id: request.session_id ?? null,
+      public_id: request.public_id ?? null,
     }),
     signal,
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    const error = await response
+      .json()
+      .catch(() => ({ detail: "Unknown error" }));
     throw new Error(error.detail || `HTTP ${response.status}`);
   }
 
@@ -132,7 +138,11 @@ export async function sendChatMessage(
 export async function extractFileText(file: File): Promise<AttachmentFile> {
   const filename = file.name.toLowerCase();
 
-  if (filename.endsWith(".pdf") || filename.endsWith(".doc") || filename.endsWith(".docx")) {
+  if (
+    filename.endsWith(".pdf") ||
+    filename.endsWith(".doc") ||
+    filename.endsWith(".docx")
+  ) {
     const formData = new FormData();
     formData.append("file", file);
 
@@ -142,7 +152,9 @@ export async function extractFileText(file: File): Promise<AttachmentFile> {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to extract text" }));
+      const error = await response
+        .json()
+        .catch(() => ({ detail: "Failed to extract text" }));
       throw new Error(error.detail || `HTTP ${response.status}`);
     }
 

@@ -1,5 +1,6 @@
-import { ExploreWelcome } from "@/components/dashboard/explore/DashboardPortal";
+import { redirect } from "next/navigation";
 
-export default async function DashboardPage() {
-  return <ExploreWelcome />;
+// The dashboard root is the Explore portal; send it to a fresh chat.
+export default function DashboardPage() {
+  redirect("/dashboard/explore/new");
 }
