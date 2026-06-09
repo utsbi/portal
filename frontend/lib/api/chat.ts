@@ -45,6 +45,9 @@ export interface ChatResponse {
  * Send a chat message via SSE streaming.
  * - onPhase fires on backend phase changes (thinking/planning/searching/generating).
  * - onDelta fires for each token chunk as the model generates.
+ * - onReasoning fires for each reasoning/thinking chunk (thinking-model turns
+ *   only); interleaved before the answer deltas. Ephemeral — shown live, never
+ *   persisted.
  * - onSession fires once when the server route confirms (or creates) the session.
  */
 export async function sendChatMessage(
@@ -53,6 +56,7 @@ export async function sendChatMessage(
   onPhase?: (phase: string) => void,
   onDelta?: (text: string) => void,
   onSession?: (sessionId: number) => void,
+  onReasoning?: (text: string) => void,
 ): Promise<ChatResponse> {
   const response = await fetch("/api/chat/", {
     method: "POST",
@@ -109,6 +113,8 @@ export async function sendChatMessage(
           onPhase(event.phase);
         } else if (event.type === "delta" && onDelta) {
           onDelta(event.text || "");
+        } else if (event.type === "reasoning" && onReasoning) {
+          onReasoning(event.text || "");
         } else if (event.type === "result") {
           result = {
             answer: event.answer || "",
