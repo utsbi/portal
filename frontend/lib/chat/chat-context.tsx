@@ -43,6 +43,9 @@ export interface DisplayMessage {
   timestamp: Date;
   isStreaming?: boolean;
   isCancelled?: boolean;
+  // Reasoning/thinking tokens streamed before the answer on thinking-model
+  // turns. Ephemeral — shown live in a collapsible section, never persisted.
+  reasoning?: string;
 }
 
 export interface SessionSummary {
@@ -248,6 +251,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             if (sessionIdRef.current !== newSessionId) {
               setSessionId(newSessionId);
               void syncPublicId(newSessionId);
+            }
+          },
+          (reasoning) => {
+            if (cancelledRef.current || !reasoning) return;
+            // Reasoning can arrive before the first answer delta — create the
+            // streaming assistant message so the "Thinking" section renders
+            // live, then extend it (mirrors the content-delta handler).
+            if (assistantId === null) {
+              const id = `assistant-${Date.now()}`;
+              assistantId = id;
+              setLoadingPhase("complete");
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id,
+                  role: "assistant",
+                  content: "",
+                  reasoning,
+                  timestamp: new Date(),
+                  isStreaming: true,
+                },
+              ]);
+            } else {
+              const id = assistantId;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === id
+                    ? { ...m, reasoning: (m.reasoning ?? "") + reasoning }
+                    : m,
+                ),
+              );
             }
           },
         );

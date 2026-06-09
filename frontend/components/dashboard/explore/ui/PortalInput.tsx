@@ -47,6 +47,16 @@ const modelOptions: ModelOption[] = [
   },
 ];
 
+// Quick-action prompts surfaced in the Tools menu. Each sends its `prompt` as a
+// chat message via the shared chat context (same path as the composer submit).
+const toolActions: { label: string; prompt: string }[] = [
+  { label: "Summarize my project", prompt: "Summarize my project." },
+  { label: "Questionnaire status", prompt: "What is my questionnaire status?" },
+  { label: "Latest reports", prompt: "Show me my latest reports." },
+  { label: "Find a document", prompt: "Help me find a document." },
+  { label: "What is SBI?", prompt: "What is SBI?" },
+];
+
 interface PortalInputProps {
   onSubmit?: (query: string) => void;
   disabled?: boolean;
@@ -95,6 +105,17 @@ export function PortalInput({
     }
 
     await sendMessage(query);
+  };
+
+  // Tools quick action: send the canned prompt as a chat message. Mirrors
+  // handleSubmit's send path (notify onSubmit, then sendMessage); ignores while
+  // a request is in flight or the input is disabled.
+  const handleToolAction = async (prompt: string) => {
+    if (isBusy || disabled) return;
+    if (onSubmit) {
+      onSubmit(prompt);
+    }
+    await sendMessage(prompt);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -272,20 +293,43 @@ export function PortalInput({
                 <Plus className="w-5 h-5" strokeWidth={1.5} />
               </Button>
 
-              {/* Tools button — feature not yet available. Kept visible but
-                  inert so the affordance reads as "coming", not broken. */}
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled
-                aria-disabled="true"
-                aria-label="Tools (coming soon)"
-                title="Coming soon"
-                className="h-9 px-3 text-sbi-muted rounded-full opacity-50 cursor-not-allowed gap-1.5"
-              >
-                <Settings2 className="w-4 h-4" strokeWidth={1.5} />
-                <span className="text-sm font-light">Tools</span>
-              </Button>
+              {/* Tools menu — quick actions that send a canned prompt as a
+                  chat message via the shared chat context. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={disabled || isBusy}
+                    aria-label="Tools"
+                    className="h-9 px-3 text-sbi-muted hover:text-sbi-green hover:bg-sbi-dark rounded-full transition-colors duration-300 disabled:opacity-50 gap-1.5"
+                  >
+                    <Settings2 className="w-4 h-4" strokeWidth={1.5} />
+                    <span className="text-sm font-light">Tools</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  sideOffset={10}
+                  aria-label="Quick actions"
+                  className="w-60 rounded-xl bg-sbi-dark border border-sbi-dark-border p-1.5 shadow-xl shadow-black/40"
+                >
+                  <p className="px-2.5 pt-1 pb-1.5 text-[0.7rem] tracking-[0.2em] uppercase text-sbi-muted-dark">
+                    Quick actions
+                  </p>
+                  {toolActions.map((action) => (
+                    <DropdownMenuItem
+                      key={action.label}
+                      onClick={() => void handleToolAction(action.prompt)}
+                      aria-label={action.label}
+                      className="flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer text-sbi-muted focus:bg-sbi-dark-card focus:text-white"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-sbi-green/70 shrink-0" />
+                      <span className="text-sm">{action.label}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Right side - Model picker and send button */}

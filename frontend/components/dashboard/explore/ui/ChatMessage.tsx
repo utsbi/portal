@@ -217,6 +217,8 @@ export function ChatMessage({
   const [isEditing, setIsEditing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
+  // "Thinking" section is collapsed by default; toggled per-message.
+  const [showReasoning, setShowReasoning] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
   const { editAndResend, isLoading, regenerateResponse } = useChat();
 
@@ -261,6 +263,35 @@ export function ChatMessage({
   }, [isEditing]);
 
   const displayContent = message.content;
+  const reasoning = (message.reasoning ?? "").trim();
+  const hasReasoning = !isUser && reasoning.length > 0;
+
+  // Collapsible "Thinking" section — rendered ABOVE the answer on thinking-model
+  // turns. Collapsed by default; ephemeral (reasoning is never persisted).
+  const reasoningSection = hasReasoning ? (
+    <div className="mb-3">
+      <button
+        type="button"
+        onClick={() => setShowReasoning((v) => !v)}
+        aria-expanded={showReasoning}
+        aria-label={showReasoning ? "Hide thinking" : "Show thinking"}
+        className="flex items-center gap-1.5 text-xs font-light text-sbi-muted hover:text-sbi-green transition-colors"
+      >
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform duration-200 ${
+            showReasoning ? "rotate-180" : ""
+          }`}
+          strokeWidth={1.5}
+        />
+        <span>Thinking</span>
+      </button>
+      {showReasoning && (
+        <div className="mt-2 pl-3 border-l border-sbi-dark-border text-sbi-muted font-light text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
+          {reasoning}
+        </div>
+      )}
+    </div>
+  ) : null;
 
   // Truncated content for collapsed view
   const getTruncatedContent = () => {
@@ -487,6 +518,7 @@ export function ChatMessage({
 
       {/* Message content */}
       <div className="flex-1 min-w-0 pt-1">
+        {reasoningSection}
         {message.isCancelled ? (
           <>
             {displayContent && (
