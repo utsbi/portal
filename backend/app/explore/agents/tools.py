@@ -44,6 +44,7 @@ from supabase import Client
 
 from app.explore.agents.nodes import rag_service
 from app.explore.db.supabase import user_client
+from app.explore.services.membership import scoped_project_ids as _scoped_project_ids
 
 logger = logging.getLogger(__name__)
 
@@ -208,20 +209,21 @@ TOOLS: List[Dict[str, Any]] = [
 # --- Tool implementations ----------------------------------------------------
 
 async def _search_documents(
-    query: str, project_ids: List[int]
+    query: str, project_ids: List[int], client_id: str
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Run RAG retrieval scoped to the caller's project(s); return
-    (context_text, sources) for citations."""
+    (context_text, sources) for citations.
+
+    Document search still runs uid-only when the caller has no active project
+    membership, so a user with zero memberships can reach their own legacy
+    (NULL-project) uploads rather than getting a hard "no project" wall.
+    """
     if not query or not query.strip():
         return "No search query was provided.", []
-    if not project_ids:
-        return (
-            "No project is associated with your account, so there are no "
-            "project documents to search.",
-            [],
-        )
 
-    docs = await rag_service.retrieve_relevant(query=query, project_ids=project_ids)
+    docs = await rag_service.retrieve_relevant(
+        query=query, project_ids=project_ids, client_id=client_id
+    )
     if not docs:
         return (
             "No matching passages were found in the project's documents "
@@ -285,65 +287,6 @@ def _search_sbi_knowledge(query: str) -> Tuple[str, List[Dict[str, Any]]]:
 # No project id is ever taken from model/user input; an empty project list short
 # -circuits to a "no data" summary so an unscoped (cross-tenant) query is
 # impossible.
-
-
-async def _caller_project_ids(db: Client, client_id: str) -> List[int]:
-    """Resolve the project ids the caller is a member of. Empty list if none.
-
-    This is the single source of tenant scoping for every live-data tool. A
-    blank ``client_id`` (which should never reach here for an authenticated
-    request) yields ``[]`` so nothing is queried. Queries run on ``db`` (the
-    caller's RLS-scoped client), so RLS applies on top of the manual filters.
-    """
-    if not client_id or not client_id.strip():
-        return []
-
-    def _query() -> List[int]:
-        profile = (
-            db.table("profiles")
-            .select("id")
-            .eq("uid", client_id)
-            .limit(1)
-            .execute()
-        )
-        if not profile.data:
-            return []
-        profile_id = profile.data[0]["id"]
-
-        members = (
-            db.table("project_members")
-            .select("project_id")
-            .eq("profile_id", profile_id)
-            .execute()
-        )
-        ids: List[int] = []
-        for row in members.data or []:
-            pid = row.get("project_id")
-            if pid is not None:
-                ids.append(pid)
-        return ids
-
-    return await asyncio.to_thread(_query)
-
-
-async def _scoped_project_ids(
-    db: Client, client_id: str, project_id: Optional[int]
-) -> List[int]:
-    """The project ids a live-data tool may read for THIS turn.
-
-    Starts from the caller's full membership set (``_caller_project_ids``) and,
-    when the request carries an active ``project_id`` (the project selected in
-    the header), NARROWS the scope to just that project — but only after
-    verifying the caller is actually a member of it. A ``project_id`` the caller
-    does not belong to yields ``[]`` ("no data"), so a spoofed, stale, or
-    cross-tenant id can never widen access or leak another project's rows. When
-    no ``project_id`` is supplied, the caller's full set is used (backward
-    compatible), matching the pre-scoping behavior.
-    """
-    allowed = await _caller_project_ids(db, client_id)
-    if project_id is None:
-        return allowed
-    return [project_id] if project_id in allowed else []
 
 
 def _summarize_counts(label: str, counts: Dict[str, int]) -> str:
@@ -737,7 +680,7 @@ async def execute_tool(
             query = str(args.get("query", "")) if args else ""
             db = user_client(access_token)
             project_ids = await _scoped_project_ids(db, client_id, project_id)
-            return await _search_documents(query, project_ids)
+            return await _search_documents(query, project_ids, client_id)
         if name == "search_sbi_knowledge":
             query = str(args.get("query", "")) if args else ""
             return _search_sbi_knowledge(query)

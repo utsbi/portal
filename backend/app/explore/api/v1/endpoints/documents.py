@@ -1,11 +1,11 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from datetime import datetime
-from typing import Optional
 import asyncio
 
 from app.explore.schemas.document import DocumentUploadResponse
 from app.explore.services.pdf_parser import PDFParser
 from app.explore.services.rag_service import RAGService
+from app.explore.services.membership import is_project_member
 from app.explore.api.deps import AuthContext, get_auth_context, get_current_user_id
 from app.explore.db.supabase import user_client
 
@@ -13,30 +13,22 @@ from app.explore.db.supabase import user_client
 router = APIRouter()
 
 
-async def _is_project_member(access_token: str, user_id: str, project_id: int) -> bool:
-    """True if the caller (uid=user_id) is a member of project_id.
+async def _is_director(db, user_id: str) -> bool:
+    """True if the caller's ``profiles.role`` is ``director``.
 
-    Runs under the caller's RLS context (a client built from the caller's JWT),
-    so it can only observe the caller's own ``project_members`` rows.
+    Runs under the caller's RLS context (``db`` is built from the caller's JWT),
+    so it only ever reads the caller's own profile row.
     """
-    db = user_client(access_token)
 
     def _query() -> bool:
         prof = (
-            db.table("profiles").select("id").eq("uid", user_id).limit(1).execute()
-        )
-        if not prof.data:
-            return False
-        profile_id = prof.data[0]["id"]
-        mem = (
-            db.table("project_members")
-            .select("project_id")
-            .eq("profile_id", profile_id)
-            .eq("project_id", project_id)
+            db.table("profiles")
+            .select("role")
+            .eq("uid", user_id)
             .limit(1)
             .execute()
         )
-        return bool(mem.data)
+        return bool(prof.data) and prof.data[0].get("role") == "director"
 
     return await asyncio.to_thread(_query)
 
@@ -44,15 +36,16 @@ async def _is_project_member(access_token: str, user_id: str, project_id: int) -
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     file: UploadFile = File(...),
-    project_id: Optional[int] = Form(None),
+    project_id: int = Form(...),
     auth: AuthContext = Depends(get_auth_context)
 ):
     """Upload a PDF document for RAG processing.
 
-    ``project_id`` tags the stored chunks so ``search_documents`` retrieves
-    them for that project. The caller MUST be a member of that project; an
-    unauthorized ``project_id`` is rejected (not silently dropped) so a caller
-    can't tag uploads into a project they don't belong to.
+    ``project_id`` is required and tags the stored chunks so ``search_documents``
+    retrieves them for that project. The caller MUST be a director AND a member
+    of that project: membership stops cross-project tagging, and the director
+    gate stops any project member from injecting corpus documents (the insert
+    runs as the service role, bypassing RLS, so the check must be explicit).
     """
     user_id = auth.user_id
 
@@ -62,15 +55,22 @@ async def upload_document(
             detail="Only PDF files are supported at this time"
         )
 
-    # Authorization: a project_id may only be set by a member of that project.
-    # Verified under the caller's RLS context (project_members only exposes the
-    # caller's own memberships), so a non-member's project_id is rejected.
-    if project_id is not None:
-        if not await _is_project_member(auth.access_token, user_id, project_id):
-            raise HTTPException(
-                status_code=403,
-                detail="You are not a member of the specified project."
-            )
+    # Authorization, under the caller's RLS context (a client built from the
+    # caller's JWT, so it only observes the caller's own rows):
+    #   1. The caller must be a member of project_id (no cross-project tagging).
+    #   2. The caller must be a director (the directors-only corpus, enforced
+    #      here because store_document inserts via the service role / no RLS).
+    db = user_client(auth.access_token)
+    if not await is_project_member(db, user_id, project_id):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of the specified project."
+        )
+    if not await _is_director(db, user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Only directors can upload knowledge documents."
+        )
 
     try:
         file_bytes = await file.read()
