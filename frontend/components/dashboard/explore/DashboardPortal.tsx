@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@/lib/chat/chat-context";
+import { cn } from "@/lib/utils";
 import { AmbientGrid } from "./ui/AmbientGrid";
 import { ChatMessages } from "./ui/ChatMessages";
 import { FloatingNodes } from "./ui/FloatingNodes";
@@ -222,7 +223,12 @@ export function ExplorePortal() {
         framer-motion `layout` smoothly animates it from centered (welcome) to
         the bottom (thread). Mirrors claude.ai.
       */}
-      <div className="relative z-10 flex flex-col h-full">
+      <div
+        className={cn(
+          "relative z-10 flex flex-col h-full",
+          showWelcome && "justify-center",
+        )}
+      >
         {/* SR-only live region: announces the active conversation and generating
             state so screen-reader users aren't left guessing which thread they're
             in or whether a response is in flight. */}
@@ -231,12 +237,12 @@ export function ExplorePortal() {
         </p>
 
         {showWelcome ? (
-          // Welcome state: clamp + scroll so the hero, composer, and suggestion
-          // chips never get cut off on short viewports.
-          <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar flex items-center justify-center">
-            <div className="shrink-0 w-full max-w-3xl mx-auto px-4 py-6">
-              <PortalHero />
-            </div>
+          // Welcome: the hero sits directly above the composer; the column's
+          // justify-center (above) vertically centers the hero + composer as a
+          // group, and the persistent composer animates from this centered spot
+          // to the bottom on the first message (framer-motion `layout`).
+          <div className="shrink-0 w-full max-w-3xl mx-auto px-4 mb-2">
+            <PortalHero />
           </div>
         ) : showEmptyState ? (
           <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar flex items-center justify-center">
