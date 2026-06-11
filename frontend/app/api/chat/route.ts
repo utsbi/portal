@@ -28,6 +28,10 @@ interface ChatRequestBody {
   // when creating a session; ownership is still enforced by RLS (uid = the
   // authenticated user), so the id is an identifier, not a capability.
   public_id?: string | null;
+  // Active project id: tags a new session and scopes the assistant's live-data
+  // tools. The backend re-verifies the caller's membership, so this is a scope
+  // hint, not a capability.
+  project_id?: number | null;
 }
 
 const UUID_RE =
@@ -71,12 +75,25 @@ export async function POST(request: NextRequest) {
     isNewSession = true;
     // Honor a client-minted uuid so the URL is known before the first response.
     // RLS still scopes the row to this user; a collision just fails the insert.
-    const insertRow: { uid: string; title: string; public_id?: string } = {
+    const insertRow: {
+      uid: string;
+      title: string;
+      public_id?: string;
+      project_id?: number;
+    } = {
       uid: user.id,
       title: body.query.slice(0, 60),
     };
     if (body.public_id && UUID_RE.test(body.public_id)) {
       insertRow.public_id = body.public_id;
+    }
+    // Tag the conversation with the project it was started under (best-effort).
+    if (
+      typeof body.project_id === "number" &&
+      Number.isInteger(body.project_id) &&
+      body.project_id > 0
+    ) {
+      insertRow.project_id = body.project_id;
     }
     const { data: newSession, error: sessionErr } = await supabase
       .from("client_chat_sessions")
@@ -152,6 +169,7 @@ export async function POST(request: NextRequest) {
       attachments: body.attachments ?? [],
       include_sources: body.include_sources ?? true,
       model_preference: modelPreference,
+      project_id: body.project_id ?? null,
     }),
     signal: request.signal,
   });

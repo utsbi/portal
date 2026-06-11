@@ -13,6 +13,7 @@ async def run_graph_streaming(
     query: str,
     client_id: str,
     access_token: str,
+    project_id: Optional[int] = None,
     history: Optional[List[Dict[str, str]]] = None,
     attachments: Optional[List[Dict[str, str]]] = None,
     model_preference: str = "fast",
@@ -128,7 +129,9 @@ async def run_graph_streaming(
                 logger.warning(f"Failed to parse tool args for {name}: {raw_args!r}")
                 args = {}
 
-            result_text, sources = await execute_tool(name, args, client_id, access_token)
+            result_text, sources = await execute_tool(
+                name, args, client_id, access_token, project_id
+            )
             collected_sources.extend(sources)
 
             messages.append({

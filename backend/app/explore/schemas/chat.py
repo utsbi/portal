@@ -27,6 +27,15 @@ class ChatRequest(BaseModel):
         default=None,
         description="LLM model preference: 'fast' for speed, 'thinking' for complex reasoning"
     )
+    project_id: Optional[int] = Field(
+        default=None,
+        description=(
+            "The caller's active project. Live-data tools are narrowed to this "
+            "project after membership is verified server-side; an id the caller "
+            "is not a member of yields no data. Omit to use all of the caller's "
+            "projects."
+        ),
+    )
 
 
 class SourceDocument(BaseModel):

@@ -32,6 +32,9 @@ export interface ChatRequest {
   // Client-minted opaque chat id (uuid) for a brand-new conversation, so the URL
   // is known before the first response. Ignored when session_id is set.
   public_id?: string | null;
+  // Active project id, so the assistant's live-data tools scope to the project
+  // currently selected in the header. Membership is re-verified server-side.
+  project_id?: number | null;
 }
 
 export interface ChatResponse {
@@ -69,6 +72,7 @@ export async function sendChatMessage(
       model_preference: request.model_preference ?? "fast",
       session_id: request.session_id ?? null,
       public_id: request.public_id ?? null,
+      project_id: request.project_id ?? null,
     }),
     signal,
   });

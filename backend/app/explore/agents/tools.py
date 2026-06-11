@@ -38,7 +38,7 @@ longer used by these tools.
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from supabase import Client
 
@@ -207,15 +207,24 @@ TOOLS: List[Dict[str, Any]] = [
 
 # --- Tool implementations ----------------------------------------------------
 
-async def _search_documents(query: str, client_id: str) -> Tuple[str, List[Dict[str, Any]]]:
-    """Run RAG retrieval; return (context_text, sources) for citations."""
+async def _search_documents(
+    query: str, project_ids: List[int]
+) -> Tuple[str, List[Dict[str, Any]]]:
+    """Run RAG retrieval scoped to the caller's project(s); return
+    (context_text, sources) for citations."""
     if not query or not query.strip():
         return "No search query was provided.", []
+    if not project_ids:
+        return (
+            "No project is associated with your account, so there are no "
+            "project documents to search.",
+            [],
+        )
 
-    docs = await rag_service.retrieve_relevant(query=query, client_id=client_id)
+    docs = await rag_service.retrieve_relevant(query=query, project_ids=project_ids)
     if not docs:
         return (
-            "No matching passages were found in the client's project documents "
+            "No matching passages were found in the project's documents "
             "for this query.",
             [],
         )
@@ -317,15 +326,37 @@ async def _caller_project_ids(db: Client, client_id: str) -> List[int]:
     return await asyncio.to_thread(_query)
 
 
+async def _scoped_project_ids(
+    db: Client, client_id: str, project_id: Optional[int]
+) -> List[int]:
+    """The project ids a live-data tool may read for THIS turn.
+
+    Starts from the caller's full membership set (``_caller_project_ids``) and,
+    when the request carries an active ``project_id`` (the project selected in
+    the header), NARROWS the scope to just that project — but only after
+    verifying the caller is actually a member of it. A ``project_id`` the caller
+    does not belong to yields ``[]`` ("no data"), so a spoofed, stale, or
+    cross-tenant id can never widen access or leak another project's rows. When
+    no ``project_id`` is supplied, the caller's full set is used (backward
+    compatible), matching the pre-scoping behavior.
+    """
+    allowed = await _caller_project_ids(db, client_id)
+    if project_id is None:
+        return allowed
+    return [project_id] if project_id in allowed else []
+
+
 def _summarize_counts(label: str, counts: Dict[str, int]) -> str:
     """Render ``label: a=1, b=2`` for non-zero buckets, in a stable order."""
     parts = [f"{k.replace('_', ' ')}: {v}" for k, v in counts.items() if v]
     return f"{label} — " + (", ".join(parts) if parts else "none") + "."
 
 
-async def _get_lifecycle_status(db: Client, client_id: str) -> str:
-    """Summarize the caller's lifecycle tasks, scoped to their project(s)."""
-    project_ids = await _caller_project_ids(db, client_id)
+async def _get_lifecycle_status(
+    db: Client, client_id: str, project_id: Optional[int]
+) -> str:
+    """Summarize the caller's lifecycle tasks, scoped to the active project."""
+    project_ids = await _scoped_project_ids(db, client_id, project_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there is no "
@@ -398,14 +429,16 @@ async def _get_lifecycle_status(db: Client, client_id: str) -> str:
     return "\n".join(lines)
 
 
-async def _get_questionnaire_status(db: Client, client_id: str) -> str:
+async def _get_questionnaire_status(
+    db: Client, client_id: str, project_id: Optional[int]
+) -> str:
     """Summarize the caller's questionnaire/form status, scoped to them.
 
-    Submissions are scoped to BOTH the caller's project(s) and the caller's own
+    Submissions are scoped to BOTH the active project and the caller's own
     ``user_id`` so one client never sees another client's answers on a shared
-    project. Assignments are scoped to the caller's project(s).
+    project. Assignments are scoped to the active project.
     """
-    project_ids = await _caller_project_ids(db, client_id)
+    project_ids = await _scoped_project_ids(db, client_id, project_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there are no "
@@ -477,14 +510,14 @@ async def _get_questionnaire_status(db: Client, client_id: str) -> str:
     return "\n".join(lines)
 
 
-async def _get_reports(db: Client, client_id: str) -> str:
-    """Summarize reports filed for the caller's project(s).
+async def _get_reports(db: Client, client_id: str, project_id: Optional[int]) -> str:
+    """Summarize reports filed for the active project.
 
     Reports are ``tickets`` rows with ``ticket_type = 'report'``. Scoped to the
-    caller's project(s); a report with no project is never returned to avoid any
+    active project; a report with no project is never returned to avoid any
     cross-tenant leak.
     """
-    project_ids = await _caller_project_ids(db, client_id)
+    project_ids = await _scoped_project_ids(db, client_id, project_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there are no "
@@ -526,15 +559,18 @@ def _fmt_money(amount: float, currency: str = "USD") -> str:
     return f"{symbol}{amount:,.2f}" + ("" if symbol else f" {currency}")
 
 
-async def _get_finance_summary(db: Client, client_id: str) -> str:
-    """Summarize the caller's project budget(s), scoped to their project(s).
+async def _get_finance_summary(
+    db: Client, client_id: str, project_id: Optional[int]
+) -> str:
+    """Summarize the active project's budget, scoped to that project.
 
     Reads ``project_budgets`` (one per project), the ``budget_categories``
     expected amounts (the "budget"), and ``budget_transactions`` (the "spend").
     Every query is scoped to budgets whose ``project_id`` is in the caller's
-    project list, so another tenant's finances can never be returned.
+    (active-project-narrowed) project list, so another tenant's finances can
+    never be returned.
     """
-    project_ids = await _caller_project_ids(db, client_id)
+    project_ids = await _scoped_project_ids(db, client_id, project_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there is no "
@@ -602,15 +638,15 @@ async def _get_finance_summary(db: Client, client_id: str) -> str:
     return "\n".join(lines)
 
 
-async def _get_requests(db: Client, client_id: str) -> str:
-    """Summarize the caller's submitted requests, scoped to their project(s).
+async def _get_requests(db: Client, client_id: str, project_id: Optional[int]) -> str:
+    """Summarize the caller's submitted requests, scoped to the active project.
 
     Requests are ``tickets`` rows with ``ticket_type = 'request'`` (the
     non-report ticket type, mirroring the dashboard's ``fetchRequests`` filter).
-    Scoped to the caller's project(s); a request with no project is never
-    returned to avoid any cross-tenant leak.
+    Scoped to the active project; a request with no project is never returned to
+    avoid any cross-tenant leak.
     """
-    project_ids = await _caller_project_ids(db, client_id)
+    project_ids = await _scoped_project_ids(db, client_id, project_id)
     if not project_ids:
         return (
             "No project is associated with your account, so there are no "
@@ -672,7 +708,11 @@ async def _get_calendar_events(client_id: str) -> str:
 
 
 async def execute_tool(
-    name: str, args: Dict[str, Any], client_id: str, access_token: str
+    name: str,
+    args: Dict[str, Any],
+    client_id: str,
+    access_token: str,
+    project_id: Optional[int] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Dispatch a single tool call.
 
@@ -682,32 +722,40 @@ async def execute_tool(
     The five live-data tools build a single RLS-scoped PostgREST client from the
     caller's ``access_token`` (``user_client``) so their queries run under the
     caller's row-level-security context (defense-in-depth on top of the manual
-    ``project_id`` / ``user_id`` filters). ``search_documents`` (RAG RPC is
-    param-scoped + SECURITY DEFINER), ``search_sbi_knowledge`` (static), and
+    ``project_id`` / ``user_id`` filters). ``project_id`` is the caller's ACTIVE
+    project (from the header switcher); it narrows the live tools to that one
+    project after membership is verified server-side (see ``_scoped_project_ids``),
+    so the assistant answers about the project on screen rather than blending all
+    of the caller's projects. ``search_documents`` is likewise scoped: it
+    resolves the same membership-verified project ids and passes them to the RAG
+    RPC (param-scoped + SECURITY DEFINER), so document retrieval is narrowed to
+    the active project too. ``search_sbi_knowledge`` (static) and
     ``get_calendar_events`` (stub) need no database client.
     """
     try:
         if name == "search_documents":
             query = str(args.get("query", "")) if args else ""
-            return await _search_documents(query, client_id)
+            db = user_client(access_token)
+            project_ids = await _scoped_project_ids(db, client_id, project_id)
+            return await _search_documents(query, project_ids)
         if name == "search_sbi_knowledge":
             query = str(args.get("query", "")) if args else ""
             return _search_sbi_knowledge(query)
         if name == "get_lifecycle_status":
             db = user_client(access_token)
-            return await _get_lifecycle_status(db, client_id), []
+            return await _get_lifecycle_status(db, client_id, project_id), []
         if name == "get_questionnaire_status":
             db = user_client(access_token)
-            return await _get_questionnaire_status(db, client_id), []
+            return await _get_questionnaire_status(db, client_id, project_id), []
         if name == "get_reports":
             db = user_client(access_token)
-            return await _get_reports(db, client_id), []
+            return await _get_reports(db, client_id, project_id), []
         if name == "get_finance_summary":
             db = user_client(access_token)
-            return await _get_finance_summary(db, client_id), []
+            return await _get_finance_summary(db, client_id, project_id), []
         if name == "get_requests":
             db = user_client(access_token)
-            return await _get_requests(db, client_id), []
+            return await _get_requests(db, client_id, project_id), []
         if name == "get_calendar_events":
             return await _get_calendar_events(client_id), []
         logger.warning(f"Unknown tool requested: {name}")
