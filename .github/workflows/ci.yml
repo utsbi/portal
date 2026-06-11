@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same PR/branch to save minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend (lint, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # `biome check` currently reports pre-existing errors across the tree, so
+      # lint is advisory for now. Run `bun run lint:fix`, clean up the rest, then
+      # drop continue-on-error to make it a blocking gate.
+      - name: Lint (Biome, advisory)
+        continue-on-error: true
+        run: bun run lint
+
+      # `next build` type-checks with Next's generated `next-env.d.ts` (which
+      # declares image/asset module types), so it is the typecheck + build gate.
+      # A standalone `tsc --noEmit` would spuriously fail on `@/assets/*` imports.
+      - name: Build (includes typecheck)
+        run: bun run build
+        env:
+          # Real values come from repo secrets when configured; otherwise the
+          # placeholders below let `next build` complete (it only needs these
+          # to be present, not valid). Add the secrets to run a faithful build.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-publishable-key' }}
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA' }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || 'placeholder-secret-key' }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY || '1x0000000000000000000000000000000AA' }}
+          N8N_CONTACT_WEBHOOK_URL: ${{ secrets.N8N_CONTACT_WEBHOOK_URL || 'https://placeholder.invalid/webhook' }}
+          BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER || 'ci' }}
+          BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD || 'ci' }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID || 'placeholder' }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET || 'placeholder' }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI || 'https://placeholder.invalid/callback' }}
+
+  backend:
+    name: Backend (deps, compile, lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies (verifies uv.lock)
+        run: uv sync --frozen
+
+      - name: Compile check
+        run: uv run python -m compileall app
+
+      # ruff and pyright are not yet project dependencies, so these run via
+      # `uvx` (ephemeral) and are advisory for now. Flip continue-on-error to
+      # false (and/or add them to backend dev deps) once the code is clean.
+      - name: Lint (ruff, advisory)
+        continue-on-error: true
+        run: uvx ruff check . --output-format=github
+
+      - name: Typecheck (pyright, advisory)
+        continue-on-error: true
+        run: uvx pyright
+        env:
+          VIRTUAL_ENV: .venv
