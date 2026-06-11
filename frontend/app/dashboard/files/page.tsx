@@ -147,9 +147,18 @@ export default function FilesPage() {
         );
     };
 
-    const fetchFolderContents = async (path: string, force = false) => {
+    // `isCancelled` lets a project-switch effect abort a stale in-flight load so
+    // it can't overwrite the new project's contents after the switch.
+    const fetchFolderContents = async (
+        path: string,
+        force = false,
+        isCancelled?: () => boolean,
+    ) => {
         setIsLoadingContents(true);
-        const { data, error: fetchError } = await listFolder(path, { force });
+        const { data, error: fetchError, stale } = await listFolder(path, {
+            force,
+        });
+        if (isCancelled?.() || stale) return;
 
         if (fetchError) {
             setError(new StorageError(fetchError.message));
@@ -194,9 +203,15 @@ export default function FilesPage() {
             return;
         }
 
+        // Project-switch guard: if the effect re-runs (project changed) while a
+        // load is in flight, `cancelled` short-circuits every setState below so
+        // a stale load can't overwrite the newly selected project's tree.
+        let cancelled = false;
+
         const bootstrapFolders = async () => {
             setIsLoadingTree(true);
             const rootNodes = await fetchFolderNodes("", true);
+            if (cancelled) return;
             setFolderTree(rootNodes);
             setIsLoadingTree(false);
 
@@ -208,6 +223,7 @@ export default function FilesPage() {
                 setSelectedFolderPath(target.path);
                 setExpandedPaths(new Set([target.path]));
                 const children = await fetchFolderNodes(target.path, true);
+                if (cancelled) return;
                 setFolderTree((prev) =>
                     markChildrenLoaded(prev, target.path, children),
                 );
@@ -219,6 +235,10 @@ export default function FilesPage() {
         };
 
         void bootstrapFolders();
+
+        return () => {
+            cancelled = true;
+        };
     }, [projectId]);
 
     // Reload the open folder's contents on navigation AND on project switch
@@ -226,7 +246,11 @@ export default function FilesPage() {
     // biome-ignore lint/correctness/useExhaustiveDependencies: fetch is stable; project switch must force a reload
     useEffect(() => {
         if (projectId === null) return;
-        void fetchFolderContents(selectedFolderPath, true);
+        let cancelled = false;
+        void fetchFolderContents(selectedFolderPath, true, () => cancelled);
+        return () => {
+            cancelled = true;
+        };
     }, [selectedFolderPath, projectId]);
 
     // ---------------------------------------------------------------------

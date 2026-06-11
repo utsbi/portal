@@ -120,11 +120,20 @@ export function isInvalidMoveTarget(
 /**
  * List a folder, returning cached entries when available. Pass
  * `force` to bypass the cache (used right after a write op).
+ *
+ * `stale` is true when the active project root changed (`setStorageRoot`)
+ * while this request was in flight: the result belongs to the OLD project, so
+ * it is neither cached nor trustworthy for the new one. Callers should treat a
+ * stale result as "discard" and not apply it to the current project's UI.
  */
 export async function listFolder(
     path: string,
     opts?: { force?: boolean; limit?: number },
-): Promise<{ data: StorageEntry[]; error: { message: string } | null }> {
+): Promise<{
+    data: StorageEntry[];
+    error: { message: string } | null;
+    stale?: boolean;
+}> {
     if (!opts?.force) {
         const cached = getCachedList(path);
         if (cached) {
@@ -132,9 +141,17 @@ export async function listFolder(
         }
     }
 
+    // Snapshot the root we're listing under; if it changes mid-flight the
+    // result is for a different project and must not poison this one's cache.
+    const rootAtRequest = activeRoot;
+
     const { data, error } = await supabase.storage
         .from(BUCKET)
         .list(withRoot(path), { limit: opts?.limit ?? 200 });
+
+    if (activeRoot !== rootAtRequest) {
+        return { data: [], error: null, stale: true };
+    }
 
     if (error) {
         return { data: [], error };

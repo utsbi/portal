@@ -62,18 +62,30 @@ export async function listKnowledgeSources(
 }
 
 /** Remove every chunk of a document from the project's index (directors only,
- * enforced by RLS). */
+ * enforced by RLS).
+ *
+ * Documents carry no per-chunk document id, so chunks are grouped/deleted by
+ * `metadata->>filename` (matching `listKnowledgeSources`). `.select("id")`
+ * returns the deleted rows so we can fail loudly when nothing matched — an RLS
+ * block, an already-removed document, or a NULL-metadata row — instead of
+ * reporting a phantom success the optimistic UI would trust. */
 export async function deleteKnowledgeSource(
   projectId: number,
   filename: string,
 ): Promise<void> {
   const supabase = createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("client_knowledge")
     .delete()
     .eq("project_id", projectId)
-    .eq("metadata->>filename", filename);
+    .eq("metadata->>filename", filename)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!data || data.length === 0) {
+    throw new Error(
+      `Couldn't remove "${filename}" — it may have already been deleted or you may not have permission.`,
+    );
+  }
 }
 
 /** Upload a PDF into the project's index via the backend ingester. */

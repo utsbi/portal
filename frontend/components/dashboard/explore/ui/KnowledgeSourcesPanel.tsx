@@ -43,11 +43,13 @@ export function KnowledgeSourcesPanel({ className }: { className?: string }) {
     }
   }, [projectId]);
 
-  // Reset whenever the active project changes.
+  // Reset whenever the active project changes (projectId is the trigger, even
+  // though the body only resets state).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: project-keyed reset
   useEffect(() => {
     setLoaded(false);
     setSources([]);
-  }, []);
+  }, [projectId]);
 
   // Load on first expand (and when the project changes while expanded).
   useEffect(() => {
