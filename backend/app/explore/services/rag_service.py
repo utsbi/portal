@@ -74,11 +74,17 @@ class RAGService:
 
         return document_ids
 
-    async def search_documents(self, query: str, project_ids: List[int], limit: int = 5,
+    async def search_documents(self, query: str, project_ids: List[int],
+        client_id: Optional[str] = None, limit: int = 5,
         similarity_threshold: float = 0.0) -> List[Dict[str, Any]]:
         """Search for relevant documents using vector similarity, scoped to the
-        caller's (membership-verified) project(s)."""
-        if not project_ids:
+        caller's (membership-verified) project(s).
+
+        Passing ``client_id`` also surfaces the caller's own legacy documents
+        that were never assigned a project (``project_id IS NULL``), so a user
+        with zero memberships can still reach their pre-scoping uploads.
+        """
+        if not project_ids and not client_id:
             return []
         try:
             query_embedding = await self.generate_embedding(query)
@@ -92,7 +98,8 @@ class RAGService:
                 {
                     "_query_embedding": query_embedding,
                     "_match_count": limit,
-                    "_filter_project_ids": project_ids,
+                    "_filter_uid": client_id,
+                    "_filter_project_ids": project_ids or None,
                     "_similarity_threshold": similarity_threshold
                 }
             ).execute()
@@ -111,19 +118,21 @@ class RAGService:
                 logger.info(f"Vector search returned {len(documents)} results (top similarity: {documents[0]['similarity_score']:.4f})")
                 return documents
             else:
-                logger.info(f"Vector search returned no results for projects {project_ids} (threshold={similarity_threshold})")
+                logger.info(f"Vector search returned no results for projects {project_ids} uid={client_id} (threshold={similarity_threshold})")
         except Exception as e:
             logger.error(f"RPC match_client_knowledge failed: {e}")
 
         return []
 
-    async def hybrid_search(self, query: str, project_ids: List[int], limit: int = 5,
+    async def hybrid_search(self, query: str, project_ids: List[int],
+        client_id: Optional[str] = None, limit: int = 5,
         vector_weight: float = 0.7) -> List[Dict[str, Any]]:
         """Perform hybrid search combining vector similarity and keyword matching."""
         # Get vector search results
         vector_results = await self.search_documents(
             query=query,
             project_ids=project_ids,
+            client_id=client_id,
             limit=limit * 2
         )
 
@@ -131,6 +140,7 @@ class RAGService:
         keyword_results = await self._keyword_search(
             query=query,
             project_ids=project_ids,
+            client_id=client_id,
             limit=limit * 2
         )
 
@@ -224,40 +234,65 @@ class RAGService:
         return documents[:top_n]
 
     async def retrieve_relevant(self, query: str, project_ids: List[int],
+        client_id: Optional[str] = None,
         top_n: Optional[int] = None) -> List[Dict[str, Any]]:
         """Retrieve the most relevant documents for a query (two-stage).
 
         Scoped to ``project_ids`` (the caller's membership-verified active
-        project). Stage 1: hybrid search widens to ``rerank_candidates``
-        candidates. Stage 2: the reranker re-scores them and keeps the top
-        ``top_n``.
+        project) and, when ``client_id`` is given, the caller's own legacy
+        NULL-project documents. Stage 1: hybrid search widens to
+        ``rerank_candidates`` candidates. Stage 2: the reranker re-scores them
+        and keeps the top ``top_n``.
 
         This is the entry point chat turns should use; the returned list is the
         single source of truth for both the prompt context and the citation
         sources, keeping the model's ``[n]`` markers aligned with the rendered
         source chips.
         """
-        if not project_ids:
+        if not project_ids and not client_id:
             return []
         keep = top_n if top_n is not None else settings.rerank_top_n
         candidates = await self.hybrid_search(
             query=query,
             project_ids=project_ids,
+            client_id=client_id,
             limit=settings.rerank_candidates,
         )
         if not candidates:
             return []
         return await self.rerank(query=query, documents=candidates, top_n=keep)
 
+    @staticmethod
+    def _scope_or_filter(
+        project_ids: List[int], client_id: Optional[str]
+    ) -> Optional[str]:
+        """Build the PostgREST ``or`` filter that mirrors the RPC's WHERE: a row
+        matches if it is in the active project set OR it is the caller's own
+        legacy NULL-project row. Returns ``None`` when there is nothing to scope
+        to (no projects and no client id), signalling the caller to skip.
+
+        ``client_id`` is an auth-provided UUID string, so it is safe to embed.
+        """
+        clauses: List[str] = []
+        if project_ids:
+            ids_csv = ",".join(str(pid) for pid in project_ids)
+            clauses.append(f"project_id.in.({ids_csv})")
+        if client_id:
+            clauses.append(f"and(uid.eq.{client_id},project_id.is.null)")
+        return ",".join(clauses) if clauses else None
+
     async def _keyword_search(self, query: str, project_ids: List[int],
+        client_id: Optional[str] = None,
         limit: int = 10) -> List[Dict[str, Any]]:
-        """Perform keyword-based full-text search, scoped to the project(s)."""
-        if not project_ids:
+        """Perform keyword-based full-text search, scoped to the project(s) and
+        the caller's own legacy NULL-project documents."""
+        scope = self._scope_or_filter(project_ids, client_id)
+        if scope is None:
             return []
         try:
             result = supabase.table("client_knowledge") \
                 .select("id, content, metadata") \
-                .in_("project_id", project_ids) \
+                .or_(scope) \
                 .text_search("content", query, options={"type": "plain"}) \
                 .execute()
 
@@ -275,18 +310,22 @@ class RAGService:
             ]
         except Exception as e:
             logger.warning(f"Full-text search failed, falling back to ILIKE: {e}")
-            return await self._fallback_keyword_search(query, project_ids, limit)
+            return await self._fallback_keyword_search(
+                query, project_ids, client_id, limit
+            )
 
     async def _fallback_keyword_search(self, query: str, project_ids: List[int],
+        client_id: Optional[str] = None,
         limit: int = 10) -> List[Dict[str, Any]]:
         """Fallback keyword search using ILIKE for simple pattern matching."""
         words = query.lower().split()[:3]
-        if not words or not project_ids:
+        scope = self._scope_or_filter(project_ids, client_id)
+        if not words or scope is None:
             return []
 
         result = supabase.table("client_knowledge") \
             .select("id, content, metadata") \
-            .in_("project_id", project_ids) \
+            .or_(scope) \
             .ilike("content", f"%{words[0]}%") \
             .limit(limit) \
             .execute()
