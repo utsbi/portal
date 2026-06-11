@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/common/app-sidebar";
 import { ProjectStatusBar } from "@/components/dashboard/common/ProjectStatusBar";
+import { ProjectSwitcher } from "@/components/dashboard/common/ProjectSwitcher";
 import { ProjectSwitchOverlay } from "@/components/dashboard/common/ProjectSwitchOverlay";
 import { SidebarTriggerCustom } from "@/components/dashboard/common/SidebarTriggerCustom";
 import { TimeDisplay } from "@/components/dashboard/explore/ui/TimeDisplay";
@@ -39,13 +40,17 @@ export default async function DashboardLayout({
             <AppSidebar />
             <div className="flex-1 flex flex-col min-h-0">
               {/* Header */}
-              <header className="relative flex h-16 shrink-0 items-center gap-2 bg-sbi-dark px-6 border-b border-sbi-dark-border/30">
-                <div className="absolute left-0 top-0 w-16 h-full border-r border-sbi-dark-border/20" />
-
-                {/* Sidebar */}
-                <div className="relative z-10">
+              <header className="relative flex h-16 shrink-0 items-center gap-2 bg-sbi-dark pr-6 border-b border-sbi-dark-border/30">
+                {/* Sidebar trigger — px-6 on both sides so the right hairline
+                    mirrors the left inset (was an absolute w-16 strip). */}
+                <div className="relative z-10 flex h-full items-center px-6 border-r border-sbi-dark-border/20">
                   <SidebarTriggerCustom />
                 </div>
+
+                {/* Active-project context (switcher for directors/members,
+                    static label for clients) — always visible here regardless
+                    of the sidebar's collapsed state. */}
+                <ProjectSwitcher />
 
                 <ProjectStatusBar />
 
