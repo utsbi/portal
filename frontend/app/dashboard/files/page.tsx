@@ -32,6 +32,7 @@ import {
     moveObject,
     parentOf,
     removePaths,
+    setStorageRoot,
     uploadFile,
 } from "./storage";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -73,8 +74,9 @@ function FolderSkeletonRow() {
 }
 
 export default function FilesPage() {
-    const { user } = useProject();
+    const { user, activeProject } = useProject();
     const isDirector = user?.role === "director";
+    const projectId = activeProject?.projectId ?? null;
 
     const [files, setFiles] = useState<StorageEntry[]>([]);
     const [subfolders, setSubfolders] = useState<FolderNode[]>([]);
@@ -174,10 +176,27 @@ export default function FilesPage() {
         setIsLoadingContents(false);
     };
 
+    // Re-root storage on the active project and (re)load its tree. Fresh-start
+    // scoping: every project sees only files under its own `{projectId}/`
+    // prefix, so switching projects swaps the whole tree. Keyed on projectId so
+    // it re-runs on switch; the storage root is set synchronously first, before
+    // the contents effect below reads it.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional project-keyed bootstrap
     useEffect(() => {
+        setStorageRoot(projectId !== null ? String(projectId) : null);
+        setFolderTree([]);
+        setSubfolders([]);
+        setFiles([]);
+
+        if (projectId === null) {
+            setIsLoadingTree(false);
+            setIsLoadingContents(false);
+            return;
+        }
+
         const bootstrapFolders = async () => {
             setIsLoadingTree(true);
-            const rootNodes = await fetchFolderNodes("");
+            const rootNodes = await fetchFolderNodes("", true);
             setFolderTree(rootNodes);
             setIsLoadingTree(false);
 
@@ -188,19 +207,27 @@ export default function FilesPage() {
             if (target) {
                 setSelectedFolderPath(target.path);
                 setExpandedPaths(new Set([target.path]));
-                const children = await fetchFolderNodes(target.path);
+                const children = await fetchFolderNodes(target.path, true);
                 setFolderTree((prev) =>
                     markChildrenLoaded(prev, target.path, children),
                 );
+            } else {
+                // Fresh project with no files yet — show the empty root.
+                setSelectedFolderPath("");
+                setExpandedPaths(new Set());
             }
         };
 
         void bootstrapFolders();
-    }, []);
+    }, [projectId]);
 
+    // Reload the open folder's contents on navigation AND on project switch
+    // (the path string may be unchanged across projects, so projectId is a dep).
+    // biome-ignore lint/correctness/useExhaustiveDependencies: fetch is stable; project switch must force a reload
     useEffect(() => {
-        void fetchFolderContents(selectedFolderPath);
-    }, [selectedFolderPath]);
+        if (projectId === null) return;
+        void fetchFolderContents(selectedFolderPath, true);
+    }, [selectedFolderPath, projectId]);
 
     // ---------------------------------------------------------------------
     // Tree node helpers
