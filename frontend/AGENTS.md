@@ -197,6 +197,7 @@ BASIC_AUTH_PASSWORD=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=
+ASSEMBLYAI_API_KEY=
 ```
 
 | Variable | Scope | Purpose |
@@ -208,6 +209,7 @@ GOOGLE_REDIRECT_URI=
 | `DISCORD_FORM_WEBHOOK_URL` | Server only | Optional. Discord webhook notified on each questionnaire submission (no-op if unset) |
 | `BASIC_AUTH_*` | Server only | HTTP basic auth for protected routes |
 | `GOOGLE_*` | Server only | Google Calendar OAuth for dashboard contact/calendar APIs |
+| `ASSEMBLYAI_API_KEY` | Server only | AssemblyAI speech-to-text for the Explore composer; optional, mic disabled if unset |
 
 ## Adding New Features
 
