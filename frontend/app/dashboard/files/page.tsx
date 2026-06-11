@@ -158,7 +158,13 @@ export default function FilesPage() {
         const { data, error: fetchError, stale } = await listFolder(path, {
             force,
         });
-        if (isCancelled?.() || stale) return;
+        // Clear the spinner even on the abort path: with two rapid switches
+        // both in-flight loads can come back stale, and nothing else would
+        // reset it.
+        if (isCancelled?.() || stale) {
+            setIsLoadingContents(false);
+            return;
+        }
 
         if (fetchError) {
             setError(new StorageError(fetchError.message));

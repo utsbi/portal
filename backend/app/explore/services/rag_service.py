@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import List, Dict, Any, Optional
 import httpx
 from openai import AsyncOpenAI
@@ -7,6 +8,12 @@ from app.explore.db.supabase import supabase
 from app.explore.services.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
+
+# Canonical 8-4-4-4-12 UUID, as issued by Supabase auth.
+_UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    re.IGNORECASE,
+)
 
 
 class RAGService:
@@ -271,13 +278,17 @@ class RAGService:
         legacy NULL-project row. Returns ``None`` when there is nothing to scope
         to (no projects and no client id), signalling the caller to skip.
 
-        ``client_id`` is an auth-provided UUID string, so it is safe to embed.
+        ``client_id`` is embedded verbatim into the filter string, so it must
+        be a UUID; anything else is rejected rather than risk a filter
+        injection from a future non-auth call site.
         """
         clauses: List[str] = []
         if project_ids:
             ids_csv = ",".join(str(pid) for pid in project_ids)
             clauses.append(f"project_id.in.({ids_csv})")
         if client_id:
+            if not _UUID_RE.fullmatch(client_id):
+                raise ValueError(f"client_id is not a valid UUID: {client_id!r}")
             clauses.append(f"and(uid.eq.{client_id},project_id.is.null)")
         return ",".join(clauses) if clauses else None
 
