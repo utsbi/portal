@@ -1,25 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { MessageSquarePlus } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { ConversationList, type Conversation } from "./ConversationList";
-import { fetchReadMap } from "./read-state";
-import { createClient } from "@/lib/supabase/client";
+import { useCallback, useEffect, useState } from "react";
 import { prefetchConv } from "@/lib/messages/prefetch";
 import { setTabUnreadCount } from "@/lib/messages/tab-title";
+import { createClient } from "@/lib/supabase/client";
+import { type Conversation, ConversationList } from "./ConversationList";
+import { CreateConversationModal } from "./CreateConversationModal";
+import { useCreateConversationModal } from "./CreateConversationModalContext";
 import { useCmdK } from "./cmdk/CommandPalette";
+import { loadActorConversations } from "./load-conversations";
 
 interface MemberMessagesProps {
-  /** Project ids the member belongs to (read-only scope). */
-  projectIds: number[];
+  /** The member's own profile id (the participant key). */
+  profileId?: number;
 }
 
 /**
- * Members are READ-ONLY: they can browse the conversations on their projects
- * but get no create affordance (and no composer in the thread). They never
- * fall into the client compose path.
+ * Members can hold conversations with other members and with directors (per the
+ * role matrix). Like every role their inbox is participant-based: they see the
+ * conversations they're in, internal or otherwise.
  */
-export function MemberMessages({ projectIds }: MemberMessagesProps) {
+export function MemberMessages({ profileId }: MemberMessagesProps) {
   const pathname = usePathname();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,134 +40,39 @@ export function MemberMessages({ projectIds }: MemberMessagesProps) {
     if (cmdK && conversations.length > 0) {
       cmdK.setConversations(conversations);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations]);
 
-  const loadConversations = useCallback(async () => {
-    if (projectIds.length === 0) {
-      setConversations([]);
-      setLoading(false);
-      return;
-    }
+  const context = useCreateConversationModal();
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = context?.open ?? localOpen;
+  const setOpen = context?.setOpen ?? setLocalOpen;
 
+  const loadConversations = useCallback(async () => {
+    if (!profileId) return;
     setLoading(true);
     setErrored(false);
-
-    const supabase = createClient();
-
-    const { data: convos, error: convoError } = await supabase
-      .from("conversations")
-      .select("id, client_profile_id, director_profile_id, project_id")
-      .in("project_id", projectIds)
-      .order("created_at", { ascending: false });
-
-    if (convoError) {
+    try {
+      const supabase = createClient();
+      setConversations(await loadActorConversations(supabase, profileId));
+    } catch {
       setErrored(true);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (!convos || convos.length === 0) {
-      setConversations([]);
-      setLoading(false);
-      return;
-    }
-
-    // Batch-fetch director names (the member's project-side counterpart shown).
-    const directorProfileIds = [...new Set(convos.map((c) => c.director_profile_id).filter(Boolean))] as number[];
-    const directorMap = new Map<number, string>();
-
-    if (directorProfileIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, name")
-        .in("id", directorProfileIds);
-
-      if (profiles) {
-        for (const p of profiles) {
-          directorMap.set(p.id, p.name ?? "");
-        }
-      }
-    }
-
-    // Batch-fetch project names
-    const convoProjectIds = [...new Set(convos.map((c) => c.project_id).filter(Boolean))] as number[];
-    const projectMap = new Map<number, string>();
-    if (convoProjectIds.length > 0) {
-      const { data: projectsData } = await supabase
-        .from("projects")
-        .select("id, company_name")
-        .in("id", convoProjectIds);
-      if (projectsData) {
-        for (const p of projectsData) {
-          projectMap.set(p.id, p.company_name ?? "");
-        }
-      }
-    }
-
-    // Fetch latest message per conversation (parallel, limit 1 each)
-    const convoIds = convos.map((c) => c.id);
-    const latestMessageMap = new Map<number, { content: string; created_at: string }>();
-
-    await Promise.all(convoIds.map(async (cid) => {
-      const { data: latest } = await supabase
-        .from("messages")
-        .select("content, created_at")
-        .eq("conversation_id", cid)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (latest) {
-        latestMessageMap.set(cid as number, {
-          content: latest.content ?? "",
-          created_at: latest.created_at as string,
-        });
-      }
-    }));
-
-    const readMap = await fetchReadMap();
-
-    const result: Conversation[] = convos.map((convo) => {
-      const directorName = directorMap.get(convo.director_profile_id as number);
-      const projectName = convo.project_id ? projectMap.get(convo.project_id as number) : undefined;
-      const latest = latestMessageMap.get(convo.id as number);
-      const activityMs = latest ? new Date(latest.created_at).getTime() : 0;
-      const id = String(convo.id);
-      return {
-        id,
-        name: projectName || directorName || `Conversation ${id}`,
-        projectName: projectName || undefined,
-        lastMessage: latest?.content ?? (latest ? "Attachment" : ""),
-        timestamp: latest
-          ? new Date(latest.created_at).toLocaleString(undefined, {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "",
-        unread: activityMs > 0 && activityMs > (readMap[id] ?? 0),
-        lastActivity: activityMs,
-      };
-    });
-
-    setConversations(result);
-    setLoading(false);
-  }, [projectIds]);
+  }, [profileId]);
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
 
-  // Prefetch up to 100 most-recently-active conversations into IDB so
-  // switching to them feels instant (no skeleton). Batched 5 at a time to
-  // avoid opening 100 simultaneous Supabase connections.
+  // Prefetch up to 100 most-recently-active conversations into IDB.
   useEffect(() => {
     if (conversations.length === 0) return;
-    const sorted = [...conversations].sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0));
+    const sorted = [...conversations].sort(
+      (a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0),
+    );
     const toWarm = sorted.slice(0, 100).map((c) => c.id);
-
     (async () => {
       for (let i = 0; i < toWarm.length; i += 5) {
         await Promise.all(toWarm.slice(i, i + 5).map((id) => prefetchConv(id)));
@@ -172,9 +80,7 @@ export function MemberMessages({ projectIds }: MemberMessagesProps) {
     })();
   }, [conversations]);
 
-  // When a conversation becomes the active route, persistently clear its
-  // unread in local state (not just visually suppress) — otherwise the
-  // green tick reappears the moment you navigate to another conversation.
+  // Clear unread on the active conversation persistently.
   useEffect(() => {
     const m = pathname?.match(/\/messages\/(\d+)/);
     const activeId = m ? m[1] : null;
@@ -197,14 +103,12 @@ export function MemberMessages({ projectIds }: MemberMessagesProps) {
     return () => setTabUnreadCount(0);
   }, [conversations, pathname]);
 
-  // Realtime: keep the list live when a message arrives (no reload).
-  // Unfiltered postgres_changes does not deliver here, so subscribe with a
-  // per-conversation filter (mirrors the proven thread pattern). Members
-  // have no resolvable profile id, so any inbound message is treated as
-  // unread unless its conversation is the open one. Members span multiple
-  // project ids (cannot filter conversations by IN), so brand-new
-  // conversations for members require a reload (acceptable edge).
-  const convoIdsKey = conversations.map((c) => c.id).sort().join(",");
+  // Realtime: live updates per conversation + a participant-insert listener for
+  // conversations I'm newly added to.
+  const convoIdsKey = conversations
+    .map((c) => c.id)
+    .sort()
+    .join(",");
   useEffect(() => {
     const supabase = createClient();
     const ids = convoIdsKey ? convoIdsKey.split(",") : [];
@@ -217,6 +121,7 @@ export function MemberMessages({ projectIds }: MemberMessagesProps) {
         sender_profile_id: number | null;
       };
       const convoId = String(row.conversation_id);
+      const fromMe = profileId != null && row.sender_profile_id === profileId;
       const isActive =
         typeof window !== "undefined" &&
         window.location.pathname === `/dashboard/messages/${convoId}`;
@@ -239,7 +144,7 @@ export function MemberMessages({ projectIds }: MemberMessagesProps) {
                   minute: "2-digit",
                 }),
                 lastActivity: activityMs,
-                unread: !isActive,
+                unread: !fromMe && !isActive,
               }
             : c,
         );
@@ -249,11 +154,6 @@ export function MemberMessages({ projectIds }: MemberMessagesProps) {
       });
     };
 
-    // Supabase delivers reliably only with ONE postgres_changes binding
-    // per channel (the working thread pattern). Multiple bindings on a
-    // single channel silently drop events, so use a separate
-    // single-binding channel per conversation. Members span multiple
-    // projects, so brand-new conversations still need a reload.
     const channels = ids.map((id) => {
       const ch = supabase.channel(`messages:list:member:msg:${id}`);
       ch.on(
@@ -270,15 +170,45 @@ export function MemberMessages({ projectIds }: MemberMessagesProps) {
       return ch;
     });
 
+    if (profileId) {
+      const convCh = supabase.channel(`messages:list:member:conv:${profileId}`);
+      convCh.on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversation_participants",
+          filter: `profile_id=eq.${profileId}`,
+        },
+        () => {
+          loadConversations();
+        },
+      );
+      convCh.subscribe();
+      channels.push(convCh);
+    }
+
     return () => {
       for (const ch of channels) supabase.removeChannel(ch);
     };
-  }, [convoIdsKey, loadConversations]);
+  }, [convoIdsKey, loadConversations, profileId]);
 
   return (
     <div className="flex flex-col min-h-0 h-full w-full">
       <div className="flex items-center justify-between px-4 py-4 shrink-0">
         <h2 className="text-lg font-light text-white">Messages</h2>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="group flex items-center justify-center p-1 rounded transition-colors cursor-pointer focus:outline-none"
+          aria-label="New conversation"
+        >
+          <MessageSquarePlus
+            size={18}
+            strokeWidth={1.5}
+            className="text-sbi-muted group-hover:text-sbi-green transition-colors"
+          />
+        </button>
       </div>
 
       <ConversationList
@@ -288,6 +218,14 @@ export function MemberMessages({ projectIds }: MemberMessagesProps) {
         errored={errored}
         onRetry={loadConversations}
         onPrefetch={prefetchConv}
+      />
+
+      <CreateConversationModal
+        opened={open}
+        onClose={() => setOpen(false)}
+        onConversationCreated={(convo) =>
+          setConversations((prev) => [convo, ...prev])
+        }
       />
     </div>
   );
