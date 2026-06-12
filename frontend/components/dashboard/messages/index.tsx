@@ -230,7 +230,11 @@ export function Messages() {
         opened={open}
         onClose={() => setOpen(false)}
         onConversationCreated={(convo) =>
-          setConversations((prev) => [convo, ...prev])
+          setConversations((prev) =>
+            // The create RPC dedupes, so "starting" a chat that already exists
+            // returns the existing id — don't add a second list entry for it.
+            prev.some((c) => c.id === convo.id) ? prev : [convo, ...prev],
+          )
         }
       />
     </div>

@@ -224,7 +224,9 @@ export function MemberMessages({ profileId }: MemberMessagesProps) {
         opened={open}
         onClose={() => setOpen(false)}
         onConversationCreated={(convo) =>
-          setConversations((prev) => [convo, ...prev])
+          setConversations((prev) =>
+            prev.some((c) => c.id === convo.id) ? prev : [convo, ...prev],
+          )
         }
       />
     </div>

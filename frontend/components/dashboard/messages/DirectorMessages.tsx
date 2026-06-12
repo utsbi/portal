@@ -233,7 +233,9 @@ export function DirectorMessages({ profileId }: DirectorMessagesProps) {
         opened={open}
         onClose={() => setOpen(false)}
         onConversationCreated={(convo) =>
-          setConversations((prev) => [convo, ...prev])
+          setConversations((prev) =>
+            prev.some((c) => c.id === convo.id) ? prev : [convo, ...prev],
+          )
         }
       />
     </div>
