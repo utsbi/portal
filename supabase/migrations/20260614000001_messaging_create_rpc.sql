@@ -19,6 +19,7 @@ CREATE OR REPLACE FUNCTION public.can_message(_from_role text, _to_role text)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
+SET search_path TO ''
 AS $$
   SELECT CASE _from_role
     WHEN 'director' THEN _to_role IN ('director', 'member', 'client')
