@@ -41,18 +41,14 @@ interface NavItem {
   roles?: Array<"client" | "director" | "member">; // if undefined, shown to all
 }
 
-const mainItems: NavItem[] = [
+// Nav is grouped by SCOPE, not by content type:
+//   - General: cross-project surfaces that consolidate everything in one place
+//     and do NOT change when you switch the active project.
+//   - Project: surfaces scoped to the active project — switching the project
+//     (via the header switcher) changes what these show.
+const generalItems: NavItem[] = [
   { title: "Explore", path: "", icon: Compass },
   { title: "Messages", path: "/messages", icon: MessageSquare },
-  { title: "Calendar", path: "/calendar", icon: Calendar },
-  { title: "Finances", path: "/finances", icon: DollarSign },
-  { title: "Lifecycle", path: "/lifecycle", icon: Repeat },
-];
-
-const documentItems: NavItem[] = [
-  { title: "Files", path: "/files", icon: FolderOpen },
-  { title: "Reports", path: "/reports", icon: FileText },
-  { title: "Requests", path: "/requests", icon: MailQuestion },
   {
     title: "Questionnaire",
     path: "/questionnaire",
@@ -65,6 +61,15 @@ const documentItems: NavItem[] = [
     icon: FileEdit,
     roles: ["director"],
   },
+];
+
+const projectItems: NavItem[] = [
+  { title: "Lifecycle", path: "/lifecycle", icon: Repeat },
+  { title: "Calendar", path: "/calendar", icon: Calendar },
+  { title: "Finances", path: "/finances", icon: DollarSign },
+  { title: "Files", path: "/files", icon: FolderOpen },
+  { title: "Reports", path: "/reports", icon: FileText },
+  { title: "Requests", path: "/requests", icon: MailQuestion },
 ];
 
 // Settings is accessed from the user profile menu, not the nav
@@ -145,14 +150,11 @@ export function AppSidebar() {
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const router = useRouter();
-  const { user, activeProject, projects, switchProject } = useProject();
+  const { user } = useProject();
   const { cancelRequest, clearChat, newSession } = useChat();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const projectMenuRef = useRef<HTMLDivElement>(null);
   const userMenuButtonRef = useRef<HTMLButtonElement>(null);
-  const projectMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   // On mobile the sidebar is an off-canvas overlay that always shows its full
   // (expanded) content; `open` only drives whether it's slid in or parked off
@@ -270,37 +272,17 @@ export function AppSidebar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close project menu when clicking outside
+  // Escape closes the account menu and returns focus to its trigger.
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        projectMenuRef.current &&
-        !projectMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsProjectMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Escape closes whichever dropdown is open and returns focus to its trigger.
-  useEffect(() => {
-    if (!isUserMenuOpen && !isProjectMenuOpen) return;
+    if (!isUserMenuOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (isUserMenuOpen) {
-        setIsUserMenuOpen(false);
-        userMenuButtonRef.current?.focus();
-      }
-      if (isProjectMenuOpen) {
-        setIsProjectMenuOpen(false);
-        projectMenuButtonRef.current?.focus();
-      }
+      setIsUserMenuOpen(false);
+      userMenuButtonRef.current?.focus();
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isUserMenuOpen, isProjectMenuOpen]);
+  }, [isUserMenuOpen]);
 
   // On mobile the sidebar is a slide-over: Escape and route changes dismiss it.
   useEffect(() => {
@@ -325,7 +307,6 @@ export function AppSidebar() {
     items.filter(
       (item) => !item.roles || (userRole && item.roles.includes(userRole)),
     );
-  const showProjectSwitcher = userRole === "director" || userRole === "member";
 
   return (
     <>
@@ -409,75 +390,8 @@ export function AppSidebar() {
           </button>
         </div>
 
-        {/* Project Switcher (directors/members only) */}
-        {showProjectSwitcher && !isCollapsed && (
-          <div
-            ref={projectMenuRef}
-            className="relative px-3 py-3 border-b border-sbi-dark-border/30"
-          >
-            <button
-              ref={projectMenuButtonRef}
-              type="button"
-              onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
-              aria-haspopup="menu"
-              aria-expanded={isProjectMenuOpen}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-sbi-dark-card/40 border border-sbi-dark-border/30 hover:border-sbi-green/30 transition-colors cursor-pointer"
-            >
-              <div className="flex flex-col text-left min-w-0">
-                <span className="text-[10px] tracking-widest uppercase text-sbi-muted">
-                  Project
-                </span>
-                <span className="text-sm text-white truncate">
-                  {activeProject?.companyName || "Select project"}
-                </span>
-              </div>
-              <ChevronUp
-                className={`size-4 text-sbi-muted transition-transform ${isProjectMenuOpen ? "" : "rotate-180"}`}
-              />
-            </button>
-            {isProjectMenuOpen && (
-              <div
-                role="menu"
-                aria-label="Switch project"
-                className="absolute top-full left-3 right-3 mt-1 bg-sbi-dark border border-sbi-dark-border/50 rounded-lg overflow-hidden shadow-2xl shadow-black/50 z-50"
-              >
-                {projects.map((project) => (
-                  <button
-                    key={project.projectId}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      switchProject(project.projectId);
-                      setIsProjectMenuOpen(false);
-                      projectMenuButtonRef.current?.focus();
-                    }}
-                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors cursor-pointer ${
-                      activeProject?.projectId === project.projectId
-                        ? "text-sbi-green bg-sbi-green/5"
-                        : "text-white/70 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {project.companyName}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Client project label (clients only) */}
-        {!showProjectSwitcher && !isCollapsed && activeProject && (
-          <div className="px-3 py-3 border-b border-sbi-dark-border/30">
-            <div className="px-3 py-2">
-              <span className="text-[10px] tracking-widest uppercase text-sbi-muted">
-                Project
-              </span>
-              <p className="text-sm text-white truncate">
-                {activeProject.companyName}
-              </p>
-            </div>
-          </div>
-        )}
+        {/* The active project lives in the top bar (ProjectSwitcher) so it stays
+            visible regardless of the sidebar's collapsed state. */}
 
         {/* Navigation. On Explore the primary nav stays fixed at its natural height
           and the chat-history list takes the remaining space with its own scroll;
@@ -489,9 +403,9 @@ export function AppSidebar() {
               showChatHistory ? "shrink-0" : "flex-1",
             )}
           >
-            {/* Main Navigation */}
+            {/* General (cross-project) Navigation */}
             <div className="space-y-1">
-              {filterByRole(mainItems).map((item) => (
+              {filterByRole(generalItems).map((item) => (
                 <NavLink
                   key={item.title}
                   item={item}
@@ -505,16 +419,16 @@ export function AppSidebar() {
             {/* Divider */}
             <div className="my-4 mx-3 h-px bg-linear-to-r from-transparent via-sbi-dark-border/50 to-transparent" />
 
-            {/* Documents Section */}
+            {/* Project Section — scoped to the active project (header switcher) */}
             <div className="space-y-1">
               {!isCollapsed && (
                 <div className="px-3 mb-2">
                   <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted font-light">
-                    Documents
+                    Project
                   </span>
                 </div>
               )}
-              {filterByRole(documentItems).map((item) => (
+              {filterByRole(projectItems).map((item) => (
                 <NavLink
                   key={item.title}
                   item={item}

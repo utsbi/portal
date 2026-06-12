@@ -107,7 +107,7 @@ export function ProjectStatusBar() {
   }, [projects]);
 
   return (
-    <div className="hidden md:flex items-center gap-1 border-l border-sbi-dark-border/30 ml-4">
+    <div className="hidden md:flex items-center gap-1 border-l border-sbi-dark-border/30 ml-4 pl-4 [&>.group:first-of-type]:pl-0">
       <StatusIndicator
         label="Active Tasks"
         value={stats.active}
