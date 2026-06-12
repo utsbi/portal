@@ -1,9 +1,9 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { MessageThread } from "@/components/dashboard/messages/MessageThread";
-import { useCmdK } from "@/components/dashboard/messages/cmdk/CommandPalette";
 import { useActor } from "@/components/dashboard/messages/ActorContext";
+import { useCmdK } from "@/components/dashboard/messages/cmdk/CommandPalette";
+import { MessageThread } from "@/components/dashboard/messages/MessageThread";
 
 /**
  * Mounted ONCE inside the messages layout. Reads the active conversation
@@ -39,8 +39,6 @@ export function DetailPane() {
   }
 
   const role = actor.role;
-  const isDirector = role === "director";
-  const isMember = role === "member";
 
   const convo = conversations.find((c) => c.id === conversationId);
   const displayName = convo?.name ?? `Conversation ${conversationId}`;
@@ -67,8 +65,7 @@ export function DetailPane() {
         <MessageThread
           key={conversationId}
           conversationId={conversationId}
-          senderRole={isDirector ? "director" : "client"}
-          readOnly={isMember}
+          senderRole={role}
         />
       </div>
     </>

@@ -76,118 +76,45 @@ export function CreateConversationModal({
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  // Load the people this caller is allowed to message.
+  // Load the people this caller is allowed to message. The matrix + project
+  // rules (and the directory read) live in the list_messageable_profiles RPC,
+  // so the picker doesn't need broad profiles/project_members read access.
   useEffect(() => {
-    if (!opened || !myRole || myProfileId === null) return;
+    if (!opened || myProfileId === null) return;
     setSearch("");
     setSelected(new Set());
 
     const load = async () => {
       setLoading(true);
       const supabase = createClient();
-      const next: Candidate[] = [];
-
-      // Internal (director/member) recipients allowed for this role.
-      const internalRoles: Role[] =
-        myRole === "director"
-          ? ["director", "member"]
-          : myRole === "member"
-            ? ["member", "director"]
-            : ["director"]; // client -> directors
-
-      if (myRole === "client") {
-        // Clients only see directors on their active project.
-        const projId = activeProject?.projectId ?? null;
-        if (projId !== null) {
-          const { data } = await supabase
-            .from("project_members")
-            .select("profile_id, role, profiles(id, name, role)")
-            .eq("project_id", projId)
-            .eq("role", "director");
-          for (const row of data ?? []) {
-            // Supabase types a to-one embed as an array; it is a single row.
-            const prof = row.profiles as unknown as {
-              id: number;
-              name: string | null;
-              role: Role;
-            } | null;
-            if (prof && prof.id !== myProfileId) {
-              next.push({
-                profileId: prof.id,
-                name: prof.name ?? `Director ${prof.id}`,
-                role: "director",
-              });
-            }
-          }
-        }
-      } else {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, name, role")
-          .in("role", internalRoles)
-          .order("name", { ascending: true });
-        for (const p of data ?? []) {
-          if ((p.id as number) === myProfileId) continue;
-          next.push({
-            profileId: p.id as number,
-            name: (p.name as string) ?? `Person ${p.id}`,
-            role: p.role as Role,
-          });
-        }
-      }
-
-      // Client recipients (directors only): clients of the caller's projects.
-      if (myRole === "director") {
-        const { data: myProjs } = await supabase
-          .from("project_members")
-          .select("project_id")
-          .eq("profile_id", myProfileId);
-        const projIds = [
-          ...new Set(
-            (myProjs ?? []).map((r) => r.project_id as number).filter(Boolean),
-          ),
-        ];
-        if (projIds.length > 0) {
-          const { data } = await supabase
-            .from("project_members")
-            .select(
-              "profile_id, project_id, role, profiles(id, name), projects(id, company_name)",
-            )
-            .in("project_id", projIds)
-            .eq("role", "owner");
-          for (const row of data ?? []) {
-            // To-one embeds: typed as arrays, single rows at runtime.
-            const prof = row.profiles as unknown as {
-              id: number;
-              name: string | null;
-            } | null;
-            const proj = row.projects as unknown as {
-              id: number;
-              company_name: string | null;
-            } | null;
-            if (prof) {
-              next.push({
-                profileId: prof.id,
-                name: prof.name ?? `Client ${prof.id}`,
-                role: "client",
-                projectId: (row.project_id as number) ?? proj?.id,
-                projectName: proj?.company_name ?? undefined,
-              });
-            }
-          }
-        }
-      }
-
-      // De-dup by profile id (a person could appear once).
+      const { data } = await supabase.rpc("list_messageable_profiles");
+      const rows = (data ?? []) as {
+        profile_id: number;
+        name: string | null;
+        role: Role;
+        project_id: number | null;
+        project_name: string | null;
+      }[];
       const seen = new Set<number>();
-      setCandidates(
-        next.filter((c) => !seen.has(c.profileId) && seen.add(c.profileId)),
-      );
+      const next: Candidate[] = [];
+      for (const r of rows) {
+        if (seen.has(r.profile_id)) continue;
+        seen.add(r.profile_id);
+        next.push({
+          profileId: r.profile_id,
+          name: r.name ?? `Person ${r.profile_id}`,
+          role: r.role,
+          projectId: r.project_id ?? undefined,
+          projectName: r.project_name ?? undefined,
+        });
+      }
+      next.sort((a, b) => a.name.localeCompare(b.name));
+      setCandidates(next);
       setLoading(false);
     };
 
     void load();
-  }, [opened, myRole, myProfileId, activeProject?.projectId]);
+  }, [opened, myProfileId]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
