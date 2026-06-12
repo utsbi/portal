@@ -4,6 +4,35 @@ const supabase = createClient();
 
 export const BUCKET = "Files";
 
+// ---------------------------------------------------------------------------
+// Project scope. Every Storage path is transparently prefixed with
+// `${activeRoot}/`, so each project only ever reads/writes under its own
+// `{projectId}/` subtree. The page works entirely in PROJECT-RELATIVE paths
+// ("" = the project root); this module is the single place that knows the
+// prefix. The RLS policy on storage.objects enforces the same boundary in the
+// database, so this is convenience + correctness, not the security boundary.
+// ---------------------------------------------------------------------------
+
+let activeRoot: string | null = null;
+
+/**
+ * Point the Files module at a project's subtree. Pass the project id (as a
+ * string) to scope all subsequent operations under `${projectId}/`, or `null`
+ * for the unscoped bucket root. Changing the root clears the listing cache so
+ * project-relative keys can never collide across projects.
+ */
+export function setStorageRoot(root: string | null) {
+    if (root === activeRoot) return;
+    activeRoot = root;
+    listCache.clear();
+}
+
+/** Map a project-relative path to its absolute Storage path. */
+function withRoot(path: string): string {
+    if (!activeRoot) return path;
+    return path ? `${activeRoot}/${path}` : activeRoot;
+}
+
 export interface StorageEntry {
     id: string | null;
     name: string;
@@ -91,11 +120,20 @@ export function isInvalidMoveTarget(
 /**
  * List a folder, returning cached entries when available. Pass
  * `force` to bypass the cache (used right after a write op).
+ *
+ * `stale` is true when the active project root changed (`setStorageRoot`)
+ * while this request was in flight: the result belongs to the OLD project, so
+ * it is neither cached nor trustworthy for the new one. Callers should treat a
+ * stale result as "discard" and not apply it to the current project's UI.
  */
 export async function listFolder(
     path: string,
     opts?: { force?: boolean; limit?: number },
-): Promise<{ data: StorageEntry[]; error: { message: string } | null }> {
+): Promise<{
+    data: StorageEntry[];
+    error: { message: string } | null;
+    stale?: boolean;
+}> {
     if (!opts?.force) {
         const cached = getCachedList(path);
         if (cached) {
@@ -103,9 +141,17 @@ export async function listFolder(
         }
     }
 
+    // Snapshot the root we're listing under; if it changes mid-flight the
+    // result is for a different project and must not poison this one's cache.
+    const rootAtRequest = activeRoot;
+
     const { data, error } = await supabase.storage
         .from(BUCKET)
-        .list(path, { limit: opts?.limit ?? 200 });
+        .list(withRoot(path), { limit: opts?.limit ?? 200 });
+
+    if (activeRoot !== rootAtRequest) {
+        return { data: [], error: null, stale: true };
+    }
 
     if (error) {
         return { data: [], error };
@@ -128,7 +174,7 @@ export async function listFolder(
 export async function collectAllObjectPaths(prefix: string): Promise<string[]> {
     const { data, error } = await supabase.storage
         .from(BUCKET)
-        .list(prefix, { limit: 1000 });
+        .list(withRoot(prefix), { limit: 1000 });
 
     if (error) {
         throw new Error(error.message);
@@ -163,7 +209,7 @@ export async function removePaths(paths: string[]): Promise<void> {
     for (const batch of chunk(paths, 100)) {
         const { data, error } = await supabase.storage
             .from(BUCKET)
-            .remove(batch);
+            .remove(batch.map(withRoot));
         if (error) {
             throw new Error(error.message);
         }
@@ -208,7 +254,7 @@ export async function moveFolder(
         const to = `${newPrefix}${from.slice(oldPrefix.length)}`;
         const { error } = await supabase.storage
             .from(BUCKET)
-            .move(from, to);
+            .move(withRoot(from), withRoot(to));
 
         if (!error) {
             moved.push({ from, to });
@@ -221,7 +267,7 @@ export async function moveFolder(
         for (const m of moved.reverse()) {
             const { error: rbErr } = await supabase.storage
                 .from(BUCKET)
-                .move(m.to, m.from);
+                .move(withRoot(m.to), withRoot(m.from));
             if (rbErr) rollbackOk = false;
         }
 
@@ -240,7 +286,7 @@ export async function moveObject(
 ): Promise<void> {
     const { error } = await supabase.storage
         .from(BUCKET)
-        .move(oldPath, newPath);
+        .move(withRoot(oldPath), withRoot(newPath));
     if (error) {
         throw new Error(error.message);
     }
@@ -252,7 +298,7 @@ export async function uploadFile(
 ): Promise<{ error: { message: string; statusCode?: string } | null }> {
     const { error } = await supabase.storage
         .from(BUCKET)
-        .upload(targetPath, file, { upsert: false });
+        .upload(withRoot(targetPath), file, { upsert: false });
     return { error: error as { message: string; statusCode?: string } | null };
 }
 

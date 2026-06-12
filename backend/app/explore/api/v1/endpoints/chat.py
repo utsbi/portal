@@ -33,6 +33,7 @@ async def chat(request: ChatRequest, raw_request: Request, auth: AuthContext = D
                 query=request.query,
                 client_id=auth.user_id,
                 access_token=auth.access_token,
+                project_id=request.project_id,
                 history=history,
                 attachments=attachments,
                 model_preference=request.model_preference or "fast",
