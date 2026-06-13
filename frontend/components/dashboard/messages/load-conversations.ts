@@ -30,8 +30,11 @@ export async function loadActorConversations(
   ];
   if (convoIds.length === 0) return [];
 
-  // 2. Those conversations + 3. all their participants, in parallel.
-  const [{ data: convos }, { data: parts }] = await Promise.all([
+  // 2. Those conversations + 3. all their participants, in parallel. Surface a
+  // real query error (RLS denial, network) instead of silently rendering an
+  // empty inbox — RLS filtering returns fewer rows with NO error, so a populated
+  // `error` is a genuine failure the caller should show.
+  const [convoRes, partsRes] = await Promise.all([
     supabase
       .from("conversations")
       .select("id, project_id, created_at")
@@ -41,6 +44,10 @@ export async function loadActorConversations(
       .select("conversation_id, profile_id")
       .in("conversation_id", convoIds),
   ]);
+  if (convoRes.error) throw new Error(convoRes.error.message);
+  if (partsRes.error) throw new Error(partsRes.error.message);
+  const convos = convoRes.data;
+  const parts = partsRes.data;
 
   // Peer profile ids (everyone but me) and project ids to resolve.
   const peerIds = [
@@ -72,28 +79,27 @@ export async function loadActorConversations(
     peersByConvo.set(cid, arr);
   }
 
-  // 4. Latest message per conversation (parallel, limit 1 each).
+  // 4. Latest message per conversation — one set-based RPC (DISTINCT ON) instead
+  // of N parallel single-row queries.
   const latestMessageMap = new Map<
     number,
     { content: string; created_at: string }
   >();
-  await Promise.all(
-    convoIds.map(async (cid) => {
-      const { data: latest } = await supabase
-        .from("messages")
-        .select("content, created_at")
-        .eq("conversation_id", cid)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (latest) {
-        latestMessageMap.set(cid, {
-          content: (latest.content as string) ?? "",
-          created_at: latest.created_at as string,
-        });
-      }
-    }),
+  const { data: latestRows, error: latestErr } = await supabase.rpc(
+    "latest_conversation_messages",
+    { _ids: convoIds },
   );
+  if (latestErr) throw new Error(latestErr.message);
+  for (const row of (latestRows ?? []) as Array<{
+    conversation_id: number;
+    content: string | null;
+    created_at: string;
+  }>) {
+    latestMessageMap.set(row.conversation_id, {
+      content: row.content ?? "",
+      created_at: row.created_at,
+    });
+  }
 
   const readMap = await fetchReadMap();
 
@@ -145,12 +151,15 @@ async function resolveNames(
 ): Promise<Map<number, string>> {
   const map = new Map<number, string>();
   if (ids.length === 0) return map;
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, name")
-    .in("id", ids);
-  for (const p of data ?? []) {
-    map.set(p.id as number, (p.name as string) ?? "");
+  // Resolve peer names through a SECURITY DEFINER RPC that returns only (id,
+  // name) for co-participants — direct SELECT on profiles is no longer granted to
+  // co-participants (it leaked email/eid/discord_id of everyone in a thread).
+  const { data, error } = await supabase.rpc("get_conversation_peer_names", {
+    _ids: ids,
+  });
+  if (error) throw new Error(error.message);
+  for (const p of (data ?? []) as Array<{ id: number; name: string | null }>) {
+    map.set(p.id, p.name ?? "");
   }
   return map;
 }
@@ -161,10 +170,11 @@ async function resolveProjects(
 ): Promise<Map<number, string>> {
   const map = new Map<number, string>();
   if (ids.length === 0) return map;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("projects")
     .select("id, company_name")
     .in("id", ids);
+  if (error) throw new Error(error.message);
   for (const p of data ?? []) {
     map.set(p.id as number, (p.company_name as string) ?? "");
   }

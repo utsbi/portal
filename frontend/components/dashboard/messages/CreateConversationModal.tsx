@@ -146,11 +146,29 @@ export function CreateConversationModal({
     return client?.projectId ?? null;
   }, [myRole, activeProject?.projectId, selectedCandidates]);
 
+  // A director can multi-select clients, but the conversation pins to ONE project
+  // (every client participant must belong to it). Clients from different projects
+  // would make the create RPC reject the others, so block it up front with a
+  // clear message rather than surfacing a confusing server error.
+  const multipleClientProjects = useMemo(
+    () =>
+      new Set(
+        selectedCandidates
+          .filter((c) => c.role === "client")
+          .map((c) => c.projectId),
+      ).size > 1,
+    [selectedCandidates],
+  );
+
   const hasClient =
     myRole === "client" || selectedCandidates.some((c) => c.role === "client");
   const projectMissing = hasClient && derivedProject === null;
   const canSubmit =
-    selected.size > 0 && !projectMissing && !submitting && !loading;
+    selected.size > 0 &&
+    !projectMissing &&
+    !multipleClientProjects &&
+    !submitting &&
+    !loading;
 
   const toggle = (id: number) =>
     setSelected((prev) => {
@@ -295,7 +313,12 @@ export function CreateConversationModal({
           )}
         </div>
 
-        {hasClient ? (
+        {multipleClientProjects ? (
+          <p className="text-xs leading-relaxed text-amber-400/90">
+            Clients from different projects can't share a conversation. Keep the
+            selected clients to a single project.
+          </p>
+        ) : hasClient ? (
           <p className="text-xs leading-relaxed text-sbi-muted">
             {projectMissing
               ? "Select an active project to message a client."
