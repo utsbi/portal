@@ -92,48 +92,43 @@ export async function POST(request: NextRequest) {
     sessionId = newSession.id;
   }
 
-  // Edit/regenerate reconciliation: the client resends a (possibly truncated)
-  // history when a turn is edited or regenerated. Trim the stored messages to
-  // match that history before writing the new turn, so superseded rows don't
-  // linger and reappear on reload. For a normal next turn (history == full
-  // thread) this deletes nothing. New sessions have nothing to trim.
-  if (!isNewSession && Array.isArray(body.history)) {
-    const keep = body.history.length;
-    const { data: existingMsgs } = await supabase
-      .from("client_chat_messages")
-      .select("id")
-      .eq("session_id", sessionId)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true });
-    if (existingMsgs && existingMsgs.length > keep) {
-      const toDelete = existingMsgs.slice(keep).map((m) => m.id);
-      const { error: trimErr } = await supabase
+  // Branching: messages form a parent/child tree. The client resends the history
+  // up to the branch point (full thread for a normal turn; truncated for an
+  // edit/regenerate). The new user turn attaches to active_path[history.length-1],
+  // so a normal turn appends to the tip while an edited/regenerated turn forks a
+  // NEW sibling branch. The superseded branch is KEPT (not deleted) and simply
+  // sits off the active path until the user switches back to it.
+  let userParentId: number | null = null;
+  if (!isNewSession) {
+    const historyLen = Array.isArray(body.history) ? body.history.length : 0;
+    if (historyLen > 0) {
+      const { data: allRows } = await supabase
         .from("client_chat_messages")
-        .delete()
-        .eq("session_id", sessionId)
-        .in("id", toDelete);
-      if (trimErr) {
-        console.error(
-          "[/api/chat] failed to trim superseded messages:",
-          trimErr,
-        );
+        .select("id, parent_id")
+        .eq("session_id", sessionId);
+      const rows = (allRows ?? []) as Array<{
+        id: number;
+        parent_id: number | null;
+      }>;
+      const byId = new Map<number, (typeof rows)[number]>();
+      let leaf: (typeof rows)[number] | null = null;
+      for (const r of rows) {
+        byId.set(r.id, r);
+        if (!leaf || r.id > leaf.id) leaf = r; // newest insert = active-branch tip
       }
+      // Active branch, root -> leaf.
+      const path: number[] = [];
+      const seen = new Set<number>();
+      for (let cur = leaf; cur && !seen.has(cur.id); ) {
+        seen.add(cur.id);
+        path.push(cur.id);
+        cur = cur.parent_id != null ? (byId.get(cur.parent_id) ?? null) : null;
+      }
+      path.reverse();
+      const idx = Math.min(historyLen, path.length) - 1;
+      userParentId = idx >= 0 ? path[idx] : null;
     }
   }
-
-  // The new user turn's parent is the current tip of the active branch — the last
-  // message remaining after any edit/regenerate trim above (null for a session's
-  // first turn). This makes messages form a parent/child tree (foundation for
-  // branching); display stays linear until branching is built on top.
-  const { data: leafRow } = await supabase
-    .from("client_chat_messages")
-    .select("id")
-    .eq("session_id", sessionId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const userParentId = leafRow?.id ?? null;
 
   // Persist the user message immediately so cancelled streams still keep the user turn.
   // Keep the extracted `content` too: the backend is stateless and requires each

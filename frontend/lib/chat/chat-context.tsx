@@ -495,9 +495,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // NOTE: editAndResend and regenerateResponse currently only mutate client-side
-  // state. The DB rows for the original turn(s) remain. On the next session
-  // reload, those stale rows will reappear. Tracked as a Phase 1 follow-up.
+  // editAndResend / regenerateResponse fork a new branch. The client shows the
+  // new turn (truncating its view to the branch point); the route preserves the
+  // superseded turn(s) as an off-path branch by parenting the new turn to
+  // active_path[history.length-1]. loadSession walks only the active branch on
+  // reload, so the old branch stays in the DB but off-screen (a future branch
+  // picker can surface it). No client-side DB ids are needed — the route maps
+  // history position to the branch point.
   const editAndResend = useCallback(
     async (messageId: string, newContent: string) => {
       const messageIndex = messages.findIndex((m) => m.id === messageId);
@@ -624,7 +628,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const { data, error: fetchErr } = await supabase
         .from("client_chat_messages")
         .select(
-          "id, role, content, sources, attachments, is_cancelled, created_at",
+          "id, parent_id, role, content, sources, attachments, is_cancelled, created_at",
         )
         .eq("session_id", session.id)
         .order("created_at", { ascending: true });
@@ -636,7 +640,43 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      const hydrated: DisplayMessage[] = (data ?? [])
+      // Messages form a parent/child tree (edit/regenerate create sibling
+      // branches). Display only the ACTIVE branch: the path from the newest leaf
+      // up to its root. Older branches stay in the DB but off-screen. A linear
+      // conversation collapses to the whole thread.
+      type MessageRow = {
+        id: number;
+        parent_id: number | null;
+        role: string;
+        content: string;
+        sources: unknown;
+        attachments: unknown;
+        is_cancelled: boolean;
+        created_at: string;
+      };
+      const rows = (data ?? []) as MessageRow[];
+      const byId = new Map<number, MessageRow>();
+      let leaf: MessageRow | null = null;
+      for (const r of rows) {
+        byId.set(r.id, r);
+        if (!leaf || r.id > leaf.id) leaf = r; // newest insert = active-branch tip
+      }
+      const path: MessageRow[] = [];
+      const seen = new Set<number>();
+      for (let cur: MessageRow | null = leaf; cur && !seen.has(cur.id); ) {
+        seen.add(cur.id);
+        path.push(cur);
+        cur = cur.parent_id != null ? (byId.get(cur.parent_id) ?? null) : null;
+      }
+      path.reverse();
+
+      // Safety net: if the active branch came out degenerate — e.g. rows written
+      // before parent_id existed (an older deploy) are unparented, so the
+      // newest-leaf walk only reaches itself — fall back to chronological order so
+      // the whole thread still renders. `rows` is already created_at-ascending.
+      const activePath = path.length <= 1 && rows.length > 1 ? rows : path;
+
+      const hydrated: DisplayMessage[] = activePath
         .filter((row) => row.role === "user" || row.role === "assistant")
         .map((row) => ({
           id: `db-${row.id}`,
