@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/common/app-sidebar";
 import { ProjectStatusBar } from "@/components/dashboard/common/ProjectStatusBar";
@@ -8,6 +9,7 @@ import { TimeDisplay } from "@/components/dashboard/explore/ui/TimeDisplay";
 import { ChatProvider } from "@/lib/chat/chat-context";
 import { ProjectProvider } from "@/lib/project/project-context";
 import { resolveActor } from "@/lib/project/resolve-actor";
+import { SIDEBAR_COOKIE } from "@/lib/sidebar/cookie";
 import { SidebarProvider } from "@/lib/sidebar/sidebar-context";
 
 interface DashboardLayoutProps {
@@ -23,6 +25,10 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // Seed the sidebar's open state from the persisted cookie so the first render
+  // matches the user's last choice (no collapsed->open shift on refresh).
+  const sidebarOpen = (await cookies()).get(SIDEBAR_COOKIE)?.value === "true";
+
   const activeProject =
     actor.projects.find((p) => p.projectId === actor.activeProjectId) ||
     actor.projects[0] ||
@@ -35,7 +41,7 @@ export default async function DashboardLayout({
       initialActiveProjectId={activeProject?.projectId ?? null}
     >
       <ChatProvider>
-        <SidebarProvider defaultOpen={false}>
+        <SidebarProvider defaultOpen={sidebarOpen}>
           <div className="font-urbanist bg-sbi-dark h-screen overflow-hidden flex">
             <AppSidebar />
             <div className="flex-1 flex flex-col min-h-0">

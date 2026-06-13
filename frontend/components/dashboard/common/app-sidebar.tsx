@@ -186,11 +186,14 @@ export function AppSidebar() {
     pathname === baseUrl || pathname.startsWith(`${baseUrl}/explore`);
   const showChatHistory = isExplore && !isCollapsed;
 
-  // Auto-expand on entering Explore (so the history is visible), but remember a
-  // manual collapse for the rest of the session and stop auto-expanding once the
-  // user opts out. The pre-Explore open state is restored when leaving.
+  // Auto-expand when NAVIGATING into Explore (so the history is visible), but
+  // remember a manual collapse for the rest of the session and stop auto-expanding
+  // once the user opts out. The pre-Explore open state is restored when leaving.
+  // wasExploreRef is seeded with the current route so a fresh load / refresh does
+  // NOT count as "entering Explore" — the persisted cookie already set the correct
+  // initial state, and re-expanding here would cause a collapsed->open shift.
   const userCollapsedOnExploreRef = useRef(false);
-  const wasExploreRef = useRef(false);
+  const wasExploreRef = useRef(isExplore);
   const preExploreOpenRef = useRef(open);
   const lastOpenRef = useRef(open);
 
@@ -301,6 +304,13 @@ export function AppSidebar() {
   useEffect(() => {
     if (isMobile) setOpen(false);
   }, [pathname]);
+
+  // The persisted open state is a desktop affordance. On mobile the sidebar is a
+  // slide-over, so a remembered "open" must not leave it covering content on load
+  // — close it whenever the viewport is (or becomes) mobile.
+  useEffect(() => {
+    if (isMobile) setOpen(false);
+  }, [isMobile, setOpen]);
 
   const userRole = user?.role;
   const filterByRole = (items: NavItem[]) =>

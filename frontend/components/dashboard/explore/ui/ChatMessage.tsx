@@ -1,12 +1,14 @@
 "use client";
 
+import { code } from "@streamdown/code";
 import gsap from "gsap";
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Copy,
-  MoreHorizontal,
   Pencil,
   RotateCw,
 } from "lucide-react";
@@ -19,10 +21,7 @@ import {
   useRef,
   useState,
 } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import remarkGfm from "remark-gfm";
+import { type Components, Streamdown } from "streamdown";
 import {
   Tooltip,
   TooltipContent,
@@ -37,55 +36,6 @@ import { getFileInfo } from "./file-info";
 interface ChatMessageProps {
   message: DisplayMessage;
   isLatestAssistant?: boolean;
-}
-
-// Custom code block with language label, syntax highlighting, and copy button
-function CodeBlock({ language, code }: { language: string; code: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Display name for the language
-  const langLabel = language.charAt(0).toUpperCase() + language.slice(1);
-
-  return (
-    <div className="rounded-xl border border-sbi-dark-border overflow-hidden my-3">
-      <div className="flex items-center justify-between px-4 py-2 bg-sbi-dark-card/80 border-b border-sbi-dark-border">
-        <span className="text-sm text-sbi-muted font-medium">{langLabel}</span>
-        <button
-          type="button"
-          onClick={handleCopy}
-          aria-label="Copy code"
-          className="p-1 text-sbi-muted hover:text-white transition-colors"
-          title="Copy code"
-        >
-          {copied ? (
-            <Check className="w-4 h-4 text-sbi-green" />
-          ) : (
-            <Copy className="w-4 h-4" strokeWidth={1.5} />
-          )}
-        </button>
-      </div>
-      <SyntaxHighlighter
-        style={oneDark}
-        language={language}
-        PreTag="div"
-        customStyle={{
-          margin: 0,
-          padding: "1rem",
-          background: "var(--color-sbi-dark-card)",
-          fontSize: "0.875rem",
-          borderRadius: 0,
-        }}
-      >
-        {code}
-      </SyntaxHighlighter>
-    </div>
-  );
 }
 
 // Inline citation chip: numeric badge with hover-card preview, links to /dashboard/files.
@@ -139,20 +89,27 @@ function interpolateCitations(
   let lastIdx = 0;
   let match: RegExpExecArray | null;
   let key = 0;
+  let matched = false;
   while ((match = pattern.exec(text)) !== null) {
     const n = Number.parseInt(match[1], 10);
-    if (n < 1 || n > sources.length) continue;
     if (match.index > lastIdx) parts.push(text.slice(lastIdx, match.index));
-    parts.push(
-      <CitationChip
-        key={`cite-${match.index}-${key++}`}
-        index={n}
-        source={sources[n - 1]}
-      />,
-    );
+    if (n < 1 || n > sources.length) {
+      // Out-of-range marker: keep the literal "[n]" and advance past it, so the
+      // text between it and the next valid citation isn't dropped or duplicated.
+      parts.push(match[0]);
+    } else {
+      parts.push(
+        <CitationChip
+          key={`cite-${match.index}-${key++}`}
+          index={n}
+          source={sources[n - 1]}
+        />,
+      );
+      matched = true;
+    }
     lastIdx = pattern.lastIndex;
   }
-  if (lastIdx === 0) return text; // no matches kept
+  if (!matched) return text; // nothing replaced — hand back the original string
   if (lastIdx < text.length) parts.push(text.slice(lastIdx));
   return parts;
 }
@@ -170,39 +127,169 @@ function processCitations(
   });
 }
 
-// Build the ReactMarkdown component map for an assistant message, capturing its sources.
+// Build the Streamdown component map for an assistant message, capturing its sources.
+// NOTE: Streamdown's wrapper adds space-y-4 (1rem between siblings). Do NOT add
+// vertical margins (mb-*, mt-*, my-*) to these overrides — they would double up.
 function buildMarkdownComponents(sources: SourceDocument[]): Components {
   return {
-    pre({ children }) {
-      return <>{children}</>;
-    },
-    code({ className, children, ...props }) {
-      const codeString = String(children).replace(/\n$/, "");
-      const langMatch = /language-(\w+)/.exec(className || "");
-      if (langMatch)
-        return <CodeBlock language={langMatch[1]} code={codeString} />;
-      return (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
-    },
-    p: ({ children }) => <p>{processCitations(children, sources)}</p>,
-    li: ({ children }) => <li>{processCitations(children, sources)}</li>,
-    strong: ({ children }) => (
-      <strong>{processCitations(children, sources)}</strong>
+    p: ({ children }) => (
+      <p className="leading-relaxed">{processCitations(children, sources)}</p>
     ),
-    em: ({ children }) => <em>{processCitations(children, sources)}</em>,
-    td: ({ children }) => <td>{processCitations(children, sources)}</td>,
-    th: ({ children }) => <th>{processCitations(children, sources)}</th>,
-    h1: ({ children }) => <h1>{processCitations(children, sources)}</h1>,
-    h2: ({ children }) => <h2>{processCitations(children, sources)}</h2>,
-    h3: ({ children }) => <h3>{processCitations(children, sources)}</h3>,
-    h4: ({ children }) => <h4>{processCitations(children, sources)}</h4>,
+    ul: ({ children }) => (
+      <ul className="list-disc list-outside space-y-1 pl-5 text-sbi-muted marker:text-sbi-muted">
+        {children}
+      </ul>
+    ),
+    ol: ({ children }) => (
+      <ol className="list-decimal list-outside space-y-1 pl-5 text-sbi-muted marker:text-sbi-muted">
+        {children}
+      </ol>
+    ),
+    li: ({ children }) => (
+      <li className="leading-relaxed [&>p]:inline">
+        {processCitations(children, sources)}
+      </li>
+    ),
+    strong: ({ children }) => (
+      <strong className="font-semibold text-white">
+        {processCitations(children, sources)}
+      </strong>
+    ),
+    em: ({ children }) => (
+      <em className="text-sbi-muted italic">
+        {processCitations(children, sources)}
+      </em>
+    ),
+    a: ({ href, children }) => (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-sbi-green hover:underline"
+      >
+        {children}
+      </a>
+    ),
     blockquote: ({ children }) => (
-      <blockquote>{processCitations(children, sources)}</blockquote>
+      <blockquote className="border-l-2 border-sbi-green/40 pl-4 italic text-sbi-muted">
+        {processCitations(children, sources)}
+      </blockquote>
+    ),
+    h1: ({ children }) => (
+      <h1 className="text-xl font-semibold text-white">
+        {processCitations(children, sources)}
+      </h1>
+    ),
+    h2: ({ children }) => (
+      <h2 className="text-lg font-semibold text-white">
+        {processCitations(children, sources)}
+      </h2>
+    ),
+    h3: ({ children }) => (
+      <h3 className="text-base font-semibold text-white">
+        {processCitations(children, sources)}
+      </h3>
+    ),
+    h4: ({ children }) => (
+      <h4 className="text-base font-semibold text-white">
+        {processCitations(children, sources)}
+      </h4>
+    ),
+    h5: ({ children }) => (
+      <h5 className="text-sm font-semibold text-white">
+        {processCitations(children, sources)}
+      </h5>
+    ),
+    h6: ({ children }) => (
+      <h6 className="text-sm font-semibold text-sbi-muted">
+        {processCitations(children, sources)}
+      </h6>
+    ),
+    del: ({ children }) => (
+      <del className="line-through text-sbi-muted/60">{children}</del>
+    ),
+    hr: () => <hr className="border-sbi-dark-border" />,
+    table: ({ children }) => (
+      <div className="overflow-x-auto rounded-lg border border-sbi-dark-border">
+        <table className="w-full border-collapse text-sm">{children}</table>
+      </div>
+    ),
+    thead: ({ children }) => (
+      <thead className="bg-sbi-dark-card/80">{children}</thead>
+    ),
+    tbody: ({ children }) => <tbody>{children}</tbody>,
+    tfoot: ({ children }) => <tfoot>{children}</tfoot>,
+    tr: ({ children }) => (
+      <tr className="border-b border-sbi-dark-border/50 last:border-b-0 hover:bg-sbi-dark-card/30 transition-colors">
+        {children}
+      </tr>
+    ),
+    th: ({ children }) => (
+      <th className="px-3 py-2 text-left text-xs font-semibold text-white uppercase tracking-wider border-b border-sbi-dark-border">
+        {processCitations(children, sources)}
+      </th>
+    ),
+    td: ({ children }) => (
+      <td className="px-3 py-2 text-sm text-sbi-muted">
+        {processCitations(children, sources)}
+      </td>
+    ),
+    input: ({ checked }) => (
+      <input
+        type="checkbox"
+        checked={checked}
+        readOnly
+        className="mr-2 accent-sbi-green"
+      />
     ),
   };
+}
+
+// Component map for messages with no sources — the common case (every turn while
+// it streams, and any answer that cited nothing). Built once so streaming deltas
+// don't re-allocate the full set of component lambdas on every token.
+const EMPTY_SOURCE_COMPONENTS = buildMarkdownComponents([]);
+
+// ‹ i/n › control for stepping between sibling branches of a message (created by
+// editing a prompt or regenerating an answer). Arrows disable at the ends.
+function BranchPicker({
+  index,
+  count,
+  disabled,
+  onPrev,
+  onNext,
+}: {
+  index: number;
+  count: number;
+  disabled?: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 text-xs text-sbi-muted select-none">
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={disabled || index <= 1}
+        aria-label="Previous version"
+        className="p-0.5 rounded hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2} />
+      </button>
+      <span className="tabular-nums font-medium px-0.5">
+        {index}/{count}
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={disabled || index >= count}
+        aria-label="Next version"
+        className="p-0.5 rounded hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+      </button>
+    </div>
+  );
 }
 
 export function ChatMessage({
@@ -220,12 +307,37 @@ export function ChatMessage({
   // "Thinking" section is collapsed by default; toggled per-message.
   const [showReasoning, setShowReasoning] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
-  const { editAndResend, isLoading, regenerateResponse } = useChat();
+  const {
+    editAndResend,
+    isLoading,
+    isStreaming,
+    regenerateResponse,
+    switchBranch,
+  } = useChat();
 
-  const sources = message.sources ?? [];
+  // Show the ‹ i/n › picker when this message is one of several sibling branches
+  // and is backed by a persisted row (dbId) we can switch on.
+  const branchCount = message.branchCount ?? 0;
+  const hasBranches = branchCount > 1 && message.dbId != null;
+  const branchPicker = hasBranches ? (
+    <BranchPicker
+      index={message.branchIndex ?? 1}
+      count={branchCount}
+      disabled={isLoading || isStreaming}
+      onPrev={() => message.dbId != null && switchBranch(message.dbId, -1)}
+      onNext={() => message.dbId != null && switchBranch(message.dbId, 1)}
+    />
+  ) : null;
+
+  // Reuse the shared empty-sources map when this message cites nothing, so the
+  // memo doesn't rebuild every render (message.sources ?? [] is a fresh array
+  // each time). Only build a per-message map when real sources exist.
   const markdownComponents = useMemo(
-    () => buildMarkdownComponents(sources),
-    [sources],
+    () =>
+      message.sources?.length
+        ? buildMarkdownComponents(message.sources)
+        : EMPTY_SOURCE_COMPONENTS,
+    [message.sources],
   );
 
   useEffect(() => {
@@ -286,7 +398,7 @@ export function ChatMessage({
         <span>Thinking</span>
       </button>
       {showReasoning && (
-        <div className="mt-2 pl-3 border-l border-sbi-dark-border text-sbi-muted font-light text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
+        <div className="mt-2 pl-3 border-l border-sbi-dark-border text-sbi-muted font-light text-sm leading-relaxed whitespace-pre-wrap break-words">
           {reasoning}
         </div>
       )}
@@ -349,7 +461,7 @@ export function ChatMessage({
   // User message
   if (isUser) {
     return (
-      <div ref={containerRef} className="group flex justify-end mb-6">
+      <div ref={containerRef} className="group flex justify-end">
         {/* Content column, right aligned, set width */}
         <div className="flex flex-col items-end gap-2 max-w-[80%] overflow-hidden">
           {/* Attached files, horizontal row, right-aligned */}
@@ -472,7 +584,7 @@ export function ChatMessage({
                 <div className={`p-3 ${isOverflowing ? "pr-8" : ""}`}>
                   <div
                     ref={contentRef}
-                    className="text-white font-light text-sm leading-relaxed whitespace-pre-wrap wrap-break-word"
+                    className="text-white font-light text-sm leading-relaxed whitespace-pre-wrap break-words"
                   >
                     {isExpanded || !isOverflowing
                       ? displayContent
@@ -482,6 +594,11 @@ export function ChatMessage({
               )}
             </div>
           </div>
+
+          {/* Branch picker for an edited prompt with sibling versions. */}
+          {!isEditing && branchPicker && (
+            <div className="pr-1">{branchPicker}</div>
+          )}
         </div>
       </div>
     );
@@ -491,7 +608,7 @@ export function ChatMessage({
   // and surface a minimal inline note rather than an orphaned empty block.
   if (message.isCancelled && !displayContent) {
     return (
-      <div ref={containerRef} className="flex items-center gap-2 mb-6 pl-12">
+      <div ref={containerRef} className="flex items-center gap-2 pl-12">
         <span className="w-1.5 h-1.5 rounded-full bg-sbi-muted/60 shrink-0" />
         <p className="text-sbi-muted italic text-sm font-light">
           Response was cancelled
@@ -501,7 +618,7 @@ export function ChatMessage({
   }
 
   return (
-    <div ref={containerRef} className="flex items-start gap-4 mb-6">
+    <div ref={containerRef} className="flex items-start gap-4">
       {/* AI Avatar — top-aligned with, and centered to, the first line of text */}
       <div className="relative shrink-0">
         <div className="w-8 h-8 rounded-full bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center">
@@ -522,13 +639,15 @@ export function ChatMessage({
         {message.isCancelled ? (
           <>
             {displayContent && (
-              <div className="prose-ai text-white font-light text-base leading-relaxed">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
+              <div className="prose-ai dark text-white font-light text-base leading-relaxed">
+                <Streamdown
+                  plugins={{ code }}
                   components={markdownComponents}
+                  shikiTheme={["github-dark", "github-dark"]}
+                  isAnimating={false}
                 >
                   {displayContent}
-                </ReactMarkdown>
+                </Streamdown>
               </div>
             )}
             <p
@@ -539,16 +658,20 @@ export function ChatMessage({
           </>
         ) : (
           <>
-            <div className="prose-ai text-white font-light text-base leading-relaxed">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+            <div
+              className="prose-ai dark text-white font-light text-base leading-relaxed"
+              aria-live="polite"
+              aria-busy={message.isStreaming}
+            >
+              <Streamdown
+                plugins={{ code }}
                 components={markdownComponents}
+                shikiTheme={["github-dark", "github-dark"]}
+                isAnimating={message.isStreaming}
+                caret="block"
               >
                 {displayContent}
-              </ReactMarkdown>
-              {message.isStreaming && (
-                <span className="inline-block w-0.5 h-4 bg-sbi-green ml-0.5 animate-pulse align-middle" />
-              )}
+              </Streamdown>
             </div>
             {/* Per-source detail lives in the right-edge Sources panel (latest
                 answer) and the inline [n] citation chips; no per-message footer. */}
@@ -560,6 +683,7 @@ export function ChatMessage({
           <div
             className={`flex items-center gap-1 ${message.isCancelled ? "mt-3" : "mt-4"}`}
           >
+            {branchPicker && <div className="mr-1">{branchPicker}</div>}
             {isLatestAssistant && (
               <button
                 type="button"
@@ -578,7 +702,7 @@ export function ChatMessage({
                 onClick={handleCopy}
                 aria-label="Copy response"
                 className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
-                title="Copy Reponse"
+                title="Copy Response"
               >
                 {copied ? (
                   <Check className="w-4 h-4 text-sbi-green" />
@@ -587,14 +711,6 @@ export function ChatMessage({
                 )}
               </button>
             )}
-            <button
-              type="button"
-              aria-label="More options"
-              className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
-              title="More"
-            >
-              <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
-            </button>
           </div>
         )}
       </div>
