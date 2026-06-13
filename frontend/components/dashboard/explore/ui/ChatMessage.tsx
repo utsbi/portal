@@ -1,9 +1,12 @@
 "use client";
 
+import { code } from "@streamdown/code";
 import gsap from "gsap";
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Copy,
   Pencil,
@@ -18,8 +21,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Streamdown, type Components } from "streamdown";
-import { code } from "@streamdown/code";
+import { type Components, Streamdown } from "streamdown";
 import {
   Tooltip,
   TooltipContent,
@@ -124,9 +126,7 @@ function processCitations(
 function buildMarkdownComponents(sources: SourceDocument[]): Components {
   return {
     p: ({ children }) => (
-      <p className="leading-relaxed">
-        {processCitations(children, sources)}
-      </p>
+      <p className="leading-relaxed">{processCitations(children, sources)}</p>
     ),
     ul: ({ children }) => (
       <ul className="list-disc list-outside space-y-1 pl-5 text-sbi-muted marker:text-sbi-muted">
@@ -238,6 +238,48 @@ function buildMarkdownComponents(sources: SourceDocument[]): Components {
   };
 }
 
+// ‹ i/n › control for stepping between sibling branches of a message (created by
+// editing a prompt or regenerating an answer). Arrows disable at the ends.
+function BranchPicker({
+  index,
+  count,
+  disabled,
+  onPrev,
+  onNext,
+}: {
+  index: number;
+  count: number;
+  disabled?: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 text-xs text-sbi-muted select-none">
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={disabled || index <= 1}
+        aria-label="Previous version"
+        className="p-0.5 rounded hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2} />
+      </button>
+      <span className="tabular-nums font-medium px-0.5">
+        {index}/{count}
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={disabled || index >= count}
+        aria-label="Next version"
+        className="p-0.5 rounded hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+      </button>
+    </div>
+  );
+}
+
 export function ChatMessage({
   message,
   isLatestAssistant = false,
@@ -253,7 +295,22 @@ export function ChatMessage({
   // "Thinking" section is collapsed by default; toggled per-message.
   const [showReasoning, setShowReasoning] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
-  const { editAndResend, isLoading, regenerateResponse } = useChat();
+  const { editAndResend, isLoading, regenerateResponse, switchBranch } =
+    useChat();
+
+  // Show the ‹ i/n › picker when this message is one of several sibling branches
+  // and is backed by a persisted row (dbId) we can switch on.
+  const branchCount = message.branchCount ?? 0;
+  const hasBranches = branchCount > 1 && message.dbId != null;
+  const branchPicker = hasBranches ? (
+    <BranchPicker
+      index={message.branchIndex ?? 1}
+      count={branchCount}
+      disabled={isLoading}
+      onPrev={() => message.dbId != null && switchBranch(message.dbId, -1)}
+      onNext={() => message.dbId != null && switchBranch(message.dbId, 1)}
+    />
+  ) : null;
 
   const sources = message.sources ?? [];
   const markdownComponents = useMemo(
@@ -515,6 +572,11 @@ export function ChatMessage({
               )}
             </div>
           </div>
+
+          {/* Branch picker for an edited prompt with sibling versions. */}
+          {!isEditing && branchPicker && (
+            <div className="pr-1">{branchPicker}</div>
+          )}
         </div>
       </div>
     );
@@ -599,6 +661,7 @@ export function ChatMessage({
           <div
             className={`flex items-center gap-1 ${message.isCancelled ? "mt-3" : "mt-4"}`}
           >
+            {branchPicker && <div className="mr-1">{branchPicker}</div>}
             {isLatestAssistant && (
               <button
                 type="button"

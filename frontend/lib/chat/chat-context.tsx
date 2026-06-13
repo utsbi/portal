@@ -46,6 +46,92 @@ export interface DisplayMessage {
   // Reasoning/thinking tokens streamed before the answer on thinking-model
   // turns. Ephemeral — shown live in a collapsible section, never persisted.
   reasoning?: string;
+  // Branch navigation, set only on messages backed by a persisted DB row whose
+  // parent has sibling branches (created by edit/regenerate). `dbId` is the row id
+  // (used to switch branches); `branchIndex`/`branchCount` drive the ‹ i/n › picker.
+  dbId?: number;
+  branchIndex?: number;
+  branchCount?: number;
+}
+
+// A persisted message row, as selected from client_chat_messages. Messages form a
+// parent/child tree: rows sharing a parent_id are alternative branches of the same
+// point. The displayed thread is one root->leaf path through that tree.
+type MessageRow = {
+  id: number;
+  parent_id: number | null;
+  role: string;
+  content: string;
+  sources: unknown;
+  attachments: unknown;
+  is_cancelled: boolean;
+  created_at: string;
+};
+
+// Derive the visible (active) branch from the full set of session rows. Walks from
+// the active leaf up to the root, then maps to DisplayMessages, tagging each with
+// its sibling-branch position so the UI can render a ‹ i/n › picker. `activeLeafId`
+// selects which branch is active; null falls back to the newest row.
+function buildActiveBranch(
+  rows: MessageRow[],
+  activeLeafId: number | null,
+): DisplayMessage[] {
+  if (rows.length === 0) return [];
+
+  const sorted = [...rows].sort((a, b) => a.id - b.id);
+  const byId = new Map<number, MessageRow>();
+  const childrenByParent = new Map<number | null, MessageRow[]>();
+  let maxLeaf: MessageRow | null = null;
+  for (const r of sorted) {
+    byId.set(r.id, r);
+    if (!maxLeaf || r.id > maxLeaf.id) maxLeaf = r;
+    const kids = childrenByParent.get(r.parent_id);
+    if (kids) kids.push(r);
+    else childrenByParent.set(r.parent_id, [r]); // children stay id-ascending
+  }
+
+  const leaf =
+    (activeLeafId != null ? byId.get(activeLeafId) : null) ?? maxLeaf;
+
+  const path: MessageRow[] = [];
+  const seen = new Set<number>();
+  for (let cur: MessageRow | null = leaf; cur && !seen.has(cur.id); ) {
+    seen.add(cur.id);
+    path.push(cur);
+    cur = cur.parent_id != null ? (byId.get(cur.parent_id) ?? null) : null;
+  }
+  path.reverse();
+
+  // Degenerate path (rows written before parent_id existed are unparented, so the
+  // leaf walk reaches only itself) -> render the whole thread chronologically and
+  // suppress branch pickers, since the null-parent rows aren't real siblings.
+  const isDegenerate = path.length <= 1 && rows.length > 1;
+  const activePath = isDegenerate ? sorted : path;
+
+  return activePath
+    .filter((row) => row.role === "user" || row.role === "assistant")
+    .map((row) => {
+      const siblings = isDegenerate
+        ? []
+        : (childrenByParent.get(row.parent_id) ?? []);
+      const branchCount = siblings.length;
+      const hasBranches = branchCount > 1;
+      return {
+        id: `db-${row.id}`,
+        dbId: row.id,
+        role: row.role as "user" | "assistant",
+        content: row.content,
+        sources: (row.sources as SourceDocument[] | null) ?? undefined,
+        attachments:
+          (row.attachments as MessageAttachment[] | null) ?? undefined,
+        timestamp: new Date(row.created_at),
+        isCancelled: row.is_cancelled || undefined,
+        branchCount: hasBranches ? branchCount : undefined,
+        branchIndex: hasBranches
+          ? siblings.findIndex((s) => s.id === row.id) + 1
+          : undefined,
+      };
+    });
 }
 
 export interface SessionSummary {
@@ -85,6 +171,9 @@ interface ChatContextType {
   cancelRequest: () => void;
   editAndResend: (messageId: string, newContent: string) => Promise<void>;
   regenerateResponse: () => Promise<void>;
+  // Switch which sibling branch of a message is active (direction -1 = previous,
+  // +1 = next). Re-renders the thread along the chosen branch and persists it.
+  switchBranch: (dbId: number, direction: -1 | 1) => void;
   newSession: () => void;
   loadSession: (publicId: string) => Promise<boolean>;
   listSessions: () => Promise<SessionSummary[]>;
@@ -122,6 +211,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
   const sessionIdRef = useRef<number | null>(null);
+  // Full message tree of the open session (every branch, not just the visible
+  // one). Kept so the branch picker can navigate to sibling branches without a
+  // refetch. Repopulated by loadSession and after each completed turn.
+  const treeRowsRef = useRef<MessageRow[]>([]);
 
   const isLoading =
     loadingPhase !== "idle" &&
@@ -197,6 +290,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const handlePhase = useCallback((phase: string) => {
     if (!cancelledRef.current) setLoadingPhase(phase as LoadingPhase);
+  }, []);
+
+  // After a completed turn, reconcile the in-memory tree + branch metadata from
+  // the DB WITHOUT remounting messages. The streamed messages keep their ephemeral
+  // ids, content and reasoning; we only graft on dbId + branch position by index.
+  // This is what makes the ‹ i/n › picker appear right after an edit/regenerate
+  // (which forked a branch) without re-animating the whole thread. If the live and
+  // persisted shapes diverge we skip the graft and let loadSession reconcile later.
+  const refreshBranchMeta = useCallback(async () => {
+    const sid = sessionIdRef.current;
+    if (sid == null) return;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("client_chat_messages")
+      .select(
+        "id, parent_id, role, content, sources, attachments, is_cancelled, created_at",
+      )
+      .eq("session_id", sid)
+      .order("created_at", { ascending: true });
+    const rows = (data ?? []) as MessageRow[];
+    treeRowsRef.current = rows;
+    const derived = buildActiveBranch(rows, null);
+    setMessages((live) => {
+      if (derived.length !== live.length) return live;
+      return live.map((m, i) => ({
+        ...m,
+        dbId: derived[i].dbId,
+        branchCount: derived[i].branchCount,
+        branchIndex: derived[i].branchIndex,
+      }));
+    });
   }, []);
 
   const runAgent = useCallback(
@@ -331,6 +455,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // title (and public_id) so the header updates from "Untitled".
         if (sessionIdRef.current !== null)
           void syncPublicId(sessionIdRef.current);
+        // Reconcile branch metadata (the just-finished edit/regenerate forked a
+        // branch the picker should now surface) without remounting the thread.
+        void refreshBranchMeta();
         return true;
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
@@ -351,6 +478,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setSessionId,
       setSessionPublicId,
       syncPublicId,
+      refreshBranchMeta,
     ],
   );
 
@@ -577,6 +705,63 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     await runAgent(query, history, allSessionAttachments, abortController);
   }, [messages, runAgent, collectSessionAttachments]);
 
+  // Navigate to a sibling branch of `dbId` (direction -1 = previous, +1 = next).
+  // Re-renders the thread along the chosen branch (descending to its newest leaf)
+  // and persists that leaf so reloads and the next turn follow it.
+  const switchBranch = useCallback((dbId: number, direction: -1 | 1) => {
+    const rows = treeRowsRef.current;
+    if (rows.length === 0) return;
+
+    const byId = new Map<number, MessageRow>();
+    const childrenByParent = new Map<number | null, MessageRow[]>();
+    for (const r of [...rows].sort((a, b) => a.id - b.id)) {
+      byId.set(r.id, r);
+      const kids = childrenByParent.get(r.parent_id);
+      if (kids) kids.push(r);
+      else childrenByParent.set(r.parent_id, [r]);
+    }
+
+    const node = byId.get(dbId);
+    if (!node) return;
+    const siblings = childrenByParent.get(node.parent_id) ?? [];
+    const pos = siblings.findIndex((s) => s.id === dbId);
+    const target = siblings[pos + direction];
+    if (!target) return; // already at an end — nothing to switch to
+
+    // Descend to a leaf, taking the newest child at each level, so switching back
+    // restores the most recent state of that branch (not an abandoned mid-point).
+    let leaf = target;
+    const guard = new Set<number>();
+    while (!guard.has(leaf.id)) {
+      guard.add(leaf.id);
+      const kids = childrenByParent.get(leaf.id);
+      if (!kids || kids.length === 0) break;
+      leaf = kids[kids.length - 1];
+    }
+
+    setMessages(buildActiveBranch(rows, leaf.id));
+
+    const sid = sessionIdRef.current;
+    if (sid != null) {
+      const supabase = createClient();
+      void (async () => {
+        const { data } = await supabase
+          .from("client_chat_sessions")
+          .select("metadata")
+          .eq("id", sid)
+          .maybeSingle();
+        const meta =
+          data?.metadata && typeof data.metadata === "object"
+            ? (data.metadata as Record<string, unknown>)
+            : {};
+        await supabase
+          .from("client_chat_sessions")
+          .update({ metadata: { ...meta, active_leaf_id: leaf.id } })
+          .eq("id", sid);
+      })();
+    }
+  }, []);
+
   const newSession = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -591,6 +776,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSessionId(null);
     setSessionPublicId(null);
     setSessionTitle(null);
+    treeRowsRef.current = [];
   }, [setSessionId, setSessionPublicId]);
 
   const clearChat = useCallback(() => {
@@ -611,9 +797,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       const supabase = createClient();
       // Resolve the opaque public_id to the bigint id (RLS scopes to the owner).
+      // `metadata.active_leaf_id` records which branch is currently active.
       const { data: session, error: sessErr } = await supabase
         .from("client_chat_sessions")
-        .select("id, public_id, title")
+        .select("id, public_id, title, metadata")
         .eq("public_id", publicId)
         .maybeSingle();
 
@@ -641,53 +828,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
 
       // Messages form a parent/child tree (edit/regenerate create sibling
-      // branches). Display only the ACTIVE branch: the path from the newest leaf
-      // up to its root. Older branches stay in the DB but off-screen. A linear
-      // conversation collapses to the whole thread.
-      type MessageRow = {
-        id: number;
-        parent_id: number | null;
-        role: string;
-        content: string;
-        sources: unknown;
-        attachments: unknown;
-        is_cancelled: boolean;
-        created_at: string;
-      };
+      // branches). Keep every row so the branch picker can reach siblings, but
+      // display only the ACTIVE branch — the path from the active leaf to the root.
       const rows = (data ?? []) as MessageRow[];
-      const byId = new Map<number, MessageRow>();
-      let leaf: MessageRow | null = null;
-      for (const r of rows) {
-        byId.set(r.id, r);
-        if (!leaf || r.id > leaf.id) leaf = r; // newest insert = active-branch tip
-      }
-      const path: MessageRow[] = [];
-      const seen = new Set<number>();
-      for (let cur: MessageRow | null = leaf; cur && !seen.has(cur.id); ) {
-        seen.add(cur.id);
-        path.push(cur);
-        cur = cur.parent_id != null ? (byId.get(cur.parent_id) ?? null) : null;
-      }
-      path.reverse();
-
-      // Safety net: if the active branch came out degenerate — e.g. rows written
-      // before parent_id existed (an older deploy) are unparented, so the
-      // newest-leaf walk only reaches itself — fall back to chronological order so
-      // the whole thread still renders. `rows` is already created_at-ascending.
-      const activePath = path.length <= 1 && rows.length > 1 ? rows : path;
-
-      const hydrated: DisplayMessage[] = activePath
-        .filter((row) => row.role === "user" || row.role === "assistant")
-        .map((row) => ({
-          id: `db-${row.id}`,
-          role: row.role as "user" | "assistant",
-          content: row.content,
-          sources: (row.sources as SourceDocument[] | null) ?? undefined,
-          attachments:
-            (row.attachments as MessageAttachment[] | null) ?? undefined,
-          timestamp: new Date(row.created_at),
-          isCancelled: row.is_cancelled || undefined,
-        }));
+      treeRowsRef.current = rows;
+      const meta =
+        session.metadata && typeof session.metadata === "object"
+          ? (session.metadata as Record<string, unknown>)
+          : {};
+      const activeLeafId =
+        typeof meta.active_leaf_id === "number" ? meta.active_leaf_id : null;
+      const hydrated = buildActiveBranch(rows, activeLeafId);
 
       setMessages(hydrated);
       setAttachments([]);
@@ -822,6 +973,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         cancelRequest,
         editAndResend,
         regenerateResponse,
+        switchBranch,
         newSession,
         loadSession,
         listSessions,

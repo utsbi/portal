@@ -60,13 +60,19 @@ export async function POST(request: NextRequest) {
   // Resolve session_id: use provided (verifying ownership via RLS) or create new.
   let sessionId = body.session_id ?? null;
   let isNewSession = false;
+  // Other keys in the session's metadata jsonb are carried forward on every
+  // active_leaf_id write so we never clobber them (read once here, not per write).
+  let sessionMetadata: Record<string, unknown> = {};
   if (sessionId !== null) {
     const { data: existing } = await supabase
       .from("client_chat_sessions")
-      .select("id")
+      .select("id, metadata")
       .eq("id", sessionId)
       .maybeSingle();
     if (!existing) return jsonError(404, "Session not found or not owned");
+    if (existing.metadata && typeof existing.metadata === "object") {
+      sessionMetadata = existing.metadata as Record<string, unknown>;
+    }
   } else {
     isNewSession = true;
     // Honor a client-minted uuid so the URL is known before the first response.
@@ -111,11 +117,21 @@ export async function POST(request: NextRequest) {
         parent_id: number | null;
       }>;
       const byId = new Map<number, (typeof rows)[number]>();
-      let leaf: (typeof rows)[number] | null = null;
+      let maxLeaf: (typeof rows)[number] | null = null;
       for (const r of rows) {
         byId.set(r.id, r);
-        if (!leaf || r.id > leaf.id) leaf = r; // newest insert = active-branch tip
+        if (!maxLeaf || r.id > maxLeaf.id) maxLeaf = r;
       }
+      // Start from the session's active leaf (maintained on every turn and when a
+      // branch is switched), so a turn sent after switching to an older branch
+      // attaches to THAT branch's tip — not the newest row overall. Fall back to
+      // the newest row for legacy sessions that never got an active_leaf_id.
+      const activeLeafId =
+        typeof sessionMetadata.active_leaf_id === "number"
+          ? (sessionMetadata.active_leaf_id as number)
+          : null;
+      const leaf =
+        (activeLeafId != null ? byId.get(activeLeafId) : null) ?? maxLeaf;
       // Active branch, root -> leaf.
       const path: number[] = [];
       const seen = new Set<number>();
@@ -157,6 +173,22 @@ export async function POST(request: NextRequest) {
   }
   // Parent for the assistant turn (and any cancelled partial) of this exchange.
   const userMessageId = userRow?.id ?? null;
+
+  // Make the just-created user turn the session's active leaf immediately. This
+  // both forks the branch (an edit/regenerate points the active branch at the new
+  // turn) and guarantees the message survives a reload even if the client aborts
+  // before a single token streams. The assistant turn bumps the leaf deeper below.
+  if (userMessageId != null) {
+    await supabase
+      .from("client_chat_sessions")
+      .update({
+        metadata: { ...sessionMetadata, active_leaf_id: userMessageId },
+      })
+      .eq("id", sessionId);
+  }
+  // Snapshot for the stream closure (only non-active_leaf_id keys matter; the
+  // leaf is overwritten by the assistant/cancelled id when those persist).
+  const baseMetadataForClosure = { ...sessionMetadata };
 
   // Forward to FastAPI, propagating the client's abort signal so cancellation
   // tears down the upstream generation too.
@@ -250,7 +282,7 @@ export async function POST(request: NextRequest) {
               } else if (event.type === "result") {
                 const finalContent =
                   (event.answer as string | undefined) ?? accumulated.join("");
-                const { error: asstErr } = await supabase
+                const { data: asstRow, error: asstErr } = await supabase
                   .from("client_chat_messages")
                   .insert({
                     session_id: sessionIdForClosure,
@@ -259,7 +291,9 @@ export async function POST(request: NextRequest) {
                     sources: event.sources ?? null,
                     model_preference: modelPreference,
                     parent_id: userMessageIdForClosure,
-                  });
+                  })
+                  .select("id")
+                  .single();
                 if (asstErr)
                   console.error(
                     "[/api/chat] failed to persist assistant message:",
@@ -267,9 +301,20 @@ export async function POST(request: NextRequest) {
                   );
                 persisted = true;
 
+                // Bump updated_at and advance the active leaf to this answer in a
+                // single write, so a reload follows the branch just streamed.
+                const sessionUpdate: Record<string, unknown> = {
+                  updated_at: new Date().toISOString(),
+                };
+                if (asstRow?.id != null) {
+                  sessionUpdate.metadata = {
+                    ...baseMetadataForClosure,
+                    active_leaf_id: asstRow.id,
+                  };
+                }
                 const { error: bumpErr } = await supabase
                   .from("client_chat_sessions")
-                  .update({ updated_at: new Date().toISOString() })
+                  .update(sessionUpdate)
                   .eq("id", sessionIdForClosure);
                 if (bumpErr)
                   console.error(
@@ -290,7 +335,7 @@ export async function POST(request: NextRequest) {
         // mid-stream), persist the partial answer as a cancelled turn so a
         // reloaded thread keeps it instead of showing an unanswered user message.
         if (!persisted && accumulated.length > 0) {
-          const { error: cancelErr } = await supabase
+          const { data: cancelRow, error: cancelErr } = await supabase
             .from("client_chat_messages")
             .insert({
               session_id: sessionIdForClosure,
@@ -299,16 +344,27 @@ export async function POST(request: NextRequest) {
               is_cancelled: true,
               model_preference: modelPreference,
               parent_id: userMessageIdForClosure,
-            });
+            })
+            .select("id")
+            .single();
           if (cancelErr) {
             console.error(
               "[/api/chat] failed to persist cancelled partial:",
               cancelErr,
             );
           } else {
+            const cancelUpdate: Record<string, unknown> = {
+              updated_at: new Date().toISOString(),
+            };
+            if (cancelRow?.id != null) {
+              cancelUpdate.metadata = {
+                ...baseMetadataForClosure,
+                active_leaf_id: cancelRow.id,
+              };
+            }
             await supabase
               .from("client_chat_sessions")
-              .update({ updated_at: new Date().toISOString() })
+              .update(cancelUpdate)
               .eq("id", sessionIdForClosure);
           }
         }
