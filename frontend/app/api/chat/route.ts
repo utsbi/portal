@@ -122,8 +122,14 @@ export async function POST(request: NextRequest) {
   }
 
   // Persist the user message immediately so cancelled streams still keep the user turn.
+  // Keep the extracted `content` too: the backend is stateless and requires each
+  // attachment's content on every turn, so a reloaded conversation must be able to
+  // re-send it. Storing only the filename made follow-up turns 422 after a reload.
   const userAttachmentsForRow = body.attachments?.length
-    ? body.attachments.map((a) => ({ filename: a.filename }))
+    ? body.attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      }))
     : null;
   const { error: userMsgErr } = await supabase
     .from("client_chat_messages")
@@ -174,6 +180,10 @@ export async function POST(request: NextRequest) {
       const decoder = new TextDecoder();
       const reader = backendRes.body!.getReader();
       let buffer = "";
+      // Whether the assistant turn has already been written to the DB (via the
+      // `result` event). If the client aborts mid-stream we never see `result`,
+      // so the `finally` persists whatever streamed so far as a cancelled turn.
+      let persisted = false;
 
       // Emit session event first so the client can pin its URL/state.
       controller.enqueue(
@@ -239,6 +249,7 @@ export async function POST(request: NextRequest) {
                     "[/api/chat] failed to persist assistant message:",
                     asstErr,
                   );
+                persisted = true;
 
                 const { error: bumpErr } = await supabase
                   .from("client_chat_sessions")
@@ -259,6 +270,31 @@ export async function POST(request: NextRequest) {
         // Client aborted, network issue, etc. Forwarding stops; cleanup happens in finally.
         console.error("[/api/chat] stream error:", err);
       } finally {
+        // If the turn streamed text but never reached `result` (client cancelled
+        // mid-stream), persist the partial answer as a cancelled turn so a
+        // reloaded thread keeps it instead of showing an unanswered user message.
+        if (!persisted && accumulated.length > 0) {
+          const { error: cancelErr } = await supabase
+            .from("client_chat_messages")
+            .insert({
+              session_id: sessionIdForClosure,
+              role: "assistant",
+              content: accumulated.join(""),
+              is_cancelled: true,
+              model_preference: modelPreference,
+            });
+          if (cancelErr) {
+            console.error(
+              "[/api/chat] failed to persist cancelled partial:",
+              cancelErr,
+            );
+          } else {
+            await supabase
+              .from("client_chat_sessions")
+              .update({ updated_at: new Date().toISOString() })
+              .eq("id", sessionIdForClosure);
+          }
+        }
         controller.close();
       }
     },

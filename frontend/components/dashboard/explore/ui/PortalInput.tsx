@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import {
   type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
   type KeyboardEvent,
   useCallback,
   useEffect,
@@ -80,6 +82,7 @@ export function PortalInput({
   animated = true,
 }: PortalInputProps) {
   const [input, setInput] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
@@ -307,25 +310,36 @@ export function PortalInput({
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  // Single intake for every upload path. addAttachment (chat context) owns the
+  // type + size validation, so picker, drag-drop, and paste all behave the same.
+  const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-
     for (const file of Array.from(files)) {
-      const name = file.name.toLowerCase();
-      const isAccepted =
-        file.type === "application/pdf" ||
-        file.type.startsWith("text/") ||
-        name.endsWith(".doc") ||
-        name.endsWith(".docx");
-      if (isAccepted) {
-        await addAttachment(file);
-      }
+      await addAttachment(file);
     }
+  };
 
-    // Reset file input
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    await handleFiles(e.target.files);
+    // Reset so selecting the same file again re-triggers onChange.
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (disabled) return;
+    await handleFiles(e.dataTransfer.files);
+  };
+
+  const handlePaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0) {
+      // Let the file(s) attach; don't also dump their name into the textarea.
+      e.preventDefault();
+      await handleFiles(files);
     }
   };
 
@@ -370,7 +384,21 @@ export function PortalInput({
       )}
 
       {/* Main user input container */}
-      <div className="relative group">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: file drag-and-drop dropzone; the picker button is the accessible path */}
+      <div
+        className="relative group"
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!disabled) setIsDragging(true);
+        }}
+        onDragLeave={(e) => {
+          // Ignore leaves into child elements so the overlay doesn't flicker.
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setIsDragging(false);
+          }
+        }}
+        onDrop={handleDrop}
+      >
         {/* Hidden file input */}
         <input
           ref={fileInputRef}
@@ -380,6 +408,14 @@ export function PortalInput({
           onChange={handleFileChange}
           className="hidden"
         />
+
+        {isDragging && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-sbi-green/50 bg-sbi-dark/85">
+            <span className="text-sm font-light text-sbi-green">
+              Drop files to attach
+            </span>
+          </div>
+        )}
 
         {/* Input box with rounded corners */}
         <div className="bg-sbi-dark-card border border-sbi-dark-border rounded-2xl overflow-hidden transition-all duration-300 hover:border-sbi-green/20 focus-within:border-sbi-green/30 focus-within:ring-1 focus-within:ring-sbi-green/20">
@@ -449,6 +485,7 @@ export function PortalInput({
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Ask anything ..."
             aria-label="Message"
             disabled={disabled}

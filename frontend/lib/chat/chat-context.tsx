@@ -70,11 +70,15 @@ interface ChatContextType {
   // (unknown id, RLS, or fetch error). Lets the surface show an empty/error
   // state instead of a blank thread. Reset on any successful load / new session.
   loadFailed: boolean;
+  // True while loadSession() is fetching a conversation's history. Lets the
+  // surface show a loading skeleton instead of a momentarily-empty thread.
+  isHydrating: boolean;
   attachments: AttachmentFile[];
   loadingAttachments: string[];
   modelPreference: ModelPreference;
   setModelPreference: (model: ModelPreference) => void;
   sendMessage: (query: string) => Promise<void>;
+  retryLastMessage: () => Promise<void>;
   addAttachment: (file: File) => Promise<void>;
   removeAttachment: (filename: string) => void;
   clearChat: () => void;
@@ -104,6 +108,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [isHydrating, setIsHydrating] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [modelPreference, setModelPreference] =
     useState<ModelPreference>("fast");
@@ -159,6 +164,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       for (const msg of msgs) {
         if (msg.role === "user" && msg.attachments) {
           for (const a of msg.attachments) {
+            // Skip attachments whose content didn't survive (e.g. conversations
+            // persisted before attachment content was stored). The stateless
+            // backend rejects a contentless attachment with a 422, so dropping it
+            // degrades gracefully — the turn still sends, just without that doc.
+            if (!a.content) continue;
             if (!seen.has(a.filename)) {
               seen.add(a.filename);
               all.push({
@@ -385,7 +395,59 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [messages, attachments, runAgent, collectSessionAttachments],
   );
 
+  // Re-run the latest user turn. Used when a send failed (the user message is
+  // kept, no assistant reply) or a reloaded thread ends on an unanswered user
+  // message. The API route trims rows beyond history.length before persisting,
+  // so the previous unanswered user row is replaced, not duplicated.
+  const retryLastMessage = useCallback(async () => {
+    let idx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1) return;
+    const userMsg = messages[idx];
+    const base = messages.slice(0, idx + 1);
+    setMessages(base);
+    setError(null);
+    cancelledRef.current = false;
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    const history: ChatMessage[] = messages
+      .slice(0, idx)
+      .map((m) => ({ role: m.role, content: m.content }));
+    await runAgent(
+      userMsg.content,
+      history,
+      collectSessionAttachments(base, []),
+      abortController,
+    );
+  }, [messages, runAgent, collectSessionAttachments]);
+
   const addAttachment = useCallback(async (file: File) => {
+    // Single gate for every upload path (picker, drag-drop, paste). Type list
+    // mirrors the /api/chat/extract allowlist; size cap mirrors its 10 MB limit
+    // so oversized files are rejected before the round-trip, not after.
+    const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+    const name = file.name.toLowerCase();
+    const accepted =
+      file.type === "application/pdf" ||
+      file.type.startsWith("text/") ||
+      name.endsWith(".pdf") ||
+      name.endsWith(".txt") ||
+      name.endsWith(".doc") ||
+      name.endsWith(".docx");
+    if (!accepted) {
+      setError(`"${file.name}" isn't a supported type (PDF, DOC, DOCX, TXT).`);
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setError(`"${file.name}" is larger than the 10 MB limit.`);
+      return;
+    }
+
     const filename = file.name;
     setLoadingAttachments((prev) => [...prev, filename]);
 
@@ -541,6 +603,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setError(null);
       setLoadFailed(false);
       setLoadingPhase("idle");
+      setIsHydrating(true);
 
       const supabase = createClient();
       // Resolve the opaque public_id to the bigint id (RLS scopes to the owner).
@@ -552,6 +615,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (sessErr || !session) {
         setLoadFailed(true);
+        setIsHydrating(false);
         return false;
       }
 
@@ -568,6 +632,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (fetchErr) {
         setError(`Failed to load session: ${fetchErr.message}`);
         setLoadFailed(true);
+        setIsHydrating(false);
         return false;
       }
 
@@ -590,6 +655,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setLoadFailed(false);
       setSessionId(session.id);
       setSessionPublicId(session.public_id as string);
+      setIsHydrating(false);
       return true;
     },
     [setSessionId, setSessionPublicId],
@@ -632,10 +698,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         .from("client_chat_sessions")
         .update({ title: trimmed })
         .eq("id", id);
-      if (updateErr)
+      if (updateErr) {
         setError(`Failed to rename conversation: ${updateErr.message}`);
+        // Roll the optimistic edit back to the DB's truth.
+        void refreshSessions();
+      }
     },
-    [],
+    [refreshSessions],
   );
 
   const setPinned = useCallback(
@@ -648,12 +717,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         .from("client_chat_sessions")
         .update({ pinned })
         .eq("id", id);
-      if (updateErr)
+      if (updateErr) {
         setError(
           `Failed to ${pinned ? "pin" : "unpin"} conversation: ${updateErr.message}`,
         );
+        void refreshSessions();
+      }
     },
-    [],
+    [refreshSessions],
   );
 
   const deleteSession = useCallback(
@@ -667,12 +738,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         .eq("id", id);
       if (delErr) {
         setError(`Failed to delete conversation: ${delErr.message}`);
+        // Restore the optimistically-removed row from the DB.
+        void refreshSessions();
         return;
       }
       // If the deleted conversation was the open one, reset to a fresh session.
       if (sessionIdRef.current === id) newSession();
     },
-    [newSession],
+    [newSession, refreshSessions],
   );
 
   // Keep the cache fresh when the active session changes (new chat created or
@@ -696,11 +769,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         error,
         clearError,
         loadFailed,
+        isHydrating,
         attachments,
         loadingAttachments,
         modelPreference,
         setModelPreference,
         sendMessage,
+        retryLastMessage,
         addAttachment,
         removeAttachment,
         clearChat,
