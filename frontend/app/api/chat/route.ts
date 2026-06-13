@@ -121,6 +121,20 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // The new user turn's parent is the current tip of the active branch — the last
+  // message remaining after any edit/regenerate trim above (null for a session's
+  // first turn). This makes messages form a parent/child tree (foundation for
+  // branching); display stays linear until branching is built on top.
+  const { data: leafRow } = await supabase
+    .from("client_chat_messages")
+    .select("id")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const userParentId = leafRow?.id ?? null;
+
   // Persist the user message immediately so cancelled streams still keep the user turn.
   // Keep the extracted `content` too: the backend is stateless and requires each
   // attachment's content on every turn, so a reloaded conversation must be able to
@@ -131,7 +145,7 @@ export async function POST(request: NextRequest) {
         content: a.content,
       }))
     : null;
-  const { error: userMsgErr } = await supabase
+  const { data: userRow, error: userMsgErr } = await supabase
     .from("client_chat_messages")
     .insert({
       session_id: sessionId,
@@ -139,10 +153,15 @@ export async function POST(request: NextRequest) {
       content: body.query,
       attachments: userAttachmentsForRow,
       model_preference: modelPreference,
-    });
+      parent_id: userParentId,
+    })
+    .select("id")
+    .single();
   if (userMsgErr) {
     console.error("[/api/chat] failed to persist user message:", userMsgErr);
   }
+  // Parent for the assistant turn (and any cancelled partial) of this exchange.
+  const userMessageId = userRow?.id ?? null;
 
   // Forward to FastAPI, propagating the client's abort signal so cancellation
   // tears down the upstream generation too.
@@ -171,6 +190,7 @@ export async function POST(request: NextRequest) {
   }
 
   const sessionIdForClosure = sessionId;
+  const userMessageIdForClosure = userMessageId;
   const isNewSessionForClosure = isNewSession;
   const accumulated: string[] = [];
 
@@ -243,6 +263,7 @@ export async function POST(request: NextRequest) {
                     content: finalContent,
                     sources: event.sources ?? null,
                     model_preference: modelPreference,
+                    parent_id: userMessageIdForClosure,
                   });
                 if (asstErr)
                   console.error(
@@ -282,6 +303,7 @@ export async function POST(request: NextRequest) {
               content: accumulated.join(""),
               is_cancelled: true,
               model_preference: modelPreference,
+              parent_id: userMessageIdForClosure,
             });
           if (cancelErr) {
             console.error(
