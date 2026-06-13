@@ -35,6 +35,9 @@ export interface ChatRequest {
   // Regenerate the active branch's latest answer: the server persists a new
   // assistant sibling under the existing user turn instead of a duplicate user row.
   regenerate?: boolean;
+  // Active project id, so the assistant's live-data tools scope to the project
+  // currently selected in the header. Membership is re-verified server-side.
+  project_id?: number | null;
 }
 
 export interface ChatResponse {
@@ -73,6 +76,7 @@ export async function sendChatMessage(
       session_id: request.session_id ?? null,
       public_id: request.public_id ?? null,
       regenerate: request.regenerate ?? false,
+      project_id: request.project_id ?? null,
     }),
     signal,
   });

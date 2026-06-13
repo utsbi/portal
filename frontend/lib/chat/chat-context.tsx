@@ -16,6 +16,7 @@ import {
   type SourceDocument,
   sendChatMessage,
 } from "@/lib/api/chat";
+import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
 
 export type ModelPreference = "fast" | "thinking";
@@ -223,6 +224,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // refetch. Repopulated by loadSession and after each completed turn.
   const treeRowsRef = useRef<MessageRow[]>([]);
 
+  // Active project, read through a ref so runAgent stays stable (no re-creation
+  // on project switch) while always sending the currently-selected project id.
+  // The assistant scopes its live-data tools to this; the backend re-verifies
+  // membership, so it is a scope hint, not a capability.
+  const { activeProject } = useProject();
+  const projectIdRef = useRef<number | null>(activeProject?.projectId ?? null);
+  projectIdRef.current = activeProject?.projectId ?? null;
+
   const isLoading =
     loadingPhase !== "idle" &&
     loadingPhase !== "complete" &&
@@ -386,6 +395,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             session_id: sessionIdRef.current,
             public_id: newPublicId,
             regenerate,
+            project_id: projectIdRef.current,
           },
           abortController.signal,
           handlePhase,
