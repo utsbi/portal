@@ -41,7 +41,6 @@ const nextConfig: NextConfig = {
       "@phosphor-icons/react",
       "@react-three/drei",
       "recharts",
-      "react-syntax-highlighter",
       "motion",
     ],
   },
