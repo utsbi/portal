@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { Messages } from "@/components/dashboard/messages";
+import { ActorProvider } from "@/components/dashboard/messages/ActorContext";
+import { CreateConversationModalProvider } from "@/components/dashboard/messages/CreateConversationModalContext";
 import { DirectorMessages } from "@/components/dashboard/messages/DirectorMessages";
 import { MemberMessages } from "@/components/dashboard/messages/MemberMessages";
-import { CreateConversationModalProvider } from "@/components/dashboard/messages/CreateConversationModalContext";
-import { ActorProvider } from "@/components/dashboard/messages/ActorContext";
 import { resolveActor } from "@/lib/project/resolve-actor";
 import { CmdKShell } from "./CmdKShell";
 import { DetailPane } from "./DetailPane";
@@ -27,9 +27,7 @@ export default async function MessagesLayout({
 
   const role = actor.profile.role;
   const profileId = actor.profile.id;
-  // Members are read-only: no create provider, no composer downstream.
   const isMember = role === "member";
-  const projectIds = actor.projects.map((p) => p.projectId);
 
   const shell = (
     <ActorProvider actor={{ role, profileId }}>
@@ -39,7 +37,7 @@ export default async function MessagesLayout({
             {role === "director" ? (
               <DirectorMessages profileId={profileId} />
             ) : isMember ? (
-              <MemberMessages projectIds={projectIds} />
+              <MemberMessages profileId={profileId} />
             ) : (
               <Messages />
             )}
@@ -58,10 +56,8 @@ export default async function MessagesLayout({
     </ActorProvider>
   );
 
-  if (isMember) {
-    return shell;
-  }
-
+  // Every role can now start conversations (gated by the matrix), so the create
+  // modal provider wraps all of them.
   return (
     <CreateConversationModalProvider>{shell}</CreateConversationModalProvider>
   );

@@ -87,7 +87,10 @@ interface UnfurlData {
 interface ThreadMessage {
   id: number;
   text: string | null;
-  senderRole: "client" | "director";
+  senderRole: "client" | "director" | "member";
+  /** Sender's profile id. Ownership ("is this mine") is by identity, not role,
+   *  so same-role and group threads render correctly. */
+  senderProfileId?: number | null;
   createdAt: string;
   editedAt?: string | null;
   replyToId?: number | null;
@@ -576,7 +579,11 @@ function PinnedStrip({ pinnedMessages, onJump }: PinnedStripProps) {
               />
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.04em] text-sbi-muted-dark mb-0.5">
-                  {m.senderRole === "director" ? "Director" : "Client"}
+                  {m.senderRole === "director"
+                    ? "Director"
+                    : m.senderRole === "member"
+                      ? "Member"
+                      : "Client"}
                 </div>
                 <div className="text-[11px] text-white truncate">
                   {m.text || "(attachment)"}
@@ -627,7 +634,7 @@ function PermissionPrompt({ onEnable, onDismiss }: PermissionPromptProps) {
 
 interface MessageThreadProps {
   conversationId?: string | null;
-  senderRole?: "client" | "director";
+  senderRole?: "client" | "director" | "member";
   readOnly?: boolean;
   basePath?: string;
   /** Conversations array to feed into Cmd+K switcher (optional). */
@@ -793,7 +800,7 @@ export function MessageThread({
     const { data, error } = await supabase
       .from("messages")
       .select(
-        "id, content, sender_role, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
+        "id, content, sender_role, sender_profile_id, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
       )
       .eq("conversation_id", Number(conversationId))
       .lt("created_at", oldestCreatedAt.current)
@@ -858,7 +865,9 @@ export function MessageThread({
       return {
         id: row.id,
         text: row.content ?? null,
-        senderRole: (row.sender_role as "client" | "director") ?? "client",
+        senderRole:
+          (row.sender_role as "client" | "director" | "member") ?? "client",
+        senderProfileId: (row.sender_profile_id as number | null) ?? null,
         createdAt: (row.created_at as string) ?? new Date().toISOString(),
         editedAt:
           ((row as Record<string, unknown>).edited_at as string | null) ?? null,
@@ -926,7 +935,7 @@ export function MessageThread({
       supabase
         .from("messages")
         .select(
-          "id, content, sender_role, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
+          "id, content, sender_role, sender_profile_id, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
         )
         .eq("conversation_id", Number(conversationId))
         .order("created_at", { ascending: false })
@@ -1008,7 +1017,9 @@ export function MessageThread({
       return {
         id: row.id,
         text: row.content ?? null,
-        senderRole: (row.sender_role as "client" | "director") ?? "client",
+        senderRole:
+          (row.sender_role as "client" | "director" | "member") ?? "client",
+        senderProfileId: (row.sender_profile_id as number | null) ?? null,
         createdAt: (row.created_at as string) ?? new Date().toISOString(),
         editedAt:
           ((row as Record<string, unknown>).edited_at as string | null) ?? null,
@@ -1063,7 +1074,7 @@ export function MessageThread({
       newDividerBeforeId.current = null;
       const firstUnseenPeer = mapped.find(
         (m) =>
-          m.senderRole !== senderRole &&
+          m.senderProfileId !== senderProfileId &&
           new Date(m.createdAt).getTime() > lastReadMs,
       );
       newDividerBeforeId.current = firstUnseenPeer?.id ?? null;
@@ -1133,6 +1144,7 @@ export function MessageThread({
             id: number;
             content: string | null;
             sender_role: string;
+            sender_profile_id: number | null;
             created_at: string;
             edited_at: string | null;
             reply_to_id: number | null;
@@ -1142,7 +1154,9 @@ export function MessageThread({
           const newMsg: ThreadMessage = {
             id: row.id,
             text: row.content ?? null,
-            senderRole: (row.sender_role as "client" | "director") ?? "client",
+            senderRole:
+              (row.sender_role as "client" | "director" | "member") ?? "client",
+            senderProfileId: (row.sender_profile_id as number | null) ?? null,
             createdAt: (row.created_at as string) ?? new Date().toISOString(),
             editedAt: row.edited_at ?? null,
             replyToId: row.reply_to_id ?? null,
@@ -1167,7 +1181,7 @@ export function MessageThread({
           if (
             typeof document !== "undefined" &&
             document.hidden &&
-            newMsg.senderRole !== senderRole &&
+            newMsg.senderProfileId !== senderProfileId &&
             getNotificationPermission() === "granted"
           ) {
             notifyNewMessage({
@@ -1342,9 +1356,8 @@ export function MessageThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  // ---- Fetch sender profile id once ----
+  // ---- Fetch the viewer's profile id once (drives message ownership) ----
   useEffect(() => {
-    if (readOnly) return;
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
@@ -1357,7 +1370,7 @@ export function MessageThread({
           if (data?.id != null) setSenderProfileId(data.id as number);
         });
     });
-  }, [readOnly]);
+  }, []);
 
   // ---- Presence channel (typing indicator) ----
   useEffect(() => {
@@ -1699,7 +1712,11 @@ export function MessageThread({
     supabase: ReturnType<typeof createClient>,
     text: string | null,
     replyToId?: number | null,
-  ): Promise<{ id: number; uid: string } | null> {
+  ): Promise<{
+    id: number;
+    uid: string;
+    senderProfileId: number | null;
+  } | null> {
     const {
       data: { user },
       error: userError,
@@ -1726,7 +1743,11 @@ export function MessageThread({
       .single();
 
     if (error || !data?.id) return null;
-    return { id: data.id, uid: user.id };
+    return {
+      id: data.id,
+      uid: user.id,
+      senderProfileId: (senderProfile?.id as number | null) ?? null,
+    };
   }
 
   function triggerUnfurl(text: string, messageId: number) {
@@ -1764,12 +1785,25 @@ export function MessageThread({
       return;
     }
 
+    // Backfill the viewer's profile id if the mount-time fetch hadn't landed yet,
+    // so message ownership is correct without waiting for a reload.
+    if (senderProfileId === null && result.senderProfileId !== null) {
+      setSenderProfileId(result.senderProfileId);
+    }
+
     setMessages((prev) => {
       const withoutEcho = prev.filter(
         (m) => m.id === localId || m.id !== result.id,
       );
       return withoutEcho.map((m) =>
-        m.id === localId ? { ...m, id: result.id, status: "sent" } : m,
+        m.id === localId
+          ? {
+              ...m,
+              id: result.id,
+              status: "sent",
+              senderProfileId: result.senderProfileId,
+            }
+          : m,
       );
     });
 
@@ -1826,6 +1860,10 @@ export function MessageThread({
         prev.map((m) => (m.id === localId ? { ...m, status: "failed" } : m)),
       );
       return;
+    }
+
+    if (senderProfileId === null && msgResult.senderProfileId !== null) {
+      setSenderProfileId(msgResult.senderProfileId);
     }
 
     const realMsgId = msgResult.id;
@@ -1915,6 +1953,7 @@ export function MessageThread({
           id: realMsgId,
           attachments: updatedAttachments,
           status: "sent" as const,
+          senderProfileId: msgResult.senderProfileId,
         };
       });
     });
@@ -1973,6 +2012,7 @@ export function MessageThread({
           id: localId,
           text: hasText ? query : null,
           senderRole,
+          senderProfileId,
           createdAt: new Date().toISOString(),
           replyToId: replySnapshot?.id ?? null,
           attachments: optimisticAttachments,
@@ -2256,7 +2296,8 @@ export function MessageThread({
     let found: number | null = null;
     for (const m of messages) {
       if (
-        m.senderRole === senderRole &&
+        m.senderProfileId != null &&
+        m.senderProfileId === senderProfileId &&
         m.status === "sent" &&
         new Date(m.createdAt).getTime() <= otherLastReadAt
       ) {
@@ -2270,7 +2311,8 @@ export function MessageThread({
 
   const renderMessage = useCallback(
     (msg: ThreadMessage, idx: number) => {
-      const isMine = msg.senderRole === senderRole;
+      const isMine =
+        msg.senderProfileId != null && msg.senderProfileId === senderProfileId;
       const isEditing = msg.id === editingMessageId;
       const isHovered = msg.id === hoveredMessageId;
       const isHighlighted = msg.id === highlightedMsgId;
@@ -2283,7 +2325,7 @@ export function MessageThread({
         msg.id === newDividerBeforeId.current;
       const isGroupStart =
         !prev ||
-        prev.senderRole !== msg.senderRole ||
+        prev.senderProfileId !== msg.senderProfileId ||
         showDayHeader ||
         showNewDivider ||
         new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() >
@@ -2460,7 +2502,7 @@ export function MessageThread({
                     <span className="text-[10px] text-sbi-muted-dark font-medium shrink-0">
                       {replyDeleted
                         ? ""
-                        : repliedToMessage?.senderRole === senderRole
+                        : repliedToMessage?.senderProfileId === senderProfileId
                           ? "You:"
                           : "Them:"}
                     </span>
@@ -2802,7 +2844,7 @@ export function MessageThread({
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.04em] text-sbi-green font-medium mb-0.5">
                   Replying to{" "}
-                  {replyingTo.senderRole === senderRole
+                  {replyingTo.senderProfileId === senderProfileId
                     ? "yourself"
                     : "the other party"}
                 </div>

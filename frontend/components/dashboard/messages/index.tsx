@@ -1,17 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { MessageSquarePlus } from "lucide-react";
-import { ConversationList, type Conversation } from "./ConversationList";
-import { CreateConversationModal } from "./CreateConversationModal";
-import { useCreateConversationModal } from "./CreateConversationModalContext";
-import { fetchReadMap } from "./read-state";
-import { createClient } from "@/lib/supabase/client";
-import { useProject } from "@/lib/project/project-context";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { prefetchConv } from "@/lib/messages/prefetch";
 import { setTabUnreadCount } from "@/lib/messages/tab-title";
+import { useProject } from "@/lib/project/project-context";
+import { createClient } from "@/lib/supabase/client";
+import { type Conversation, ConversationList } from "./ConversationList";
+import { CreateConversationModal } from "./CreateConversationModal";
+import { useCreateConversationModal } from "./CreateConversationModalContext";
 import { useCmdK } from "./cmdk/CommandPalette";
+import { loadActorConversations } from "./load-conversations";
 
 /** Client-side conversation list. Click navigates to /messages/[id]. */
 export function Messages() {
@@ -33,7 +33,7 @@ export function Messages() {
     if (cmdK && conversations.length > 0) {
       cmdK.setConversations(conversations);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations]);
 
   const context = useCreateConversationModal();
@@ -43,112 +43,16 @@ export function Messages() {
 
   const loadConversations = useCallback(async () => {
     if (!user) return;
-
     setLoading(true);
     setErrored(false);
-
-    const supabase = createClient();
-
-    const { data: convos, error: convoError } = await supabase
-      .from("conversations")
-      .select("id, director_profile_id, project_id")
-      .eq("client_profile_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (convoError) {
+    try {
+      const supabase = createClient();
+      setConversations(await loadActorConversations(supabase, user.id));
+    } catch {
       setErrored(true);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (!convos || convos.length === 0) {
-      setConversations([]);
-      setLoading(false);
-      return;
-    }
-
-    // Batch-fetch director names from profiles
-    const directorProfileIds = [...new Set(convos.map((c) => c.director_profile_id).filter(Boolean))] as number[];
-    const directorMap = new Map<number, string>();
-
-    if (directorProfileIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, name")
-        .in("id", directorProfileIds);
-
-      if (profiles) {
-        for (const p of profiles) {
-          directorMap.set(p.id, p.name ?? "");
-        }
-      }
-    }
-
-    // Batch-fetch project names
-    const projectIds = [...new Set(convos.map((c) => c.project_id).filter(Boolean))] as number[];
-    const projectMap = new Map<number, string>();
-    if (projectIds.length > 0) {
-      const { data: projectsData } = await supabase
-        .from("projects")
-        .select("id, company_name")
-        .in("id", projectIds);
-      if (projectsData) {
-        for (const p of projectsData) {
-          projectMap.set(p.id, p.company_name ?? "");
-        }
-      }
-    }
-
-    // Fetch latest message per conversation (parallel, limit 1 each)
-    const convoIds = convos.map((c) => c.id);
-    const latestMessageMap = new Map<number, { content: string; created_at: string }>();
-
-    await Promise.all(convoIds.map(async (cid) => {
-      const { data: latest } = await supabase
-        .from("messages")
-        .select("content, created_at")
-        .eq("conversation_id", cid)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (latest) {
-        latestMessageMap.set(cid as number, {
-          content: latest.content ?? "",
-          created_at: latest.created_at as string,
-        });
-      }
-    }));
-
-    const readMap = await fetchReadMap();
-
-    const result: Conversation[] = convos.map((convo) => {
-      // Resolve peer name; fall back to project/company, never "Director"/ID.
-      const directorName = directorMap.get(convo.director_profile_id as number);
-      const projectName = convo.project_id ? projectMap.get(convo.project_id as number) : undefined;
-      const latest = latestMessageMap.get(convo.id as number);
-      const activityMs = latest ? new Date(latest.created_at).getTime() : 0;
-      const id = String(convo.id);
-      return {
-        id,
-        name: directorName || projectName || `Conversation ${id}`,
-        projectName: projectName || undefined,
-        lastMessage: latest?.content ?? (latest ? "Attachment" : ""),
-        timestamp: latest
-          ? new Date(latest.created_at).toLocaleString(undefined, {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "",
-        unread: activityMs > 0 && activityMs > (readMap[id] ?? 0),
-        lastActivity: activityMs,
-      };
-    });
-
-    setConversations(result);
-    setLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -160,7 +64,9 @@ export function Messages() {
   // avoid opening 100 simultaneous Supabase connections.
   useEffect(() => {
     if (conversations.length === 0) return;
-    const sorted = [...conversations].sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0));
+    const sorted = [...conversations].sort(
+      (a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0),
+    );
     const toWarm = sorted.slice(0, 100).map((c) => c.id);
 
     (async () => {
@@ -199,7 +105,10 @@ export function Messages() {
   // Unfiltered postgres_changes does not deliver here, so subscribe with a
   // per-conversation filter (mirrors the proven thread pattern) plus a
   // filtered conversations-insert listener for brand-new conversations.
-  const convoIdsKey = conversations.map((c) => c.id).sort().join(",");
+  const convoIdsKey = conversations
+    .map((c) => c.id)
+    .sort()
+    .join(",");
   useEffect(() => {
     const supabase = createClient();
     const ids = convoIdsKey ? convoIdsKey.split(",") : [];
@@ -267,16 +176,15 @@ export function Messages() {
     });
 
     if (user) {
-      const convCh = supabase.channel(
-        `messages:list:client:conv:${user.id}`,
-      );
+      // A new participant row for me means I was added to a conversation.
+      const convCh = supabase.channel(`messages:list:client:conv:${user.id}`);
       convCh.on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
-          table: "conversations",
-          filter: `client_profile_id=eq.${user.id}`,
+          table: "conversation_participants",
+          filter: `profile_id=eq.${user.id}`,
         },
         () => {
           loadConversations();
@@ -321,9 +229,12 @@ export function Messages() {
       <CreateConversationModal
         opened={open}
         onClose={() => setOpen(false)}
-        mode="client"
         onConversationCreated={(convo) =>
-          setConversations((prev) => [convo, ...prev])
+          setConversations((prev) =>
+            // The create RPC dedupes, so "starting" a chat that already exists
+            // returns the existing id — don't add a second list entry for it.
+            prev.some((c) => c.id === convo.id) ? prev : [convo, ...prev],
+          )
         }
       />
     </div>

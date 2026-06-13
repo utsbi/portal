@@ -1,46 +1,55 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Modal, TextField, btnPrimary, btnGhost } from "@/components/dashboard/common/ui";
-import { createClient } from "@/lib/supabase/client";
-import { useProject } from "@/lib/project/project-context";
+import { useEffect, useMemo, useState } from "react";
+import {
+  btnGhost,
+  btnPrimary,
+  Modal,
+  TextField,
+} from "@/components/dashboard/common/ui";
 import { toastError } from "@/lib/notifications";
+import { useProject } from "@/lib/project/project-context";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import type { Conversation } from "./ConversationList";
 
 /**
- * One project-aware create flow for both roles.
+ * Start a conversation with one or more people, gated by the role matrix:
+ *   director -> directors, members, clients
+ *   member   -> members, directors
+ *   client   -> directors
  *
- * - Director: pick a client project by name, then the conversation is scoped
- *   to that project and its owner profile.
- * - Client: the conversation is scoped to the active project; pick which
- *   director (resolved by name, no department jargon) to talk to.
- *
- * Before inserting, an existing conversation for (client, director, project)
- * is looked up and opened instead of creating a duplicate (P2 duplicate
- * guard). Supabase tables, columns and the batched name-resolution shape
- * (Conversation) are preserved exactly.
+ * The picker only offers people the caller may message. Internal recipients
+ * (directors/members) are project-independent; a client recipient pins the
+ * conversation to that client's project. Selecting >1 recipient makes a group.
+ * Creation goes through the create_conversation RPC, which re-enforces the
+ * matrix and the project rules server-side and dedupes existing threads.
  */
 
-interface ProjectOption {
-  id: number;
-  companyName: string;
-}
+type Role = "director" | "member" | "client";
 
-interface DirectorOption {
-  id: number;
+interface Candidate {
+  profileId: number;
   name: string;
+  role: Role;
+  /** For client candidates: the project the conversation would be scoped to. */
+  projectId?: number;
+  projectName?: string;
 }
 
 interface CreateConversationModalProps {
   opened: boolean;
   onClose: () => void;
-  /** "director" picks a client project; "client" picks a director. */
-  mode: "director" | "client";
-  /** Director's own profile id (required in director mode). */
-  profileId?: number;
   onConversationCreated?: (conversation: Conversation) => void;
 }
+
+const ROLE_LABEL: Record<Role, string> = {
+  director: "Directors",
+  member: "Members",
+  client: "Clients",
+};
 
 function nowLabel(): string {
   return new Date().toLocaleString(undefined, {
@@ -54,257 +63,158 @@ function nowLabel(): string {
 export function CreateConversationModal({
   opened,
   onClose,
-  mode,
-  profileId,
   onConversationCreated,
 }: CreateConversationModalProps) {
   const router = useRouter();
   const { user, activeProject } = useProject();
+  const myProfileId = user?.id ?? null;
+  const myRole = (user?.role ?? null) as Role | null;
 
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  // Director mode: list of client projects. Client mode: list of directors.
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [directors, setDirectors] = useState<DirectorOption[]>([]);
-  const [selectedDirectorId, setSelectedDirectorId] = useState<number | null>(null);
-  // Targets the current user already has a conversation for. Director mode:
-  // project ids. Client mode: director profile ids (scoped to the active
-  // project). Hidden from the picker so it never just bounces to an
-  // existing thread; the duplicate guard still backs this up for races.
-  const [excluded, setExcluded] = useState<Set<number>>(new Set());
-
+  // Load the people this caller is allowed to message. The matrix + project
+  // rules (and the directory read) live in the list_messageable_profiles RPC,
+  // so the picker doesn't need broad profiles/project_members read access.
   useEffect(() => {
-    if (!opened) return;
-
+    if (!opened || myProfileId === null) return;
     setSearch("");
-    setSelectedProjectId(null);
-    setSelectedDirectorId(null);
+    setSelected(new Set());
 
     const load = async () => {
-      setLoadingOptions(true);
+      setLoading(true);
       const supabase = createClient();
-
-      if (mode === "director") {
-        const [{ data: projectData }, { data: existing }] = await Promise.all([
-          supabase
-            .from("projects")
-            .select("id, company_name")
-            .order("company_name", { ascending: true }),
-          profileId
-            ? supabase
-                .from("conversations")
-                .select("project_id")
-                .eq("director_profile_id", profileId)
-            : Promise.resolve({
-                data: [] as { project_id: number | null }[],
-              }),
-        ]);
-
-        setExcluded(
-          new Set(
-            (existing ?? [])
-              .map((c) => c.project_id as number | null)
-              .filter((id): id is number => id !== null),
-          ),
-        );
-        setProjects(
-          (projectData ?? []).map((p) => ({
-            id: p.id as number,
-            companyName: (p.company_name as string) ?? "",
-          })),
-        );
-      } else {
-        const clientId = user?.id ?? null;
-        const projId = activeProject?.projectId ?? null;
-
-        let existingQuery = supabase
-          .from("conversations")
-          .select("director_profile_id");
-        existingQuery =
-          clientId === null
-            ? existingQuery.is("client_profile_id", null)
-            : existingQuery.eq("client_profile_id", clientId);
-        existingQuery =
-          projId === null
-            ? existingQuery.is("project_id", null)
-            : existingQuery.eq("project_id", projId);
-
-        const [{ data: directorData }, { data: existing }] =
-          await Promise.all([
-            supabase
-              .from("profiles")
-              .select("id, name")
-              .eq("role", "director")
-              .order("name", { ascending: true }),
-            existingQuery,
-          ]);
-
-        setExcluded(
-          new Set(
-            (existing ?? [])
-              .map((c) => c.director_profile_id as number | null)
-              .filter((id): id is number => id !== null),
-          ),
-        );
-        setDirectors(
-          (directorData ?? []).map((d) => ({
-            id: d.id as number,
-            name: (d.name as string) ?? "",
-          })),
-        );
+      const { data } = await supabase.rpc("list_messageable_profiles");
+      const rows = (data ?? []) as {
+        profile_id: number;
+        name: string | null;
+        role: Role;
+        project_id: number | null;
+        project_name: string | null;
+      }[];
+      const seen = new Set<number>();
+      const next: Candidate[] = [];
+      for (const r of rows) {
+        if (seen.has(r.profile_id)) continue;
+        seen.add(r.profile_id);
+        next.push({
+          profileId: r.profile_id,
+          name: r.name ?? `Person ${r.profile_id}`,
+          role: r.role,
+          projectId: r.project_id ?? undefined,
+          projectName: r.project_name ?? undefined,
+        });
       }
-
-      setLoadingOptions(false);
+      next.sort((a, b) => a.name.localeCompare(b.name));
+      setCandidates(next);
+      setLoading(false);
     };
 
-    load();
-  }, [opened, mode, profileId, user?.id, activeProject?.projectId]);
+    void load();
+  }, [opened, myProfileId]);
 
-  const filteredProjects = useMemo(() => {
+  const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = projects.filter((p) => !excluded.has(p.id));
-    if (!q) return base;
-    return base.filter((p) => p.companyName.toLowerCase().includes(q));
-  }, [projects, excluded, search]);
+    const base = q
+      ? candidates.filter((c) => c.name.toLowerCase().includes(q))
+      : candidates;
+    // Group by role in a stable order.
+    const order: Role[] = ["director", "member", "client"];
+    return order
+      .map((role) => ({
+        role,
+        items: base.filter((c) => c.role === role),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [candidates, search]);
 
-  const filteredDirectors = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const base = directors.filter((d) => !excluded.has(d.id));
-    if (!q) return base;
-    return base.filter((d) => d.name.toLowerCase().includes(q));
-  }, [directors, excluded, search]);
+  const selectedCandidates = useMemo(
+    () => candidates.filter((c) => selected.has(c.profileId)),
+    [candidates, selected],
+  );
 
-  // True when nothing is startable at all (every option already has a
-  // thread), vs. merely filtered out by the search box.
-  const noStartable =
-    !loadingOptions &&
-    (mode === "director"
-      ? projects.length > 0 &&
-        projects.every((p) => excluded.has(p.id))
-      : directors.length > 0 &&
-        directors.every((d) => excluded.has(d.id)));
+  // Project derivation: client caller -> active project; otherwise a selected
+  // client pins the project; internal-only -> no project.
+  const derivedProject = useMemo(() => {
+    if (myRole === "client") {
+      return activeProject?.projectId ?? null;
+    }
+    const client = selectedCandidates.find((c) => c.role === "client");
+    return client?.projectId ?? null;
+  }, [myRole, activeProject?.projectId, selectedCandidates]);
 
+  // A director can multi-select clients, but the conversation pins to ONE project
+  // (every client participant must belong to it). Clients from different projects
+  // would make the create RPC reject the others, so block it up front with a
+  // clear message rather than surfacing a confusing server error.
+  const multipleClientProjects = useMemo(
+    () =>
+      new Set(
+        selectedCandidates
+          .filter((c) => c.role === "client")
+          .map((c) => c.projectId),
+      ).size > 1,
+    [selectedCandidates],
+  );
+
+  const hasClient =
+    myRole === "client" || selectedCandidates.some((c) => c.role === "client");
+  const projectMissing = hasClient && derivedProject === null;
   const canSubmit =
-    mode === "director" ? selectedProjectId !== null : selectedDirectorId !== null;
+    selected.size > 0 &&
+    !projectMissing &&
+    !multipleClientProjects &&
+    !submitting &&
+    !loading;
 
-  const openExistingOrCreate = async (
-    clientProfileId: number | null,
-    directorProfileId: number,
-    projectId: number | null,
-    displayName: string,
-  ) => {
-    const supabase = createClient();
-
-    // P2 duplicate guard: reuse an existing thread for this triple.
-    let existingQuery = supabase
-      .from("conversations")
-      .select("id")
-      .eq("director_profile_id", directorProfileId);
-
-    existingQuery =
-      clientProfileId === null
-        ? existingQuery.is("client_profile_id", null)
-        : existingQuery.eq("client_profile_id", clientProfileId);
-
-    existingQuery =
-      projectId === null
-        ? existingQuery.is("project_id", null)
-        : existingQuery.eq("project_id", projectId);
-
-    const { data: existing } = await existingQuery
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (existing?.id) {
-      router.push(`/dashboard/messages/${existing.id}`);
-      onClose();
-      return;
-    }
-
-    const { data: conversation, error: convoError } = await supabase
-      .from("conversations")
-      .insert({
-        client_profile_id: clientProfileId,
-        director_profile_id: directorProfileId,
-        project_id: projectId,
-      })
-      .select("id")
-      .single();
-
-    if (convoError || !conversation) {
-      toastError(
-        convoError?.message ?? "The conversation could not be created.",
-        "Could not start conversation",
-      );
-      return;
-    }
-
-    const conversationId = conversation.id as number;
-
-    onConversationCreated?.({
-      id: String(conversationId),
-      name: displayName,
-      lastMessage: "",
-      timestamp: nowLabel(),
-      unread: false,
-      lastActivity: Date.now(),
+  const toggle = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
     });
 
-    router.push(`/dashboard/messages/${conversationId}`);
-    onClose();
-  };
-
   const handleCreate = async () => {
-    if (submitting) return;
+    if (!canSubmit) return;
     setSubmitting(true);
-
     try {
       const supabase = createClient();
-      const {
-        data: { user: authUser },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !authUser) {
-        toastError("Your session has expired. Sign in again.", "Not signed in");
+      const { data, error } = await supabase.rpc("create_conversation", {
+        _participant_profile_ids: Array.from(selected),
+        _project_id: derivedProject,
+      });
+      if (error || data == null) {
+        toastError(
+          error?.message ?? "The conversation could not be created.",
+          "Could not start conversation",
+        );
         return;
       }
+      const conversationId = data as number;
 
-      if (mode === "director") {
-        if (selectedProjectId === null || !profileId) return;
+      const names = selectedCandidates.map((c) => c.name);
+      const name =
+        names.length <= 2
+          ? names.join(", ")
+          : `${names[0]}, ${names[1]} +${names.length - 2}`;
 
-        const project = projects.find((p) => p.id === selectedProjectId);
-
-        // Resolve the project's owner profile (the client side of the thread).
-        const { data: ownerMembership } = await supabase
-          .from("project_members")
-          .select("profile_id")
-          .eq("project_id", selectedProjectId)
-          .eq("role", "owner")
-          .maybeSingle();
-
-        await openExistingOrCreate(
-          ownerMembership?.profile_id ?? null,
-          profileId,
-          selectedProjectId,
-          project?.companyName ?? "Conversation",
-        );
-      } else {
-        if (selectedDirectorId === null || !user) return;
-
-        const director = directors.find((d) => d.id === selectedDirectorId);
-
-        await openExistingOrCreate(
-          user.id,
-          selectedDirectorId,
-          activeProject?.projectId ?? null,
-          director?.name ?? activeProject?.companyName ?? "Conversation",
-        );
-      }
+      onConversationCreated?.({
+        id: String(conversationId),
+        name,
+        lastMessage: "",
+        timestamp: nowLabel(),
+        unread: false,
+        lastActivity: Date.now(),
+      });
+      router.push(`/dashboard/messages/${conversationId}`);
+      onClose();
     } catch (err) {
       toastError(
         err instanceof Error ? err.message : "Unexpected error.",
@@ -315,80 +225,110 @@ export function CreateConversationModal({
     }
   };
 
-  const title = mode === "director" ? "New conversation" : "Message a director";
-  const searchLabel = mode === "director" ? "Project" : "Director";
-  const placeholder =
-    mode === "director" ? "Search projects by name" : "Search directors by name";
-
-  const rows =
-    mode === "director"
-      ? filteredProjects.map((p) => ({
-          key: p.id,
-          label: p.companyName || `Project ${p.id}`,
-          selected: selectedProjectId === p.id,
-          onSelect: () => setSelectedProjectId(p.id),
-        }))
-      : filteredDirectors.map((d) => ({
-          key: d.id,
-          label: d.name || `Director ${d.id}`,
-          selected: selectedDirectorId === d.id,
-          onSelect: () => setSelectedDirectorId(d.id),
-        }));
-
   return (
-    <Modal opened={opened} onClose={onClose} title={title} size="sm">
+    <Modal opened={opened} onClose={onClose} title="New conversation" size="sm">
       <div className="flex flex-col gap-4">
-        {mode === "client" && activeProject ? (
-          <p className="text-xs text-sbi-muted leading-relaxed">
-            This conversation will be scoped to{" "}
-            <span className="text-white">{activeProject.companyName}</span>.
-          </p>
-        ) : null}
-
         <TextField
-          label={searchLabel}
+          label="To"
           value={search}
           onChange={setSearch}
-          placeholder={placeholder}
+          placeholder="Search people by name"
           autoFocus
         />
 
-        <div className="max-h-56 overflow-y-auto custom-scrollbar rounded-md border border-sbi-dark-border/50 divide-y divide-sbi-dark-border/40">
-          {loadingOptions ? (
+        {selectedCandidates.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedCandidates.map((c) => (
+              <button
+                key={c.profileId}
+                type="button"
+                onClick={() => toggle(c.profileId)}
+                className="flex items-center gap-1.5 rounded-full border border-sbi-green/30 bg-sbi-green/5 px-2.5 py-1 text-xs text-white transition-colors hover:border-sbi-green/50"
+              >
+                {c.name}
+                <span className="text-sbi-muted-dark">×</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="max-h-56 divide-y divide-sbi-dark-border/40 overflow-y-auto rounded-md border border-sbi-dark-border/50 custom-scrollbar">
+          {loading ? (
             <div className="flex flex-col">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="px-3 py-2.5">
-                  <div className="h-3.5 w-40 rounded bg-sbi-dark-card/80 animate-pulse" />
+                  <div className="h-3.5 w-40 animate-pulse rounded bg-sbi-dark-card/80" />
                 </div>
               ))}
             </div>
-          ) : rows.length === 0 ? (
+          ) : visible.length === 0 ? (
             <p className="px-3 py-3 text-xs text-sbi-muted">
-              {noStartable
-                ? mode === "director"
-                  ? "You already have a conversation for every project."
-                  : "You already have a conversation with every director."
-                : mode === "director"
-                  ? "No projects match that search."
-                  : "No directors match that search."}
+              {candidates.length === 0
+                ? "There is no one you can start a conversation with yet."
+                : "No people match that search."}
             </p>
           ) : (
-            rows.map((r) => (
-              <button
-                key={r.key}
-                type="button"
-                onClick={r.onSelect}
-                className={`w-full text-left px-3 py-2.5 text-sm transition-colors cursor-pointer ${
-                  r.selected
-                    ? "bg-sbi-dark-card text-white"
-                    : "text-sbi-muted hover:bg-sbi-dark-card/50 hover:text-white"
-                }`}
-              >
-                {r.label}
-              </button>
+            visible.map((group) => (
+              <div key={group.role}>
+                <p className="bg-sbi-dark/40 px-3 py-1.5 text-[0.7rem] uppercase tracking-[0.2em] text-sbi-muted-dark">
+                  {ROLE_LABEL[group.role]}
+                </p>
+                {group.items.map((c) => {
+                  const isSelected = selected.has(c.profileId);
+                  return (
+                    <button
+                      key={c.profileId}
+                      type="button"
+                      onClick={() => toggle(c.profileId)}
+                      className={cn(
+                        "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors",
+                        isSelected
+                          ? "bg-sbi-dark-card text-white"
+                          : "text-sbi-muted hover:bg-sbi-dark-card/50 hover:text-white",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
+                          isSelected
+                            ? "border-sbi-green bg-sbi-green/20 text-sbi-green"
+                            : "border-sbi-dark-border",
+                        )}
+                      >
+                        {isSelected ? (
+                          <Check className="size-3" strokeWidth={2.5} />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                      {c.role === "client" && c.projectName ? (
+                        <span className="shrink-0 text-[0.7rem] uppercase tracking-[0.15em] text-sbi-muted-dark">
+                          {c.projectName}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
             ))
           )}
         </div>
+
+        {multipleClientProjects ? (
+          <p className="text-xs leading-relaxed text-amber-400/90">
+            Clients from different projects can't share a conversation. Keep the
+            selected clients to a single project.
+          </p>
+        ) : hasClient ? (
+          <p className="text-xs leading-relaxed text-sbi-muted">
+            {projectMissing
+              ? "Select an active project to message a client."
+              : "This conversation includes a client and is scoped to their project."}
+          </p>
+        ) : selected.size > 1 ? (
+          <p className="text-xs leading-relaxed text-sbi-muted">
+            This will be a group conversation.
+          </p>
+        ) : null}
 
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className={btnGhost} onClick={onClose}>
@@ -398,9 +338,9 @@ export function CreateConversationModal({
             type="button"
             className={btnPrimary}
             onClick={handleCreate}
-            disabled={!canSubmit || submitting}
+            disabled={!canSubmit}
           >
-            {submitting ? "Opening" : "Open conversation"}
+            {submitting ? "Opening" : "Start conversation"}
           </button>
         </div>
       </div>
