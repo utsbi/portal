@@ -51,6 +51,37 @@ function bucketFor(iso: string | null): Bucket {
   return "Older";
 }
 
+// Placeholder groups/rows shown while the session list is first fetched. Varied
+// widths so it reads as a real list of titles rather than a uniform block.
+const SKELETON_GROUPS: { id: string; rows: string[] }[] = [
+  { id: "today", rows: ["w-4/5", "w-3/5", "w-3/4", "w-1/2"] },
+  { id: "previous", rows: ["w-2/3", "w-4/5", "w-1/2"] },
+];
+
+function ChatHistorySkeleton() {
+  return (
+    <div aria-hidden="true">
+      {SKELETON_GROUPS.map((group) => (
+        <div key={group.id}>
+          <div className="px-3 pt-3 pb-1">
+            <div className="h-2.5 w-14 animate-pulse rounded-sm bg-sbi-dark-border/40" />
+          </div>
+          {group.rows.map((w) => (
+            <div key={`${group.id}-${w}`} className="px-3 py-2">
+              <div
+                className={cn(
+                  "h-3.5 animate-pulse rounded bg-sbi-dark-border/30",
+                  w,
+                )}
+              />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Contextual chat-history list rendered inside the global left sidebar while on
  * the Explore route. Navigation stays in-surface: ExplorePortal is mounted and
@@ -323,9 +354,7 @@ export function ChatHistoryNav({ focusSearchRef }: ChatHistoryNavProps = {}) {
 
       {/* Scrollable conversation list */}
       <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar px-2 pb-2">
-        {loading && (
-          <div className="px-3 py-3 text-xs text-sbi-muted-dark">Loading…</div>
-        )}
+        {loading && <ChatHistorySkeleton />}
         {!loading && !hasAny && (
           <div className="px-3 py-6 text-xs text-sbi-muted-dark">
             No conversations yet.
