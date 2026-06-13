@@ -2,7 +2,7 @@
 
 import gsap from "gsap";
 import { motion } from "motion/react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@/lib/chat/chat-context";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,13 @@ export function ExplorePortal() {
   const chatId = Array.isArray(params.chatId)
     ? params.chatId[0]
     : params.chatId;
+  // Derive "new route" from the pathname, NOT useParams: the New-chat / chat-
+  // select actions use history.replaceState (to avoid a remount), which updates
+  // the pathname but leaves useParams' route segments stale. So after "New chat"
+  // (replaceState -> /explore/new) useParams.chatId would still be the previous
+  // uuid; pathname is correct, so the welcome screen shows instead of a stuck
+  // history skeleton.
+  const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
@@ -47,13 +54,26 @@ export function ExplorePortal() {
     loadFailed,
   } = useChat();
 
-  const isNewRoute = !chatId || chatId === "new";
+  const isNewRoute =
+    !pathname ||
+    pathname === "/dashboard/explore" ||
+    pathname === "/dashboard/explore/new" ||
+    pathname === "/dashboard";
   // A revisited/loaded thread that ended up empty (failed load, or no messages
   // while nothing is in flight) gets a small explicit state instead of the
   // new-chat welcome hero or a blank scroll region.
   const showEmptyState =
     messages.length === 0 && !isNewRoute && !isLoading && loadFailed;
-  const showWelcome = messages.length === 0 && !showEmptyState;
+  // The centered welcome hero is ONLY for a genuinely new chat. On a uuid route
+  // we keep the thread layout (composer pinned at the bottom) even before
+  // loadSession() resolves, so reloading an existing chat doesn't flash the
+  // centered composer and animate it down once messages arrive.
+  const showWelcome = messages.length === 0 && isNewRoute;
+  // True from the first render of a uuid route until its history arrives (a real
+  // session always has ≥1 message, so this never sticks on a successful load).
+  // Drives the skeleton for both the title and the messages so a reload shows a
+  // loading state immediately — no blank frame, no "Untitled" flash.
+  const loadingHistory = !isNewRoute && !loadFailed && messages.length === 0;
   // Announce the active conversation / generating state to screen readers.
   const liveAnnouncement = loadFailed
     ? "Could not load this conversation."
@@ -177,7 +197,12 @@ export function ExplorePortal() {
   return (
     <div
       ref={containerRef}
-      className="relative h-[calc(100vh-4rem)] w-full overflow-hidden"
+      // overflow-clip (not -hidden): clips the ambient bleed without making this
+      // a scroll container. overflow-hidden IS programmatically scrollable, so
+      // ChatMessages' scrollIntoView could nudge it (its content is a hair taller
+      // than the box), pushing the title bar up under the header and opening a
+      // matching gap below the composer. clip can't be scrolled.
+      className="relative z-10 h-full min-h-0 w-full overflow-clip"
     >
       <FloatingNodes />
       <AmbientGrid />
@@ -205,18 +230,6 @@ export function ExplorePortal() {
         </>
       )}
 
-      {/* Conversation title — always shows which chat you're in ("Untitled"
-          until the backend auto-titles it after the first response). */}
-      {!showWelcome && (
-        <div className="absolute top-0 inset-x-0 z-20 flex justify-center px-4 pt-3 pointer-events-none">
-          <div className="min-w-[8rem] max-w-md rounded-full bg-sbi-dark/70 backdrop-blur-sm border border-sbi-dark-border/50 px-4 py-1.5">
-            <span className="block text-xs font-medium text-white/80 text-center truncate">
-              {sessionTitle || "Untitled"}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/*
         One flex column. The composer is a SINGLE persistent element (never
         remounts), so its text + focus survive the welcome->thread switch, and
@@ -235,6 +248,23 @@ export function ExplorePortal() {
         <p aria-live="polite" className="sr-only">
           {liveAnnouncement}
         </p>
+
+        {/* Conversation title — in-flow bar at the top of the chat column
+            (kept in normal flow so the container's overflow-hidden can never
+            clip it). Shows "Untitled" until the backend auto-titles the chat. */}
+        {!showWelcome && (
+          <div className="shrink-0 flex justify-center px-4 pt-3 pb-1 pointer-events-none">
+            <div className="min-w-[8rem] max-w-md rounded-full bg-sbi-dark/70 backdrop-blur-sm border border-sbi-dark-border/50 px-4 py-1.5">
+              {loadingHistory && !sessionTitle ? (
+                <span className="mx-auto block h-3.5 w-28 animate-pulse rounded bg-sbi-dark-border/40" />
+              ) : (
+                <span className="block text-xs font-medium text-white/80 text-center truncate">
+                  {sessionTitle || "Untitled"}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {showWelcome ? (
           // Welcome: the hero sits directly above the composer; the column's
@@ -258,8 +288,12 @@ export function ExplorePortal() {
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar">
-            <div className="w-full max-w-3xl mx-auto px-4 pt-14">
-              <ChatMessages />
+            <div className="w-full max-w-3xl mx-auto px-4 pt-3">
+              {loadingHistory ? (
+                <ChatHistorySkeleton />
+              ) : (
+                <ChatMessages />
+              )}
             </div>
           </div>
         )}
@@ -280,6 +314,32 @@ export function ExplorePortal() {
             </p>
           )}
         </motion.div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Placeholder shown while loadSession() hydrates an existing conversation, so a
+ * reloaded chat reads as "loading history" instead of flashing an empty thread.
+ */
+function ChatHistorySkeleton() {
+  return (
+    <div className="space-y-6 py-2" aria-hidden="true">
+      <div className="flex justify-end">
+        <div className="h-9 w-40 rounded-2xl bg-sbi-dark-border/30 animate-pulse" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3.5 w-3/4 rounded bg-sbi-dark-border/30 animate-pulse" />
+        <div className="h-3.5 w-5/6 rounded bg-sbi-dark-border/30 animate-pulse" />
+        <div className="h-3.5 w-2/3 rounded bg-sbi-dark-border/30 animate-pulse" />
+      </div>
+      <div className="flex justify-end">
+        <div className="h-9 w-28 rounded-2xl bg-sbi-dark-border/30 animate-pulse" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3.5 w-2/3 rounded bg-sbi-dark-border/30 animate-pulse" />
+        <div className="h-3.5 w-1/2 rounded bg-sbi-dark-border/30 animate-pulse" />
       </div>
     </div>
   );
