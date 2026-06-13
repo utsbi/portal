@@ -32,6 +32,9 @@ export interface ChatRequest {
   // Client-minted opaque chat id (uuid) for a brand-new conversation, so the URL
   // is known before the first response. Ignored when session_id is set.
   public_id?: string | null;
+  // Regenerate the active branch's latest answer: the server persists a new
+  // assistant sibling under the existing user turn instead of a duplicate user row.
+  regenerate?: boolean;
 }
 
 export interface ChatResponse {
@@ -69,6 +72,7 @@ export async function sendChatMessage(
       model_preference: request.model_preference ?? "fast",
       session_id: request.session_id ?? null,
       public_id: request.public_id ?? null,
+      regenerate: request.regenerate ?? false,
     }),
     signal,
   });

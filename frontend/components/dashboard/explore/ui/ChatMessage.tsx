@@ -89,20 +89,27 @@ function interpolateCitations(
   let lastIdx = 0;
   let match: RegExpExecArray | null;
   let key = 0;
+  let matched = false;
   while ((match = pattern.exec(text)) !== null) {
     const n = Number.parseInt(match[1], 10);
-    if (n < 1 || n > sources.length) continue;
     if (match.index > lastIdx) parts.push(text.slice(lastIdx, match.index));
-    parts.push(
-      <CitationChip
-        key={`cite-${match.index}-${key++}`}
-        index={n}
-        source={sources[n - 1]}
-      />,
-    );
+    if (n < 1 || n > sources.length) {
+      // Out-of-range marker: keep the literal "[n]" and advance past it, so the
+      // text between it and the next valid citation isn't dropped or duplicated.
+      parts.push(match[0]);
+    } else {
+      parts.push(
+        <CitationChip
+          key={`cite-${match.index}-${key++}`}
+          index={n}
+          source={sources[n - 1]}
+        />,
+      );
+      matched = true;
+    }
     lastIdx = pattern.lastIndex;
   }
-  if (lastIdx === 0) return text; // no matches kept
+  if (!matched) return text; // nothing replaced — hand back the original string
   if (lastIdx < text.length) parts.push(text.slice(lastIdx));
   return parts;
 }
@@ -238,6 +245,11 @@ function buildMarkdownComponents(sources: SourceDocument[]): Components {
   };
 }
 
+// Component map for messages with no sources — the common case (every turn while
+// it streams, and any answer that cited nothing). Built once so streaming deltas
+// don't re-allocate the full set of component lambdas on every token.
+const EMPTY_SOURCE_COMPONENTS = buildMarkdownComponents([]);
+
 // ‹ i/n › control for stepping between sibling branches of a message (created by
 // editing a prompt or regenerating an answer). Arrows disable at the ends.
 function BranchPicker({
@@ -295,8 +307,13 @@ export function ChatMessage({
   // "Thinking" section is collapsed by default; toggled per-message.
   const [showReasoning, setShowReasoning] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
-  const { editAndResend, isLoading, regenerateResponse, switchBranch } =
-    useChat();
+  const {
+    editAndResend,
+    isLoading,
+    isStreaming,
+    regenerateResponse,
+    switchBranch,
+  } = useChat();
 
   // Show the ‹ i/n › picker when this message is one of several sibling branches
   // and is backed by a persisted row (dbId) we can switch on.
@@ -306,16 +323,21 @@ export function ChatMessage({
     <BranchPicker
       index={message.branchIndex ?? 1}
       count={branchCount}
-      disabled={isLoading}
+      disabled={isLoading || isStreaming}
       onPrev={() => message.dbId != null && switchBranch(message.dbId, -1)}
       onNext={() => message.dbId != null && switchBranch(message.dbId, 1)}
     />
   ) : null;
 
-  const sources = message.sources ?? [];
+  // Reuse the shared empty-sources map when this message cites nothing, so the
+  // memo doesn't rebuild every render (message.sources ?? [] is a fresh array
+  // each time). Only build a per-message map when real sources exist.
   const markdownComponents = useMemo(
-    () => buildMarkdownComponents(sources),
-    [sources],
+    () =>
+      message.sources?.length
+        ? buildMarkdownComponents(message.sources)
+        : EMPTY_SOURCE_COMPONENTS,
+    [message.sources],
   );
 
   useEffect(() => {
@@ -376,7 +398,7 @@ export function ChatMessage({
         <span>Thinking</span>
       </button>
       {showReasoning && (
-        <div className="mt-2 pl-3 border-l border-sbi-dark-border text-sbi-muted font-light text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
+        <div className="mt-2 pl-3 border-l border-sbi-dark-border text-sbi-muted font-light text-sm leading-relaxed whitespace-pre-wrap break-words">
           {reasoning}
         </div>
       )}
@@ -562,7 +584,7 @@ export function ChatMessage({
                 <div className={`p-3 ${isOverflowing ? "pr-8" : ""}`}>
                   <div
                     ref={contentRef}
-                    className="text-white font-light text-sm leading-relaxed whitespace-pre-wrap wrap-break-word"
+                    className="text-white font-light text-sm leading-relaxed whitespace-pre-wrap break-words"
                   >
                     {isExpanded || !isOverflowing
                       ? displayContent
@@ -680,7 +702,7 @@ export function ChatMessage({
                 onClick={handleCopy}
                 aria-label="Copy response"
                 className="p-1.5 text-sbi-muted hover:text-white hover:bg-sbi-dark-card rounded-lg transition-colors"
-                title="Copy Reponse"
+                title="Copy Response"
               >
                 {copied ? (
                   <Check className="w-4 h-4 text-sbi-green" />

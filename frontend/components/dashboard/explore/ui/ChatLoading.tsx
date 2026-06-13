@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import gsap from 'gsap';
-import { useChat, type LoadingPhase } from '@/lib/chat/chat-context';
+import gsap from "gsap";
+import { useEffect, useRef } from "react";
+import { type LoadingPhase, useChat } from "@/lib/chat/chat-context";
 
 // User-facing status. Internal routing (planning) folds into "Thinking" so the
 // indicator reads as two honest states — thinking, then searching documents —
 // rather than exposing every internal phase.
 const PHASE_LABELS: Record<LoadingPhase, string> = {
-  idle: '',
-  thinking: 'Thinking',
-  planning: 'Thinking',
-  searching: 'Searching documents',
-  generating: 'Writing response',
-  complete: '',
-  error: 'Something went wrong',
+  idle: "",
+  thinking: "Thinking",
+  planning: "Thinking",
+  searching: "Searching documents",
+  generating: "Writing response",
+  complete: "",
+  error: "Something went wrong",
 };
 
 export function ChatLoading() {
@@ -25,8 +25,8 @@ export function ChatLoading() {
   useEffect(() => {
     if (!dotsRef.current || !isLoading) return;
 
-    const dots = dotsRef.current.querySelectorAll('.loading-dot');
-    
+    const dots = dotsRef.current.querySelectorAll(".loading-dot");
+
     const ctx = gsap.context(() => {
       gsap.to(dots, {
         y: -8,
@@ -36,7 +36,7 @@ export function ChatLoading() {
           repeat: -1,
           yoyo: true,
         },
-        ease: 'power2.inOut',
+        ease: "power2.inOut",
       });
     }, dotsRef);
 
@@ -46,24 +46,24 @@ export function ChatLoading() {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    if (isLoading || loadingPhase === 'error') {
+    if (isLoading || loadingPhase === "error") {
       gsap.to(containerRef.current, {
         opacity: 1,
         y: 0,
         duration: 0.4,
-        ease: 'power2.out',
+        ease: "power2.out",
       });
     } else {
       gsap.to(containerRef.current, {
         opacity: 0,
         y: 10,
         duration: 0.3,
-        ease: 'power2.in',
+        ease: "power2.in",
       });
     }
   }, [isLoading, loadingPhase]);
 
-  if (!isLoading && loadingPhase !== 'error') {
+  if (!isLoading && loadingPhase !== "error") {
     return null;
   }
 
@@ -83,9 +83,9 @@ export function ChatLoading() {
       <div className="flex-1 space-y-2">
         <div className="flex items-center gap-3">
           <span className="text-sm font-light text-sbi-muted tracking-wide">
-            {loadingPhase === 'error' ? error : PHASE_LABELS[loadingPhase]}
+            {loadingPhase === "error" ? error : PHASE_LABELS[loadingPhase]}
           </span>
-          
+
           {/* Animated dots — convey "working" without faking a progress percentage */}
           {isLoading && (
             <div ref={dotsRef} className="flex items-center gap-1">

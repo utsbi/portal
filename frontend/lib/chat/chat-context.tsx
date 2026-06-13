@@ -150,6 +150,9 @@ interface ChatContextType {
   sessionTitle: string | null;
   loadingPhase: LoadingPhase;
   isLoading: boolean;
+  // True while a turn is in flight, including the token-streaming window (when
+  // isLoading is already false). Branch switching is disabled during this.
+  isStreaming: boolean;
   error: string | null;
   clearError: () => void;
   // True when the most recent loadSession() failed to hydrate a conversation
@@ -195,6 +198,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
   const [sessionTitle, setSessionTitle] = useState<string | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
+  // True for the whole lifetime of an in-flight turn (request start -> stream
+  // settled), unlike `isLoading` which flips to false once the first token
+  // arrives. Used to disable branch switching while a turn is streaming.
+  const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [isHydrating, setIsHydrating] = useState(false);
@@ -302,18 +309,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const sid = sessionIdRef.current;
     if (sid == null) return;
     const supabase = createClient();
-    const { data } = await supabase
-      .from("client_chat_messages")
-      .select(
-        "id, parent_id, role, content, sources, attachments, is_cancelled, created_at",
-      )
-      .eq("session_id", sid)
-      .order("created_at", { ascending: true });
-    const rows = (data ?? []) as MessageRow[];
+    const [{ data: msgData }, { data: sessData }] = await Promise.all([
+      supabase
+        .from("client_chat_messages")
+        .select(
+          "id, parent_id, role, content, sources, attachments, is_cancelled, created_at",
+        )
+        .eq("session_id", sid)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("client_chat_sessions")
+        .select("metadata")
+        .eq("id", sid)
+        .maybeSingle(),
+    ]);
+    const rows = (msgData ?? []) as MessageRow[];
     treeRowsRef.current = rows;
-    const derived = buildActiveBranch(rows, null);
+    // Build the active branch from the AUTHORITATIVE leaf (the route advances
+    // active_leaf_id to the answer it just wrote), not the highest-id row — those
+    // diverge if a row from another branch sorts later.
+    const meta =
+      sessData?.metadata && typeof sessData.metadata === "object"
+        ? (sessData.metadata as Record<string, unknown>)
+        : {};
+    const activeLeafId =
+      typeof meta.active_leaf_id === "number" ? meta.active_leaf_id : null;
+    const derived = buildActiveBranch(rows, activeLeafId);
     setMessages((live) => {
       if (derived.length !== live.length) return live;
+      // Graft branch metadata by position — but only when every role lines up. A
+      // shape mismatch means `derived` isn't the branch on screen (a divergent
+      // branch of equal length), so leave live messages alone and let the next
+      // loadSession reconcile rather than mislabel dbIds.
+      for (let i = 0; i < live.length; i++) {
+        if (live[i].role !== derived[i].role) return live;
+      }
       return live.map((m, i) => ({
         ...m,
         dbId: derived[i].dbId,
@@ -329,8 +359,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       history: ChatMessage[],
       sessionAttachments: AttachmentFile[],
       abortController: AbortController,
+      regenerate = false,
     ): Promise<boolean> => {
       setLoadingPhase("thinking");
+      setIsStreaming(true);
 
       try {
         let assistantId: string | null = null;
@@ -353,6 +385,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             model_preference: modelPreference,
             session_id: sessionIdRef.current,
             public_id: newPublicId,
+            regenerate,
           },
           abortController.signal,
           handlePhase,
@@ -469,6 +502,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setTimeout(() => setLoadingPhase("idle"), 3000);
         return false;
       } finally {
+        setIsStreaming(false);
         abortControllerRef.current = null;
       }
     },
@@ -525,8 +559,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Re-run the latest user turn. Used when a send failed (the user message is
   // kept, no assistant reply) or a reloaded thread ends on an unanswered user
-  // message. The API route trims rows beyond history.length before persisting,
-  // so the previous unanswered user row is replaced, not duplicated.
+  // message. This forks a fresh user turn from the same branch point; the
+  // previous unanswered turn stays in the tree on an abandoned branch.
   const retryLastMessage = useCallback(async () => {
     let idx = -1;
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -702,7 +736,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    await runAgent(query, history, allSessionAttachments, abortController);
+    // regenerate=true: the route persists a new answer as a sibling under the
+    // EXISTING user turn rather than inserting a duplicate user row.
+    await runAgent(
+      query,
+      history,
+      allSessionAttachments,
+      abortController,
+      true,
+    );
   }, [messages, runAgent, collectSessionAttachments]);
 
   // Navigate to a sibling branch of `dbId` (direction -1 = previous, +1 = next).
@@ -957,6 +999,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         sessionTitle,
         loadingPhase,
         isLoading,
+        isStreaming,
         error,
         clearError,
         loadFailed,
