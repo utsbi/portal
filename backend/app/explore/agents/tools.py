@@ -209,7 +209,7 @@ TOOLS: List[Dict[str, Any]] = [
 # --- Tool implementations ----------------------------------------------------
 
 async def _search_documents(
-    query: str, project_ids: List[int], client_id: str
+    query: str, project_ids: List[int], client_id: str, strict: bool = False
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Run RAG retrieval scoped to the caller's project(s); return
     (context_text, sources) for citations.
@@ -217,12 +217,16 @@ async def _search_documents(
     Document search still runs uid-only when the caller has no active project
     membership, so a user with zero memberships can reach their own legacy
     (NULL-project) uploads rather than getting a hard "no project" wall.
+
+    When ``strict`` is True (a specific project is active), retrieval is locked
+    to the active project alone — the caller's legacy NULL-project uploads are
+    excluded so another scope's documents can't leak into a project chat.
     """
     if not query or not query.strip():
         return "No search query was provided.", []
 
     docs = await rag_service.retrieve_relevant(
-        query=query, project_ids=project_ids, client_id=client_id
+        query=query, project_ids=project_ids, client_id=client_id, strict=strict
     )
     if not docs:
         return (
@@ -680,7 +684,13 @@ async def execute_tool(
             query = str(args.get("query", "")) if args else ""
             db = user_client(access_token)
             project_ids = await _scoped_project_ids(db, client_id, project_id)
-            return await _search_documents(query, project_ids, client_id)
+            # A specific active project means STRICT scoping: only that project's
+            # documents, never the caller's legacy NULL-project uploads. Inferred
+            # from the actual project_id (not the list, which is single-element
+            # for a no-project user with exactly one membership too).
+            return await _search_documents(
+                query, project_ids, client_id, strict=project_id is not None
+            )
         if name == "search_sbi_knowledge":
             query = str(args.get("query", "")) if args else ""
             return _search_sbi_knowledge(query)

@@ -353,7 +353,14 @@ export function AppSidebar() {
         <div className="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-sbi-green/20" />
 
         {/* Header */}
-        <div className="h-16 flex items-center border-b border-sbi-dark-border/30 px-3">
+        <div
+          className={cn(
+            "h-16 flex items-center border-b border-sbi-dark-border/30",
+            // Collapsed rail: center the logo so it lines up with the centered
+            // nav icons below it (expanded: left-aligned with the brand text).
+            isCollapsed ? "justify-center px-0" : "px-3",
+          )}
+        >
           <button
             type="button"
             onClick={handleLogoClick}

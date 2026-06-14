@@ -48,6 +48,8 @@ async def run_graph_streaming(
     from app.explore.agents.prompts import AGENT_SYSTEM_PROMPT
     from app.explore.agents.tools import TOOLS, execute_tool
     from app.explore.core.config import settings
+    from app.explore.db.supabase import user_client
+    from app.explore.services.membership import get_project_context
 
     history = history or []
     attachments = attachments or []
@@ -64,6 +66,21 @@ async def run_graph_streaming(
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": AGENT_SYSTEM_PROMPT}
     ]
+
+    # When the request carries an active project, inject an authoritative
+    # project-context block right after the static prompt so the model knows
+    # which project it's in (and can answer "what project am I in?"). This is
+    # best-effort: a lookup failure must never block the turn.
+    if project_id is not None:
+        try:
+            project_context = await get_project_context(
+                user_client(access_token), client_id, project_id
+            )
+            if project_context:
+                messages.append({"role": "system", "content": project_context})
+        except Exception:
+            logger.exception("Project-context injection failed; continuing without it")
+
     for msg in history[-10:]:
         role = msg.get("role", "user")
         content = msg.get("content", "")

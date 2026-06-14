@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type SessionSummary, useChat } from "@/lib/chat/chat-context";
+import { useProject } from "@/lib/project/project-context";
 import { cn } from "@/lib/utils";
 
 // Date buckets, in display order. Sessions arrive already sorted by updated_at desc.
@@ -107,6 +108,8 @@ export function ChatHistoryNav({ focusSearchRef }: ChatHistoryNavProps = {}) {
     deleteSession,
     sessionId,
   } = useChat();
+  const { activeProject } = useProject();
+  const activeProjectId = activeProject?.projectId ?? null;
 
   const [query, setQuery] = useState("");
 
@@ -177,13 +180,18 @@ export function ChatHistoryNav({ focusSearchRef }: ChatHistoryNavProps = {}) {
     }
   };
 
-  const { pinnedSessions, grouped } = useMemo(() => {
+  const { pinnedSessions, grouped, projectCount } = useMemo(() => {
+    // Project-locked sidebar: show the active project's chats, plus untagged
+    // (legacy / project-less) chats so nothing silently disappears. Other
+    // projects' chats are hidden here — the dedicated /dashboard/chats page
+    // remains the unfiltered "all chats" view.
+    const base = sessionList.filter(
+      (s) => s.project_id === activeProjectId || s.project_id == null,
+    );
     const q = query.trim().toLowerCase();
     const filtered = q
-      ? sessionList.filter((s) =>
-          (s.title || "Untitled").toLowerCase().includes(q),
-        )
-      : sessionList;
+      ? base.filter((s) => (s.title || "Untitled").toLowerCase().includes(q))
+      : base;
     const pinnedList = filtered.filter((s) => s.pinned);
     const rest = filtered.filter((s) => !s.pinned);
     const map = new Map<Bucket, SessionSummary[]>();
@@ -196,11 +204,15 @@ export function ChatHistoryNav({ focusSearchRef }: ChatHistoryNavProps = {}) {
     const groups = BUCKET_ORDER.map(
       (b) => [b, map.get(b) ?? []] as const,
     ).filter(([, arr]) => arr.length > 0);
-    return { pinnedSessions: pinnedList, grouped: groups };
-  }, [sessionList, query]);
+    return {
+      pinnedSessions: pinnedList,
+      grouped: groups,
+      projectCount: base.length,
+    };
+  }, [sessionList, query, activeProjectId]);
 
   const loading = !sessionsLoaded;
-  const hasAny = sessionList.length > 0;
+  const hasAny = projectCount > 0;
   const noMatches =
     hasAny && pinnedSessions.length === 0 && grouped.length === 0;
 
