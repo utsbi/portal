@@ -102,3 +102,9 @@ lancedb/
 
 # Playwright MCP scratch output (screenshots, snapshots, console logs)
 .playwright-mcp/
+
+# Supabase CLI scratch (linked-project + version cache, machine-local)
+supabase/.temp/
+
+# Local planning / spec notes — kept untracked, never committed
+docs/superpowers/
