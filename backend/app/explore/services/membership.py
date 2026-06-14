@@ -18,6 +18,68 @@ from typing import List, Optional
 from supabase import Client
 
 
+async def get_project_context(
+    db: Client, client_id: str, project_id: int
+) -> Optional[str]:
+    """Return a short, authoritative project-context block for the system prompt.
+
+    Resolves the active project's name and the caller's role on it, using the
+    same ``profiles.uid -> profiles.id -> project_members`` lookup the rest of
+    this module uses, so a caller can only ever see context for a project they
+    actually belong to. Returns ``None`` when the caller is not a member of
+    ``project_id`` (or the project can't be resolved), so nothing is injected.
+    """
+    if not client_id or not client_id.strip():
+        return None
+
+    def _query() -> Optional[str]:
+        profile = (
+            db.table("profiles")
+            .select("id")
+            .eq("uid", client_id)
+            .limit(1)
+            .execute()
+        )
+        if not profile.data:
+            return None
+        profile_id = profile.data[0]["id"]
+
+        member = (
+            db.table("project_members")
+            .select("role")
+            .eq("profile_id", profile_id)
+            .eq("project_id", project_id)
+            .limit(1)
+            .execute()
+        )
+        if not member.data:
+            return None
+        role = member.data[0].get("role") or "member"
+
+        project = (
+            db.table("projects")
+            .select("company_name")
+            .eq("id", project_id)
+            .limit(1)
+            .execute()
+        )
+        if not project.data:
+            return None
+        company_name = project.data[0].get("company_name") or f"Project {project_id}"
+
+        return (
+            "Current project context (authoritative — the project the user is "
+            "working in right now):\n"
+            f"- Project: {company_name} (project #{project_id})\n"
+            f"- The user's role on this project: {role}\n"
+            "When the user asks which project they're in, answer with the "
+            "project name above. All tool calls are already scoped to this "
+            "project."
+        )
+
+    return await asyncio.to_thread(_query)
+
+
 async def caller_project_ids(db: Client, client_id: str) -> List[int]:
     """Resolve the project ids the caller is a member of. Empty list if none.
 

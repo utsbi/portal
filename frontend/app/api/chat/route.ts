@@ -70,16 +70,23 @@ export async function POST(request: NextRequest) {
   // Other keys in the session's metadata jsonb are carried forward on every
   // active_leaf_id write so we never clobber them (read once here, not per write).
   let sessionMetadata: Record<string, unknown> = {};
+  // A chat's project is FIXED at creation. For an existing session we forward the
+  // STORED project_id (not the client's current header value), so switching the
+  // active project mid-chat — or reopening an old chat under a different project —
+  // can never silently re-scope the conversation and mix another project's data.
+  let sessionProjectId: number | null = null;
   if (sessionId !== null) {
     const { data: existing } = await supabase
       .from("client_chat_sessions")
-      .select("id, metadata")
+      .select("id, metadata, project_id")
       .eq("id", sessionId)
       .maybeSingle();
     if (!existing) return jsonError(404, "Session not found or not owned");
     if (existing.metadata && typeof existing.metadata === "object") {
       sessionMetadata = existing.metadata as Record<string, unknown>;
     }
+    sessionProjectId =
+      typeof existing.project_id === "number" ? existing.project_id : null;
   } else {
     isNewSession = true;
     // Honor a client-minted uuid so the URL is known before the first response.
@@ -103,6 +110,7 @@ export async function POST(request: NextRequest) {
       body.project_id > 0
     ) {
       insertRow.project_id = body.project_id;
+      sessionProjectId = body.project_id;
     }
     const { data: newSession, error: sessionErr } = await supabase
       .from("client_chat_sessions")
@@ -256,7 +264,8 @@ export async function POST(request: NextRequest) {
       attachments: body.attachments ?? [],
       include_sources: body.include_sources ?? true,
       model_preference: modelPreference,
-      project_id: body.project_id ?? null,
+      // Authoritative: the session's own project, not the live header.
+      project_id: sessionProjectId,
     }),
     signal: request.signal,
   });

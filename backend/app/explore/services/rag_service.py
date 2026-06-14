@@ -242,7 +242,8 @@ class RAGService:
 
     async def retrieve_relevant(self, query: str, project_ids: List[int],
         client_id: Optional[str] = None,
-        top_n: Optional[int] = None) -> List[Dict[str, Any]]:
+        top_n: Optional[int] = None,
+        strict: bool = False) -> List[Dict[str, Any]]:
         """Retrieve the most relevant documents for a query (two-stage).
 
         Scoped to ``project_ids`` (the caller's membership-verified active
@@ -251,18 +252,24 @@ class RAGService:
         ``rerank_candidates`` candidates. Stage 2: the reranker re-scores them
         and keeps the top ``top_n``.
 
+        When ``strict`` is True (a specific project is active), ``client_id`` is
+        dropped from the scope so ONLY documents belonging to the active project
+        are returned — the caller's legacy NULL-project uploads are NOT mixed in,
+        preventing cross-scope document leakage.
+
         This is the entry point chat turns should use; the returned list is the
         single source of truth for both the prompt context and the citation
         sources, keeping the model's ``[n]`` markers aligned with the rendered
         source chips.
         """
-        if not project_ids and not client_id:
+        effective_client_id = None if strict else client_id
+        if not project_ids and not effective_client_id:
             return []
         keep = top_n if top_n is not None else settings.rerank_top_n
         candidates = await self.hybrid_search(
             query=query,
             project_ids=project_ids,
-            client_id=client_id,
+            client_id=effective_client_id,
             limit=settings.rerank_candidates,
         )
         if not candidates:
