@@ -47,12 +47,19 @@ class RAGService:
             raise ValueError(f"Failed to generate embedding: {str(e)}")
 
     async def store_document(self, content: str, metadata: Dict[str, Any],
-        client_id: str, project_id: Optional[int] = None) -> List[int]:
+        client_id: str, project_id: Optional[int] = None,
+        storage_path: Optional[str] = None, source: str = "manual") -> List[int]:
         """Chunk, embed, and store a document in Supabase.
 
         ``project_id`` tags the document with the project it belongs to so the
         ``search_documents`` tool can retrieve it for that project's team. The
         uploader ``uid`` is still recorded for ownership/auditing.
+
+        ``storage_path`` records the project-relative path of the source file in
+        the "Files" storage bucket (set for files indexed from the Document
+        Portal); ``source`` tags how the chunk entered the corpus ('portal',
+        'chat', or 'manual'). Both default to today's behaviour for existing
+        callers.
         """
         chunks = self.pdf_parser.chunk_text(content)
         document_ids = []
@@ -73,7 +80,9 @@ class RAGService:
                 "project_id": project_id,
                 "content": chunk,
                 "metadata": chunk_metadata,
-                "embedding": embedding
+                "embedding": embedding,
+                "storage_path": storage_path,
+                "source": source
             }).execute()
 
             if result.data and isinstance(result.data, list) and len(result.data) > 0:

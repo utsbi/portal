@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { AmbientGrid } from "./ui/AmbientGrid";
 import { ChatMessages } from "./ui/ChatMessages";
 import { FloatingNodes } from "./ui/FloatingNodes";
-import { KnowledgeSourcesPanel } from "./ui/KnowledgeSourcesPanel";
 import { PortalHero } from "./ui/PortalHero";
 import { PortalInput } from "./ui/PortalInput";
 import { SourcesPanel } from "./ui/SourcesPanel";
@@ -306,12 +305,9 @@ export function ExplorePortal() {
         >
           <PortalInput animated={false} />
           {showWelcome ? (
-            <>
-              <div className="mt-4">
-                <SuggestionChips disableAutoAnimation />
-              </div>
-              <KnowledgeSourcesPanel className="mt-4" />
-            </>
+            <div className="mt-4">
+              <SuggestionChips disableAutoAnimation />
+            </div>
           ) : (
             <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
               AI can make mistakes, so double check responses

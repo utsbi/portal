@@ -36,6 +36,12 @@ import {
     uploadFile,
 } from "./storage";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { KnowledgeSourcesPanel } from "@/components/dashboard/explore/ui/KnowledgeSourcesPanel";
+import {
+    deletePortalFileIndex,
+    indexPortalFile,
+    listIndexedFiles,
+} from "@/lib/api/knowledge";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import {
@@ -49,6 +55,22 @@ import {
     btnPrimary,
     btnGhost,
 } from "@/components/dashboard/common/ui";
+
+// File types the RAG ingester accepts. Uploading one of these auto-indexes it
+// into the project's assistant corpus; anything else is "Not indexable".
+const INDEXABLE_EXTENSIONS = new Set([
+    "pdf",
+    "txt",
+    "md",
+    "docx",
+    "pptx",
+    "xlsx",
+]);
+
+function isIndexable(name: string): boolean {
+    const ext = name.split(".").pop()?.toLowerCase() ?? "";
+    return INDEXABLE_EXTENSIONS.has(ext);
+}
 
 function SkeletonTile() {
     return (
@@ -111,6 +133,31 @@ export default function FilesPage() {
         name: string;
         path: string;
     } | null>(null);
+
+    // RAG index state. `indexedPaths` is the set of project-relative paths the
+    // backend has embedded; `indexingPaths` are uploads whose index call is in
+    // flight. Both drive the per-file badge.
+    const [indexedPaths, setIndexedPaths] = useState<Set<string>>(new Set());
+    const [indexingPaths, setIndexingPaths] = useState<Set<string>>(new Set());
+
+    const refreshIndexedFiles = useCallback(async () => {
+        if (projectId === null) return;
+        try {
+            const indexed = await listIndexedFiles(projectId);
+            setIndexedPaths(new Set(indexed.map((f) => f.storage_path)));
+        } catch {
+            // Non-critical: the badge just won't show. Don't disrupt the page.
+        }
+    }, [projectId]);
+
+    // Load the indexed list on mount and on project switch; clear stale state
+    // first so a previous project's badges never bleed across the switch.
+    useEffect(() => {
+        setIndexedPaths(new Set());
+        setIndexingPaths(new Set());
+        if (projectId === null) return;
+        void refreshIndexedFiles();
+    }, [projectId, refreshIndexedFiles]);
 
     // ---------------------------------------------------------------------
     // Listing — cache-aware. Tree nodes resolve `hasSubfolders` up front by
@@ -506,6 +553,7 @@ export default function FilesPage() {
 
         let okCount = 0;
         const failures: string[] = [];
+        const toIndex: string[] = [];
         for (const file of arr) {
             const targetPath = selectedFolderPath
                 ? `${selectedFolderPath}/${file.name}`
@@ -517,6 +565,7 @@ export default function FilesPage() {
                 );
             } else {
                 okCount += 1;
+                if (isIndexable(file.name)) toIndex.push(targetPath);
             }
         }
 
@@ -533,6 +582,39 @@ export default function FilesPage() {
             toastError(failures.join(" • "), "Some uploads failed");
         }
         await refreshAfterWrite();
+
+        // Best-effort auto-index of every newly uploaded indexable file. Each
+        // path shows "Indexing…" while its call is in flight, then the refreshed
+        // indexed-list flips it to "Indexed". A failed index just clears the
+        // in-flight badge — the storage upload already succeeded.
+        if (projectId !== null && toIndex.length > 0) {
+            setIndexingPaths((prev) => {
+                const next = new Set(prev);
+                for (const p of toIndex) next.add(p);
+                return next;
+            });
+            await Promise.all(
+                toIndex.map(async (path) => {
+                    try {
+                        await indexPortalFile(projectId, path);
+                    } catch (err) {
+                        toastError(
+                            err instanceof Error
+                                ? err.message
+                                : `Couldn't index ${path.split("/").pop()}.`,
+                            "Indexing failed",
+                        );
+                    } finally {
+                        setIndexingPaths((prev) => {
+                            const next = new Set(prev);
+                            next.delete(path);
+                            return next;
+                        });
+                    }
+                }),
+            );
+            await refreshIndexedFiles();
+        }
     };
 
     const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -661,19 +743,43 @@ export default function FilesPage() {
 
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
+        const target = deleteTarget;
         try {
-            if (deleteTarget.kind === "file") {
-                await removePaths([deleteTarget.path]);
+            if (target.kind === "file") {
+                await removePaths([target.path]);
             } else {
-                await deleteFolder(deleteTarget.path);
+                await deleteFolder(target.path);
             }
-            invalidatePrefix(deleteTarget.path);
-            invalidatePath(parentOf(deleteTarget.path));
+            invalidatePrefix(target.path);
+            invalidatePath(parentOf(target.path));
             toastSuccess(
-                `${deleteTarget.kind === "file" ? "File" : "Folder"} "${deleteTarget.name}" deleted.`,
+                `${target.kind === "file" ? "File" : "Folder"} "${target.name}" deleted.`,
             );
             setDeleteTarget(null);
             await refreshAfterWrite();
+
+            // Best-effort cascade into the RAG index — never block or fail the
+            // storage delete on it. For a file, drop its single index; for a
+            // folder, drop every indexed path under that prefix.
+            if (projectId !== null) {
+                const prefix = `${target.path}/`;
+                const toUnindex =
+                    target.kind === "file"
+                        ? indexedPaths.has(target.path)
+                            ? [target.path]
+                            : []
+                        : Array.from(indexedPaths).filter((p) =>
+                              p.startsWith(prefix),
+                          );
+                if (toUnindex.length > 0) {
+                    await Promise.all(
+                        toUnindex.map((p) =>
+                            deletePortalFileIndex(projectId, p).catch(() => {}),
+                        ),
+                    );
+                    await refreshIndexedFiles();
+                }
+            }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             toastError(humanizeStorageError(msg, "delete"));
@@ -748,8 +854,15 @@ export default function FilesPage() {
                             ))}
                         </ul>
                     ) : (
-                        <p className="text-sm text-sbi-muted">No folders found</p>
+                        <p className="px-2 py-1 text-xs font-light text-sbi-muted-dark">
+                            No folders yet
+                        </p>
                     )}
+
+                    {/* Read-only disclosure of the project's RAG corpus — what
+                        the Explore assistant can read. Indexing happens via the
+                        Upload button above; this panel no longer uploads. */}
+                    <KnowledgeSourcesPanel className="mt-4" />
                 </Panel>
 
                 <main className="flex-1 min-w-0 overflow-y-auto flex flex-col">
@@ -906,6 +1019,15 @@ export default function FilesPage() {
                                             const fullPath = selectedFolderPath
                                                 ? `${selectedFolderPath}/${item.name}`
                                                 : item.name;
+                                            const indexState = indexingPaths.has(
+                                                fullPath,
+                                            )
+                                                ? "indexing"
+                                                : indexedPaths.has(fullPath)
+                                                  ? "indexed"
+                                                  : isIndexable(item.name)
+                                                    ? undefined
+                                                    : "not-indexable";
                                             return (
                                                 <FileCard
                                                     key={item.name}
@@ -916,6 +1038,7 @@ export default function FilesPage() {
                                                     draggableId={fullPath}
                                                     updatedAt={item.updated_at}
                                                     canManage={isDirector}
+                                                    indexState={indexState}
                                                     onRename={() =>
                                                         openRename(
                                                             "file",

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
@@ -21,22 +22,27 @@ async def run_graph_streaming(
     """Run the Explore agent tool-calling loop, yielding SSE events.
 
     Flow:
-      1. On the first turn (empty ``history``) emit a ``title`` event.
-      2. Emit ``phase: thinking``, then run a NON-streaming tool-decision loop
-         (max ``MAX_TOOL_ITERATIONS``) using ``FAST_MODEL`` with ``tools`` and
-         ``tool_choice="auto"``. Each requested tool is executed via
-         ``execute_tool``; ``search_documents`` results contribute citation
-         sources.
-      3. Emit ``phase: generating`` and produce the FINAL answer as a STREAMING
-         completion WITHOUT tools, yielding ``delta`` events per token. On
-         thinking-model turns the model's reasoning tokens stream first as
-         ``reasoning`` events (best-effort; fast models emit none).
+      1. On the first turn (empty ``history``) kick off title generation as a
+         background task so it overlaps the first model call instead of adding a
+         full round-trip of dead air before any token; the ``title`` event is
+         emitted as soon as it's ready.
+      2. Emit ``phase: thinking``, then run a SINGLE STREAMING tool-calling loop
+         (max ``MAX_TOOL_ITERATIONS``) with ``tools`` and ``tool_choice="auto"``.
+         ``delta.content`` streams as ``delta`` events and ``delta.reasoning`` as
+         ``reasoning`` events AS THEY ARRIVE. If a chunk yields tool calls, emit
+         ``phase: searching`` once, execute each via ``execute_tool`` (
+         ``search_documents`` results contribute citation sources), append the
+         results, and loop again — the next iteration is ALSO streamed. A no-tool
+         query therefore starts streaming on the FIRST model call.
+      3. Emit ``phase: generating`` before the answer-only iteration so the UI
+         can flip out of "searching"; the final answer streamed in that same
+         iteration carries [n] citations against the accumulated tool results.
       4. Emit a single ``result`` event with the full answer and sources.
 
-    The SSE contract (title / phase / delta / result) is preserved exactly; a
-    ``reasoning`` event is additive and carries ephemeral thinking tokens that
-    are shown live but never persisted. The endpoint owns the ``session`` event,
-    so it is never emitted here.
+    The SSE contract (title / phase / reasoning / delta / result) is preserved
+    exactly; a ``reasoning`` event is additive and carries ephemeral thinking
+    tokens that are shown live but never persisted. The endpoint owns the
+    ``session`` event, so it is never emitted here.
     """
     # Imported lazily to keep import-time side effects (OpenAI client creation)
     # out of module import and mirror the previous graph.py structure.
@@ -54,10 +60,30 @@ async def run_graph_streaming(
     history = history or []
     attachments = attachments or []
 
-    # First turn: best-effort conversation title (never blocks the turn).
+    # First turn: start best-effort title generation as a background task so it
+    # overlaps the first model call instead of serializing a full round-trip
+    # ahead of it. ``generate_title`` already falls back internally, so the task
+    # never raises. The ``title`` event is flushed (below) the moment it's ready.
+    title_task: Optional["asyncio.Task[str]"] = None
     if not history:
-        title = await generate_title(query)
-        yield {"type": "title", "title": title}
+        title_task = asyncio.create_task(generate_title(query))
+
+    async def _drain_title() -> Optional[Dict[str, Any]]:
+        """Return a ``title`` event if the background title is ready, else None.
+
+        Non-blocking: only resolves the task once it has completed so emitting
+        the title never stalls the token stream.
+        """
+        if title_task is None or not title_task.done():
+            return None
+        try:
+            title = title_task.result()
+        except Exception:
+            # generate_title swallows its own errors, but guard regardless so a
+            # title failure can never crash the turn.
+            logger.exception("Title task failed; skipping title event")
+            return None
+        return {"type": "title", "title": title}
 
     yield {"type": "phase", "phase": "thinking"}
 
@@ -90,54 +116,149 @@ async def run_graph_streaming(
 
     collected_sources: List[Dict[str, Any]] = []
     searched_emitted = False
+    generating_emitted = False
+    sources_msg_index: Optional[int] = None
+    title_emitted = title_task is None
 
-    # --- Tool-decision loop (non-streaming) ---------------------------------
+    model = settings.think_model if model_preference == "thinking" else settings.fast_model
+
+    answer_parts: List[str] = []
+
+    # --- Single streaming tool-calling loop ---------------------------------
+    # Each iteration streams the model's output AS IT ARRIVES. If the model
+    # requests tools we run them and loop again (also streamed); the iteration
+    # that yields no tool calls IS the final answer — there is no separate,
+    # serialized generation call. A simple query thus streams on call #1.
     for iteration in range(MAX_TOOL_ITERATIONS):
+        # Dedupe sources while preserving order so [n] indices stay stable, then
+        # (re)attach the numbered "Available Sources" system message so the model
+        # can cite project facts with [n] markers in the streamed answer. We keep
+        # a single such message and refresh it in place as sources accumulate.
+        if collected_sources:
+            deduped_sources: List[Dict[str, Any]] = []
+            seen_keys: set[str] = set()
+            for s in collected_sources:
+                key = f"{s.get('filename')}:{s.get('page_number')}"
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                deduped_sources.append(s)
+            collected_sources = deduped_sources
+
+            sources_content = (
+                "Available Sources (cite project facts drawn from these using [n] "
+                "markers, matching the index below; use only these indices):\n"
+                + _format_sources_list(collected_sources)
+            )
+            if sources_msg_index is None:
+                sources_msg_index = len(messages)
+                messages.append({"role": "system", "content": sources_content})
+            else:
+                messages[sources_msg_index]["content"] = sources_content
+
+        # Accumulators for tool_calls streamed incrementally across chunks. Each
+        # entry collects an id, function name, and the concatenated argument
+        # fragments for one tool call (keyed by the streamed choice index).
+        tool_calls_acc: Dict[int, Dict[str, Any]] = {}
+
         try:
-            resp = await openrouter_client.chat.completions.create(
-                model=settings.fast_model,
+            stream = await openrouter_client.chat.completions.create(
+                model=model,
                 messages=messages,
+                stream=True,
                 tools=TOOLS,
                 tool_choice="auto",
+                extra_body={"reasoning": {"effort": "medium"}},
             )
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+
+                # Reasoning/thinking tokens stream BEFORE the answer. Forward
+                # them as a separate ``reasoning`` event so the UI can show
+                # "Thinking" live; they are ephemeral (not persisted) and never
+                # part of the answer.
+                reasoning = getattr(delta, "reasoning", None)
+                if reasoning:
+                    yield {"type": "reasoning", "text": reasoning}
+
+                content = delta.content
+                if content:
+                    # First answer token: flip the UI out of "thinking"/"searching"
+                    # into "generating" exactly once, on every path (a no-tool
+                    # query never runs the post-tools emission below).
+                    if not generating_emitted:
+                        yield {"type": "phase", "phase": "generating"}
+                        generating_emitted = True
+                    answer_parts.append(content)
+                    yield {"type": "delta", "text": content}
+
+                # Accumulate any tool_call fragments on this chunk. The id and
+                # name arrive once; arguments stream as concatenated fragments.
+                for tc in getattr(delta, "tool_calls", None) or []:
+                    idx = tc.index if tc.index is not None else 0
+                    slot = tool_calls_acc.setdefault(
+                        idx, {"id": None, "name": None, "arguments": ""}
+                    )
+                    if tc.id:
+                        slot["id"] = tc.id
+                    fn = getattr(tc, "function", None)
+                    if fn is not None:
+                        if fn.name:
+                            slot["name"] = fn.name
+                        if fn.arguments:
+                            slot["arguments"] += fn.arguments
+
+                # Flush the title as soon as it's ready, overlapped with the
+                # stream rather than serialized ahead of it.
+                if not title_emitted:
+                    title_event = await _drain_title()
+                    if title_event is not None:
+                        title_emitted = True
+                        yield title_event
         except Exception:
-            # A failure deciding on tools must not crash the turn; fall through
-            # to generation with whatever (if anything) we have so far.
-            logger.exception("Tool-decision call failed; proceeding to generation")
+            # A streaming failure must not crash the turn. Break out; the
+            # fallbacks below surface a graceful message if nothing streamed.
+            logger.exception("Streaming completion failed; ending tool loop")
             break
 
-        message = resp.choices[0].message
-        tool_calls = getattr(message, "tool_calls", None)
+        # Materialize accumulated tool calls in their streamed order.
+        tool_calls = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
 
         if not tool_calls:
-            # Model is ready to answer; stop deciding and stream the final answer.
+            # No tools requested: the answer already streamed in this iteration.
+            # We're done.
             break
 
-        # Record the assistant's tool-call message so the tool results attach
-        # to the right call ids.
+        # Record the assistant's tool-call message so the tool results attach to
+        # the right call ids.
         messages.append({
             "role": "assistant",
-            "content": message.content or "",
+            "content": "".join(answer_parts) if answer_parts else "",
             "tool_calls": [
                 {
-                    "id": tc.id,
+                    "id": tc["id"] or f"call_{i}",
                     "type": "function",
                     "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments or "{}",
+                        "name": tc["name"] or "",
+                        "arguments": tc["arguments"] or "{}",
                     },
                 }
-                for tc in tool_calls
+                for i, tc in enumerate(tool_calls)
             ],
         })
+        # The streamed deltas (if any) belonged to a tool-deciding turn, not the
+        # final answer; reset so they don't leak into the result.
+        answer_parts = []
 
         if not searched_emitted:
             yield {"type": "phase", "phase": "searching"}
             searched_emitted = True
 
-        for tc in tool_calls:
-            name = tc.function.name
-            raw_args = tc.function.arguments or "{}"
+        for i, tc in enumerate(tool_calls):
+            name = tc["name"] or ""
+            raw_args = tc["arguments"] or "{}"
             try:
                 args = json.loads(raw_args) if raw_args.strip() else {}
                 if not isinstance(args, dict):
@@ -153,19 +274,53 @@ async def run_graph_streaming(
 
             messages.append({
                 "role": "tool",
-                "tool_call_id": tc.id,
+                "tool_call_id": tc["id"] or f"call_{i}",
                 "content": result_text,
             })
+
+        # We ran tools; the next iteration produces the (streamed) answer with
+        # tool results in context. Flip the UI out of "searching".
+        if not generating_emitted:
+            yield {"type": "phase", "phase": "generating"}
+            generating_emitted = True
     else:
         # Loop exhausted iterations without the model settling on an answer.
         logger.info(
             f"Tool loop hit MAX_TOOL_ITERATIONS ({MAX_TOOL_ITERATIONS}); "
-            "forcing final generation"
+            "forcing a final tool-free generation"
         )
 
-    # Dedupe sources while preserving order so [n] indices stay stable.
-    deduped_sources: List[Dict[str, Any]] = []
-    seen_keys: set[str] = set()
+    # If we ran tools but never produced an answer (loop exhausted still asking
+    # for tools, or a mid-loop stream error), force one final streamed answer
+    # WITHOUT tools so a tool-happy model still answers instead of erroring out.
+    if not answer_parts and any(m.get("role") == "tool" for m in messages):
+        if not generating_emitted:
+            yield {"type": "phase", "phase": "generating"}
+            generating_emitted = True
+        try:
+            stream = await openrouter_client.chat.completions.create(
+                model=model,
+                messages=messages,
+                stream=True,
+                extra_body={"reasoning": {"effort": "medium"}},
+            )
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                reasoning = getattr(delta, "reasoning", None)
+                if reasoning:
+                    yield {"type": "reasoning", "text": reasoning}
+                content = delta.content
+                if content:
+                    answer_parts.append(content)
+                    yield {"type": "delta", "text": content}
+        except Exception:
+            logger.exception("Forced final generation failed")
+
+    # Re-dedupe in case the final iteration added sources after the last refresh.
+    deduped_sources = []
+    seen_keys = set()
     for s in collected_sources:
         key = f"{s.get('filename')}:{s.get('page_number')}"
         if key in seen_keys:
@@ -174,58 +329,17 @@ async def run_graph_streaming(
         deduped_sources.append(s)
     collected_sources = deduped_sources
 
-    # If documents were cited, give the model the numbered source list so it can
-    # attach [n] markers to project facts in the final streamed answer.
-    if collected_sources:
-        messages.append({
-            "role": "system",
-            "content": (
-                "Available Sources (cite project facts drawn from these using [n] "
-                "markers, matching the index below; use only these indices):\n"
-                + _format_sources_list(collected_sources)
-            ),
-        })
-
-    # --- Final answer (streaming, no tools) ---------------------------------
-    yield {"type": "phase", "phase": "generating"}
-
-    model = settings.think_model if model_preference == "thinking" else settings.fast_model
-
-    answer_parts: List[str] = []
-    try:
-        # Request reasoning tokens. Thinking models (think_model) interleave
-        # reasoning before the answer; flash/fast models simply emit none, which
-        # is fine — reasoning is best-effort and never required. OpenRouter takes
-        # the reasoning config via extra_body.
-        stream = await openrouter_client.chat.completions.create(
-            model=model,
-            messages=messages,
-            stream=True,
-            extra_body={"reasoning": {"effort": "medium"}},
-        )
-        async for chunk in stream:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
-            # Reasoning/thinking tokens stream BEFORE the answer. Forward them as
-            # a separate ``reasoning`` event so the UI can show "Thinking" live;
-            # they are ephemeral (not persisted) and never part of the answer.
-            reasoning = getattr(delta, "reasoning", None)
-            if reasoning:
-                yield {"type": "reasoning", "text": reasoning}
-            content = delta.content
-            if content:
-                answer_parts.append(content)
-                yield {"type": "delta", "text": content}
-    except Exception:
-        logger.exception("Final response generation failed")
-        if not answer_parts:
-            err = (
-                "I ran into a problem while generating a response. "
-                "Please try again in a moment, or rephrase your question."
-            )
-            yield {"type": "delta", "text": err}
-            answer_parts.append(err)
+    # If the title never got a chance to flush during the stream (e.g. an early
+    # break or a slow first chunk), await it now so the frontend can still name
+    # the chat. Bounded by generate_title's own internal fallback.
+    if not title_emitted and title_task is not None:
+        try:
+            title = await title_task
+        except Exception:
+            logger.exception("Title task failed; skipping title event")
+            title = None
+        if title:
+            yield {"type": "title", "title": title}
 
     full_answer = "".join(answer_parts).strip()
     if not full_answer:
