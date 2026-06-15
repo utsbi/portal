@@ -401,10 +401,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           handlePhase,
           (delta) => {
             if (cancelledRef.current || !delta) return;
+            // An answer token means we're past thinking/searching/generating —
+            // clear the global loader on EVERY delta, not just the first. On a
+            // multi-iteration tool turn the message is created early (by the
+            // decision step's reasoning), so a later searching/generating phase
+            // would otherwise leave "Writing response" stuck for the whole answer.
+            setLoadingPhase("complete");
             if (assistantId === null) {
               const id = `assistant-${Date.now()}`;
               assistantId = id;
-              setLoadingPhase("complete");
               setMessages((prev) => [
                 ...prev,
                 {
@@ -494,6 +499,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           ]);
           setLoadingPhase("complete");
         }
+        // Streaming finished successfully — force the loader to its terminal
+        // state so it can never linger if the last phase event was a loading
+        // one (a multi-iteration tool turn ends mid-"generating" phase).
+        setLoadingPhase("complete");
         // The backend auto-titles the session after the first turn; refresh the
         // title (and public_id) so the header updates from "Untitled".
         if (sessionIdRef.current !== null)
