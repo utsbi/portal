@@ -108,3 +108,75 @@ export async function uploadKnowledgeDocument(
     throw new Error(err.detail || `Upload failed (${res.status})`);
   }
 }
+
+/** One Document-Portal file indexed into the project's RAG corpus. */
+export interface IndexedFile {
+  /** Project-relative Storage path (e.g. "Media/contract.pdf"). */
+  storage_path: string;
+  /** Number of embedded chunks stored for this file. */
+  chunks: number;
+}
+
+/**
+ * Index a Document-Portal file into the project's RAG corpus. `storagePath` is
+ * project-relative (e.g. "Media/contract.pdf"); the backend prefixes it with
+ * `{project_id}/`. Returns `{ indexed: false, reason }` when the backend skips
+ * the file (e.g. unsupported content) rather than throwing.
+ */
+export async function indexPortalFile(
+  projectId: number,
+  storagePath: string,
+): Promise<{ indexed: boolean; chunks?: number; reason?: string }> {
+  const res = await fetch("/api/knowledge/index-file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId, storage_path: storagePath }),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: `Indexing failed (${res.status})` }));
+    throw new Error(err.detail || `Indexing failed (${res.status})`);
+  }
+  return res.json();
+}
+
+/**
+ * Remove every indexed chunk of a Document-Portal file from the project's RAG
+ * corpus. `storagePath` is project-relative.
+ */
+export async function deletePortalFileIndex(
+  projectId: number,
+  storagePath: string,
+): Promise<{ deleted: number }> {
+  const res = await fetch("/api/knowledge/by-file", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId, storage_path: storagePath }),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: `Remove failed (${res.status})` }));
+    throw new Error(err.detail || `Remove failed (${res.status})`);
+  }
+  return res.json();
+}
+
+/** List the project's indexed Document-Portal files (project-relative paths). */
+export async function listIndexedFiles(
+  projectId: number,
+): Promise<IndexedFile[]> {
+  const res = await fetch(
+    `/api/knowledge/indexed?project_id=${encodeURIComponent(projectId)}`,
+  );
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: `Couldn't load indexed files (${res.status})` }));
+    throw new Error(
+      err.detail || `Couldn't load indexed files (${res.status})`,
+    );
+  }
+  return res.json();
+}

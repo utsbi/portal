@@ -16,11 +16,14 @@ import {
     ExternalLink,
     Pencil,
     Trash2,
+    Sparkles,
     type LucideIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toastError } from "@/lib/notifications";
 import { Modal } from "@/components/dashboard/common/Modal";
+
+type IndexState = "indexed" | "indexing" | "not-indexable";
 
 interface FileCardProps {
     name: string;
@@ -28,6 +31,7 @@ interface FileCardProps {
     draggableId: string;
     updatedAt?: string | null;
     canManage?: boolean;
+    indexState?: IndexState;
     onRename?: () => void;
     onDelete?: () => void;
 }
@@ -68,6 +72,7 @@ export default function FileCard({
     draggableId,
     updatedAt,
     canManage = false,
+    indexState,
     onRename,
     onDelete,
 }: FileCardProps) {
@@ -176,7 +181,33 @@ export default function FileCard({
                     <div className="text-sm font-medium text-white truncate" title={name}>
                         {name}
                     </div>
-                    <div className="text-xs text-sbi-muted">{formattedDate}</div>
+                    <div className="flex items-center gap-2 text-xs text-sbi-muted">
+                        <span>{formattedDate}</span>
+                        {indexState === "indexing" ? (
+                            <span
+                                className="inline-flex items-center gap-1 text-sbi-green/80"
+                                title="Indexing into the assistant's sources"
+                            >
+                                <span className="block h-2.5 w-2.5 rounded-full border-[1.5px] border-sbi-green/70 border-t-transparent animate-spin" />
+                                Indexing…
+                            </span>
+                        ) : indexState === "indexed" ? (
+                            <span
+                                className="inline-flex items-center gap-1 text-sbi-green/80"
+                                title="The assistant can read this file"
+                            >
+                                <Sparkles className="h-3 w-3" strokeWidth={1.5} />
+                                Indexed
+                            </span>
+                        ) : indexState === "not-indexable" ? (
+                            <span
+                                className="text-sbi-muted-dark"
+                                title="This file type isn't indexed for the assistant"
+                            >
+                                Not indexable
+                            </span>
+                        ) : null}
+                    </div>
                 </div>
                 {/* Actions sit over the row's right edge on an opaque fade so
                     the filename stays crisp (never blurred) and just runs
