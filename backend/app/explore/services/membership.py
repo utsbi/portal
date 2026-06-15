@@ -70,7 +70,7 @@ async def get_project_context(
         return (
             "Current project context (authoritative — the project the user is "
             "working in right now):\n"
-            f"- Project: {company_name} (project #{project_id})\n"
+            f"- Project: {company_name}\n"
             f"- The user's role on this project: {role}\n"
             "When the user asks which project they're in, answer with the "
             "project name above. All tool calls are already scoped to this "
