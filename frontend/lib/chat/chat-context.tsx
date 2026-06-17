@@ -51,7 +51,8 @@ export interface ToolStepOutput {
 // One ordered step in an assistant turn's "process timeline" — either a chunk of
 // streamed reasoning or a tool call. Reasoning chunks are coalesced into the
 // trailing reasoning step so reasoning → tool → reasoning interleaves in order.
-// Ephemeral: never persisted, so the timeline shows on live turns only.
+// Persisted: the API route writes this (as `process_steps` jsonb) incrementally
+// as it streams, so a reload, tab switch, or cancel reconstructs the timeline.
 export type TimelineStep =
   | { kind: "reasoning"; text: string }
   | {
@@ -72,11 +73,12 @@ export interface DisplayMessage {
   isStreaming?: boolean;
   isCancelled?: boolean;
   // Reasoning/thinking tokens streamed before the answer on thinking-model
-  // turns. Ephemeral — shown live in a collapsible section, never persisted.
+  // turns. Persisted (column `reasoning`) and re-derived on reload, so it shows
+  // on both live and reloaded turns.
   reasoning?: string;
   // Ordered process timeline (reasoning chunks interleaved with tool calls)
-  // streamed during the turn. Drives the ProcessTimeline UI. Ephemeral — built
-  // live from the stream, never persisted (absent on reloaded turns).
+  // streamed during the turn. Drives the ProcessTimeline UI. Persisted (column
+  // `process_steps`) and rebuilt by buildActiveBranch, so reloaded turns keep it.
   steps?: TimelineStep[];
   // Branch navigation, set only on messages backed by a persisted DB row whose
   // parent has sibling branches (created by edit/regenerate). `dbId` is the row id
@@ -89,6 +91,10 @@ export interface DisplayMessage {
 // A persisted message row, as selected from client_chat_messages. Messages form a
 // parent/child tree: rows sharing a parent_id are alternative branches of the same
 // point. The displayed thread is one root->leaf path through that tree.
+// `reasoning` and `process_steps` are the persisted form of the per-turn
+// ProcessTimeline (thinking chunks + tool calls) — populated by the API route
+// incrementally as events stream, so a reload, tab switch, or cancel-and-reload
+// can reconstruct the timeline exactly as it was streamed.
 type MessageRow = {
   id: number;
   parent_id: number | null;
@@ -98,6 +104,8 @@ type MessageRow = {
   attachments: unknown;
   is_cancelled: boolean;
   created_at: string;
+  reasoning: unknown;
+  process_steps: unknown;
 };
 
 // Derive the visible (active) branch from the full set of session rows. Walks from
@@ -148,6 +156,25 @@ function buildActiveBranch(
         : (childrenByParent.get(row.parent_id) ?? []);
       const branchCount = siblings.length;
       const hasBranches = branchCount > 1;
+      // The persisted process_steps jsonb has the same TimelineStep shape the
+      // live UI builds; rebuild it here so a reloaded turn renders its full
+      // timeline (reasoning chunks + tool calls + their results) instead of
+      // silently dropping it. Falls back to a single reasoning step when the
+      // backend streamed a `reasoning` event but no tool calls (mirrors the
+      // live-stream fallback in ChatMessage.tsx).
+      const persistedSteps = Array.isArray(row.process_steps)
+        ? (row.process_steps as TimelineStep[])
+        : null;
+      const reasoningText =
+        typeof row.reasoning === "string" && row.reasoning.trim()
+          ? row.reasoning.trim()
+          : null;
+      const steps: TimelineStep[] | undefined =
+        persistedSteps && persistedSteps.length > 0
+          ? persistedSteps
+          : reasoningText
+            ? [{ kind: "reasoning", text: reasoningText }]
+            : undefined;
       return {
         id: `db-${row.id}`,
         dbId: row.id,
@@ -158,6 +185,10 @@ function buildActiveBranch(
           (row.attachments as MessageAttachment[] | null) ?? undefined,
         timestamp: new Date(row.created_at),
         isCancelled: row.is_cancelled || undefined,
+        // Re-derive reasoning and steps from the persisted row so the
+        // ProcessTimeline UI renders on reloaded turns.
+        reasoning: reasoningText ?? undefined,
+        steps,
         branchCount: hasBranches ? branchCount : undefined,
         branchIndex: hasBranches
           ? siblings.findIndex((s) => s.id === row.id) + 1
@@ -353,7 +384,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       supabase
         .from("client_chat_messages")
         .select(
-          "id, parent_id, role, content, sources, attachments, is_cancelled, created_at",
+          "id, parent_id, role, content, sources, attachments, is_cancelled, created_at, reasoning, process_steps",
         )
         .eq("session_id", sid)
         .order("created_at", { ascending: true }),
@@ -1028,7 +1059,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const { data, error: fetchErr } = await supabase
         .from("client_chat_messages")
         .select(
-          "id, parent_id, role, content, sources, attachments, is_cancelled, created_at",
+          "id, parent_id, role, content, sources, attachments, is_cancelled, created_at, reasoning, process_steps",
         )
         .eq("session_id", session.id)
         .order("created_at", { ascending: true });

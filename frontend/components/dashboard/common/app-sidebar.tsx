@@ -151,7 +151,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useProject();
-  const { cancelRequest, clearChat, newSession } = useChat();
+  const { newSession } = useChat();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const userMenuButtonRef = useRef<HTMLButtonElement>(null);
@@ -246,9 +246,13 @@ export function AppSidebar() {
       return;
     }
 
-    // Clear any active chat session
-    cancelRequest();
-    clearChat();
+    // Don't abort the active chat session or wipe its state: the ChatProvider
+    // lives at the dashboard layout, so the in-memory messages and any in-flight
+    // stream survive a navigation to /dashboard. The API route persists the
+    // assistant row incrementally, so the user can navigate back to the same
+    // thread and see live (or the latest persisted) progress. Wiping here would
+    // force the user to lose their in-progress reasoning/tool timeline on every
+    // logo click — the same bug the persistence layer exists to prevent.
 
     // Navigate back to dashboard root
     router.push(baseUrl);

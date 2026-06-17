@@ -121,6 +121,9 @@ export type Database = {
           id: number;
           is_cancelled: boolean;
           model_preference: string | null;
+          parent_id: number | null;
+          process_steps: Json | null;
+          reasoning: string | null;
           role: string;
           session_id: number;
           sources: Json | null;
@@ -132,6 +135,9 @@ export type Database = {
           id?: number;
           is_cancelled?: boolean;
           model_preference?: string | null;
+          parent_id?: number | null;
+          process_steps?: Json | null;
+          reasoning?: string | null;
           role: string;
           session_id: number;
           sources?: Json | null;
@@ -143,6 +149,9 @@ export type Database = {
           id?: number;
           is_cancelled?: boolean;
           model_preference?: string | null;
+          parent_id?: number | null;
+          process_steps?: Json | null;
+          reasoning?: string | null;
           role?: string;
           session_id?: number;
           sources?: Json | null;

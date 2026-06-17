@@ -40,7 +40,6 @@ export function ExplorePortal() {
   // history skeleton.
   const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
-  const mountedRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
   const {
     messages,
@@ -48,8 +47,6 @@ export function ExplorePortal() {
     sessionTitle,
     loadSession,
     newSession,
-    clearChat,
-    cancelRequest,
     isLoading,
     loadFailed,
   } = useChat();
@@ -91,24 +88,48 @@ export function ExplorePortal() {
     openSessionRef.current = sessionPublicId;
   }, [sessionPublicId]);
 
-  // Hydrate from the path. Re-runs only when the URL's chatId changes; the ref
-  // guard prevents reloading the conversation that's already open (e.g. right
-  // after a new session writes its uuid into the URL).
+  // Same ref-mirror trick for the chat actions, so the hydrate effect below can
+  // stay dependent on ONLY `chatId` (loading on a chatId change, never on
+  // action identity). Without this, adding `loadSession`/`newSession` to the
+  // deps would re-fire hydration every time those callbacks re-render, which
+  // would reload the conversation that's already open.
+  const loadSessionRef = useRef(loadSession);
+  useEffect(() => {
+    loadSessionRef.current = loadSession;
+  }, [loadSession]);
+  const newSessionRef = useRef(newSession);
+  useEffect(() => {
+    newSessionRef.current = newSession;
+  }, [newSession]);
+
+  // Hydrate from the path. Depends on `chatId` ONLY — deliberately NOT on
+  // `isNewRoute`/pathname. The chat-switch UX (sidebar select, New chat, and the
+  // first-message URL pin) all navigate with history.replaceState, which keeps
+  // `usePathname()` in sync (so isNewRoute reacts to it) but does NOT update
+  // `useParams()` (chatId stays put). If this effect re-ran on isNewRoute, the
+  // replaceState that pins a brand-new chat's uuid would flip isNewRoute, re-fire
+  // this effect while chatId is still stale, and fall into the newSession()
+  // branch below — wiping the live conversation and bouncing the URL between
+  // /explore/new and /explore/<uuid>. chatId changes ONLY on a real navigation,
+  // which is exactly when re-hydration is wanted. isNewRoute is read for the
+  // route check but must never be a trigger. The chat actions (loadSession,
+  // newSession) are read through refs above so this effect also doesn't re-fire
+  // when those callbacks re-render.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: chatId is the only valid trigger; see comment above
   useEffect(() => {
     if (!isNewRoute && chatId) {
       if (chatId !== openSessionRef.current) {
-        void loadSession(chatId).then((ok) => {
+        void loadSessionRef.current(chatId).then((ok) => {
           // Unknown / inaccessible conversation -> drop to a fresh chat.
           if (!ok) {
-            newSession();
+            newSessionRef.current();
             window.history.replaceState(null, "", "/dashboard/explore/new");
           }
         });
       }
     } else if (openSessionRef.current !== null) {
-      newSession();
+      newSessionRef.current();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId]);
 
   // Once a session exists, reflect its uuid in the URL WITHOUT a Next navigation.
@@ -131,29 +152,16 @@ export function ExplorePortal() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Cancel + reset only when leaving the explore area entirely. Intra-explore
-  // navigation keeps this component mounted, so this never fires on new<->uuid.
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      cancelRequest();
-      clearChat();
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [clearChat, cancelRequest]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      mountedRef.current = true;
-    }, 50);
-    return () => {
-      clearTimeout(timer);
-      if (mountedRef.current) {
-        cancelRequest();
-        clearChat();
-      }
-    };
-  }, [cancelRequest, clearChat]);
+  // The ChatProvider lives at the dashboard layout (above this surface), so the
+  // in-memory `messages` state and any in-flight assistant stream survive
+  // cross-surface navigation (e.g. /explore -> /files -> /explore). We do NOT
+  // abort on unmount: the API route persists the assistant row incrementally,
+  // and the browser tearing down the fetch on unload is what triggers the
+  // server-side cancel-fallback that marks the row as cancelled. Wiping state
+  // here would force the user to lose their in-progress reasoning/tool
+  // timeline on every page change — the exact bug the persistence layer
+  // exists to prevent. Intra-explore navigation also keeps this component
+  // mounted, so this cleanup never fires for new<->uuid.
 
   // GSAP entrance for the welcome view. Re-runs whenever the welcome view is
   // (re)shown; a no-op for the thread view (its selectors won't match).
@@ -289,11 +297,7 @@ export function ExplorePortal() {
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar">
             <div className="w-full max-w-3xl mx-auto px-4 pt-3">
-              {loadingHistory ? (
-                <ChatHistorySkeleton />
-              ) : (
-                <ChatMessages />
-              )}
+              {loadingHistory ? <ChatHistorySkeleton /> : <ChatMessages />}
             </div>
           </div>
         )}

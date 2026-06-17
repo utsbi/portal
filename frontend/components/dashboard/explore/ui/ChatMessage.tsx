@@ -400,8 +400,10 @@ export function ChatMessage({
 
   // Process timeline (reasoning interleaved with tool calls), shown ABOVE the
   // answer. Falls back to a single reasoning step for a turn that streamed
-  // reasoning but no steps (defensive — live turns populate `steps`). Ephemeral:
-  // neither steps nor reasoning are persisted, so reloaded turns have no timeline.
+  // reasoning but no steps (defensive — live turns populate `steps`). Both live
+  // and reloaded turns populate this: the API route persists `reasoning` +
+  // `process_steps`, and buildActiveBranch re-derives `steps`/`reasoning` from
+  // them, so a reloaded turn renders the same timeline it streamed.
   const timelineSteps: TimelineStep[] =
     message.steps && message.steps.length > 0
       ? message.steps
