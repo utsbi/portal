@@ -99,7 +99,14 @@ export function ChatMessages() {
         </div>
       )}
 
-      {isLoading && <ChatLoading />}
+      {/* Only show the global loader BEFORE the assistant message appears.
+          Once it's streaming, its own "Thinking" block + cursor convey
+          progress — the loader below it would be a redundant second avatar
+          (the post-reasoning searching/generating phases re-raise isLoading
+          while the message already exists). */}
+      {isLoading && !(isStreaming && lastMessage?.role === "assistant") && (
+        <ChatLoading />
+      )}
       <div ref={bottomRef} />
 
       {showScrollButton && (

@@ -258,6 +258,11 @@ async def run_graph_streaming(
 
         for i, tc in enumerate(tool_calls):
             name = tc["name"] or ""
+            # Include the iteration in the fallback id so a provider that omits
+            # tool-call ids can't collide across tool-loop iterations — the id is
+            # also the message-history tool_call_id (below), where a duplicate is
+            # independently invalid, and the client keys timeline cards by it.
+            tc_id = tc["id"] or f"call_{iteration}_{i}"
             raw_args = tc["arguments"] or "{}"
             try:
                 args = json.loads(raw_args) if raw_args.strip() else {}
@@ -267,14 +272,24 @@ async def run_graph_streaming(
                 logger.warning(f"Failed to parse tool args for {name}: {raw_args!r}")
                 args = {}
 
+            yield {"type": "tool_call", "id": tc_id, "name": name, "input": args}
+
             result_text, sources = await execute_tool(
                 name, args, client_id, access_token, project_id
             )
             collected_sources.extend(sources)
 
+            yield {"type": "tool_result", "id": tc_id, "name": name, "output": {
+                "sources": [
+                    {"filename": s.get("filename"), "page_number": s.get("page_number")}
+                    for s in sources
+                ],
+                "text": (result_text or "")[:1200],
+            }}
+
             messages.append({
                 "role": "tool",
-                "tool_call_id": tc["id"] or f"call_{i}",
+                "tool_call_id": tc_id,
                 "content": result_text,
             })
 

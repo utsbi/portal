@@ -29,9 +29,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SourceDocument } from "@/lib/api/chat";
-import type { DisplayMessage } from "@/lib/chat/chat-context";
+import type { DisplayMessage, TimelineStep } from "@/lib/chat/chat-context";
 import { useChat } from "@/lib/chat/chat-context";
 import { getFileInfo } from "./file-info";
+import { ProcessTimeline } from "./ProcessTimeline";
 
 interface ChatMessageProps {
   message: DisplayMessage;
@@ -160,16 +161,23 @@ function buildMarkdownComponents(sources: SourceDocument[]): Components {
         {processCitations(children, sources)}
       </em>
     ),
-    a: ({ href, children }) => (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-sbi-green hover:underline"
-      >
-        {children}
-      </a>
-    ),
+    a: ({ href, children }) => {
+      // Answers (and the RAG documents feeding them) are model-authored, so only
+      // render http(s)/mailto links as clickable — never javascript:/data: etc.
+      // Unsafe schemes degrade to plain text rather than an executable link.
+      const safe = /^(https?:|mailto:)/i.test((href ?? "").trim());
+      if (!safe) return <span className="text-sbi-green">{children}</span>;
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sbi-green hover:underline"
+        >
+          {children}
+        </a>
+      );
+    },
     blockquote: ({ children }) => (
       <blockquote className="border-l-2 border-sbi-green/40 pl-4 italic text-sbi-muted">
         {processCitations(children, sources)}
@@ -304,16 +312,30 @@ export function ChatMessage({
   const [isEditing, setIsEditing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  // "Thinking" section is collapsed by default; toggled per-message.
-  const [showReasoning, setShowReasoning] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
   const {
     editAndResend,
     isLoading,
     isStreaming,
+    loadingPhase,
     regenerateResponse,
     switchBranch,
   } = useChat();
+
+  // Inline status shown inside the latest streaming message whenever the model
+  // is working but NOT emitting answer text — a tool pause, the post-tool gap
+  // before the first answer token, or pre-content thinking. `isLoading` is the
+  // right signal: every answer token sets loadingPhase to "complete" (so
+  // isLoading is false while text actively streams) and any working phase
+  // raises it again, so this is true exactly during the "frozen cursor" gaps.
+  const streamStatusLabel =
+    isLatestAssistant && message.isStreaming && isLoading
+      ? loadingPhase === "searching"
+        ? "Searching documents"
+        : loadingPhase === "generating"
+          ? "Writing response"
+          : "Thinking"
+      : undefined;
 
   // Show the ‹ i/n › picker when this message is one of several sibling branches
   // and is backed by a persisted row (dbId) we can switch on.
@@ -375,35 +397,20 @@ export function ChatMessage({
   }, [isEditing]);
 
   const displayContent = message.content;
-  const reasoning = (message.reasoning ?? "").trim();
-  const hasReasoning = !isUser && reasoning.length > 0;
 
-  // Collapsible "Thinking" section — rendered ABOVE the answer on thinking-model
-  // turns. Collapsed by default; ephemeral (reasoning is never persisted).
-  const reasoningSection = hasReasoning ? (
-    <div className="mb-3">
-      <button
-        type="button"
-        onClick={() => setShowReasoning((v) => !v)}
-        aria-expanded={showReasoning}
-        aria-label={showReasoning ? "Hide thinking" : "Show thinking"}
-        className="flex items-center gap-1.5 text-xs font-light text-sbi-muted hover:text-sbi-green transition-colors"
-      >
-        <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform duration-200 ${
-            showReasoning ? "rotate-180" : ""
-          }`}
-          strokeWidth={1.5}
-        />
-        <span>Thinking</span>
-      </button>
-      {showReasoning && (
-        <div className="mt-2 pl-3 border-l border-sbi-dark-border text-sbi-muted font-light text-sm leading-relaxed whitespace-pre-wrap break-words">
-          {reasoning}
-        </div>
-      )}
-    </div>
-  ) : null;
+  // Process timeline (reasoning interleaved with tool calls), shown ABOVE the
+  // answer. Falls back to a single reasoning step for a turn that streamed
+  // reasoning but no steps (defensive — live turns populate `steps`). Ephemeral:
+  // neither steps nor reasoning are persisted, so reloaded turns have no timeline.
+  const timelineSteps: TimelineStep[] =
+    message.steps && message.steps.length > 0
+      ? message.steps
+      : message.reasoning?.trim()
+        ? [{ kind: "reasoning", text: message.reasoning.trim() }]
+        : [];
+  const hasTimeline = !isUser && timelineSteps.length > 0;
+  // The timeline is "done" once answer text exists or the turn stops streaming.
+  const timelineDone = displayContent.trim().length > 0 || !message.isStreaming;
 
   // Truncated content for collapsed view
   const getTruncatedContent = () => {
@@ -635,7 +642,15 @@ export function ChatMessage({
 
       {/* Message content */}
       <div className="flex-1 min-w-0 pt-1">
-        {reasoningSection}
+        {hasTimeline && (
+          <div className="mb-3">
+            <ProcessTimeline
+              steps={timelineSteps}
+              streaming={!!message.isStreaming}
+              done={timelineDone}
+            />
+          </div>
+        )}
         {message.isCancelled ? (
           <>
             {displayContent && (
@@ -667,12 +682,26 @@ export function ChatMessage({
                 plugins={{ code }}
                 components={markdownComponents}
                 shikiTheme={["github-dark", "github-dark"]}
-                isAnimating={message.isStreaming}
+                isAnimating={message.isStreaming && !streamStatusLabel}
                 caret="block"
               >
                 {displayContent}
               </Streamdown>
             </div>
+            {streamStatusLabel && !hasTimeline && (
+              <div className="mt-2 flex items-center gap-2 text-sm font-light text-sbi-muted">
+                <span>{streamStatusLabel}</span>
+                <span className="flex items-center gap-1">
+                  {[0, 150, 300].map((delay) => (
+                    <span
+                      key={delay}
+                      className="h-1.5 w-1.5 rounded-full bg-sbi-green/60 animate-pulse"
+                      style={{ animationDelay: `${delay}ms` }}
+                    />
+                  ))}
+                </span>
+              </div>
+            )}
             {/* Per-source detail lives in the right-edge Sources panel (latest
                 answer) and the inline [n] citation chips; no per-message footer. */}
           </>

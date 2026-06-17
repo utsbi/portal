@@ -47,6 +47,18 @@ export interface ChatResponse {
   session_id: number | null;
 }
 
+// A tool lifecycle event streamed mid-turn by the agent: `tool_call` when a tool
+// is invoked, `tool_result` when it returns. Used to build the live process
+// timeline; ephemeral (never persisted).
+export type ToolEvent =
+  | { type: "tool_call"; id: string; name: string; input?: unknown }
+  | {
+      type: "tool_result";
+      id: string;
+      name: string;
+      output?: { sources?: unknown[]; text?: string };
+    };
+
 /**
  * Send a chat message via SSE streaming.
  * - onPhase fires on backend phase changes (thinking/planning/searching/generating).
@@ -55,6 +67,8 @@ export interface ChatResponse {
  *   only); interleaved before the answer deltas. Ephemeral — shown live, never
  *   persisted.
  * - onSession fires once when the server route confirms (or creates) the session.
+ * - onTool fires on tool lifecycle events (tool_call / tool_result), used to
+ *   build the live process timeline. Ephemeral — never persisted.
  */
 export async function sendChatMessage(
   request: ChatRequest,
@@ -63,6 +77,7 @@ export async function sendChatMessage(
   onDelta?: (text: string) => void,
   onSession?: (sessionId: number) => void,
   onReasoning?: (text: string) => void,
+  onTool?: (event: ToolEvent) => void,
 ): Promise<ChatResponse> {
   const response = await fetch("/api/chat/", {
     method: "POST",
@@ -95,6 +110,11 @@ export async function sendChatMessage(
   let buffer = "";
   let result: ChatResponse | null = null;
   let sessionId: number | null = null;
+  // Accumulate streamed answer text as a fallback: if the backend ends the
+  // stream without a final `result` event (e.g. it crashes after emitting some
+  // deltas), we still surface what was generated instead of throwing away a
+  // perfectly good partial answer.
+  let accumulatedAnswer = "";
 
   while (true) {
     const { done, value } = await reader.read();
@@ -119,10 +139,25 @@ export async function sendChatMessage(
           onSession?.(event.session_id);
         } else if (event.type === "phase" && onPhase) {
           onPhase(event.phase);
-        } else if (event.type === "delta" && onDelta) {
-          onDelta(event.text || "");
+        } else if (event.type === "delta") {
+          accumulatedAnswer += event.text || "";
+          onDelta?.(event.text || "");
         } else if (event.type === "reasoning" && onReasoning) {
           onReasoning(event.text || "");
+        } else if (event.type === "tool_call" && onTool) {
+          onTool({
+            type: "tool_call",
+            id: String(event.id ?? ""),
+            name: String(event.name ?? ""),
+            input: event.input,
+          });
+        } else if (event.type === "tool_result" && onTool) {
+          onTool({
+            type: "tool_result",
+            id: String(event.id ?? ""),
+            name: String(event.name ?? ""),
+            output: event.output,
+          });
         } else if (event.type === "result") {
           result = {
             answer: event.answer || "",
@@ -140,8 +175,18 @@ export async function sendChatMessage(
     }
   }
 
-  if (!result) throw new Error("No result received from server");
-  return result;
+  if (result) return result;
+  // No `result` event arrived. If text streamed, surface it as the answer rather
+  // than discarding the turn; only error out when nothing at all was received.
+  if (accumulatedAnswer.trim()) {
+    return {
+      answer: accumulatedAnswer,
+      sources: [],
+      timestamp: new Date().toISOString(),
+      session_id: sessionId,
+    };
+  }
+  throw new Error("No result received from server");
 }
 
 /**
