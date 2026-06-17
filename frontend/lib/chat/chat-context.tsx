@@ -15,6 +15,7 @@ import {
   extractFileText,
   type SourceDocument,
   sendChatMessage,
+  type ToolEvent,
 } from "@/lib/api/chat";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
@@ -35,6 +36,32 @@ export interface MessageAttachment {
   content: string;
 }
 
+// A source row carried by a tool result (filename + optional page).
+export interface ToolStepSource {
+  filename?: string | null;
+  page_number?: number | null;
+}
+
+// The output of a completed tool call: cited sources and/or a text summary.
+export interface ToolStepOutput {
+  sources?: ToolStepSource[];
+  text?: string;
+}
+
+// One ordered step in an assistant turn's "process timeline" — either a chunk of
+// streamed reasoning or a tool call. Reasoning chunks are coalesced into the
+// trailing reasoning step so reasoning → tool → reasoning interleaves in order.
+// Ephemeral: never persisted, so the timeline shows on live turns only.
+export type TimelineStep =
+  | { kind: "reasoning"; text: string }
+  | {
+      kind: "tool";
+      toolCallId: string;
+      toolName: string;
+      state: "running" | "done";
+      output?: ToolStepOutput;
+    };
+
 export interface DisplayMessage {
   id: string;
   role: "user" | "assistant";
@@ -47,6 +74,10 @@ export interface DisplayMessage {
   // Reasoning/thinking tokens streamed before the answer on thinking-model
   // turns. Ephemeral — shown live in a collapsible section, never persisted.
   reasoning?: string;
+  // Ordered process timeline (reasoning chunks interleaved with tool calls)
+  // streamed during the turn. Drives the ProcessTimeline UI. Ephemeral — built
+  // live from the stream, never persisted (absent on reloaded turns).
+  steps?: TimelineStep[];
   // Branch navigation, set only on messages backed by a persisted DB row whose
   // parent has sibling branches (created by edit/regenerate). `dbId` is the row id
   // (used to switch branches); `branchIndex`/`branchCount` drive the ‹ i/n › picker.
@@ -373,9 +404,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setLoadingPhase("thinking");
       setIsStreaming(true);
 
+      // Hoisted above the try so the catch can settle the streaming message it
+      // created (stop the timeline spinner / resolve in-flight tool steps).
+      let assistantId: string | null = null;
       try {
-        let assistantId: string | null = null;
-
         // Brand-new conversation: mint the chat's uuid client-side so the URL is
         // correct before the first response (the API route creates the session
         // with it). syncPublicId reconciles from the DB afterwards as a safety net.
@@ -438,8 +470,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           (reasoning) => {
             if (cancelledRef.current || !reasoning) return;
             // Reasoning can arrive before the first answer delta — create the
-            // streaming assistant message so the "Thinking" section renders
-            // live, then extend it (mirrors the content-delta handler).
+            // streaming assistant message so the timeline renders live, then
+            // extend it (mirrors the content-delta handler). Each chunk is also
+            // coalesced into the trailing `steps` reasoning entry so reasoning ⇄
+            // tool interleaving stays in stream order.
             if (assistantId === null) {
               const id = `assistant-${Date.now()}`;
               assistantId = id;
@@ -451,6 +485,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   role: "assistant",
                   content: "",
                   reasoning,
+                  steps: [{ kind: "reasoning", text: reasoning }],
                   timestamp: new Date(),
                   isStreaming: true,
                 },
@@ -458,11 +493,94 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             } else {
               const id = assistantId;
               setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === id
-                    ? { ...m, reasoning: (m.reasoning ?? "") + reasoning }
-                    : m,
-                ),
+                prev.map((m) => {
+                  if (m.id !== id) return m;
+                  const steps = m.steps ? [...m.steps] : [];
+                  const last = steps[steps.length - 1];
+                  if (last && last.kind === "reasoning") {
+                    steps[steps.length - 1] = {
+                      ...last,
+                      text: last.text + reasoning,
+                    };
+                  } else {
+                    steps.push({ kind: "reasoning", text: reasoning });
+                  }
+                  return {
+                    ...m,
+                    reasoning: (m.reasoning ?? "") + reasoning,
+                    steps,
+                  };
+                }),
+              );
+            }
+          },
+          (toolEvent: ToolEvent) => {
+            if (cancelledRef.current) return;
+            // A tool call/result mid-turn. Ensure the streaming assistant message
+            // exists (a tool can fire before any reasoning/answer), then push the
+            // tool step or mark it done. Deliberately does NOT clear the loader —
+            // a tool call means the turn is still working (searching phase).
+            if (assistantId === null) {
+              const id = `assistant-${Date.now()}`;
+              assistantId = id;
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id,
+                  role: "assistant",
+                  content: "",
+                  steps: [],
+                  timestamp: new Date(),
+                  isStreaming: true,
+                },
+              ]);
+            }
+            const id = assistantId;
+            if (toolEvent.type === "tool_call") {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== id) return m;
+                  const steps = m.steps ? [...m.steps] : [];
+                  steps.push({
+                    kind: "tool",
+                    toolCallId: toolEvent.id,
+                    toolName: toolEvent.name,
+                    state: "running",
+                  });
+                  return { ...m, steps };
+                }),
+              );
+            } else {
+              // tool_result — mark the matching step done and attach its output.
+              const output: ToolStepOutput = {
+                sources: Array.isArray(toolEvent.output?.sources)
+                  ? (toolEvent.output?.sources as ToolStepSource[])
+                  : undefined,
+                text:
+                  typeof toolEvent.output?.text === "string"
+                    ? toolEvent.output.text
+                    : undefined,
+              };
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== id) return m;
+                  const steps = m.steps ? [...m.steps] : [];
+                  // Resolve the most recent STILL-RUNNING tool step with this id.
+                  // The running guard means a duplicate/colliding id can never
+                  // re-mark an already-completed card (defense for backend ids).
+                  for (let i = steps.length - 1; i >= 0; i--) {
+                    const s = steps[i];
+                    if (
+                      s.kind === "tool" &&
+                      s.toolCallId === toolEvent.id &&
+                      s.state === "running"
+                    ) {
+                      steps[i] = { ...s, state: "done", output };
+                      break;
+                    }
+                  }
+                  return { ...m, steps };
+                }),
               );
             }
           },
@@ -518,6 +636,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
         setLoadingPhase("error");
         setError(err instanceof Error ? err.message : "Failed to send message");
+        // Settle the partially-streamed assistant message (if one was created)
+        // so its timeline stops streaming and any in-flight tool step resolves —
+        // otherwise the header spinner / tool card would hang after the error.
+        if (assistantId !== null) {
+          const id = assistantId;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === id
+                ? {
+                    ...m,
+                    isStreaming: false,
+                    steps: m.steps?.map((s) =>
+                      s.kind === "tool" && s.state === "running"
+                        ? { ...s, state: "done" }
+                        : s,
+                    ),
+                  }
+                : m,
+            ),
+          );
+        }
         setTimeout(() => setLoadingPhase("idle"), 3000);
         return false;
       } finally {
@@ -659,7 +798,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const hasStreaming = prev.some((m) => m.isStreaming);
       if (hasStreaming) {
         return prev.map((m) =>
-          m.isStreaming ? { ...m, isStreaming: false, isCancelled: true } : m,
+          m.isStreaming
+            ? {
+                ...m,
+                isStreaming: false,
+                isCancelled: true,
+                // Resolve any in-flight tool step so its card doesn't hang on
+                // "Running…" forever once the turn is torn down.
+                steps: m.steps?.map((s) =>
+                  s.kind === "tool" && s.state === "running"
+                    ? { ...s, state: "done" }
+                    : s,
+                ),
+              }
+            : m,
         );
       }
       return [
