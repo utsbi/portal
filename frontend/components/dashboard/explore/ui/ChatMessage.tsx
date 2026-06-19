@@ -80,7 +80,8 @@ function CitationChip({
 
 // Replace bracketed numeric markers in a string with CitationChip elements.
 // Out-of-range indices stay as plain text.
-function interpolateCitations(
+// Exported for unit testing; not part of the public API.
+export function interpolateCitations(
   text: string,
   sources: SourceDocument[],
 ): ReactNode {
