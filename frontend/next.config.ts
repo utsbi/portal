@@ -13,11 +13,7 @@ const nextConfig: NextConfig = {
 
   // Cross-origin hosts allowed to hit the dev server (Tailscale, etc.).
   // No-op in production.
-  allowedDevOrigins: [
-    "galileo",
-    "galileo.bear-ling.ts.net",
-    "100.68.183.80",
-  ],
+  allowedDevOrigins: ["galileo", "galileo.bear-ling.ts.net", "100.68.183.80"],
 
   images: {
     remotePatterns: [

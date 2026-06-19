@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 
 export default function DashboardNotFound() {
   const containerRef = useRef<HTMLDivElement>(null);

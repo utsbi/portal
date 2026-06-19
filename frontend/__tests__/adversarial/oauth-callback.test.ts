@@ -91,6 +91,12 @@ function makeReq(params: Record<string, string>, base = "http://localhost") {
   return new Request(url.toString());
 }
 
+function locationOf(res: Response): URL {
+  const location = res.headers.get("location");
+  if (location === null) throw new Error("response has no location header");
+  return new URL(location);
+}
+
 describe("ADVERSARIAL OAuth callback — authorization gate (O1)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -158,7 +164,7 @@ describe("ADVERSARIAL OAuth callback — open redirect (O2)", () => {
     const res = await callbackGET(
       makeReq({ code: "c", state: VALID_STATE }, "https://portal.example.com"),
     );
-    const loc = new URL(res.headers.get("location")!);
+    const loc = locationOf(res);
     expect(loc.origin).toBe("https://portal.example.com");
     expect(loc.pathname).toBe("/dashboard/settings");
   });
@@ -172,7 +178,7 @@ describe("ADVERSARIAL OAuth callback — open redirect (O2)", () => {
         "https://portal.example.com",
       ),
     );
-    const loc = new URL(res.headers.get("location")!);
+    const loc = locationOf(res);
     // The redirect must NOT navigate to evil.com — host stays the app's.
     expect(loc.origin).toBe("https://portal.example.com");
     expect(loc.pathname).toBe("/dashboard/settings");
@@ -189,7 +195,7 @@ describe("ADVERSARIAL OAuth callback — open redirect (O2)", () => {
         "https://portal.example.com",
       ),
     );
-    const loc = new URL(res.headers.get("location")!);
+    const loc = locationOf(res);
     expect(loc.origin).toBe("https://portal.example.com");
   });
 });

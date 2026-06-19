@@ -7,8 +7,9 @@
  * conditions (empty sources, no "[", out-of-range markers, surrounding text)
  * against the actual production code.
  */
-import { describe, expect, it, vi } from "vitest";
+
 import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 
 // ─── Mocks required to import ChatMessage.tsx without a DOM environment ───────
 vi.mock("gsap", () => ({
@@ -62,7 +63,11 @@ const { interpolateCitations } = await import(
   "@/components/dashboard/explore/ui/ChatMessage"
 );
 
-type SourceDocument = { filename: string; content: string; page_number?: number };
+type SourceDocument = {
+  filename: string;
+  content: string;
+  page_number?: number;
+};
 
 describe("interpolateCitations() — REAL import from ChatMessage.tsx", () => {
   const sources: SourceDocument[] = [
@@ -92,7 +97,10 @@ describe("interpolateCitations() — REAL import from ChatMessage.tsx", () => {
   });
 
   it("preserves surrounding text around citations", () => {
-    const result = interpolateCitations("Prefix [1] suffix", sources) as ReactNode[];
+    const result = interpolateCitations(
+      "Prefix [1] suffix",
+      sources,
+    ) as ReactNode[];
     expect(Array.isArray(result)).toBe(true);
     expect(result[0]).toBe("Prefix ");
     expect(result[result.length - 1]).toBe(" suffix");

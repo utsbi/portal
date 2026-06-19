@@ -49,9 +49,9 @@ export function SuggestionChips({
       ref={chipsRef}
       className="flex flex-wrap items-center justify-center gap-3"
     >
-      {suggestions.map((suggestion, index) => (
+      {suggestions.map((suggestion) => (
         <button
-          key={index}
+          key={suggestion.text}
           type="button"
           onClick={() => {
             if (isLoading) return;

@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { type Conversation, ConversationList } from "./ConversationList";
 import { CreateConversationModal } from "./CreateConversationModal";
 import { useCreateConversationModal } from "./CreateConversationModalContext";
-import { useCmdK } from "./cmdk/CommandPalette";
+import { useCmdKOptional } from "./cmdk/CommandPalette";
 import { loadActorConversations } from "./load-conversations";
 
 /** Client-side conversation list. Click navigates to /messages/[id]. */
@@ -21,20 +21,14 @@ export function Messages() {
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
 
-  // Feed conversations into Cmd+K palette.
-  let cmdK: ReturnType<typeof useCmdK> | null = null;
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    cmdK = useCmdK();
-  } catch {
-    cmdK = null;
-  }
+  // Feed conversations into Cmd+K palette (no-op when rendered outside a provider).
+  const cmdK = useCmdKOptional();
+  const setCmdKConversations = cmdK?.setConversations;
   useEffect(() => {
-    if (cmdK && conversations.length > 0) {
-      cmdK.setConversations(conversations);
+    if (setCmdKConversations && conversations.length > 0) {
+      setCmdKConversations(conversations);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations]);
+  }, [conversations, setCmdKConversations]);
 
   const context = useCreateConversationModal();
   const [localOpen, setLocalOpen] = useState(false);

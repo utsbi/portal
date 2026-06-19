@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { MessageSquare, Search } from "lucide-react";
 import Link from "next/link";
-import { Search, MessageSquare } from "lucide-react";
-import { btnPrimary, inputClass, EmptyState } from "@/components/dashboard/common/ui";
+import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  btnPrimary,
+  EmptyState,
+  inputClass,
+} from "@/components/dashboard/common/ui";
 import { cn } from "@/lib/utils";
 
 // Minimal conversation shape required by the list UI. The batched
@@ -146,9 +150,7 @@ export function ConversationList({
             icon={<MessageSquare className="size-6" />}
             title={query.trim() ? "No results" : "No conversations yet"}
             description={
-              query.trim()
-                ? "No conversations match that search."
-                : undefined
+              query.trim() ? "No conversations match that search." : undefined
             }
           />
         ) : (

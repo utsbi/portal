@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 export interface ActorInfo {
   role: "client" | "director" | "member";
@@ -22,5 +22,7 @@ export function ActorProvider({
   actor: ActorInfo;
   children: ReactNode;
 }) {
-  return <ActorContext.Provider value={actor}>{children}</ActorContext.Provider>;
+  return (
+    <ActorContext.Provider value={actor}>{children}</ActorContext.Provider>
+  );
 }

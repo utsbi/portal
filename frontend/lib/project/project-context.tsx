@@ -60,6 +60,7 @@ function getActiveProjectId(): number | null {
 }
 
 function setActiveProjectId(projectId: number) {
+  // biome-ignore lint/suspicious/noDocumentCookie: synchronous cookie write so the server reads the active project on the very next router.refresh(); the async Cookie Store API would race that re-render.
   document.cookie = `${ACTIVE_PROJECT_COOKIE}=${projectId};path=/;max-age=${60 * 60 * 24 * 365};samesite=lax`;
 }
 
@@ -150,9 +151,29 @@ export function ProjectProvider({
         .eq("profile_id", profile.id);
 
       if (memberships && memberships.length > 0) {
-        const projectList: ProjectData[] = memberships
-          .filter((m: any) => m.projects)
-          .map((m: any) => ({
+        type MembershipRow = {
+          role: string;
+          project_id: number;
+          projects: {
+            id: number;
+            url_slug: string;
+            company_name: string;
+          } | null;
+        };
+        // Supabase generates the many-to-one `projects` embed as an array type,
+        // but a to-one FK embed returns a single object at runtime — route the
+        // cast through `unknown` to reconcile the generated type with reality.
+        const projectList: ProjectData[] = (
+          memberships as unknown as MembershipRow[]
+        )
+          .filter(
+            (
+              m,
+            ): m is MembershipRow & {
+              projects: NonNullable<MembershipRow["projects"]>;
+            } => m.projects !== null,
+          )
+          .map((m) => ({
             projectId: m.projects.id,
             projectSlug: m.projects.url_slug,
             companyName: m.projects.company_name,
@@ -179,6 +200,7 @@ export function ProjectProvider({
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only initial fetch; fetchData is recreated every render, so listing it would loop. Behavior intentionally fires once when no server-provided initialUser exists.
   useEffect(() => {
     if (!initialUser) {
       fetchData();

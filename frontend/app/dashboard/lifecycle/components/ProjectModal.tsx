@@ -6,10 +6,7 @@ import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toastError, toastSuccess } from "@/lib/notifications";
-import {
-  createLifecycleProject,
-  updateLifecycleProject,
-} from "../api";
+import { createLifecycleProject, updateLifecycleProject } from "../api";
 import type { Project } from "../types";
 
 const labelClass =
@@ -77,7 +74,9 @@ export function ProjectModal({
       return;
     }
     toastSuccess(
-      isEdit ? `Project "${title.trim()}" updated.` : `Project "${title.trim()}" created.`,
+      isEdit
+        ? `Project "${title.trim()}" updated.`
+        : `Project "${title.trim()}" created.`,
     );
     await onSaved();
     onClose();

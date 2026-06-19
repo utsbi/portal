@@ -74,7 +74,6 @@ vi.mock("@supabase/supabase-js", () => {
   // fetch or deleteAccount's target fetch) returns existingProfile. The counter
   // is reset in beforeEach via reset().
   function makeProfilesChain() {
-    let pendingUpdatePatch: Record<string, unknown> | null = null;
     const chain: Record<string, ReturnType<typeof vi.fn>> = {
       select: vi.fn(),
       eq: vi.fn(),
@@ -107,10 +106,9 @@ vi.mock("@supabase/supabase-js", () => {
       error: null,
     }));
     chain.update.mockImplementation((patch: Record<string, unknown>) => {
-      pendingUpdatePatch = patch;
       return {
         eq: vi.fn(async (_col: string, id: unknown) => {
-          state.profileUpdateCalls.push({ patch: pendingUpdatePatch!, id });
+          state.profileUpdateCalls.push({ patch, id });
           return { error: null };
         }),
       };

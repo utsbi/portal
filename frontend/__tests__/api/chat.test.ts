@@ -42,7 +42,6 @@ const state: SupabaseMockState = {
 // A fluent chain mock. Every table operation feeds into state.
 function makeDbChain(tableResult: { data: unknown; error: unknown }) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-  const self = () => chain;
   chain.select = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
   chain.maybeSingle = vi.fn(async () => tableResult);
@@ -81,7 +80,9 @@ vi.mock("@/lib/supabase/server", () => ({
         // Override insert to return insertSessionRow
         c.insert = vi.fn(() => {
           const ic = {
-            select: vi.fn(() => ({ single: vi.fn(async () => state.insertSessionRow) })),
+            select: vi.fn(() => ({
+              single: vi.fn(async () => state.insertSessionRow),
+            })),
           };
           return ic;
         });
@@ -128,7 +129,10 @@ process.env.BACKEND_URL = "http://backend:8000";
 // Import AFTER mocks.
 const { POST } = await import("@/app/api/chat/route");
 
-function makeNextRequest(body: Record<string, unknown>, headers: Record<string, string> = {}) {
+function makeNextRequest(
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+) {
   // Use a real AbortController and pass the signal into the Request constructor.
   // The fetch spec allows passing signal in RequestInit, making it the request's own signal.
   const ac = new AbortController();
@@ -252,7 +256,8 @@ describe("POST /api/chat", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [_url, fetchInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const authHeader = (fetchInit.headers as Record<string, string>)["Authorization"];
+    const authHeader = (fetchInit.headers as Record<string, string>)
+      .Authorization;
     expect(authHeader).toBe(`Bearer ${ACCESS_TOKEN}`);
   });
 
@@ -264,7 +269,8 @@ describe("POST /api/chat", () => {
     state.insertMessageRow = { data: { id: 10 }, error: null };
     state.insertAsstRow = { data: { id: 11 }, error: null };
 
-    const SENSITIVE_UPSTREAM_ERROR = "Internal DB credentials exposed in traceback line 42";
+    const SENSITIVE_UPSTREAM_ERROR =
+      "Internal DB credentials exposed in traceback line 42";
     fetchMock.mockResolvedValueOnce(
       new Response(SENSITIVE_UPSTREAM_ERROR, {
         status: 500,
@@ -378,7 +384,7 @@ describe("POST /api/chat", () => {
       .split("\n")
       .find((l) => l.startsWith("data:"));
     expect(firstDataLine).toBeDefined();
-    const parsed = JSON.parse(firstDataLine!.slice(5).trim());
+    const parsed = JSON.parse((firstDataLine as string).slice(5).trim());
     expect(parsed.type).toBe("session");
     expect(typeof parsed.session_id).toBe("number");
   });

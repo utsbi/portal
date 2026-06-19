@@ -1,14 +1,21 @@
 "use client";
 
+import { CaretDownIcon, CaretUpIcon, ColumnsIcon } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
 import React, {
-  useState,
-  useMemo,
   useCallback,
-  useRef,
   useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { CaretUpIcon, CaretDownIcon, ColumnsIcon } from "@phosphor-icons/react";
+import {
+  DataTableFilters,
+  type FilterDef,
+} from "@/components/data-table/data-table-filters";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -17,13 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  DataTableFilters,
-  type FilterDef,
-} from "@/components/data-table/data-table-filters";
-import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────
@@ -38,6 +38,7 @@ export interface ColumnDef<T> {
   /** Whether this column is sortable */
   sortable?: boolean;
   /** Custom render function for the cell */
+  // biome-ignore lint/suspicious/noExplicitAny: cell value is resolved from an arbitrary keyof T | dot-path string at runtime, so its type is not statically knowable; `any` keeps the public render() API ergonomic for all consumers.
   render?: (value: any, row: T) => React.ReactNode;
   /** Tailwind width class e.g. "w-24" */
   width?: string;
@@ -132,6 +133,7 @@ export interface DataTableProps<T> {
 // Helpers
 // ─────────────────────────────────────────────────────────────
 
+// biome-ignore lint/suspicious/noExplicitAny: walks an arbitrary dot-path on an unknown object shape and returns whatever lives there; both the input object and the result are genuinely untyped at this layer.
 function getNestedValue(obj: any, path: string): any {
   return path.split(".").reduce((acc, part) => acc?.[part], obj);
 }
@@ -146,6 +148,7 @@ const alignClass = (align?: string) => {
 // Component
 // ─────────────────────────────────────────────────────────────
 
+// biome-ignore lint/suspicious/noExplicitAny: generic row constraint must accept records with values of any shape; `unknown` would reject the dynamic accessor/render usage throughout the table.
 export function DataTable<T extends Record<string, any>>({
   data,
   columns,
@@ -180,10 +183,10 @@ export function DataTable<T extends Record<string, any>>({
     toggleFilter ??
     (hideCompletedToggle && hideCompletedKey
       ? {
-        key: hideCompletedKey,
-        value: hideCompletedValue,
-        label: hideCompletedLabel ?? "Hide Done",
-      }
+          key: hideCompletedKey,
+          value: hideCompletedValue,
+          label: hideCompletedLabel ?? "Hide Done",
+        }
       : undefined);
 
   const expandable = !!renderExpandedRow;
@@ -350,7 +353,9 @@ export function DataTable<T extends Record<string, any>>({
         return sortDirection === "asc" ? result : -result;
       }
 
+      // biome-ignore lint/suspicious/noExplicitAny: sort values come from a dynamic path and are normalized in place across number/string/Date before comparison; `unknown` would block the relational operators below.
       let aVal: any = getNestedValue(a, sortColumn);
+      // biome-ignore lint/suspicious/noExplicitAny: see above — paired with aVal for the same dynamic comparison.
       let bVal: any = getNestedValue(b, sortColumn);
 
       if (aVal instanceof Date && bVal instanceof Date) {
@@ -359,7 +364,11 @@ export function DataTable<T extends Record<string, any>>({
       } else if (typeof aVal === "string" && typeof bVal === "string") {
         const aDate = Date.parse(aVal);
         const bDate = Date.parse(bVal);
-        if (!isNaN(aDate) && !isNaN(bDate) && aVal.includes("-")) {
+        if (
+          !Number.isNaN(aDate) &&
+          !Number.isNaN(bDate) &&
+          aVal.includes("-")
+        ) {
           aVal = aDate;
           bVal = bDate;
         } else {
@@ -386,6 +395,7 @@ export function DataTable<T extends Record<string, any>>({
   const columnToggleSlot = columnToggle ? (
     <div className="relative" ref={columnToggleRef}>
       <button
+        type="button"
         onClick={() => setColumnToggleOpen((prev) => !prev)}
         className="flex items-center gap-1.5 px-3 py-2 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input"
       >
@@ -406,9 +416,11 @@ export function DataTable<T extends Record<string, any>>({
               return (
                 <label
                   key={accessor}
+                  htmlFor={`column-toggle-${accessor}`}
                   className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-white/[0.04] transition-colors"
                 >
                   <Checkbox
+                    id={`column-toggle-${accessor}`}
                     checked={!hiddenColumns.has(accessor)}
                     onCheckedChange={(checked) => {
                       setHiddenColumns((prev) => {
@@ -447,43 +459,43 @@ export function DataTable<T extends Record<string, any>>({
         filters.length > 0 ||
         resolvedToggle ||
         columnToggle) && (
-          <div className="flex flex-col gap-3">
-            {title && (
-              <div>
-                <h2 className="text-2xl font-extralight tracking-tight text-white">
-                  {title}
-                </h2>
-                {description && (
-                  <p className="text-sbi-muted-dark mt-1 text-sm">
-                    {description}
-                  </p>
-                )}
-              </div>
-            )}
-            <DataTableFilters
-              searchable={searchable}
-              searchQuery={searchQuery}
-              onSearchChange={handleSearchChange}
-              searchPlaceholder={searchPlaceholder}
-              filters={filters}
-              filterValues={filterValues}
-              onFilterChange={handleFilterChange}
-              toggleFilter={
-                resolvedToggle
-                  ? {
+        <div className="flex flex-col gap-3">
+          {title && (
+            <div>
+              <h2 className="text-2xl font-extralight tracking-tight text-white">
+                {title}
+              </h2>
+              {description && (
+                <p className="text-sbi-muted-dark mt-1 text-sm">
+                  {description}
+                </p>
+              )}
+            </div>
+          )}
+          <DataTableFilters
+            searchable={searchable}
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            searchPlaceholder={searchPlaceholder}
+            filters={filters}
+            filterValues={filterValues}
+            onFilterChange={handleFilterChange}
+            toggleFilter={
+              resolvedToggle
+                ? {
                     key: resolvedToggle.key as string,
                     value: resolvedToggle.value,
                     label: resolvedToggle.label,
                   }
-                  : undefined
-              }
-              toggleActive={toggleActive}
-              onToggleChange={setToggleActive}
-              columnToggleSlot={columnToggleSlot}
-              disabled={loading}
-            />
-          </div>
-        )}
+                : undefined
+            }
+            toggleActive={toggleActive}
+            onToggleChange={setToggleActive}
+            columnToggleSlot={columnToggleSlot}
+            disabled={loading}
+          />
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-lg border border-white/[0.06] bg-sbi-dark-card overflow-hidden">
@@ -584,6 +596,7 @@ export function DataTable<T extends Record<string, any>>({
               {Array.from({ length: skeletonRows ?? (pageSize || 5) }).map(
                 (_, rowIdx) => (
                   <TableRow
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder skeleton rows with no data identity; the list is fixed-length and never reordered, so the index is a safe and stable key.
                     key={`skeleton-${rowIdx}`}
                     className="border-b border-white/[0.04]"
                   >
@@ -683,6 +696,7 @@ export function DataTable<T extends Record<string, any>>({
                             >
                               {canExpand && (
                                 <button
+                                  type="button"
                                   onClick={() => toggleExpanded(key)}
                                   className="p-1 rounded-lg hover:bg-white/[0.06] transition-colors"
                                 >
@@ -712,7 +726,7 @@ export function DataTable<T extends Record<string, any>>({
                                   col.width,
                                   alignClass(col.align),
                                   isPrimary &&
-                                  "font-medium text-white group-hover:text-sbi-green transition-colors text-sm",
+                                    "font-medium text-white group-hover:text-sbi-green transition-colors text-sm",
                                   !isPrimary && "text-sbi-muted text-sm",
                                   col.className,
                                 )}
@@ -735,7 +749,7 @@ export function DataTable<T extends Record<string, any>>({
                           >
                             <TableCell colSpan={totalColSpan} className="p-0">
                               <div className="px-5 py-4 bg-white/[0.02] border-b border-white/[0.04]">
-                                {renderExpandedRow!(row)}
+                                {renderExpandedRow?.(row)}
                               </div>
                             </TableCell>
                           </motion.tr>

@@ -35,11 +35,9 @@ const mockCookieStore = {
     const entry = cookieJar.get(name);
     return entry ? { name, value: entry.value } : undefined;
   }),
-  set: vi.fn(
-    (name: string, value: string, options?: unknown) => {
-      cookieJar.set(name, { value, options });
-    },
-  ),
+  set: vi.fn((name: string, value: string, options?: unknown) => {
+    cookieJar.set(name, { value, options });
+  }),
   delete: vi.fn((name: string) => {
     cookieJar.delete(name);
   }),
@@ -58,7 +56,9 @@ const mockGenerateAuthUrl = vi.fn((opts: Record<string, unknown>) => {
   const url = new URL("https://accounts.google.com/o/oauth2/auth");
   if (opts.state) url.searchParams.set("state", opts.state as string);
   if (opts.scope) {
-    const scopes = Array.isArray(opts.scope) ? opts.scope.join(" ") : opts.scope;
+    const scopes = Array.isArray(opts.scope)
+      ? opts.scope.join(" ")
+      : opts.scope;
     url.searchParams.set("scope", scopes as string);
   }
   return url.toString();
@@ -140,14 +140,13 @@ vi.mock("@/lib/supabase/server", () => ({
 // ─── Env vars ─────────────────────────────────────────────────────────────────
 process.env.GOOGLE_CLIENT_ID = "test-client-id";
 process.env.GOOGLE_CLIENT_SECRET = "test-client-secret";
-process.env.GOOGLE_REDIRECT_URI = "http://localhost/api/contact/auth/google/callback";
+process.env.GOOGLE_REDIRECT_URI =
+  "http://localhost/api/contact/auth/google/callback";
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
 process.env.SUPABASE_SECRET_KEY = "test-secret-key";
 
 // ─── Import routes AFTER mocks ────────────────────────────────────────────────
-const { GET: connectGET } = await import(
-  "@/app/api/contact/auth/google/route"
-);
+const { GET: connectGET } = await import("@/app/api/contact/auth/google/route");
 const { GET: callbackGET } = await import(
   "@/app/api/contact/auth/google/callback/route"
 );
@@ -217,20 +216,17 @@ describe("GET /api/contact/auth/google (connect)", () => {
     // The route returns a redirect — location header holds the Google URL.
     const location = response.headers.get("location");
     expect(location).not.toBeNull();
-    const redirectUrl = new URL(location!);
+    const redirectUrl = new URL(location as string);
     expect(redirectUrl.searchParams.get("state")).toBe(FIXED_UUID);
   });
 
   it("uses the same state value in both the cookie and the redirect URL", async () => {
     const response = await connectGET();
 
-    const setCookieCall = mockCookieStore.set.mock.calls[0] as [
-      string,
-      string,
-    ];
+    const setCookieCall = mockCookieStore.set.mock.calls[0] as [string, string];
     const cookieState = setCookieCall[1];
 
-    const location = response.headers.get("location")!;
+    const location = response.headers.get("location") as string;
     const urlState = new URL(location).searchParams.get("state");
 
     expect(cookieState).toBe(urlState);

@@ -92,7 +92,9 @@ describe("POST /api/contact", () => {
   });
 
   it("returns 400 when message is missing", async () => {
-    const res = await POST(makeRequest({ ...VALID_BODY, message: "" }) as never);
+    const res = await POST(
+      makeRequest({ ...VALID_BODY, message: "" }) as never,
+    );
     expect(res.status).toBe(400);
   });
 
@@ -202,7 +204,7 @@ describe("POST /api/contact", () => {
       String(call[0]).includes("cloudflare.com"),
     );
     expect(turnstileCall).toBeDefined();
-    const init = turnstileCall![1] as RequestInit;
+    const init = (turnstileCall as unknown[])[1] as RequestInit;
     const sentBody = JSON.parse(init.body as string);
     expect(sentBody.response).toBe(VALID_BODY.turnstileToken);
     expect(sentBody.secret).toBe("test-turnstile-secret");
@@ -210,7 +212,8 @@ describe("POST /api/contact", () => {
 
   // ── Discord webhook failure does not fail the request ───────────────────
   it("still returns 200 even when Discord webhook fails", async () => {
-    process.env.DISCORD_CONTACT_WEBHOOK_URL = "https://discord.example.com/webhook";
+    process.env.DISCORD_CONTACT_WEBHOOK_URL =
+      "https://discord.example.com/webhook";
     fetchMock.mockImplementation(async (url: string) => {
       if (String(url).includes("cloudflare.com")) {
         return new Response(JSON.stringify({ success: true }), {

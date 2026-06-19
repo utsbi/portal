@@ -15,12 +15,14 @@ export default function CalendarLoading() {
       <div className="flex-1 min-h-0 flex flex-col animate-pulse">
         <div className="grid grid-cols-7 gap-px mb-px">
           {Array.from({ length: 7 }).map((_, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static fixed-length skeleton placeholders, never reordered
             <div key={i} className="h-6 rounded bg-white/5" />
           ))}
         </div>
         <div className="grid flex-1 grid-cols-7 grid-rows-5 gap-px">
           {Array.from({ length: 35 }).map((_, i) => (
             <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: static fixed-length skeleton placeholders, never reordered
               key={i}
               className="rounded border border-sbi-dark-border/50 bg-sbi-dark-card/30"
             />

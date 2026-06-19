@@ -340,6 +340,9 @@ export async function POST(request: NextRequest) {
     return jsonError(502, "Upstream request failed");
   }
 
+  // `backendRes.body` is guaranteed non-null by the guard above; capture it
+  // here so the stream closure can read it without a non-null assertion.
+  const backendBody = backendRes.body;
   const sessionIdForClosure = sessionId;
   const assistantParentForClosure = assistantParentId;
   const isNewSessionForClosure = isNewSession;
@@ -408,7 +411,7 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       const encoder = new TextEncoder();
       const decoder = new TextDecoder();
-      const reader = backendRes.body!.getReader();
+      const reader = backendBody.getReader();
       let buffer = "";
       // Whether the assistant turn has already been written to the DB (via the
       // `result` event). If the client aborts mid-stream we never see `result`,

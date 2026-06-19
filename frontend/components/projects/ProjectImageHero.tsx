@@ -79,10 +79,22 @@ export function ProjectImageHero({ images, title }: ProjectImageHeroProps) {
   // Ken Burns variants - alternate between different pan directions
   const getKenBurnsVariant = (index: number) => {
     const variants = [
-      { initial: { scale: 1, x: 0, y: 0 }, animate: { scale: 1.08, x: 20, y: 0 } },
-      { initial: { scale: 1, x: 0, y: 0 }, animate: { scale: 1.08, x: -20, y: 0 } },
-      { initial: { scale: 1, x: 0, y: 0 }, animate: { scale: 1.08, x: 15, y: -15 } },
-      { initial: { scale: 1, x: 0, y: 0 }, animate: { scale: 1.08, x: -15, y: 15 } },
+      {
+        initial: { scale: 1, x: 0, y: 0 },
+        animate: { scale: 1.08, x: 20, y: 0 },
+      },
+      {
+        initial: { scale: 1, x: 0, y: 0 },
+        animate: { scale: 1.08, x: -20, y: 0 },
+      },
+      {
+        initial: { scale: 1, x: 0, y: 0 },
+        animate: { scale: 1.08, x: 15, y: -15 },
+      },
+      {
+        initial: { scale: 1, x: 0, y: 0 },
+        animate: { scale: 1.08, x: -15, y: 15 },
+      },
     ];
     return variants[index % variants.length];
   };
@@ -128,7 +140,8 @@ export function ProjectImageHero({ images, title }: ProjectImageHeroProps) {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse at center, transparent 40%, rgba(5, 8, 7, 0.6) 100%)",
+          background:
+            "radial-gradient(ellipse at center, transparent 40%, rgba(5, 8, 7, 0.6) 100%)",
         }}
       />
 
@@ -143,8 +156,21 @@ export function ProjectImageHero({ images, title }: ProjectImageHeroProps) {
           className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white transition-colors"
           aria-label="Previous image"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              d="M10 3L5 8L10 13"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
 
@@ -169,7 +195,11 @@ export function ProjectImageHero({ images, title }: ProjectImageHeroProps) {
                   className="absolute inset-0 bg-sbi-green/30 rounded-full"
                   initial={{ scale: 1 }}
                   animate={{ scale: [1, 1.8, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
                 />
               )}
             </button>
@@ -182,15 +212,32 @@ export function ProjectImageHero({ images, title }: ProjectImageHeroProps) {
           className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white transition-colors"
           aria-label="Next image"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              d="M6 3L11 8L6 13"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
       </div>
 
       {/* Progress bar — updated via ref, not state */}
       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sbi-dark-border z-10">
-        <div ref={progressBarRef} className="h-full bg-sbi-green origin-left" style={{ width: "0%" }} />
+        <div
+          ref={progressBarRef}
+          className="h-full bg-sbi-green origin-left"
+          style={{ width: "0%" }}
+        />
       </div>
     </div>
   );

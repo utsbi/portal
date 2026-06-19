@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -43,7 +43,10 @@ const SelectScrollUpButton = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.ScrollUpButton
     ref={ref}
-    className={cn("flex cursor-default items-center justify-center py-1 text-sbi-muted-dark", className)}
+    className={cn(
+      "flex cursor-default items-center justify-center py-1 text-sbi-muted-dark",
+      className,
+    )}
     {...props}
   >
     <ChevronUp className="size-4" />
@@ -57,13 +60,17 @@ const SelectScrollDownButton = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.ScrollDownButton
     ref={ref}
-    className={cn("flex cursor-default items-center justify-center py-1 text-sbi-muted-dark", className)}
+    className={cn(
+      "flex cursor-default items-center justify-center py-1 text-sbi-muted-dark",
+      className,
+    )}
     {...props}
   >
     <ChevronDown className="size-4" />
   </SelectPrimitive.ScrollDownButton>
 ));
-SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
+SelectScrollDownButton.displayName =
+  SelectPrimitive.ScrollDownButton.displayName;
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
@@ -90,7 +97,8 @@ const SelectContent = React.forwardRef<
       <SelectPrimitive.Viewport
         className={cn(
           "p-1",
-          position === "popper" && "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+          position === "popper" &&
+            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
         )}
       >
         {children}
@@ -107,7 +115,10 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn("px-2 py-1.5 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark", className)}
+    className={cn(
+      "px-2 py-1.5 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark",
+      className,
+    )}
     {...props}
   />
 ));

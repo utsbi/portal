@@ -1,19 +1,19 @@
 "use client";
 
+import { Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   createContext,
+  type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useRef,
   useState,
-  type KeyboardEvent,
-  type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
-import { type Conversation } from "../ConversationList";
 import { fuzzyScore } from "@/lib/messages/search";
+import type { Conversation } from "../ConversationList";
 
 // ---- Context ----
 
@@ -32,6 +32,15 @@ export function useCmdK(): CmdKContextValue {
   const ctx = useContext(CmdKContext);
   if (!ctx) throw new Error("useCmdK must be used within CmdKProvider");
   return ctx;
+}
+
+/**
+ * Non-throwing variant for components that may render outside a CmdKProvider.
+ * Returns null when no provider is present instead of throwing, so it can be
+ * called unconditionally at the top level (satisfies the rules of hooks).
+ */
+export function useCmdKOptional(): CmdKContextValue | null {
+  return useContext(CmdKContext);
 }
 
 // ---- Scoring ----
@@ -123,16 +132,23 @@ function PaletteModal({ conversations, basePath, onClose }: PaletteModalProps) {
 
   // Scroll active item into view.
   useEffect(() => {
-    const item = listRef.current?.children[clampedIdx] as HTMLElement | undefined;
+    const item = listRef.current?.children[clampedIdx] as
+      | HTMLElement
+      | undefined;
     item?.scrollIntoView({ block: "nearest" });
   }, [clampedIdx]);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: presentational click-outside backdrop; it carries role="presentation" and only dismisses the modal. Keyboard dismissal is fully covered by the search input's Escape handler (which is auto-focused on open) and the backdrop's own Escape handler.
     <div
       className="fixed inset-0 z-[80] flex items-start justify-center pt-[15vh] bg-sbi-dark/70 backdrop-blur-sm"
       onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
       role="presentation"
     >
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: onClick here only stops backdrop click-to-close propagation; it triggers no action of its own, and keyboard dismissal is handled by the backdrop and the search input's Escape handler */}
       <div
         className="w-[520px] max-h-[480px] flex flex-col rounded-xl border border-sbi-dark-border/60 bg-sbi-dark-card shadow-[0_24px_64px_-12px_rgba(0,0,0,0.8)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -141,7 +157,10 @@ function PaletteModal({ conversations, basePath, onClose }: PaletteModalProps) {
       >
         {/* Search input */}
         <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-sbi-dark-border/40">
-          <Search className="w-4 h-4 text-sbi-muted-dark shrink-0" strokeWidth={1.75} />
+          <Search
+            className="w-4 h-4 text-sbi-muted-dark shrink-0"
+            strokeWidth={1.75}
+          />
           <input
             ref={inputRef}
             value={query}
@@ -198,7 +217,9 @@ function PaletteModal({ conversations, basePath, onClose }: PaletteModalProps) {
                         </span>
                       )}
                       {convo.projectName && convo.lastMessage && (
-                        <span className="text-[10px] text-sbi-muted-dark">·</span>
+                        <span className="text-[10px] text-sbi-muted-dark">
+                          ·
+                        </span>
                       )}
                       {convo.lastMessage && (
                         <span className="text-[11px] text-sbi-muted-dark truncate">
@@ -235,8 +256,7 @@ export function CmdKProvider({ children, basePath }: CmdKProviderProps) {
   useEffect(() => {
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
       const isMac =
-        typeof navigator !== "undefined" &&
-        /Mac/i.test(navigator.userAgent);
+        typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
       const modifier = isMac ? e.metaKey : e.ctrlKey;
       if (modifier && e.key === "k") {
         e.preventDefault();

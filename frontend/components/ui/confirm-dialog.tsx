@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { Modal } from "@/components/dashboard/common/Modal";
-import { btnGhost, btnPrimary, btnDanger, labelClass, inputClass } from "@/components/dashboard/common/ui";
+import {
+  btnDanger,
+  btnGhost,
+  btnPrimary,
+  inputClass,
+  labelClass,
+} from "@/components/dashboard/common/ui";
 import { cn } from "@/lib/utils";
 
 interface ConfirmDialogProps {
@@ -84,16 +90,15 @@ export function ConfirmDialog({
                 {confirmationText}
               </span>{" "}
               to confirm
+              <input
+                type="text"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                disabled={isWorking}
+                className={cn(inputClass, "mt-2")}
+                placeholder={confirmationText}
+              />
             </label>
-            <input
-              type="text"
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              disabled={isWorking}
-              autoFocus
-              className={cn(inputClass)}
-              placeholder={confirmationText}
-            />
           </div>
         )}
 

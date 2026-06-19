@@ -11,9 +11,9 @@ import {
   SectionLabel,
 } from "@/components/dashboard/common/ui";
 import { useProject } from "@/lib/project/project-context";
-import { ProjectModal } from "./components/ProjectModal";
 import ProjectCard from "./components/ProjectCard";
 import { ProjectHeroCard } from "./components/ProjectHeroCard";
+import { ProjectModal } from "./components/ProjectModal";
 import type { Project } from "./types";
 import { useLifecycleProjects } from "./use-lifecycle";
 

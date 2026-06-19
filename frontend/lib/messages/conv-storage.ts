@@ -6,7 +6,11 @@
  * Non-serializable fields (pendingFile, localPreviewUrl) are stripped before write.
  */
 
-import type { CachedMessage, ConvSnapshot, PersistedSnapshot } from "./conv-types";
+import type {
+  CachedMessage,
+  ConvSnapshot,
+  PersistedSnapshot,
+} from "./conv-types";
 
 // Re-export so external consumers that imported from this file keep working.
 export type { PersistedSnapshot };
@@ -75,7 +79,10 @@ export async function loadAllPersisted(): Promise<PersistedSnapshot[]> {
   }
 }
 
-export async function persistSnapshot(convId: string, snapshot: ConvSnapshot): Promise<void> {
+export async function persistSnapshot(
+  convId: string,
+  snapshot: ConvSnapshot,
+): Promise<void> {
   if (typeof indexedDB === "undefined") return;
   try {
     const db = await openDb();

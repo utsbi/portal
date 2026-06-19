@@ -6,24 +6,30 @@
  * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in .env
  */
 
+import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { resolve } from "path";
 
 config({ path: resolve(__dirname, "../.env") });
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY;
-const TEST_PASSWORD = process.env.SEED_TEST_PASSWORD!;
+const TEST_PASSWORD = process.env.SEED_TEST_PASSWORD as string;
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in .env");
+  console.error(
+    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in .env",
+  );
   process.exit(1);
 }
 
 if (!TEST_PASSWORD) {
-  console.error("Missing SEED_TEST_PASSWORD. Set it in .env or pass as env var:");
-  console.error("  SEED_TEST_PASSWORD='yourpass' npx tsx scripts/seed-test-accounts.ts");
+  console.error(
+    "Missing SEED_TEST_PASSWORD. Set it in .env or pass as env var:",
+  );
+  console.error(
+    "  SEED_TEST_PASSWORD='yourpass' npx tsx scripts/seed-test-accounts.ts",
+  );
   process.exit(1);
 }
 
@@ -73,7 +79,10 @@ async function cleanExisting() {
 
       if (profile) {
         // Delete project memberships
-        await supabase.from("project_members").delete().eq("profile_id", profile.id);
+        await supabase
+          .from("project_members")
+          .delete()
+          .eq("profile_id", profile.id);
 
         // Delete projects created by this user
         await supabase.from("projects").delete().eq("created_by", profile.id);
@@ -94,14 +103,18 @@ async function createTestAccounts() {
 
   for (const account of TEST_ACCOUNTS) {
     // 1. Create auth user
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: account.email,
-      password: TEST_PASSWORD,
-      email_confirm: true,
-    });
+    const { data: authData, error: authError } =
+      await supabase.auth.admin.createUser({
+        email: account.email,
+        password: TEST_PASSWORD,
+        email_confirm: true,
+      });
 
     if (authError) {
-      console.error(`  Failed to create auth user ${account.email}:`, authError.message);
+      console.error(
+        `  Failed to create auth user ${account.email}:`,
+        authError.message,
+      );
       continue;
     }
 
@@ -130,11 +143,13 @@ async function createTestAccounts() {
 
     // 3. If client, create a project
     if (account.role === "client" && account.companyName) {
-      const slug = account.companyName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-        + "-" + Math.random().toString(36).slice(2, 6);
+      const slug =
+        account.companyName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "") +
+        "-" +
+        Math.random().toString(36).slice(2, 6);
 
       const { data: project, error: projectError } = await supabase
         .from("projects")
@@ -165,7 +180,10 @@ async function verify() {
   const { data: profiles } = await supabase
     .from("profiles")
     .select("id, name, email, role")
-    .in("email", TEST_ACCOUNTS.map((a) => a.email))
+    .in(
+      "email",
+      TEST_ACCOUNTS.map((a) => a.email),
+    )
     .order("role");
 
   if (!profiles?.length) {
@@ -179,11 +197,20 @@ async function verify() {
       .select("project_id, role, projects(company_name)")
       .eq("profile_id", p.id);
 
-    const projectList = (memberships || [])
-      .map((m: any) => `${m.projects?.company_name} (${m.role})`)
+    type VerifyMembershipRow = {
+      role: string;
+      projects: { company_name: string } | null;
+    };
+
+    const projectList = (
+      (memberships ?? []) as unknown as VerifyMembershipRow[]
+    )
+      .map((m) => `${m.projects?.company_name} (${m.role})`)
       .join(", ");
 
-    console.log(`  ${p.role.padEnd(8)} | ${p.name.padEnd(15)} | ${p.email.padEnd(25)} | Projects: ${projectList || "none"}`);
+    console.log(
+      `  ${p.role.padEnd(8)} | ${p.name.padEnd(15)} | ${p.email.padEnd(25)} | Projects: ${projectList || "none"}`,
+    );
   }
 
   // Test sign-in for each account

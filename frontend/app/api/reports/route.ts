@@ -4,257 +4,277 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-function normalizeStatus(status: string | null | undefined): "Pending" | "In Progress" | "Done" | "Denied" {
-    const s = (status || "").toLowerCase().replace(/[\s_-]+/g, "");
-    if (s === "done" || s === "complete" || s === "completed") return "Done";
-    if (s === "inprogress" || s === "inprocess" || s === "active") return "In Progress";
-    if (s === "denied" || s === "rejected") return "Denied";
-    return "Pending";
+function normalizeStatus(
+  status: string | null | undefined,
+): "Pending" | "In Progress" | "Done" | "Denied" {
+  const s = (status || "").toLowerCase().replace(/[\s_-]+/g, "");
+  if (s === "done" || s === "complete" || s === "completed") return "Done";
+  if (s === "inprogress" || s === "inprocess" || s === "active")
+    return "In Progress";
+  if (s === "denied" || s === "rejected") return "Denied";
+  return "Pending";
 }
 
 export interface ReportItem {
-    id: string;
-    numid: string;
-    title: string;
-    subject?: string;
-    name?: string;
-    email?: string;
-    department: string;
-    director: string;
-    assign_to?: string;
-    project?: string | null;
-    status: "Pending" | "In Progress" | "Done" | "Denied";
-    message?: string;
-    date: string;
-    customer_id?: string;
-    attachments?: unknown[] | null;
-    created_at?: string;
-    updated_at?: string;
+  id: string;
+  numid: string;
+  title: string;
+  subject?: string;
+  name?: string;
+  email?: string;
+  department: string;
+  director: string;
+  assign_to?: string;
+  project?: string | null;
+  status: "Pending" | "In Progress" | "Done" | "Denied";
+  message?: string;
+  date: string;
+  customer_id?: string;
+  attachments?: unknown[] | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface TicketRow {
-    id: string | number;
-    numid?: string | number | null;
-    title?: string | null;
-    subject?: string | null;
-    name?: string | null;
-    email?: string | null;
-    department?: string | null;
-    director?: string | null;
-    assign_to?: string | null;
-    project?: string | null;
-    status?: string | null;
-    message?: string | null;
-    customer_id?: string | null;
-    attachments?: unknown[] | null;
-    created_at?: string | null;
-    updated_at?: string | null;
-    projects?: { company_name: string | null } | null;
+  id: string | number;
+  numid?: string | number | null;
+  title?: string | null;
+  subject?: string | null;
+  name?: string | null;
+  email?: string | null;
+  department?: string | null;
+  director?: string | null;
+  assign_to?: string | null;
+  project?: string | null;
+  status?: string | null;
+  message?: string | null;
+  customer_id?: string | null;
+  attachments?: unknown[] | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  projects?: { company_name: string | null } | null;
 }
 
 function rowToReport(row: TicketRow): ReportItem {
-    return {
-        id: String(row.id),
-        numid: String(row.numid ?? row.id).padStart(4, "0"),
-        title: row.title || row.subject || "Untitled Report",
-        subject: row.subject ?? undefined,
-        name: row.name ?? undefined,
-        email: row.email ?? undefined,
-        department: row.department || "General",
-        director: row.director || row.assign_to || "Unassigned",
-        assign_to: row.assign_to ?? undefined,
-        project: row.projects?.company_name ?? row.project ?? null,
-        status: normalizeStatus(row.status),
-        message: row.message ?? undefined,
-        date: row.created_at
-            ? new Date(row.created_at).toISOString().split("T")[0]
-            : new Date().toISOString().split("T")[0],
-        customer_id: row.customer_id ?? undefined,
-        attachments: row.attachments ?? null,
-        created_at: row.created_at ?? undefined,
-        updated_at: row.updated_at ?? undefined,
-    };
+  return {
+    id: String(row.id),
+    numid: String(row.numid ?? row.id).padStart(4, "0"),
+    title: row.title || row.subject || "Untitled Report",
+    subject: row.subject ?? undefined,
+    name: row.name ?? undefined,
+    email: row.email ?? undefined,
+    department: row.department || "General",
+    director: row.director || row.assign_to || "Unassigned",
+    assign_to: row.assign_to ?? undefined,
+    project: row.projects?.company_name ?? row.project ?? null,
+    status: normalizeStatus(row.status),
+    message: row.message ?? undefined,
+    date: row.created_at
+      ? new Date(row.created_at).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0],
+    customer_id: row.customer_id ?? undefined,
+    attachments: row.attachments ?? null,
+    created_at: row.created_at ?? undefined,
+    updated_at: row.updated_at ?? undefined,
+  };
 }
 
 export async function GET(request: Request) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
-        return NextResponse.json(
-            { error: "Missing Supabase environment variables" },
-            { status: 500 },
-        );
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json(
+      { error: "Missing Supabase environment variables" },
+      { status: 500 },
+    );
+  }
+
+  const { searchParams } = new URL(request.url);
+  const projectId = searchParams.get("project_id");
+
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      db: { schema: "public" },
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            for (const { name, value, options } of cookiesToSet) {
+              cookieStore.set(name, value, options);
+            }
+          } catch {
+            /* Server Component — safe to ignore */
+          }
+        },
+      },
+    });
+
+    const { data: authData, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !authData.user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get("project_id");
+    const { data: profile, error: profileErr } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .eq("uid", authData.user.id)
+      .single();
 
-    try {
-        const cookieStore = await cookies();
-        const supabase = createServerClient(supabaseUrl, supabaseKey, {
-            db: { schema: "public" },
-            cookies: {
-                getAll() { return cookieStore.getAll(); },
-                setAll(cookiesToSet) {
-                    try {
-                        for (const { name, value, options } of cookiesToSet) {
-                            cookieStore.set(name, value, options);
-                        }
-                    } catch { /* Server Component — safe to ignore */ }
-                },
-            },
-        });
-
-        const { data: authData, error: authErr } = await supabase.auth.getUser();
-        if (authErr || !authData.user) {
-            return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-        }
-
-        const { data: profile, error: profileErr } = await supabase
-            .from("profiles")
-            .select("id, role")
-            .eq("uid", authData.user.id)
-            .single();
-
-        if (profileErr || !profile) {
-            return NextResponse.json({ error: "Profile not found" }, { status: 403 });
-        }
-
-        // Non-directors must scope to a single project they belong to.
-        // Without a project_id they could otherwise receive cross-project data
-        // (RLS is the backstop, but enforce scoping explicitly here).
-        if (profile.role !== "director") {
-            if (!projectId) {
-                return NextResponse.json(
-                    { error: "project_id is required" },
-                    { status: 400 },
-                );
-            }
-            const { data: membership, error: memberErr } = await supabase
-                .from("project_members")
-                .select("project_id")
-                .eq("profile_id", profile.id)
-                .eq("project_id", Number(projectId))
-                .single();
-
-            if (memberErr || !membership) {
-                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-            }
-        }
-
-        let query = supabase
-            .from("tickets")
-            .select("*, projects:project_id(company_name)")
-            .eq("ticket_type", "report")
-            .order("created_at", { ascending: false });
-
-        if (projectId) {
-            query = query.eq("project_id", Number(projectId));
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-            console.error("Supabase error:", error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        const reports: ReportItem[] = ((data ?? []) as unknown as TicketRow[]).map(rowToReport);
-
-        return NextResponse.json(reports);
-    } catch (error) {
-        console.error("Unexpected error:", error);
-        return NextResponse.json(
-            { error: "Internal server error" },
-            { status: 500 },
-        );
+    if (profileErr || !profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 403 });
     }
+
+    // Non-directors must scope to a single project they belong to.
+    // Without a project_id they could otherwise receive cross-project data
+    // (RLS is the backstop, but enforce scoping explicitly here).
+    if (profile.role !== "director") {
+      if (!projectId) {
+        return NextResponse.json(
+          { error: "project_id is required" },
+          { status: 400 },
+        );
+      }
+      const { data: membership, error: memberErr } = await supabase
+        .from("project_members")
+        .select("project_id")
+        .eq("profile_id", profile.id)
+        .eq("project_id", Number(projectId))
+        .single();
+
+      if (memberErr || !membership) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
+    let query = supabase
+      .from("tickets")
+      .select("*, projects:project_id(company_name)")
+      .eq("ticket_type", "report")
+      .order("created_at", { ascending: false });
+
+    if (projectId) {
+      query = query.eq("project_id", Number(projectId));
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const reports: ReportItem[] = ((data ?? []) as unknown as TicketRow[]).map(
+      rowToReport,
+    );
+
+    return NextResponse.json(reports);
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: Request) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
-        return NextResponse.json(
-            { error: "Missing Supabase environment variables" },
-            { status: 500 },
-        );
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json(
+      { error: "Missing Supabase environment variables" },
+      { status: 500 },
+    );
+  }
+
+  try {
+    const body = await request.json();
+
+    if (!body.title || !body.message) {
+      return NextResponse.json(
+        { error: "Title and message are required" },
+        { status: 400 },
+      );
     }
 
-    try {
-        const body = await request.json();
+    const cookieStore = await cookies();
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      db: { schema: "public" },
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {
+          /* server side read-only */
+        },
+      },
+    });
 
-        if (!body.title || !body.message) {
-            return NextResponse.json({ error: "Title and message are required" }, { status: 400 });
-        }
-
-        const cookieStore = await cookies();
-        const supabase = createServerClient(supabaseUrl, supabaseKey, {
-            db: { schema: "public" },
-            cookies: {
-                getAll() { return cookieStore.getAll(); },
-                setAll() { /* server side read-only */ },
-            },
-        });
-
-        const { data: authData, error: authErr } = await supabase.auth.getUser();
-        if (authErr || !authData.user) {
-            return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-        }
-
-        const { data: profile, error: profileErr } = await supabase
-            .from("profiles")
-            .select("name, role, department")
-            .eq("uid", authData.user.id)
-            .single();
-
-        if (profileErr || !profile) {
-            return NextResponse.json({ error: "Profile not found" }, { status: 403 });
-        }
-
-        if (profile.role !== "director" && profile.role !== "member") {
-            return NextResponse.json({ error: "Only directors or members can submit reports" }, { status: 403 });
-        }
-
-        const department = typeof body.department === "string" && body.department.length > 0
-            ? body.department
-            : profile.department ?? "General";
-
-        const newRecord = {
-            ticket_type: "report" as const,
-            title: body.title,
-            subject: body.title,
-            department,
-            director: profile.name,
-            assign_to: profile.name,
-            message: body.message,
-            status: "pending" as const,
-            customer_id: body.customer_id ?? null,
-            project_id: body.project_id ? Number(body.project_id) : null,
-            attachments: Array.isArray(body.attachments) ? body.attachments : null,
-        };
-
-        const { data, error } = await supabase
-            .from("tickets")
-            .insert([newRecord])
-            .select("*, projects:project_id(company_name)")
-            .single();
-
-        if (error) {
-            console.error("Supabase insert error:", error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        const report: ReportItem = rowToReport(data as unknown as TicketRow);
-
-        return NextResponse.json(report, { status: 201 });
-    } catch (error) {
-        console.error("Unexpected POST error:", error);
-        return NextResponse.json(
-            { error: "Internal server error" },
-            { status: 500 },
-        );
+    const { data: authData, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !authData.user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
+
+    const { data: profile, error: profileErr } = await supabase
+      .from("profiles")
+      .select("name, role, department")
+      .eq("uid", authData.user.id)
+      .single();
+
+    if (profileErr || !profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+    }
+
+    if (profile.role !== "director" && profile.role !== "member") {
+      return NextResponse.json(
+        { error: "Only directors or members can submit reports" },
+        { status: 403 },
+      );
+    }
+
+    const department =
+      typeof body.department === "string" && body.department.length > 0
+        ? body.department
+        : (profile.department ?? "General");
+
+    const newRecord = {
+      ticket_type: "report" as const,
+      title: body.title,
+      subject: body.title,
+      department,
+      director: profile.name,
+      assign_to: profile.name,
+      message: body.message,
+      status: "pending" as const,
+      customer_id: body.customer_id ?? null,
+      project_id: body.project_id ? Number(body.project_id) : null,
+      attachments: Array.isArray(body.attachments) ? body.attachments : null,
+    };
+
+    const { data, error } = await supabase
+      .from("tickets")
+      .insert([newRecord])
+      .select("*, projects:project_id(company_name)")
+      .single();
+
+    if (error) {
+      console.error("Supabase insert error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const report: ReportItem = rowToReport(data as unknown as TicketRow);
+
+    return NextResponse.json(report, { status: 201 });
+  } catch (error) {
+    console.error("Unexpected POST error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
 }

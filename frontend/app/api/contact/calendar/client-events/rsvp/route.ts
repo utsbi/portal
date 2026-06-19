@@ -163,7 +163,12 @@ export async function POST(req: Request) {
   // Strip `self`/`organizer`/`resource` flags from existing attendees — they're
   // server-computed; sending them back can confuse Google's permission checks.
   const sanitizedAttendees = attendees.map((a) => {
-    const { self: _self, organizer: _org, resource: _res, ...rest } = a as Record<string, unknown>;
+    const {
+      self: _self,
+      organizer: _org,
+      resource: _res,
+      ...rest
+    } = a as Record<string, unknown>;
     void _self;
     void _org;
     void _res;

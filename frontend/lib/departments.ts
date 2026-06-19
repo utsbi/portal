@@ -11,7 +11,10 @@ export const DEPARTMENTS: DepartmentOption[] = [
   { value: "Architecture", label: "Architecture" },
   { value: "Engineering — General", label: "Engineering — General" },
   { value: "Engineering — Civil", label: "Engineering — Civil" },
-  { value: "Engineering — Environmental", label: "Engineering — Environmental" },
+  {
+    value: "Engineering — Environmental",
+    label: "Engineering — Environmental",
+  },
   { value: "Engineering — Structural", label: "Engineering — Structural" },
   { value: "Engineering — Electrical", label: "Engineering — Electrical" },
   { value: "Finance", label: "Finance" },

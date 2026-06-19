@@ -1,7 +1,31 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import {
+  AlertCircle,
+  ArrowUpDown,
+  Ban,
+  Calendar,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Clock,
+  Filter,
+  Mail,
+  Search,
+  User,
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useMemo, useState } from "react";
+import { EmptyState, inputClass } from "@/components/dashboard/common/ui";
+import { type ColumnDef, DataTable } from "@/components/data-table";
+import { SearchableDropdown } from "@/components/data-table/searchable-dropdown";
+import { StatusPill } from "@/components/data-table/status-pill";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -10,35 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { SearchableDropdown } from "@/components/data-table/searchable-dropdown";
 import { cn } from "@/lib/utils";
-import { DataTable, type ColumnDef } from "@/components/data-table";
-import { StatusPill } from "@/components/data-table/status-pill";
-import {
-  EmptyState,
-  inputClass,
-} from "@/components/dashboard/common/ui";
-import {
-  ArrowUpDown,
-  AlertCircle,
-  Search,
-  Filter,
-  CheckCircle2,
-  Clock,
-  Ban,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  User,
-  Mail,
-  Calendar,
-  File,
-} from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────
 // MOCK DATA: Questionnaire
@@ -128,7 +124,6 @@ const QUESTIONNAIRE_MOCK = [
   },
 ];
 
-type QuestionnaireItem = (typeof QUESTIONNAIRE_MOCK)[number];
 type QSortKey = "priority" | "status" | "questionCount" | "team" | null;
 
 const priorityOrder = { Critical: 0, High: 1, Medium: 2, Low: 3 };
@@ -230,7 +225,6 @@ const REPORTS_MOCK = [
   },
 ];
 
-type ReportItem = (typeof REPORTS_MOCK)[number];
 type RSortColumn =
   | "numid"
   | "status"
@@ -662,12 +656,13 @@ function QuestionnaireTable() {
       result = result.filter((form) => form.status !== "Done");
     }
 
-    if (sortConfig.key) {
+    const sortKey = sortConfig.key;
+    if (sortKey) {
       result.sort((a, b) => {
-        const aValue = a[sortConfig.key!];
-        const bValue = b[sortConfig.key!];
+        const aValue = a[sortKey];
+        const bValue = b[sortKey];
 
-        if (sortConfig.key === "priority") {
+        if (sortKey === "priority") {
           const aPriority =
             priorityOrder[aValue as keyof typeof priorityOrder] ?? 99;
           const bPriority =
@@ -914,8 +909,8 @@ function ReportsTable() {
     if (!sortColumn) return filteredReports;
 
     return [...filteredReports].sort((a, b) => {
-      let aVal: any = a[sortColumn];
-      let bVal: any = b[sortColumn];
+      let aVal: string | number = a[sortColumn];
+      let bVal: string | number = b[sortColumn];
 
       if (sortColumn === "status") {
         const statusOrder = {
@@ -1160,6 +1155,7 @@ function RequestsTable() {
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => handleSearchChange("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-sbi-muted hover:text-white transition-colors"
               >
@@ -1347,6 +1343,7 @@ function RequestsTable() {
           </p>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => {
                 setCurrentPage((p) => p - 1);
                 setExpandedId(null);
@@ -1360,6 +1357,7 @@ function RequestsTable() {
               Page {currentPage} of {totalPages}
             </span>
             <button
+              type="button"
               onClick={() => {
                 setCurrentPage((p) => p + 1);
                 setExpandedId(null);
@@ -1472,45 +1470,51 @@ export default function TableComparisonPage() {
             </h3>
             <p className="text-xs text-sbi-muted-dark">
               Composable Table primitives &bull; Phosphor icons throughout
-              &bull; Search + SearchableDropdowns + Toggle filter
-              &bull; Row selection &bull; Expandable rows &bull; Column visibility
-              &bull; Loading skeleton &bull; Pagination &bull; Framer Motion
+              &bull; Search + SearchableDropdowns + Toggle filter &bull; Row
+              selection &bull; Expandable rows &bull; Column visibility &bull;
+              Loading skeleton &bull; Pagination &bull; Framer Motion
             </p>
           </div>
         </div>
         <DataTable<UnifiedItem>
-            data={UNIFIED_MOCK}
-            columns={UNIFIED_COLUMNS}
-            title="Project Reports"
-            description="Unified component combining the best of all three designs"
-            searchable
-            searchKeys={["title", "director", "department"]}
-            searchPlaceholder="Search reports..."
-            filters={UNIFIED_FILTERS}
-            toggleFilter={{ key: "status", value: "Done", label: "Hide Done" }}
-            pageSize={5}
-            onRowClick={(row) => console.log("Clicked:", row)}
-            primaryColumn="title"
-            rowKey="id"
-            selectable
-            columnToggle
-            renderExpandedRow={(row) => (
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-sbi-muted-dark text-xs uppercase tracking-wider">Director</span>
-                  <p className="text-white mt-1">{row.director}</p>
-                </div>
-                <div>
-                  <span className="text-sbi-muted-dark text-xs uppercase tracking-wider">Department</span>
-                  <p className="text-white mt-1">{row.department}</p>
-                </div>
-                <div>
-                  <span className="text-sbi-muted-dark text-xs uppercase tracking-wider">Date</span>
-                  <p className="text-white mt-1">{row.date}</p>
-                </div>
+          data={UNIFIED_MOCK}
+          columns={UNIFIED_COLUMNS}
+          title="Project Reports"
+          description="Unified component combining the best of all three designs"
+          searchable
+          searchKeys={["title", "director", "department"]}
+          searchPlaceholder="Search reports..."
+          filters={UNIFIED_FILTERS}
+          toggleFilter={{ key: "status", value: "Done", label: "Hide Done" }}
+          pageSize={5}
+          onRowClick={(row) => console.log("Clicked:", row)}
+          primaryColumn="title"
+          rowKey="id"
+          selectable
+          columnToggle
+          renderExpandedRow={(row) => (
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-sbi-muted-dark text-xs uppercase tracking-wider">
+                  Director
+                </span>
+                <p className="text-white mt-1">{row.director}</p>
               </div>
-            )}
-          />
+              <div>
+                <span className="text-sbi-muted-dark text-xs uppercase tracking-wider">
+                  Department
+                </span>
+                <p className="text-white mt-1">{row.department}</p>
+              </div>
+              <div>
+                <span className="text-sbi-muted-dark text-xs uppercase tracking-wider">
+                  Date
+                </span>
+                <p className="text-white mt-1">{row.date}</p>
+              </div>
+            </div>
+          )}
+        />
       </section>
 
       {/* Feature Checklist for comparison */}

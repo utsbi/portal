@@ -19,13 +19,22 @@ process.env.SUPABASE_SECRET_KEY = "service-role-secret";
 // object and reset it in beforeEach.
 const state = {
   user: null as unknown,
-  callerProfile: null as unknown,    // result of the requireUser/requireDirector profile lookup
+  callerProfile: null as unknown, // result of the requireUser/requireDirector profile lookup
   callerProfileError: null as unknown,
-  insertAuthResult: { data: { user: { id: "new-uid" } }, error: null } as { data: unknown; error: unknown },
-  insertProfileResult: { data: { id: 99 }, error: null } as { data: unknown; error: unknown },
+  insertAuthResult: { data: { user: { id: "new-uid" } }, error: null } as {
+    data: unknown;
+    error: unknown;
+  },
+  insertProfileResult: { data: { id: 99 }, error: null } as {
+    data: unknown;
+    error: unknown;
+  },
   deleteUserResult: { error: null } as { error: unknown },
   updateResult: { error: null } as { error: unknown },
-  accountsResult: { data: [] as unknown, error: null } as { data: unknown; error: unknown },
+  accountsResult: { data: [] as unknown, error: null } as {
+    data: unknown;
+    error: unknown;
+  },
 };
 
 // ─── @/lib/supabase/server mock (SSR auth client) ────────────────────────────
@@ -62,8 +71,14 @@ vi.mock("@supabase/supabase-js", () => {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {
       select: vi.fn(),
       eq: vi.fn(),
-      single: vi.fn(async () => ({ data: state.callerProfile, error: state.callerProfileError })),
-      maybeSingle: vi.fn(async () => ({ data: state.callerProfile, error: state.callerProfileError })),
+      single: vi.fn(async () => ({
+        data: state.callerProfile,
+        error: state.callerProfileError,
+      })),
+      maybeSingle: vi.fn(async () => ({
+        data: state.callerProfile,
+        error: state.callerProfileError,
+      })),
       update: vi.fn(),
       insert: vi.fn(),
       order: vi.fn(async () => state.accountsResult),
@@ -102,7 +117,9 @@ vi.mock("@supabase/supabase-js", () => {
       eq: vi.fn().mockReturnThis(),
       single: vi.fn(async () => state.insertProfileResult),
       insert: vi.fn(() => ({
-        select: vi.fn(() => ({ single: vi.fn(async () => state.insertProfileResult) })),
+        select: vi.fn(() => ({
+          single: vi.fn(async () => state.insertProfileResult),
+        })),
       })),
       order: vi.fn().mockReturnThis(),
     };
@@ -203,7 +220,10 @@ describe("settings/actions — auth gates", () => {
     it("returns success when director creates a member account", async () => {
       state.user = { id: "uid-director" };
       state.callerProfile = { id: 1, role: "director" };
-      state.insertAuthResult = { data: { user: { id: "new-uid" } }, error: null };
+      state.insertAuthResult = {
+        data: { user: { id: "new-uid" } },
+        error: null,
+      };
       state.insertProfileResult = { data: { id: 99 }, error: null };
 
       const result = await createAccount({
@@ -329,7 +349,10 @@ describe("settings/actions — auth gates", () => {
         config: {},
       };
       state.updateResult = { error: null };
-      const result = await updateMyProfile({ name: "Alice Smith", department: "Engineering" });
+      const result = await updateMyProfile({
+        name: "Alice Smith",
+        department: "Engineering",
+      });
       expect(result.error).toBeUndefined();
       expect(result.success).toBe(true);
     });

@@ -11,7 +11,9 @@ describe("cn()", () => {
   });
 
   it("handles conditional classes — truthy included, falsy excluded", () => {
-    expect(cn("base", true && "included", false && "excluded")).toBe("base included");
+    expect(cn("base", true && "included", false && "excluded")).toBe(
+      "base included",
+    );
   });
 
   it("deduplicates conflicting Tailwind classes (last wins)", () => {

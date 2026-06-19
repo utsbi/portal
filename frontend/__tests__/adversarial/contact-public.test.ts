@@ -97,7 +97,7 @@ describe("ADVERSARIAL contact — Turnstile / bot gate (P1, P4)", () => {
     );
     expect(siteverifyCall).toBeDefined();
     const sentBody = JSON.parse(
-      (siteverifyCall![1] as RequestInit).body as string,
+      (siteverifyCall?.[1] as RequestInit).body as string,
     );
     expect(sentBody.secret).toBe("SERVER-TURNSTILE-SECRET");
     // The secret must never echo back in the success response.

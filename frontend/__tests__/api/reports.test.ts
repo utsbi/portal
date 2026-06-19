@@ -27,18 +27,27 @@ type MockChain = {
   order: ReturnType<typeof vi.fn>;
   _resolve: (v: { data: unknown; error: unknown }) => void;
   // Make the chain thenable so `await query` (list query, no .single()) works.
-  then: (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) => Promise<unknown>;
+  then: (
+    onFulfilled: (v: unknown) => unknown,
+    onRejected?: (e: unknown) => unknown,
+  ) => Promise<unknown>;
 };
 
-function makeChain(result: { data: unknown; error: unknown } = { data: null, error: null }): MockChain {
+function makeChain(
+  result: { data: unknown; error: unknown } = { data: null, error: null },
+): MockChain {
   let resolveWith = result;
   const chain: MockChain = {
     select: vi.fn(),
     eq: vi.fn(),
     single: vi.fn(),
     order: vi.fn(),
-    _resolve: (v) => { resolveWith = v; },
-    then: (onFulfilled, onRejected) => Promise.resolve(resolveWith).then(onFulfilled, onRejected),
+    _resolve: (v) => {
+      resolveWith = v;
+    },
+    // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mocks Supabase's await-able query builder for list queries
+    then: (onFulfilled, onRejected) =>
+      Promise.resolve(resolveWith).then(onFulfilled, onRejected),
   };
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
@@ -52,9 +61,18 @@ let authResult: { data: { user: unknown }; error: unknown } = {
   data: { user: null },
   error: { message: "Not authenticated" },
 };
-let profileResult: { data: unknown; error: unknown } = { data: null, error: { message: "Not found" } };
-let membershipResult: { data: unknown; error: unknown } = { data: null, error: { message: "Not member" } };
-let ticketsResult: { data: unknown; error: unknown } = { data: [], error: null };
+let profileResult: { data: unknown; error: unknown } = {
+  data: null,
+  error: { message: "Not found" },
+};
+let membershipResult: { data: unknown; error: unknown } = {
+  data: null,
+  error: { message: "Not member" },
+};
+let ticketsResult: { data: unknown; error: unknown } = {
+  data: [],
+  error: null,
+};
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: vi.fn(() => ({
@@ -95,7 +113,10 @@ describe("GET /api/reports", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cookieStoreMock.getAll.mockReturnValue([]);
-    authResult = { data: { user: null }, error: { message: "Not authenticated" } };
+    authResult = {
+      data: { user: null },
+      error: { message: "Not authenticated" },
+    };
     profileResult = { data: null, error: { message: "Not found" } };
     membershipResult = { data: null, error: { message: "Not member" } };
     ticketsResult = { data: [], error: null };
@@ -107,7 +128,10 @@ describe("GET /api/reports", () => {
 
   // ── 401 when unauthenticated ─────────────────────────────────────────────
   it("returns 401 when there is no authenticated user", async () => {
-    authResult = { data: { user: null }, error: { message: "Not authenticated" } };
+    authResult = {
+      data: { user: null },
+      error: { message: "Not authenticated" },
+    };
 
     const res = await callGet();
     expect(res.status).toBe(401);
@@ -246,7 +270,9 @@ describe("GET /api/reports", () => {
       };
       const res = await callGet();
       const body = await res.json();
-      expect(body[0].status, `expected "${raw}" → "${expected}"`).toBe(expected);
+      expect(body[0].status, `expected "${raw}" → "${expected}"`).toBe(
+        expected,
+      );
     }
   });
 });

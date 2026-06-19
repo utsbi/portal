@@ -111,7 +111,9 @@ export function LocationMarker({
 
   // Don't render if facing away from camera
   if (!visible) {
-    return <group ref={groupRef} position={position} quaternion={orientation} />;
+    return (
+      <group ref={groupRef} position={position} quaternion={orientation} />
+    );
   }
 
   return (
@@ -122,6 +124,7 @@ export function LocationMarker({
       renderOrder={hovered ? 100 : isHub ? 50 : 10}
     >
       {/* Visible marker with pointer events */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: <mesh> is a react-three-fiber WebGL canvas element, not a DOM node; ARIA roles do not apply to three.js objects */}
       <mesh
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}

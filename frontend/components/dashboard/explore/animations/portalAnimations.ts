@@ -1,4 +1,4 @@
-import gsap from 'gsap';
+import gsap from "gsap";
 
 export const portalAnimations = {
   fadeInUp: (element: string | Element, delay = 0) => {
@@ -7,7 +7,7 @@ export const portalAnimations = {
       y: 30,
       duration: 1,
       delay,
-      ease: 'power3.out',
+      ease: "power3.out",
     });
   },
 
@@ -17,7 +17,7 @@ export const portalAnimations = {
       scale: 0.8,
       duration: 0.6,
       delay,
-      ease: 'back.out(1.7)',
+      ease: "back.out(1.7)",
     });
   },
 
@@ -27,17 +27,17 @@ export const portalAnimations = {
       duration: 2,
       repeat: -1,
       yoyo: true,
-      ease: 'sine.inOut',
+      ease: "sine.inOut",
     });
   },
 
   pulseGlow: (element: string | Element) => {
     return gsap.to(element, {
-      boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)',
+      boxShadow: "0 0 20px rgba(59, 130, 246, 0.5)",
       duration: 1.5,
       repeat: -1,
       yoyo: true,
-      ease: 'sine.inOut',
+      ease: "sine.inOut",
     });
   },
 };

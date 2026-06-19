@@ -17,7 +17,9 @@ const labelClass =
 export default function UpdatePasswordPage() {
   const router = useRouter();
   const [isVerifying, setIsVerifying] = useState(true);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(
+    null,
+  );
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -105,7 +107,9 @@ export default function UpdatePasswordPage() {
       event.preventDefault();
 
       if (!canSubmit) {
-        setUpdateError("Passwords must match and contain at least 8 characters.");
+        setUpdateError(
+          "Passwords must match and contain at least 8 characters.",
+        );
         return;
       }
 
@@ -174,15 +178,25 @@ export default function UpdatePasswordPage() {
   return (
     <div className="min-h-svh w-full bg-sbi-dark flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md bg-sbi-dark-card/40 border border-sbi-dark-border/60 rounded-xl shadow-2xl shadow-black/40 p-8 space-y-6">
-        <h1 className="text-xl font-light tracking-tight text-white">Create a new password</h1>
+        <h1 className="text-xl font-light tracking-tight text-white">
+          Create a new password
+        </h1>
 
-        {isVerifying && <p className="text-sm text-sbi-muted">Verifying your reset link…</p>}
+        {isVerifying && (
+          <p className="text-sm text-sbi-muted">Verifying your reset link…</p>
+        )}
 
         {!isVerifying && verificationError && (
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-red-400">Unable to continue</p>
+            <p className="text-sm font-semibold text-red-400">
+              Unable to continue
+            </p>
             <p className="text-sm text-sbi-muted">{verificationError}</p>
-            <button type="button" onClick={() => router.push("/login")} className={btnGhost}>
+            <button
+              type="button"
+              onClick={() => router.push("/login")}
+              className={btnGhost}
+            >
               Return to login
             </button>
           </div>
@@ -205,11 +219,12 @@ export default function UpdatePasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
-                /* biome-ignore lint/a11y/noAutofocus: focus moves to the primary input on this dedicated reset screen */
                 autoFocus
                 className={inputClass}
               />
-              <p className="text-xs text-sbi-muted-dark mt-1.5">Minimum 8 characters</p>
+              <p className="text-xs text-sbi-muted-dark mt-1.5">
+                Minimum 8 characters
+              </p>
             </div>
 
             <div>
@@ -227,9 +242,13 @@ export default function UpdatePasswordPage() {
               />
             </div>
 
-            {updateError && <p className="text-sm text-red-400">{updateError}</p>}
+            {updateError && (
+              <p className="text-sm text-red-400">{updateError}</p>
+            )}
             {isSuccess && (
-              <p className="text-sm text-sbi-green">Password updated. Redirecting to login…</p>
+              <p className="text-sm text-sbi-green">
+                Password updated. Redirecting to login…
+              </p>
             )}
 
             <button

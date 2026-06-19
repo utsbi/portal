@@ -1,7 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import gsap from 'gsap';
+import { useEffect, useRef } from "react";
 
 interface Node {
   x: number;
@@ -21,7 +20,7 @@ export function FloatingNodes() {
     if (!containerRef.current || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     // Set canvas size
@@ -34,7 +33,7 @@ export function FloatingNodes() {
     };
 
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener("resize", resizeCanvas);
 
     // Initialize nodes
     const nodeCount = 16;
@@ -69,7 +68,7 @@ export function FloatingNodes() {
         // Draw node
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+        ctx.fillStyle = "rgba(34, 197, 94, 0.15)";
         ctx.fill();
 
         // Draw connections to nearby nodes
@@ -100,7 +99,7 @@ export function FloatingNodes() {
 
     return () => {
       clearTimeout(timer);
-      window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener("resize", resizeCanvas);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -108,7 +107,10 @@ export function FloatingNodes() {
   }, []);
 
   return (
-    <div ref={containerRef} className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div
+      ref={containerRef}
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+    >
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full opacity-60"

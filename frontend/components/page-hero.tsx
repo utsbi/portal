@@ -57,9 +57,21 @@ export function PageHero({ label, title, subtitle }: PageHeroProps) {
               x2="100%"
               y2="0%"
             >
-              <stop offset="0%" stopColor="var(--color-sbi-green)" stopOpacity="0" />
-              <stop offset="50%" stopColor="var(--color-sbi-green)" stopOpacity="1" />
-              <stop offset="100%" stopColor="var(--color-sbi-green)" stopOpacity="0" />
+              <stop
+                offset="0%"
+                stopColor="var(--color-sbi-green)"
+                stopOpacity="0"
+              />
+              <stop
+                offset="50%"
+                stopColor="var(--color-sbi-green)"
+                stopOpacity="1"
+              />
+              <stop
+                offset="100%"
+                stopColor="var(--color-sbi-green)"
+                stopOpacity="0"
+              />
             </linearGradient>
           </defs>
         </svg>

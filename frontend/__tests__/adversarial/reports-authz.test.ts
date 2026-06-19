@@ -88,6 +88,7 @@ function makeTicketsChain() {
     return chain;
   });
   // List query is awaited directly — make it thenable.
+  // biome-ignore lint/suspicious/noThenProperty: the Supabase query builder is intentionally thenable so `await chain` resolves the list query, matching the real client's behavior.
   (chain as { then: unknown }).then = (
     onFulfilled: (v: unknown) => unknown,
     onRejected?: (e: unknown) => unknown,

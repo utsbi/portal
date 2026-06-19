@@ -24,8 +24,9 @@ beforeAll(async () => {
   // Import after env so the dynamic connect-src picks it up.
   const mod = await import("@/next.config");
   const config = mod.default;
-  const headerGroups = await config.headers!();
-  const group = headerGroups[0];
+  const headerGroups = await config.headers?.();
+  const group = headerGroups?.[0];
+  if (!group) throw new Error("next.config headers() returned no groups");
   allHeaders = group.headers as Array<{ key: string; value: string }>;
   csp =
     allHeaders.find((h) => h.key === "Content-Security-Policy")?.value ?? "";

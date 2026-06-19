@@ -2,9 +2,9 @@ import "@/app/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Toaster } from "sonner";
 import type { Metadata } from "next";
-import { Urbanist, JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono, Urbanist } from "next/font/google";
+import { Toaster } from "sonner";
 import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -18,8 +18,8 @@ const urbanist = Urbanist({
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-jetbrains-mono"
-})
+  variable: "--font-jetbrains-mono",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://utsbi.org"),

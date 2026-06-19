@@ -9,16 +9,16 @@ import {
   User,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { StatusPill } from "@/components/data-table";
 import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
+import { StatusPill } from "@/components/data-table";
 import { departmentLabel } from "@/lib/departments";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/client";
+import type { RequestStatus } from "@/lib/supabase/requests";
 import { updateRequestStatus } from "@/lib/supabase/requests";
 import { cn } from "@/lib/utils";
 import { memberLabel } from "./constants";
 import type { Request } from "./RequestHistory";
-import type { RequestStatus } from "@/lib/supabase/requests";
 
 const STATUS_OPTIONS: { value: RequestStatus; label: string }[] = [
   { value: "pending", label: "Pending" },
@@ -180,7 +180,9 @@ function AttachmentItem({ attachment }: { attachment: AttachmentFile }) {
         <span className="text-white/90 flex-1 truncate">{name}</span>
       )}
       {attachment.size && (
-        <span className="text-xs text-sbi-muted tabular-nums">{attachment.size}</span>
+        <span className="text-xs text-sbi-muted tabular-nums">
+          {attachment.size}
+        </span>
       )}
     </li>
   );
@@ -269,9 +271,21 @@ export function RequestDetailModal({
             label="Department"
             value={departmentLabel(request.department)}
           />
-          <MetaRow icon={User} label="Assigned To" value={memberLabel(request.assignedTo)} />
-          <MetaRow icon={Folder} label="Project" value={request.project || "—"} />
-          <MetaRow icon={CalendarIcon} label="Created" value={formatDate(request.createdAt)} />
+          <MetaRow
+            icon={User}
+            label="Assigned To"
+            value={memberLabel(request.assignedTo)}
+          />
+          <MetaRow
+            icon={Folder}
+            label="Project"
+            value={request.project || "—"}
+          />
+          <MetaRow
+            icon={CalendarIcon}
+            label="Created"
+            value={formatDate(request.createdAt)}
+          />
           {request.updatedAt && (
             <MetaRow
               icon={CalendarIcon}
@@ -283,13 +297,17 @@ export function RequestDetailModal({
 
         <main className="bg-sbi-dark p-6 flex flex-col gap-6 min-w-0">
           <section>
-            <h3 className="text-xs uppercase tracking-[0.15em] text-sbi-muted mb-3">Message</h3>
+            <h3 className="text-xs uppercase tracking-[0.15em] text-sbi-muted mb-3">
+              Message
+            </h3>
             {request.message ? (
               <p className="text-sm text-white/85 leading-relaxed whitespace-pre-wrap">
                 {request.message}
               </p>
             ) : (
-              <p className="text-sm text-sbi-muted italic">No message provided.</p>
+              <p className="text-sm text-sbi-muted italic">
+                No message provided.
+              </p>
             )}
           </section>
 

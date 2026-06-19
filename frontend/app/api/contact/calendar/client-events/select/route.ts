@@ -50,7 +50,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Not a director" }, { status: 403 });
     }
 
-    const config = (profile.config as any) ?? {};
+    const config =
+      (profile.config as {
+        google?: Record<string, unknown>;
+        [key: string]: unknown;
+      } | null) ?? {};
     const updatedConfig = {
       ...config,
       google: {
