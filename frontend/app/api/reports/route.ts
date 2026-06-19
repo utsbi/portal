@@ -106,6 +106,43 @@ export async function GET(request: Request) {
             },
         });
 
+        const { data: authData, error: authErr } = await supabase.auth.getUser();
+        if (authErr || !authData.user) {
+            return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+        }
+
+        const { data: profile, error: profileErr } = await supabase
+            .from("profiles")
+            .select("id, role")
+            .eq("uid", authData.user.id)
+            .single();
+
+        if (profileErr || !profile) {
+            return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+        }
+
+        // Non-directors must scope to a single project they belong to.
+        // Without a project_id they could otherwise receive cross-project data
+        // (RLS is the backstop, but enforce scoping explicitly here).
+        if (profile.role !== "director") {
+            if (!projectId) {
+                return NextResponse.json(
+                    { error: "project_id is required" },
+                    { status: 400 },
+                );
+            }
+            const { data: membership, error: memberErr } = await supabase
+                .from("project_members")
+                .select("project_id")
+                .eq("profile_id", profile.id)
+                .eq("project_id", Number(projectId))
+                .single();
+
+            if (memberErr || !membership) {
+                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            }
+        }
+
         let query = supabase
             .from("tickets")
             .select("*, projects:project_id(company_name)")

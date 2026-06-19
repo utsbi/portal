@@ -330,10 +330,8 @@ export async function POST(request: NextRequest) {
 
   if (!backendRes.ok || !backendRes.body) {
     const errText = await backendRes.text().catch(() => "");
-    return jsonError(
-      backendRes.status || 502,
-      errText || `Backend HTTP ${backendRes.status}`,
-    );
+    console.error(`Backend error ${backendRes.status}:`, errText);
+    return jsonError(502, "Upstream request failed");
   }
 
   const sessionIdForClosure = sessionId;

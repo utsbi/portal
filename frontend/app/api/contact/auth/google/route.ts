@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 
@@ -8,9 +9,21 @@ export async function GET() {
     process.env.GOOGLE_REDIRECT_URI
   );
 
+  const state = crypto.randomUUID();
+
+  const cookieStore = await cookies();
+  cookieStore.set("google_oauth_state", state, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 600,
+    path: "/",
+  });
+
   const url = oauth2.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
+    state,
     // calendar.events: read + write on events (RSVP via events.patch).
     // calendar.calendarlist.readonly: list the director's calendars so they
     // can pick which one the portal reads from — events scope alone doesn't
