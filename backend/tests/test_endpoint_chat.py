@@ -139,7 +139,25 @@ class TestExtractText:
         includes 'limit' — this is a smoke test, not a full rate-limit test.
         """
         from fastapi.routing import APIRoute
-        routes = [r for r in app.routes if isinstance(r, APIRoute)]
+
+        def collect_api_routes(route_list):
+            """Recursively collect APIRoute instances from nested routers.
+
+            Starlette 1.x wraps included routers in _IncludedRouter objects
+            whose sub-routes live on original_router.routes rather than
+            appearing directly in the parent routes list.
+            """
+            found = []
+            for r in route_list:
+                if isinstance(r, APIRoute):
+                    found.append(r)
+                if hasattr(r, "original_router") and hasattr(r.original_router, "routes"):
+                    found.extend(collect_api_routes(r.original_router.routes))
+                elif hasattr(r, "routes"):
+                    found.extend(collect_api_routes(r.routes))
+            return found
+
+        routes = collect_api_routes(app.routes)
         extract_text_route = next(
             (r for r in routes if "/extract-text" in r.path), None
         )
