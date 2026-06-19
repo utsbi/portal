@@ -56,7 +56,18 @@ def _validate_bearer(authorization: Optional[str]) -> Tuple[str, str]:
             detail="Invalid or expired token",
         )
 
-    return user_response.user.id, token
+    uid = user_response.user.id
+    if not uid or not uid.strip():
+        # An empty/blank id is not a usable identity: every downstream query
+        # scopes on it (profiles.uid == id, client_knowledge.uid == id), so a
+        # blank id would silently widen scope to "rows with a blank owner".
+        logger.warning("Auth failure: token resolved to an empty/blank user id")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+    return uid, token
 
 
 async def get_current_user_id(authorization: Optional[str] = Header(None)) -> str:

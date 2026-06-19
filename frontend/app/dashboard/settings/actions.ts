@@ -65,12 +65,12 @@ export async function createAccount(data: {
   companyName?: string;
   department?: string;
 }) {
+  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized" };
+
   if (data.password.length < 8) {
     return { error: "Password must be at least 8 characters" };
   }
-
-  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized" };
 
   // Create auth user
   const { data: authData, error: authError } = await admin.auth.admin.createUser({

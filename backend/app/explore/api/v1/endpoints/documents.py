@@ -1,4 +1,5 @@
 import logging
+import posixpath
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -9,8 +10,8 @@ from app.explore.services.pdf_parser import PDFParser, extract_text, is_extracta
 from app.explore.services.rag_service import RAGService
 from app.explore.services.membership import is_project_member
 from app.explore.api.deps import AuthContext, get_auth_context, get_current_user_id
-from app.explore.core.config import settings
 from app.explore.core.limiter import limiter
+from app.explore.core.uploads import parse_content_length, read_capped
 from app.explore.db.supabase import user_client, supabase
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,36 @@ router = APIRouter()
 
 # Supabase Storage bucket that backs the Document Portal "Files" UI.
 _FILES_BUCKET = "Files"
+
+
+def _safe_storage_key(project_id: int, storage_path: str) -> str:
+    """Build the service-role storage key ``{project_id}/{storage_path}`` after
+    proving ``storage_path`` (client-controlled) cannot escape the project prefix.
+
+    Rejects (HTTP 400) traversal sequences (``..``), leading slashes/backslashes,
+    NUL bytes, and any value that — once normalized and joined — does not remain
+    strictly under ``{project_id}/``. This is the only gate stopping a director of
+    one project from reaching another project's storage objects, since the
+    download runs as the service role (no RLS).
+    """
+    if (
+        not storage_path
+        or "\x00" in storage_path
+        or "\\" in storage_path
+        or storage_path.startswith("/")
+        or ".." in storage_path.split("/")
+    ):
+        raise HTTPException(status_code=400, detail="Invalid storage path")
+
+    prefix = f"{project_id}/"
+    key = f"{prefix}{storage_path}"
+    # Normalize and re-assert the prefix as defence-in-depth against any escape
+    # the explicit checks above missed.
+    normalized = posixpath.normpath(key)
+    if normalized != key or not normalized.startswith(prefix):
+        raise HTTPException(status_code=400, detail="Invalid storage path")
+
+    return key
 
 
 class IndexFileRequest(BaseModel):
@@ -97,10 +128,8 @@ async def upload_document(
     runs as the service role, bypassing RLS, so the check must be explicit).
     """
     # Enforce upload size cap via Content-Length header first (fast path),
-    # then verify the actual bytes read (defence-in-depth).
-    content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > settings.MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File too large")
+    # then bound the actual read so an oversize body is never fully buffered.
+    parse_content_length(request)
 
     user_id = auth.user_id
 
@@ -128,9 +157,7 @@ async def upload_document(
         )
 
     try:
-        file_bytes = await file.read()
-        if len(file_bytes) > settings.MAX_UPLOAD_BYTES:
-            raise HTTPException(status_code=413, detail="File too large")
+        file_bytes = await read_capped(file)
 
         pdf_parser = PDFParser()
         pages_data = pdf_parser.extract_text_with_metadata(
@@ -224,10 +251,12 @@ async def index_file(
     """
     await _ensure_director_member(auth, body.project_id)
 
+    # Reject any traversal/escaping path BEFORE touching storage (the download
+    # runs as the service role, so an escaping key reads another project's data).
+    absolute_path = _safe_storage_key(body.project_id, body.storage_path)
+
     if not is_extractable(body.storage_path):
         return {"indexed": False, "reason": "unsupported_type"}
-
-    absolute_path = f"{body.project_id}/{body.storage_path}"
 
     try:
         file_bytes = await asyncio.to_thread(
@@ -293,6 +322,10 @@ async def delete_by_file(
     ``storage_path``. Director + membership gated. Returns ``{"deleted": n}``.
     """
     await _ensure_director_member(auth, body.project_id)
+
+    # Validate the client-supplied path with the same guard as index-file so a
+    # traversal/escaping value can never be used to address another project.
+    _safe_storage_key(body.project_id, body.storage_path)
 
     try:
         result = supabase.table("client_knowledge") \

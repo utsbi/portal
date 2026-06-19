@@ -310,23 +310,29 @@ export async function POST(request: NextRequest) {
 
   // Forward to FastAPI, propagating the client's abort signal so cancellation
   // tears down the upstream generation too.
-  const backendRes = await fetch(`${BACKEND_URL}/api/v1/chat/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
-      query: body.query,
-      history: body.history ?? [],
-      attachments: body.attachments ?? [],
-      include_sources: body.include_sources ?? true,
-      model_preference: modelPreference,
-      // Authoritative: the session's own project, not the live header.
-      project_id: sessionProjectId,
-    }),
-    signal: request.signal,
-  });
+  let backendRes: Response;
+  try {
+    backendRes = await fetch(`${BACKEND_URL}/api/v1/chat/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        query: body.query,
+        history: body.history ?? [],
+        attachments: body.attachments ?? [],
+        include_sources: body.include_sources ?? true,
+        model_preference: modelPreference,
+        // Authoritative: the session's own project, not the live header.
+        project_id: sessionProjectId,
+      }),
+      signal: request.signal,
+    });
+  } catch (fetchErr) {
+    console.error("[/api/chat] network error contacting backend:", fetchErr);
+    return jsonError(502, "Upstream request failed");
+  }
 
   if (!backendRes.ok || !backendRes.body) {
     const errText = await backendRes.text().catch(() => "");

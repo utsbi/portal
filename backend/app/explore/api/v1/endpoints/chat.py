@@ -8,8 +8,11 @@ from datetime import datetime
 from app.explore.schemas.chat import ChatRequest
 from app.explore.agents.explore import run_explore_agent_streaming
 from app.explore.api.deps import AuthContext, get_auth_context, get_current_user_id
-from app.explore.core.config import settings
 from app.explore.core.limiter import limiter
+from app.explore.core.uploads import (
+    parse_content_length as _parse_content_length,
+    read_capped as _read_capped,
+)
 from app.explore.services.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
@@ -104,15 +107,11 @@ async def extract_file_text(
     Returns the extracted text content for session-only use.
     """
     # Enforce upload size cap via Content-Length header first (fast path),
-    # then verify the actual bytes read (defence-in-depth).
-    content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > settings.MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File too large")
+    # then bound the actual read so an oversize body is never fully buffered.
+    _parse_content_length(request)
 
     try:
-        file_bytes = await file.read()
-        if len(file_bytes) > settings.MAX_UPLOAD_BYTES:
-            raise HTTPException(status_code=413, detail="File too large")
+        file_bytes = await _read_capped(file)
 
         filename = file.filename or "attachment"
         file_lower = filename.lower()
