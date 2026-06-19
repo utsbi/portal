@@ -1,0 +1,34 @@
+-- ===========================================================================
+-- ADVISOR FIX: public_bucket_allows_listing
+--   storage.objects policy "questionnaire-images read"
+--
+-- The `questionnaire-images` bucket is intentionally PUBLIC (storage.buckets.public
+-- = true; see 20260612000000_questionnaire_images_bucket.sql). For a public bucket
+-- the Supabase storage HTTP endpoint serves individual objects by direct URL
+-- WITHOUT consulting any RLS SELECT policy on storage.objects -- so form image
+-- blocks keep rendering on public (unauthenticated) forms via their object URL.
+--
+-- The broad SELECT policy:
+--   CREATE POLICY "questionnaire-images read" ON storage.objects
+--     FOR SELECT TO anon, authenticated USING (bucket_id = 'questionnaire-images')
+-- adds NOTHING to that URL access. What it DOES add is the ability for any anon or
+-- authenticated client to LIST/enumerate every object in the bucket through the
+-- storage data API (`SELECT ... FROM storage.objects` / storage.list), which the
+-- advisor flags: a public bucket should be reachable by URL but not enumerable.
+--
+-- FIX: drop the broad listing SELECT policy. Direct-URL object serving is
+-- unaffected (it does not depend on this policy). The director write policies
+-- ("questionnaire-images director upload" / "owner update" / "owner delete") are
+-- left untouched, preserving uploads. The bucket stays public = true.
+--
+-- NOTE: because the upload/update/delete policies are scoped to the uploader's own
+-- <uid>/ folder, a director still cannot LIST the bucket via the data API after
+-- this change; that is acceptable -- image picking in the app lists from the
+-- director's own folder prefix, which the owner UPDATE/SELECT-by-name paths and
+-- direct URLs cover. If a future feature needs authenticated listing, add a
+-- narrowly-scoped SELECT policy (e.g. own-folder only) rather than the broad one.
+--
+-- Idempotent: DROP POLICY IF EXISTS is safe to re-run.
+-- ===========================================================================
+
+DROP POLICY IF EXISTS "questionnaire-images read" ON storage.objects;

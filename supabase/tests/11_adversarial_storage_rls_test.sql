@@ -83,14 +83,18 @@ SELECT is(
 SELECT t.reset_auth();
 
 -- ---------------------------------------------------------------------
--- questionnaire-images: PUBLIC bucket -> readable by anon (by design). Assert it
--- IS public (so we have explicit coverage of the one intentionally-public path)
--- and that NO other bucket leaks to anon.
+-- questionnaire-images: PUBLIC bucket. After 20260619000002 the broad listing
+-- SELECT policy is dropped (advisor: public_bucket_allows_listing). Individual
+-- objects are still served by direct URL via the storage HTTP endpoint (public
+-- bucket -> RLS bypassed for object serving), but the data API can NO LONGER
+-- enumerate the bucket. In this in-DB harness there is no HTTP object endpoint,
+-- so a data-API SELECT must now return 0 rows for anon -- i.e. not enumerable.
+-- We also assert NO other bucket leaks to anon.
 -- ---------------------------------------------------------------------
 SELECT t.as_anon();
 SELECT is(
-  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'questionnaire-images')::int, 1,
-  'questionnaire-images: anon CAN read the public bucket (by design)');
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'questionnaire-images')::int, 0,
+  'questionnaire-images: anon can NOT enumerate the public bucket via data API (URL serving still works)');
 -- anon must NOT read any private-bucket object (Files / Message Attachments /
 -- ticket-attachments) -- these have no anon SELECT policy.
 SELECT is(
