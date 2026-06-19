@@ -1,7 +1,10 @@
+import logging
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from fastapi import HTTPException, status, Header
 from app.explore.db.supabase import supabase
+
+logger = logging.getLogger("security")
 
 
 @dataclass(frozen=True)
@@ -40,12 +43,14 @@ def _validate_bearer(authorization: Optional[str]) -> Tuple[str, str]:
         user_response = supabase.auth.get_user(token)
     except Exception:
         # Don't surface GoTrue internals to the caller; log-and-generic.
+        logger.warning("Auth failure: token validation raised an exception")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
 
     if not user_response or not user_response.user:
+        logger.warning("Auth failure: token validated but no user returned")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

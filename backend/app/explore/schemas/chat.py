@@ -19,9 +19,9 @@ class AttachmentFile(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request body for the chat endpoint."""
-    query: str = Field(..., description="The user's question or request")
-    history: List[ChatMessage] = Field(default=[], description="Previous messages in the conversation")
-    attachments: List[AttachmentFile] = Field(default=[], description="Temporary file attachments for this session")
+    query: str = Field(..., max_length=8000, description="The user's question or request")
+    history: List[ChatMessage] = Field(default=[], max_length=50, description="Previous messages in the conversation")
+    attachments: List[AttachmentFile] = Field(default=[], max_length=10, description="Temporary file attachments for this session")
     include_sources: bool = Field(default=True, description="Whether to include source documents in response")
     model_preference: Optional[str] = Field(
         default=None,

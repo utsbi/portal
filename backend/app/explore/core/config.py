@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -11,15 +11,32 @@ class Settings(BaseSettings):
     OPEN_ROUTER_KEY: Optional[str] = None
     THINK_MODEL: Optional[str] = None
     FAST_MODEL: Optional[str] = None
+    TITLE_MODEL: Optional[str] = None
     EMBEDDING_MODEL: Optional[str] = None
     EMBEDDING_DIMENSIONS: Optional[int] = None
     RERANK_MODEL: Optional[str] = None
     RERANK_CANDIDATES: Optional[int] = None
     RERANK_TOP_N: Optional[int] = None
 
+    # Security / hardening settings
+    ENV: str = "development"
+    CORS_ORIGINS: str = "http://localhost:3000"
+    ALLOWED_HOSTS: str = "*"
+    MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024  # 10 MB
+
     class Config:
         env_file = ".env"
         extra = "ignore"
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Split the comma-separated CORS_ORIGINS into a list."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def allowed_hosts_list(self) -> List[str]:
+        """Split the comma-separated ALLOWED_HOSTS into a list."""
+        return [h.strip() for h in self.ALLOWED_HOSTS.split(",") if h.strip()]
 
     @property
     def api_key(self) -> str:
@@ -35,6 +52,16 @@ class Settings(BaseSettings):
     def fast_model(self) -> str:
         """Get fast model name."""
         return self.FAST_MODEL or ""
+
+    @property
+    def title_model(self) -> str:
+        """Model used for conversation-title generation.
+
+        Dedicated knob so titles can run on the cheapest/fastest available
+        model independently of the fast-chat path. Falls back to FAST_MODEL
+        when TITLE_MODEL is unset, so existing deployments are unchanged.
+        """
+        return self.TITLE_MODEL or self.fast_model
 
     @property
     def embedding_model(self) -> str:

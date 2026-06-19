@@ -33,4 +33,11 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)" || exit 1
 
-CMD ["uvicorn", "app.explore.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Trust X-Forwarded-* headers only from the proxy. Override at deploy time with
+# the real load-balancer/proxy IP or CIDR (e.g. FORWARDED_ALLOW_IPS=10.0.0.0/8).
+# Defaulting to localhost prevents clients from spoofing X-Forwarded-For to
+# forge their source IP and evade IP-based rate limiting. uvicorn reads this
+# env var natively (equivalent to --forwarded-allow-ips).
+ENV FORWARDED_ALLOW_IPS=127.0.0.1
+
+CMD ["uvicorn", "app.explore.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--workers", "4"]

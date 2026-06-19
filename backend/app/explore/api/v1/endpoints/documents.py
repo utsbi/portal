@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+import logging
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from datetime import datetime
 import asyncio
@@ -8,8 +9,11 @@ from app.explore.services.pdf_parser import PDFParser, extract_text, is_extracta
 from app.explore.services.rag_service import RAGService
 from app.explore.services.membership import is_project_member
 from app.explore.api.deps import AuthContext, get_auth_context, get_current_user_id
+from app.explore.core.config import settings
+from app.explore.core.limiter import limiter
 from app.explore.db.supabase import user_client, supabase
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -77,10 +81,12 @@ async def _is_director(db, user_id: str) -> bool:
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)
+@limiter.limit("10/minute")
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     project_id: int = Form(...),
-    auth: AuthContext = Depends(get_auth_context)
+    auth: AuthContext = Depends(get_auth_context),
 ):
     """Upload a PDF document for RAG processing.
 
@@ -90,6 +96,12 @@ async def upload_document(
     gate stops any project member from injecting corpus documents (the insert
     runs as the service role, bypassing RLS, so the check must be explicit).
     """
+    # Enforce upload size cap via Content-Length header first (fast path),
+    # then verify the actual bytes read (defence-in-depth).
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > settings.MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large")
+
     user_id = auth.user_id
 
     if not file.filename.endswith('.pdf'):
@@ -117,25 +129,27 @@ async def upload_document(
 
     try:
         file_bytes = await file.read()
-        
+        if len(file_bytes) > settings.MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="File too large")
+
         pdf_parser = PDFParser()
         pages_data = pdf_parser.extract_text_with_metadata(
             file_bytes=file_bytes,
             filename=file.filename
         )
-        
+
         if not pages_data:
             raise HTTPException(
                 status_code=400,
                 detail="No text could be extracted from the PDF"
             )
-        
+
         rag_service = RAGService()
         all_document_ids = []
-        
+
         for page_data in pages_data:
             page_data["metadata"]["upload_date"] = datetime.now().isoformat()
-            
+
             doc_ids = await rag_service.store_document(
                 content=page_data["content"],
                 metadata=page_data["metadata"],
@@ -143,20 +157,21 @@ async def upload_document(
                 project_id=project_id
             )
             all_document_ids.extend(doc_ids)
-        
+
         return DocumentUploadResponse(
             success=True,
             message=f"Successfully uploaded {file.filename}",
             document_ids=[str(id) for id in all_document_ids],
             chunks_created=len(all_document_ids)
         )
-        
+
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
+        logger.error("Error processing document upload", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing document: {str(e)}"
+            detail="Error processing document"
         )
 
 
@@ -165,29 +180,30 @@ async def list_documents(user_id: str = Depends(get_current_user_id), limit: int
     """List all documents for the current user."""
     try:
         from app.explore.db.supabase import supabase
-        
+
         result = supabase.table("client_knowledge") \
             .select("metadata") \
             .eq("uid", user_id) \
             .limit(limit) \
             .execute()
-        
+
         documents = {}
         for doc in result.data:
             metadata = doc.get("metadata", {})
             filename = metadata.get("filename")
             if filename and filename not in documents:
                 documents[filename] = metadata
-        
+
         return {
             "documents": list(documents.values()),
             "count": len(documents)
         }
-        
-    except Exception as e:
+
+    except Exception:
+        logger.error("Error listing documents", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error listing documents: {str(e)}"
+            detail="Error listing documents"
         )
 
 
@@ -217,10 +233,11 @@ async def index_file(
         file_bytes = await asyncio.to_thread(
             supabase.storage.from_(_FILES_BUCKET).download, absolute_path
         )
-    except Exception as e:
+    except Exception:
+        logger.error("Could not download file from storage: %s", absolute_path, exc_info=True)
         raise HTTPException(
             status_code=404,
-            detail=f"Could not download file from storage: {str(e)}",
+            detail="Could not download file from storage",
         )
 
     try:
@@ -257,10 +274,11 @@ async def index_file(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
+        logger.error("Error indexing file: %s", body.storage_path, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error indexing file: {str(e)}",
+            detail="Error indexing file",
         )
 
 
@@ -286,10 +304,11 @@ async def delete_by_file(
         deleted = len(result.data) if result.data else 0
         return {"deleted": deleted}
 
-    except Exception as e:
+    except Exception:
+        logger.error("Error deleting file index: %s", body.storage_path, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error deleting file index: {str(e)}",
+            detail="Error deleting file index",
         )
 
 
@@ -329,8 +348,11 @@ async def list_indexed_files(
             for path, chunks in sorted(counts.items())
         ]
 
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Error listing indexed files for project %s", project_id, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error listing indexed files: {str(e)}",
+            detail="Error listing indexed files",
         )
