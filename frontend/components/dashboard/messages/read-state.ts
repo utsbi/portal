@@ -42,9 +42,7 @@ export async function fetchLastRead(
 }
 
 /** Mark a conversation read up to now (idempotent upsert via RPC). */
-export async function markRead(
-  conversationId: string | number,
-): Promise<void> {
+export async function markRead(conversationId: string | number): Promise<void> {
   const supabase = createClient();
   await supabase.rpc("mark_conversation_read", {
     p_conversation_id: Number(conversationId),

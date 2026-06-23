@@ -141,9 +141,7 @@ function DebugPanel({
 
   return (
     <div className="absolute top-4 right-4 z-30 bg-black/80 backdrop-blur-sm text-white text-[11px] font-mono p-3 rounded-lg border border-white/10 space-y-1.5 min-w-[220px] pointer-events-auto select-text">
-      <div className="text-sbi-green font-bold text-xs mb-2">
-        Camera Debug
-      </div>
+      <div className="text-sbi-green font-bold text-xs mb-2">Camera Debug</div>
       <div>
         <span className="text-white/40">pos </span>
         <span>
@@ -293,14 +291,20 @@ const CameraInitializer: React.FC<{
   defaultCamera?: CameraConfig;
   cameraControlsRef: React.RefObject<CameraControls | null>;
 }> = ({ defaultCamera, cameraControlsRef }) => {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one-time camera initialization that must run only once after the Canvas mounts; including defaultCamera/ref would re-run and fight user camera interactions
   useEffect(() => {
     if (defaultCamera && cameraControlsRef.current) {
       const { position: p, target: t } = defaultCamera;
       cameraControlsRef.current.setLookAt(
-        p[0], p[1], p[2], t[0], t[1], t[2], false,
+        p[0],
+        p[1],
+        p[2],
+        t[0],
+        t[1],
+        t[2],
+        false,
       );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
 };
@@ -413,7 +417,12 @@ const CameraSelector: React.FC<CameraSelectorProps> = ({
 // Model
 // =============================================================================
 
-const Model: React.FC<ModelProps> = ({ url, scale = 1, setModelRef, onReady }) => {
+const Model: React.FC<ModelProps> = ({
+  url,
+  scale = 1,
+  setModelRef,
+  onReady,
+}) => {
   const { scene } = useGLTF(url, true);
   const group = useRef<THREE.Group>(null);
 
@@ -426,6 +435,7 @@ const Model: React.FC<ModelProps> = ({ url, scale = 1, setModelRef, onReady }) =
   // Signal that the model is loaded and rendered.
   // useGLTF suspends until the model is ready, so this effect
   // only fires once the model (cached or fetched) is available.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: url is intentionally a trigger so onReady re-fires when a new model URL finishes loading, not only when the onReady reference changes
   useEffect(() => {
     onReady?.();
   }, [url, onReady]);
@@ -494,7 +504,12 @@ const SceneContent: React.FC<SceneContentProps> = ({
         position={[5, 25, 20]}
       />
 
-      <Model url={modelUrl} scale={modelScale} setModelRef={handleSetModelRef} onReady={onModelReady} />
+      <Model
+        url={modelUrl}
+        scale={modelScale}
+        setModelRef={handleSetModelRef}
+        onReady={onModelReady}
+      />
 
       {activeCameraIndex >= 0 && (
         <CameraSelector
@@ -585,6 +600,7 @@ export const Project3DViewer = forwardRef<
     }, [modelUrl]);
 
     // Reset camera when project changes (modelUrl changes)
+    // biome-ignore lint/correctness/useExhaustiveDependencies: modelUrl is intentionally the trigger to reset the camera when the project/model changes, even though the effect body reads it indirectly
     useEffect(() => {
       if (isFirstMount.current) {
         isFirstMount.current = false;
@@ -613,8 +629,8 @@ export const Project3DViewer = forwardRef<
       const interval = setInterval(() => {
         const ctrl = cameraControlsRef.current;
         if (!ctrl) return;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const cam = (ctrl as any).camera as THREE.PerspectiveCamera;
+        const cam = (ctrl as unknown as { camera: THREE.PerspectiveCamera })
+          .camera;
         if (!cam) return;
         ctrl.getTarget(target);
         setDebugData({
@@ -678,9 +694,7 @@ export const Project3DViewer = forwardRef<
           } else {
             const [px, py, pz] = FALLBACK_CAMERA_POSITION;
             const [tx, ty, tz] = FALLBACK_CAMERA_TARGET;
-            cameraControlsRef.current?.setLookAt(
-              px, py, pz, tx, ty, tz, true,
-            );
+            cameraControlsRef.current?.setLookAt(px, py, pz, tx, ty, tz, true);
           }
           setActiveCameraIndex(-1);
           if (autoRotate) {

@@ -503,8 +503,11 @@ function ProfileSection() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
-              <label className={labelClass}>Name</label>
+              <label htmlFor="account-name" className={labelClass}>
+                Name
+              </label>
               <input
+                id="account-name"
                 type="text"
                 required
                 minLength={2}
@@ -514,8 +517,11 @@ function ProfileSection() {
               />
             </div>
             <div>
-              <label className={labelClass}>Email</label>
+              <label htmlFor="account-email" className={labelClass}>
+                Email
+              </label>
               <input
+                id="account-email"
                 type="email"
                 value={account.email ?? ""}
                 readOnly
@@ -527,14 +533,16 @@ function ProfileSection() {
             </div>
             {showDepartment && (
               <div className="sm:col-span-2">
-                <label className={labelClass}>Department</label>
+                <label htmlFor="account-department" className={labelClass}>
+                  Department
+                </label>
                 <Select
                   value={department || "__none__"}
                   onValueChange={(v) =>
                     setDepartment(v === "__none__" ? "" : v)
                   }
                 >
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger id="account-department" className="mt-1">
                     <SelectValue placeholder="No department" />
                   </SelectTrigger>
                   <SelectContent>
@@ -647,8 +655,11 @@ function SecuritySection() {
         </p>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
-            <label className={labelClass}>Current password</label>
+            <label htmlFor="current-password" className={labelClass}>
+              Current password
+            </label>
             <input
+              id="current-password"
               type="password"
               required
               autoComplete="current-password"
@@ -658,8 +669,11 @@ function SecuritySection() {
             />
           </div>
           <div>
-            <label className={labelClass}>New password</label>
+            <label htmlFor="new-password" className={labelClass}>
+              New password
+            </label>
             <input
+              id="new-password"
               type="password"
               required
               autoComplete="new-password"
@@ -669,8 +683,11 @@ function SecuritySection() {
             />
           </div>
           <div>
-            <label className={labelClass}>Confirm new password</label>
+            <label htmlFor="confirm-new-password" className={labelClass}>
+              Confirm new password
+            </label>
             <input
+              id="confirm-new-password"
               type="password"
               required
               autoComplete="new-password"
@@ -1546,6 +1563,7 @@ function TeamSection() {
                         />
                         <input
                           type="text"
+                          // biome-ignore lint/a11y/noAutofocus: focus the filter input when this user-triggered owner-search dropdown opens (standard combobox UX)
                           autoFocus
                           value={ownerQuery}
                           onChange={(e) => setOwnerQuery(e.target.value)}
@@ -1617,6 +1635,7 @@ function TeamSection() {
                       />
                       <input
                         type="text"
+                        // biome-ignore lint/a11y/noAutofocus: focus the filter input when this user-triggered assignee-search dropdown opens (standard combobox UX)
                         autoFocus
                         value={assignQuery}
                         onChange={(e) => setAssignQuery(e.target.value)}
@@ -1678,13 +1697,15 @@ function TeamSection() {
 
         <div className="flex items-end gap-4 mb-5">
           <div className="flex-1 min-w-0 max-w-xs">
-            <label className={labelClass}>Project</label>
+            <label htmlFor="assign-project" className={labelClass}>
+              Project
+            </label>
             <Select
               value={selectedProjectId ? String(selectedProjectId) : undefined}
               onValueChange={(v) => setSelectedProjectId(Number(v))}
               disabled={projects.length === 0}
             >
-              <SelectTrigger className="mt-1">
+              <SelectTrigger id="assign-project" className="mt-1">
                 <SelectValue
                   placeholder={
                     projects.length === 0
@@ -1933,8 +1954,11 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           >
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Name</label>
+                <label htmlFor="create-name" className={labelClass}>
+                  Name
+                </label>
                 <input
+                  id="create-name"
                   type="text"
                   required
                   value={createForm.name}
@@ -1945,8 +1969,11 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 />
               </div>
               <div>
-                <label className={labelClass}>Email</label>
+                <label htmlFor="create-email" className={labelClass}>
+                  Email
+                </label>
                 <input
+                  id="create-email"
                   type="email"
                   required
                   value={createForm.email}
@@ -1957,8 +1984,11 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 />
               </div>
               <div>
-                <label className={labelClass}>Password</label>
+                <label htmlFor="create-password" className={labelClass}>
+                  Password
+                </label>
                 <input
+                  id="create-password"
                   type="password"
                   required
                   value={createForm.password}
@@ -1969,7 +1999,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 />
               </div>
               <div>
-                <label className={labelClass}>Role</label>
+                <label htmlFor="create-role" className={labelClass}>
+                  Role
+                </label>
                 <Select
                   value={createForm.role}
                   onValueChange={(v) =>
@@ -1979,7 +2011,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                     }))
                   }
                 >
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger id="create-role" className="mt-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1991,8 +2023,11 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
               </div>
               {createForm.role === "client" && (
                 <div className="col-span-2">
-                  <label className={labelClass}>Company name</label>
+                  <label htmlFor="create-company-name" className={labelClass}>
+                    Company name
+                  </label>
                   <input
+                    id="create-company-name"
                     type="text"
                     required
                     value={createForm.companyName}
@@ -2008,14 +2043,16 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
               )}
               {createForm.role === "member" && (
                 <div className="col-span-2">
-                  <label className={labelClass}>Department</label>
+                  <label htmlFor="create-department" className={labelClass}>
+                    Department
+                  </label>
                   <Select
                     value={createForm.department || undefined}
                     onValueChange={(v) =>
                       setCreateForm((f) => ({ ...f, department: v }))
                     }
                   >
-                    <SelectTrigger className="mt-1">
+                    <SelectTrigger id="create-department" className="mt-1">
                       <SelectValue placeholder="Choose a department…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2286,8 +2323,11 @@ function EditAccountModal({
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className={labelClass}>Name</label>
+              <label htmlFor="edit-user-name" className={labelClass}>
+                Name
+              </label>
               <input
+                id="edit-user-name"
                 type="text"
                 required
                 minLength={2}
@@ -2297,8 +2337,11 @@ function EditAccountModal({
               />
             </div>
             <div className="sm:col-span-2">
-              <label className={labelClass}>Email</label>
+              <label htmlFor="edit-user-email" className={labelClass}>
+                Email
+              </label>
               <input
+                id="edit-user-email"
                 type="email"
                 value={account.email}
                 readOnly
@@ -2312,7 +2355,9 @@ function EditAccountModal({
               </p>
             </div>
             <div>
-              <label className={labelClass}>Role</label>
+              <label htmlFor="edit-user-role" className={labelClass}>
+                Role
+              </label>
               <Select
                 value={role}
                 onValueChange={(v) =>
@@ -2320,7 +2365,7 @@ function EditAccountModal({
                 }
                 disabled={isSelf}
               >
-                <SelectTrigger className="mt-1">
+                <SelectTrigger id="edit-user-role" className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -2343,14 +2388,16 @@ function EditAccountModal({
             </div>
             {showDepartment && (
               <div>
-                <label className={labelClass}>Department</label>
+                <label htmlFor="edit-user-department" className={labelClass}>
+                  Department
+                </label>
                 <Select
                   value={department || "__none__"}
                   onValueChange={(v) =>
                     setDepartment(v === "__none__" ? "" : v)
                   }
                 >
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger id="edit-user-department" className="mt-1">
                     <SelectValue placeholder="No department" />
                   </SelectTrigger>
                   <SelectContent>

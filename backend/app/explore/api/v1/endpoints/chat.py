@@ -8,48 +8,62 @@ from datetime import datetime
 from app.explore.schemas.chat import ChatRequest
 from app.explore.agents.explore import run_explore_agent_streaming
 from app.explore.api.deps import AuthContext, get_auth_context, get_current_user_id
+from app.explore.core.limiter import limiter
+from app.explore.core.uploads import (
+    parse_content_length as _parse_content_length,
+    read_capped as _read_capped,
+)
 from app.explore.services.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Overall timeout (seconds) for the upstream SSE stream. Set just under the
+# Next.js proxy's 300 s limit so a stalled upstream never pins the connection.
+_STREAM_TIMEOUT_S = 290
+
 
 @router.post("/")
-async def chat(request: ChatRequest, raw_request: Request, auth: AuthContext = Depends(get_auth_context)):
+@limiter.limit("20/minute")
+async def chat(request: Request, body: ChatRequest, auth: AuthContext = Depends(get_auth_context)):
     """Chat with the Explore AI Agent via SSE streaming."""
     history = [
         {"role": msg.role, "content": msg.content}
-        for msg in request.history
+        for msg in body.history
     ]
     attachments = [
         {"filename": att.filename, "content": att.content, "file_type": att.file_type}
-        for att in request.attachments
+        for att in body.attachments
     ]
 
     async def event_generator():
         try:
-            async for event in run_explore_agent_streaming(
-                query=request.query,
-                client_id=auth.user_id,
-                access_token=auth.access_token,
-                project_id=request.project_id,
-                history=history,
-                attachments=attachments,
-                model_preference=request.model_preference or "fast",
-            ):
-                if await raw_request.is_disconnected():
-                    logger.info("Client disconnected, stopping SSE stream")
-                    return
+            async with asyncio.timeout(_STREAM_TIMEOUT_S):
+                async for event in run_explore_agent_streaming(
+                    query=body.query,
+                    client_id=auth.user_id,
+                    access_token=auth.access_token,
+                    project_id=body.project_id,
+                    history=history,
+                    attachments=attachments,
+                    model_preference=body.model_preference or "fast",
+                ):
+                    if await request.is_disconnected():
+                        logger.info("Client disconnected, stopping SSE stream")
+                        return
 
-                # Strip sources if not requested
-                if event.get("type") == "result" and not request.include_sources:
-                    event["sources"] = []
+                    # Strip sources if not requested
+                    if event.get("type") == "result" and not body.include_sources:
+                        event["sources"] = []
 
-                yield f"data: {json.dumps(event)}\n\n"
+                    yield f"data: {json.dumps(event)}\n\n"
 
-            yield "data: [DONE]\n\n"
+                yield "data: [DONE]\n\n"
 
+        except TimeoutError:
+            logger.warning("SSE stream timed out after %ds", _STREAM_TIMEOUT_S)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Request timed out'})}\n\n"
         except asyncio.CancelledError:
             logger.info("SSE stream cancelled")
             return
@@ -81,17 +95,24 @@ async def chat_health():
 
 
 @router.post("/extract-text")
+@limiter.limit("10/minute")
 async def extract_file_text(
+    request: Request,
     file: UploadFile = File(...),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
 ):
     """Extract text from file without adding to database.
 
     Supports PDF, DOCX, DOC, and TXT files.
     Returns the extracted text content for session-only use.
     """
+    # Enforce upload size cap via Content-Length header first (fast path),
+    # then bound the actual read so an oversize body is never fully buffered.
+    _parse_content_length(request)
+
     try:
-        file_bytes = await file.read()
+        file_bytes = await _read_capped(file)
+
         filename = file.filename or "attachment"
         file_lower = filename.lower()
 
@@ -121,6 +142,8 @@ async def extract_file_text(
             "file_type": file_type
         }
 
+    except HTTPException:
+        raise
     except Exception:
         # Log the full exception server-side; return a generic client message.
         logger.error("Failed to extract text from file", exc_info=True)

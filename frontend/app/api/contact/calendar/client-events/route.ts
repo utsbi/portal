@@ -330,9 +330,9 @@ export async function GET(req: Request) {
       events,
     });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e);
+    console.error("client-events route error:", e);
     return NextResponse.json(
-      { error: "Route crashed", message },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

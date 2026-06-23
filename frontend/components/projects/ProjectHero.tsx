@@ -83,6 +83,7 @@ export function ProjectHero({
   }
 
   // State updates still need useEffect (can't call setState during render)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: project.slug intentionally re-runs this effect on project change to reset loading phase; setState setters are stable
   useEffect(() => {
     if (project.has3D) {
       setPhase("loading");
@@ -128,7 +129,7 @@ export function ProjectHero({
     const tick = () => {
       const elapsed = Date.now() - startTime;
       const t = Math.min(elapsed / MIN_LOADING_MS, 1);
-      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      const eased = 1 - (1 - t) ** 3; // ease-out cubic
 
       if (modelLoadedRef.current && elapsed >= MIN_LOADING_MS) {
         triggerCompletion();
@@ -156,10 +157,18 @@ export function ProjectHero({
         <ViewerErrorBoundary
           fallback={
             project.galleryImages && project.galleryImages.length > 1 ? (
-              <ProjectImageHero images={project.galleryImages} title={project.title} />
+              <ProjectImageHero
+                images={project.galleryImages}
+                title={project.title}
+              />
             ) : (
               <div className="absolute inset-0 bg-sbi-dark">
-                <Image src={project.coverImage} alt={project.title} fill className="object-cover" />
+                <Image
+                  src={project.coverImage}
+                  alt={project.title}
+                  fill
+                  className="object-cover"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-sbi-dark via-sbi-dark/50 to-transparent" />
               </div>
             )
@@ -212,14 +221,32 @@ export function ProjectHero({
           >
             {/* Subtle grid background */}
             <div className="absolute inset-0 overflow-hidden opacity-[0.02]">
-              <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+              <svg
+                width="100%"
+                height="100%"
+                xmlns="http://www.w3.org/2000/svg"
+              >
                 <title>Loading grid</title>
                 <defs>
-                  <pattern id="project-loading-grid" width="60" height="60" patternUnits="userSpaceOnUse">
-                    <path d="M 60 0 L 0 0 0 60" fill="none" stroke="currentColor" strokeWidth="0.5" />
+                  <pattern
+                    id="project-loading-grid"
+                    width="60"
+                    height="60"
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <path
+                      d="M 60 0 L 0 0 0 60"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="0.5"
+                    />
                   </pattern>
                 </defs>
-                <rect width="100%" height="100%" fill="url(#project-loading-grid)" />
+                <rect
+                  width="100%"
+                  height="100%"
+                  fill="url(#project-loading-grid)"
+                />
               </svg>
             </div>
 
@@ -238,7 +265,11 @@ export function ProjectHero({
                 className="text-2xl md:text-3xl font-light tracking-tight text-white mb-8"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                transition={{
+                  delay: 0.3,
+                  duration: 0.8,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
               >
                 {project.title}
               </motion.h2>
@@ -277,12 +308,32 @@ export function ProjectHero({
 
             {/* Corner accents (top-left and bottom-right only, simpler than home) */}
             <div className="absolute top-8 left-8 w-12 h-12">
-              <motion.div className="absolute top-0 left-0 w-full h-px bg-sbi-dark-border" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.2, duration: 0.6 }} />
-              <motion.div className="absolute top-0 left-0 h-full w-px bg-sbi-dark-border" initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ delay: 0.2, duration: 0.6 }} />
+              <motion.div
+                className="absolute top-0 left-0 w-full h-px bg-sbi-dark-border"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+              />
+              <motion.div
+                className="absolute top-0 left-0 h-full w-px bg-sbi-dark-border"
+                initial={{ scaleY: 0 }}
+                animate={{ scaleY: 1 }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+              />
             </div>
             <div className="absolute bottom-8 right-8 w-12 h-12">
-              <motion.div className="absolute bottom-0 right-0 w-full h-px bg-sbi-dark-border" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.3, duration: 0.6 }} />
-              <motion.div className="absolute bottom-0 right-0 h-full w-px bg-sbi-dark-border" initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ delay: 0.3, duration: 0.6 }} />
+              <motion.div
+                className="absolute bottom-0 right-0 w-full h-px bg-sbi-dark-border"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ delay: 0.3, duration: 0.6 }}
+              />
+              <motion.div
+                className="absolute bottom-0 right-0 h-full w-px bg-sbi-dark-border"
+                initial={{ scaleY: 0 }}
+                animate={{ scaleY: 1 }}
+                transition={{ delay: 0.3, duration: 0.6 }}
+              />
             </div>
 
             {/* Reveal wipe overlay */}

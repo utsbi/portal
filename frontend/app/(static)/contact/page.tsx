@@ -365,6 +365,7 @@ export default function ContactPage() {
 
                 <div>
                   <Turnstile
+                    // biome-ignore lint/style/noNonNullAssertion: NEXT_PUBLIC_TURNSTILE_SITE_KEY is a required env var (see AGENTS.md); a "" fallback would change behavior by mounting Turnstile with an empty siteKey.
                     siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
                     onSuccess={(token) => setTurnstileToken(token)}
                     onError={() => setTurnstileToken(null)}

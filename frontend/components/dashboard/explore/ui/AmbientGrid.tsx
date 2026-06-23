@@ -4,6 +4,7 @@ import gsap from "gsap";
 import { useEffect, useRef, useState } from "react";
 
 interface NodePosition {
+  id: string;
   top: string;
   left: string;
 }
@@ -19,6 +20,7 @@ export function AmbientGrid() {
   useEffect(() => {
     setNodes(
       Array.from({ length: 6 }, () => ({
+        id: crypto.randomUUID(),
         top: `${20 + Math.random() * 60}%`,
         left: `${10 + Math.random() * 80}%`,
       })),
@@ -96,9 +98,9 @@ export function AmbientGrid() {
 
       {/* Animated grid intersection nodes (client-generated to avoid hydration mismatch) */}
       <div className="absolute inset-0">
-        {nodes.map((node, i) => (
+        {nodes.map((node) => (
           <div
-            key={i}
+            key={node.id}
             className="grid-node absolute w-1 h-1 bg-sbi-green rounded-full opacity-0"
             style={{ top: node.top, left: node.left }}
           />

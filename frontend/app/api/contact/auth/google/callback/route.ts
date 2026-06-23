@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
@@ -20,6 +21,15 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
   const oauthError = searchParams.get("error");
+  const stateParam = searchParams.get("state");
+
+  const cookieStore = await cookies();
+  const stateCookie = cookieStore.get("google_oauth_state")?.value;
+  cookieStore.delete("google_oauth_state");
+
+  if (!stateCookie || !stateParam || stateCookie !== stateParam) {
+    return new Response("Invalid or missing OAuth state", { status: 400 });
+  }
 
   if (oauthError) {
     return NextResponse.redirect(

@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 export function TimeDisplay() {
-  const [time, setTime] = useState<string>('');
-  const [date, setDate] = useState<string>('');
+  const [time, setTime] = useState<string>("");
+  const [date, setDate] = useState<string>("");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -12,16 +12,20 @@ export function TimeDisplay() {
 
     const updateTime = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      }));
-      setDate(now.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
-      }));
+      setTime(
+        now.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }),
+      );
+      setDate(
+        now.toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
+      );
     };
 
     updateTime();

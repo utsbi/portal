@@ -22,21 +22,21 @@ let activeRoot: string | null = null;
  * project-relative keys can never collide across projects.
  */
 export function setStorageRoot(root: string | null) {
-    if (root === activeRoot) return;
-    activeRoot = root;
-    listCache.clear();
+  if (root === activeRoot) return;
+  activeRoot = root;
+  listCache.clear();
 }
 
 /** Map a project-relative path to its absolute Storage path. */
 function withRoot(path: string): string {
-    if (!activeRoot) return path;
-    return path ? `${activeRoot}/${path}` : activeRoot;
+  if (!activeRoot) return path;
+  return path ? `${activeRoot}/${path}` : activeRoot;
 }
 
 export interface StorageEntry {
-    id: string | null;
-    name: string;
-    updated_at?: string;
+  id: string | null;
+  name: string;
+  updated_at?: string;
 }
 
 // Supabase Storage has no true empty folders: creating one inserts a zero-byte
@@ -44,11 +44,11 @@ export interface StorageEntry {
 export const SENTINEL_FILES = new Set([".emptyFolderPlaceholder", ".keep"]);
 
 export function isFolder(entry: StorageEntry) {
-    return entry.id === null;
+  return entry.id === null;
 }
 
 export function isSentinel(entry: StorageEntry) {
-    return SENTINEL_FILES.has(entry.name);
+  return SENTINEL_FILES.has(entry.name);
 }
 
 // ---------------------------------------------------------------------------
@@ -58,16 +58,16 @@ export function isSentinel(entry: StorageEntry) {
 const listCache = new Map<string, StorageEntry[]>();
 
 export function getCachedList(path: string): StorageEntry[] | undefined {
-    return listCache.get(path);
+  return listCache.get(path);
 }
 
 export function setCachedList(path: string, entries: StorageEntry[]) {
-    listCache.set(path, entries);
+  listCache.set(path, entries);
 }
 
 /** Invalidate a single path's cached listing. */
 export function invalidatePath(path: string) {
-    listCache.delete(path);
+  listCache.delete(path);
 }
 
 /**
@@ -75,22 +75,22 @@ export function invalidatePath(path: string) {
  * folder delete/rename so stale subtree listings can't resurface).
  */
 export function invalidatePrefix(prefix: string) {
-    if (!prefix) {
-        listCache.clear();
-        return;
+  if (!prefix) {
+    listCache.clear();
+    return;
+  }
+  listCache.delete(prefix);
+  for (const key of Array.from(listCache.keys())) {
+    if (key === prefix || key.startsWith(`${prefix}/`)) {
+      listCache.delete(key);
     }
-    listCache.delete(prefix);
-    for (const key of Array.from(listCache.keys())) {
-        if (key === prefix || key.startsWith(`${prefix}/`)) {
-            listCache.delete(key);
-        }
-    }
+  }
 }
 
 /** Parent prefix of a path ("" for a top-level folder). */
 export function parentOf(path: string): string {
-    const idx = path.lastIndexOf("/");
-    return idx === -1 ? "" : path.slice(0, idx);
+  const idx = path.lastIndexOf("/");
+  return idx === -1 ? "" : path.slice(0, idx);
 }
 
 /**
@@ -102,15 +102,15 @@ export function parentOf(path: string): string {
  * Google Drive, surfaces on drop).
  */
 export function isInvalidMoveTarget(
-    srcPath: string,
-    srcKind: "file" | "folder",
-    destFolderPath: string,
+  srcPath: string,
+  srcKind: "file" | "folder",
+  destFolderPath: string,
 ): boolean {
-    if (srcPath === destFolderPath) return true;
-    if (srcKind === "folder" && destFolderPath.startsWith(`${srcPath}/`)) {
-        return true;
-    }
-    return parentOf(srcPath) === destFolderPath;
+  if (srcPath === destFolderPath) return true;
+  if (srcKind === "folder" && destFolderPath.startsWith(`${srcPath}/`)) {
+    return true;
+  }
+  return parentOf(srcPath) === destFolderPath;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,39 +127,39 @@ export function isInvalidMoveTarget(
  * stale result as "discard" and not apply it to the current project's UI.
  */
 export async function listFolder(
-    path: string,
-    opts?: { force?: boolean; limit?: number },
+  path: string,
+  opts?: { force?: boolean; limit?: number },
 ): Promise<{
-    data: StorageEntry[];
-    error: { message: string } | null;
-    stale?: boolean;
+  data: StorageEntry[];
+  error: { message: string } | null;
+  stale?: boolean;
 }> {
-    if (!opts?.force) {
-        const cached = getCachedList(path);
-        if (cached) {
-            return { data: cached, error: null };
-        }
+  if (!opts?.force) {
+    const cached = getCachedList(path);
+    if (cached) {
+      return { data: cached, error: null };
     }
+  }
 
-    // Snapshot the root we're listing under; if it changes mid-flight the
-    // result is for a different project and must not poison this one's cache.
-    const rootAtRequest = activeRoot;
+  // Snapshot the root we're listing under; if it changes mid-flight the
+  // result is for a different project and must not poison this one's cache.
+  const rootAtRequest = activeRoot;
 
-    const { data, error } = await supabase.storage
-        .from(BUCKET)
-        .list(withRoot(path), { limit: opts?.limit ?? 200 });
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .list(withRoot(path), { limit: opts?.limit ?? 200 });
 
-    if (activeRoot !== rootAtRequest) {
-        return { data: [], error: null, stale: true };
-    }
+  if (activeRoot !== rootAtRequest) {
+    return { data: [], error: null, stale: true };
+  }
 
-    if (error) {
-        return { data: [], error };
-    }
+  if (error) {
+    return { data: [], error };
+  }
 
-    const entries = (data ?? []) as StorageEntry[];
-    setCachedList(path, entries);
-    return { data: entries, error: null };
+  const entries = (data ?? []) as StorageEntry[];
+  setCachedList(path, entries);
+  return { data: entries, error: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -172,56 +172,56 @@ export async function listFolder(
  * whose `id === null`.
  */
 export async function collectAllObjectPaths(prefix: string): Promise<string[]> {
-    const { data, error } = await supabase.storage
-        .from(BUCKET)
-        .list(withRoot(prefix), { limit: 1000 });
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .list(withRoot(prefix), { limit: 1000 });
 
-    if (error) {
-        throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const entries = (data ?? []) as StorageEntry[];
+  const paths: string[] = [];
+
+  for (const entry of entries) {
+    const childPath = `${prefix}/${entry.name}`;
+    if (isFolder(entry)) {
+      const nested = await collectAllObjectPaths(childPath);
+      paths.push(...nested);
+    } else {
+      paths.push(childPath);
     }
+  }
 
-    const entries = (data ?? []) as StorageEntry[];
-    const paths: string[] = [];
-
-    for (const entry of entries) {
-        const childPath = `${prefix}/${entry.name}`;
-        if (isFolder(entry)) {
-            const nested = await collectAllObjectPaths(childPath);
-            paths.push(...nested);
-        } else {
-            paths.push(childPath);
-        }
-    }
-
-    return paths;
+  return paths;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
-    const out: T[][] = [];
-    for (let i = 0; i < arr.length; i += size) {
-        out.push(arr.slice(i, i + size));
-    }
-    return out;
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
 }
 
 /** Remove a list of object paths in batches of <= 100. */
 export async function removePaths(paths: string[]): Promise<void> {
-    for (const batch of chunk(paths, 100)) {
-        const { data, error } = await supabase.storage
-            .from(BUCKET)
-            .remove(batch.map(withRoot));
-        if (error) {
-            throw new Error(error.message);
-        }
-        // Supabase Storage returns 200 with an EMPTY array (no error) when a
-        // DELETE is blocked by bucket RLS — a silent failure. Treat "deleted
-        // fewer than requested" as a permission error instead of false success.
-        if (!data || data.length < batch.length) {
-            throw new Error(
-                "Delete was blocked — you don't have permission to delete here.",
-            );
-        }
+  for (const batch of chunk(paths, 100)) {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .remove(batch.map(withRoot));
+    if (error) {
+      throw new Error(error.message);
     }
+    // Supabase Storage returns 200 with an EMPTY array (no error) when a
+    // DELETE is blocked by bucket RLS — a silent failure. Treat "deleted
+    // fewer than requested" as a permission error instead of false success.
+    if (!data || data.length < batch.length) {
+      throw new Error(
+        "Delete was blocked — you don't have permission to delete here.",
+      );
+    }
+  }
 }
 
 /**
@@ -229,9 +229,9 @@ export async function removePaths(paths: string[]): Promise<void> {
  * sentinel that makes the prefix exist).
  */
 export async function deleteFolder(prefix: string): Promise<void> {
-    const allPaths = await collectAllObjectPaths(prefix);
-    if (allPaths.length === 0) return;
-    await removePaths(allPaths);
+  const allPaths = await collectAllObjectPaths(prefix);
+  if (allPaths.length === 0) return;
+  await removePaths(allPaths);
 }
 
 /**
@@ -244,93 +244,93 @@ export async function deleteFolder(prefix: string): Promise<void> {
  * locations so the caller can tell the user the data is split.
  */
 export async function moveFolder(
-    oldPrefix: string,
-    newPrefix: string,
+  oldPrefix: string,
+  newPrefix: string,
 ): Promise<void> {
-    const allPaths = await collectAllObjectPaths(oldPrefix);
-    const moved: { from: string; to: string }[] = [];
+  const allPaths = await collectAllObjectPaths(oldPrefix);
+  const moved: { from: string; to: string }[] = [];
 
-    for (const from of allPaths) {
-        const to = `${newPrefix}${from.slice(oldPrefix.length)}`;
-        const { error } = await supabase.storage
-            .from(BUCKET)
-            .move(withRoot(from), withRoot(to));
+  for (const from of allPaths) {
+    const to = `${newPrefix}${from.slice(oldPrefix.length)}`;
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .move(withRoot(from), withRoot(to));
 
-        if (!error) {
-            moved.push({ from, to });
-            continue;
-        }
-
-        // Partial failure: best-effort compensating rollback (newest
-        // first) so the folder ends up wholly at the source.
-        let rollbackOk = true;
-        for (const m of moved.reverse()) {
-            const { error: rbErr } = await supabase.storage
-                .from(BUCKET)
-                .move(withRoot(m.to), withRoot(m.from));
-            if (rbErr) rollbackOk = false;
-        }
-
-        if (!rollbackOk) {
-            throw new Error(
-                `Move failed and the folder is now split between "${oldPrefix}" and "${newPrefix}". ${error.message}`,
-            );
-        }
-        throw new Error(error.message);
+    if (!error) {
+      moved.push({ from, to });
+      continue;
     }
+
+    // Partial failure: best-effort compensating rollback (newest
+    // first) so the folder ends up wholly at the source.
+    let rollbackOk = true;
+    for (const m of moved.reverse()) {
+      const { error: rbErr } = await supabase.storage
+        .from(BUCKET)
+        .move(withRoot(m.to), withRoot(m.from));
+      if (rbErr) rollbackOk = false;
+    }
+
+    if (!rollbackOk) {
+      throw new Error(
+        `Move failed and the folder is now split between "${oldPrefix}" and "${newPrefix}". ${error.message}`,
+      );
+    }
+    throw new Error(error.message);
+  }
 }
 
 export async function moveObject(
-    oldPath: string,
-    newPath: string,
+  oldPath: string,
+  newPath: string,
 ): Promise<void> {
-    const { error } = await supabase.storage
-        .from(BUCKET)
-        .move(withRoot(oldPath), withRoot(newPath));
-    if (error) {
-        throw new Error(error.message);
-    }
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .move(withRoot(oldPath), withRoot(newPath));
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function uploadFile(
-    targetPath: string,
-    file: File | Blob,
+  targetPath: string,
+  file: File | Blob,
 ): Promise<{ error: { message: string; statusCode?: string } | null }> {
-    const { error } = await supabase.storage
-        .from(BUCKET)
-        .upload(withRoot(targetPath), file, { upsert: false });
-    return { error: error as { message: string; statusCode?: string } | null };
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(withRoot(targetPath), file, { upsert: false });
+  return { error: error as { message: string; statusCode?: string } | null };
 }
 
 /** Human-readable message for common storage failures. */
 export function humanizeStorageError(
-    message: string | undefined,
-    context: "upload" | "delete" | "rename" | "create",
+  message: string | undefined,
+  context: "upload" | "delete" | "rename" | "create",
 ): string {
-    const msg = (message ?? "").toLowerCase();
-    if (
-        msg.includes("already exists") ||
-        msg.includes("duplicate") ||
-        msg.includes("409")
-    ) {
-        return "An item with that name already exists here.";
-    }
-    if (
-        msg.includes("permission") ||
-        msg.includes("unauthorized") ||
-        msg.includes("403") ||
-        msg.includes("row-level security") ||
-        msg.includes("violates")
-    ) {
-        const verb =
-            context === "upload"
-                ? "upload here"
-                : context === "delete"
-                  ? "delete this"
-                  : context === "rename"
-                    ? "rename this"
-                    : "create folders here";
-        return `You don't have permission to ${verb}.`;
-    }
-    return message || "Something went wrong. Please try again.";
+  const msg = (message ?? "").toLowerCase();
+  if (
+    msg.includes("already exists") ||
+    msg.includes("duplicate") ||
+    msg.includes("409")
+  ) {
+    return "An item with that name already exists here.";
+  }
+  if (
+    msg.includes("permission") ||
+    msg.includes("unauthorized") ||
+    msg.includes("403") ||
+    msg.includes("row-level security") ||
+    msg.includes("violates")
+  ) {
+    const verb =
+      context === "upload"
+        ? "upload here"
+        : context === "delete"
+          ? "delete this"
+          : context === "rename"
+            ? "rename this"
+            : "create folders here";
+    return `You don't have permission to ${verb}.`;
+  }
+  return message || "Something went wrong. Please try again.";
 }

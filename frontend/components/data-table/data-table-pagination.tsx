@@ -30,11 +30,13 @@ export function DataTablePagination({
       </span>
       <div className="flex items-center gap-1">
         <button
+          type="button"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
           className={cn(
             "p-1.5 rounded-lg text-sbi-muted hover:text-white hover:bg-white/[0.06] transition-colors",
-            currentPage === 1 && "opacity-30 cursor-not-allowed pointer-events-none",
+            currentPage === 1 &&
+              "opacity-30 cursor-not-allowed pointer-events-none",
           )}
         >
           <CaretLeftIcon size={14} />
@@ -43,9 +45,7 @@ export function DataTablePagination({
         {Array.from({ length: totalPages }, (_, i) => i + 1)
           .filter((p) => {
             return (
-              p === 1 ||
-              p === totalPages ||
-              Math.abs(p - currentPage) <= 1
+              p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1
             );
           })
           .reduce<(number | "...")[]>((acc, p, i, arr) => {
@@ -53,14 +53,18 @@ export function DataTablePagination({
             acc.push(p);
             return acc;
           }, [])
-          .map((item, i) =>
+          .map((item, i, arr) =>
             item === "..." ? (
-              <span key={`ellipsis-${i}`} className="px-1 text-xs text-sbi-muted-dark">
+              <span
+                key={`ellipsis-${String(arr[i - 1])}`}
+                className="px-1 text-xs text-sbi-muted-dark"
+              >
                 …
               </span>
             ) : (
               <button
                 key={item}
+                type="button"
                 onClick={() => onPageChange(item as number)}
                 className={cn(
                   "min-w-[28px] h-7 px-2 rounded-lg text-xs transition-colors",
@@ -75,11 +79,13 @@ export function DataTablePagination({
           )}
 
         <button
+          type="button"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
           className={cn(
             "p-1.5 rounded-lg text-sbi-muted hover:text-white hover:bg-white/[0.06] transition-colors",
-            currentPage === totalPages && "opacity-30 cursor-not-allowed pointer-events-none",
+            currentPage === totalPages &&
+              "opacity-30 cursor-not-allowed pointer-events-none",
           )}
         >
           <CaretRightIcon size={14} />

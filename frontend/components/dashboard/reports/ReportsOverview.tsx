@@ -143,8 +143,16 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="5%" stopColor="var(--color-sbi-green)" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="var(--color-sbi-green)" stopOpacity={0} />
+                    <stop
+                      offset="5%"
+                      stopColor="var(--color-sbi-green)"
+                      stopOpacity={0.25}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="var(--color-sbi-green)"
+                      stopOpacity={0}
+                    />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
@@ -175,7 +183,11 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
                   fillOpacity={1}
                   fill="url(#reportsTrendGradient)"
                   dot={false}
-                  activeDot={{ r: 6, strokeWidth: 0, fill: "var(--color-sbi-green)" }}
+                  activeDot={{
+                    r: 6,
+                    strokeWidth: 0,
+                    fill: "var(--color-sbi-green)",
+                  }}
                 />
               </AreaChart>
             </ResponsiveContainer>

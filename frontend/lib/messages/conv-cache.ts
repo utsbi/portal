@@ -47,7 +47,9 @@ function populate(snapshots: PersistedSnapshot[]): void {
 
 // Fire hydration immediately at module load. SSR-safe: indexedDB check is inside loadAllPersisted.
 if (typeof window !== "undefined") {
-  hydrationPromise = loadAllPersisted().then(populate).catch(() => {});
+  hydrationPromise = loadAllPersisted()
+    .then(populate)
+    .catch(() => {});
 } else {
   hydrationPromise = Promise.resolve();
 }
@@ -72,10 +74,17 @@ export function setCachedConv(convId: string, snapshot: ConvSnapshot): void {
 }
 
 /** Updates messages array and bumps cachedAt; preserves other snapshot fields. */
-export function patchCachedMessages(convId: string, next: CachedMessage[]): void {
+export function patchCachedMessages(
+  convId: string,
+  next: CachedMessage[],
+): void {
   const existing = cache.get(convId);
   if (!existing) return;
-  const updated: ConvSnapshot = { ...existing, messages: next, cachedAt: Date.now() };
+  const updated: ConvSnapshot = {
+    ...existing,
+    messages: next,
+    cachedAt: Date.now(),
+  };
   cache.set(convId, updated);
 
   // Debounced persist.

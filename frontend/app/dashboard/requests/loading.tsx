@@ -1,5 +1,10 @@
 import { DashboardShell, PageHeader } from "@/components/dashboard/common/ui";
 
+const SKELETON_ROWS = Array.from(
+  { length: 6 },
+  (_, i) => `requests-skeleton-${i}`,
+);
+
 export default function RequestsLoading() {
   return (
     <DashboardShell>
@@ -18,9 +23,9 @@ export default function RequestsLoading() {
 
           {/* Request history rows */}
           <div className="space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {SKELETON_ROWS.map((key) => (
               <div
-                key={i}
+                key={key}
                 className="h-16 rounded border border-sbi-dark-border/50 bg-sbi-dark-card/30"
               />
             ))}

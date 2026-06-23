@@ -704,9 +704,7 @@ export async function fetchTemplatesData(): Promise<
   return { templates };
 }
 
-export async function fetchCustomTemplate(
-  id: number,
-): Promise<{
+export async function fetchCustomTemplate(id: number): Promise<{
   name: string;
   description: string | null;
   schema: FormSchema;

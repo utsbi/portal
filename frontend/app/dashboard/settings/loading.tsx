@@ -1,5 +1,9 @@
 import { Loader2 } from "lucide-react";
-import { DashboardShell, PageHeader, Panel } from "@/components/dashboard/common/ui";
+import {
+  DashboardShell,
+  PageHeader,
+  Panel,
+} from "@/components/dashboard/common/ui";
 
 export default function SettingsLoading() {
   return (

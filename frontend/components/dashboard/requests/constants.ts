@@ -36,7 +36,11 @@ export const TEAM_MEMBERS: TeamMember[] = [
     label: "Daniel Lam — Director of Internal Technologies",
     department: "Internal Technologies",
   },
-  { value: "dev", label: "Dev Shroff — Director of Business", department: "Finance" },
+  {
+    value: "dev",
+    label: "Dev Shroff — Director of Business",
+    department: "Finance",
+  },
   {
     value: "arianne",
     label: "Arianne Yude — Director of Public Relations",
@@ -47,7 +51,11 @@ export const TEAM_MEMBERS: TeamMember[] = [
     label: "Christian Butler — Director of Architecture",
     department: "Architecture",
   },
-  { value: "alim", label: "Alim Makanov — Director of Legal", department: "Legal" },
+  {
+    value: "alim",
+    label: "Alim Makanov — Director of Legal",
+    department: "Legal",
+  },
 ];
 
 export function memberLabel(value: string | null | undefined): string {

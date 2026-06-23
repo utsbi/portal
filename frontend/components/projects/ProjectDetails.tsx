@@ -30,6 +30,7 @@ export function ProjectDetails({
   const videoId = project.videoUrl?.match(/(?:v=|\/)([\w-]{11})/)?.[1];
 
   // Reset gallery selection and video when project changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally re-run on project.slug change to reset gallery/video; setState setters are stable
   useEffect(() => {
     setSelectedImageIndex(null);
     setVideoActive(false);
@@ -123,7 +124,7 @@ export function ProjectDetails({
                       onClick={handlePlayVideo}
                       className="absolute inset-0 w-full h-full group cursor-pointer"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {/* biome-ignore lint/performance/noImgElement: external YouTube thumbnail served from img.youtube.com; using next/image would require remote-domain config and change loading behavior */}
                       <img
                         src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
                         alt={`${project.title} video thumbnail`}
@@ -133,6 +134,7 @@ export function ProjectDetails({
                         <svg
                           className="w-16 h-16 drop-shadow-lg opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all"
                           viewBox="0 0 68 48"
+                          aria-hidden="true"
                         >
                           <path
                             d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55C3.97 2.33 2.27 4.81 1.48 7.74.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z"

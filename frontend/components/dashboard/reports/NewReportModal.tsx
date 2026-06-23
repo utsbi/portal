@@ -15,10 +15,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DEPARTMENTS } from "@/lib/departments";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
-import { DEPARTMENTS } from "@/lib/departments";
 
 const BUCKET = "ticket-attachments";
 

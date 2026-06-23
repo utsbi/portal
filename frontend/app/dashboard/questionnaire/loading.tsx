@@ -1,5 +1,10 @@
 import { DashboardShell, PageHeader } from "@/components/dashboard/common/ui";
 
+const SKELETON_ROWS = Array.from(
+  { length: 8 },
+  (_, i) => `questionnaire-skeleton-${i}`,
+);
+
 export default function QuestionnaireLoading() {
   return (
     <DashboardShell>
@@ -16,9 +21,9 @@ export default function QuestionnaireLoading() {
           {/* Form list table */}
           <div className="rounded-md border border-sbi-dark-border bg-sbi-dark-card/30">
             <div className="h-11 border-b border-sbi-dark-border" />
-            {Array.from({ length: 8 }).map((_, i) => (
+            {SKELETON_ROWS.map((key) => (
               <div
-                key={i}
+                key={key}
                 className="h-14 border-b border-sbi-dark-border/50 last:border-b-0"
               />
             ))}

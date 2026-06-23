@@ -1,3 +1,3 @@
-export { DataTable, type ColumnDef, type DataTableProps } from "./data-table";
+export { type ColumnDef, DataTable, type DataTableProps } from "./data-table";
+export type { FilterDef } from "./data-table-filters";
 export { StatusPill, type StatusVariant } from "./status-pill";
-export { type FilterDef } from "./data-table-filters";

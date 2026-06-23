@@ -1,4 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+import logging
+import posixpath
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from datetime import datetime
 import asyncio
@@ -8,13 +10,46 @@ from app.explore.services.pdf_parser import PDFParser, extract_text, is_extracta
 from app.explore.services.rag_service import RAGService
 from app.explore.services.membership import is_project_member
 from app.explore.api.deps import AuthContext, get_auth_context, get_current_user_id
+from app.explore.core.limiter import limiter
+from app.explore.core.uploads import parse_content_length, read_capped
 from app.explore.db.supabase import user_client, supabase
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 # Supabase Storage bucket that backs the Document Portal "Files" UI.
 _FILES_BUCKET = "Files"
+
+
+def _safe_storage_key(project_id: int, storage_path: str) -> str:
+    """Build the service-role storage key ``{project_id}/{storage_path}`` after
+    proving ``storage_path`` (client-controlled) cannot escape the project prefix.
+
+    Rejects (HTTP 400) traversal sequences (``..``), leading slashes/backslashes,
+    NUL bytes, and any value that — once normalized and joined — does not remain
+    strictly under ``{project_id}/``. This is the only gate stopping a director of
+    one project from reaching another project's storage objects, since the
+    download runs as the service role (no RLS).
+    """
+    if (
+        not storage_path
+        or "\x00" in storage_path
+        or "\\" in storage_path
+        or storage_path.startswith("/")
+        or ".." in storage_path.split("/")
+    ):
+        raise HTTPException(status_code=400, detail="Invalid storage path")
+
+    prefix = f"{project_id}/"
+    key = f"{prefix}{storage_path}"
+    # Normalize and re-assert the prefix as defence-in-depth against any escape
+    # the explicit checks above missed.
+    normalized = posixpath.normpath(key)
+    if normalized != key or not normalized.startswith(prefix):
+        raise HTTPException(status_code=400, detail="Invalid storage path")
+
+    return key
 
 
 class IndexFileRequest(BaseModel):
@@ -77,10 +112,12 @@ async def _is_director(db, user_id: str) -> bool:
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)
+@limiter.limit("10/minute")
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     project_id: int = Form(...),
-    auth: AuthContext = Depends(get_auth_context)
+    auth: AuthContext = Depends(get_auth_context),
 ):
     """Upload a PDF document for RAG processing.
 
@@ -90,6 +127,10 @@ async def upload_document(
     gate stops any project member from injecting corpus documents (the insert
     runs as the service role, bypassing RLS, so the check must be explicit).
     """
+    # Enforce upload size cap via Content-Length header first (fast path),
+    # then bound the actual read so an oversize body is never fully buffered.
+    parse_content_length(request)
+
     user_id = auth.user_id
 
     if not file.filename.endswith('.pdf'):
@@ -116,26 +157,26 @@ async def upload_document(
         )
 
     try:
-        file_bytes = await file.read()
-        
+        file_bytes = await read_capped(file)
+
         pdf_parser = PDFParser()
         pages_data = pdf_parser.extract_text_with_metadata(
             file_bytes=file_bytes,
             filename=file.filename
         )
-        
+
         if not pages_data:
             raise HTTPException(
                 status_code=400,
                 detail="No text could be extracted from the PDF"
             )
-        
+
         rag_service = RAGService()
         all_document_ids = []
-        
+
         for page_data in pages_data:
             page_data["metadata"]["upload_date"] = datetime.now().isoformat()
-            
+
             doc_ids = await rag_service.store_document(
                 content=page_data["content"],
                 metadata=page_data["metadata"],
@@ -143,20 +184,21 @@ async def upload_document(
                 project_id=project_id
             )
             all_document_ids.extend(doc_ids)
-        
+
         return DocumentUploadResponse(
             success=True,
             message=f"Successfully uploaded {file.filename}",
             document_ids=[str(id) for id in all_document_ids],
             chunks_created=len(all_document_ids)
         )
-        
+
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
+        logger.error("Error processing document upload", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing document: {str(e)}"
+            detail="Error processing document"
         )
 
 
@@ -165,29 +207,30 @@ async def list_documents(user_id: str = Depends(get_current_user_id), limit: int
     """List all documents for the current user."""
     try:
         from app.explore.db.supabase import supabase
-        
+
         result = supabase.table("client_knowledge") \
             .select("metadata") \
             .eq("uid", user_id) \
             .limit(limit) \
             .execute()
-        
+
         documents = {}
         for doc in result.data:
             metadata = doc.get("metadata", {})
             filename = metadata.get("filename")
             if filename and filename not in documents:
                 documents[filename] = metadata
-        
+
         return {
             "documents": list(documents.values()),
             "count": len(documents)
         }
-        
-    except Exception as e:
+
+    except Exception:
+        logger.error("Error listing documents", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error listing documents: {str(e)}"
+            detail="Error listing documents"
         )
 
 
@@ -208,19 +251,22 @@ async def index_file(
     """
     await _ensure_director_member(auth, body.project_id)
 
+    # Reject any traversal/escaping path BEFORE touching storage (the download
+    # runs as the service role, so an escaping key reads another project's data).
+    absolute_path = _safe_storage_key(body.project_id, body.storage_path)
+
     if not is_extractable(body.storage_path):
         return {"indexed": False, "reason": "unsupported_type"}
-
-    absolute_path = f"{body.project_id}/{body.storage_path}"
 
     try:
         file_bytes = await asyncio.to_thread(
             supabase.storage.from_(_FILES_BUCKET).download, absolute_path
         )
-    except Exception as e:
+    except Exception:
+        logger.error("Could not download file from storage: %s", absolute_path, exc_info=True)
         raise HTTPException(
             status_code=404,
-            detail=f"Could not download file from storage: {str(e)}",
+            detail="Could not download file from storage",
         )
 
     try:
@@ -257,10 +303,11 @@ async def index_file(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
+        logger.error("Error indexing file: %s", body.storage_path, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error indexing file: {str(e)}",
+            detail="Error indexing file",
         )
 
 
@@ -276,6 +323,10 @@ async def delete_by_file(
     """
     await _ensure_director_member(auth, body.project_id)
 
+    # Validate the client-supplied path with the same guard as index-file so a
+    # traversal/escaping value can never be used to address another project.
+    _safe_storage_key(body.project_id, body.storage_path)
+
     try:
         result = supabase.table("client_knowledge") \
             .delete() \
@@ -286,10 +337,11 @@ async def delete_by_file(
         deleted = len(result.data) if result.data else 0
         return {"deleted": deleted}
 
-    except Exception as e:
+    except Exception:
+        logger.error("Error deleting file index: %s", body.storage_path, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error deleting file index: {str(e)}",
+            detail="Error deleting file index",
         )
 
 
@@ -329,8 +381,11 @@ async def list_indexed_files(
             for path, chunks in sorted(counts.items())
         ]
 
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Error listing indexed files for project %s", project_id, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error listing indexed files: {str(e)}",
+            detail="Error listing indexed files",
         )

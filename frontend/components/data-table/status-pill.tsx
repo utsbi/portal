@@ -1,14 +1,14 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import {
   CheckCircleIcon,
   ClockIcon,
-  WarningIcon,
+  type Icon as PhosphorIcon,
   ProhibitIcon,
   QuestionIcon,
-  type Icon as PhosphorIcon,
+  WarningIcon,
 } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
 
 export type StatusVariant =
   | "done"

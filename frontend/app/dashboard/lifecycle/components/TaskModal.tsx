@@ -161,7 +161,9 @@ export function TaskModal({
       return;
     }
     toastSuccess(
-      isEdit ? `Task "${title.trim()}" updated.` : `Task "${title.trim()}" added.`,
+      isEdit
+        ? `Task "${title.trim()}" updated.`
+        : `Task "${title.trim()}" added.`,
     );
     await onSaved();
     onClose();

@@ -80,7 +80,8 @@ function CitationChip({
 
 // Replace bracketed numeric markers in a string with CitationChip elements.
 // Out-of-range indices stay as plain text.
-function interpolateCitations(
+// Exported for unit testing; not part of the public API.
+export function interpolateCitations(
   text: string,
   sources: SourceDocument[],
 ): ReactNode {
@@ -91,7 +92,8 @@ function interpolateCitations(
   let match: RegExpExecArray | null;
   let key = 0;
   let matched = false;
-  while ((match = pattern.exec(text)) !== null) {
+  match = pattern.exec(text);
+  while (match !== null) {
     const n = Number.parseInt(match[1], 10);
     if (match.index > lastIdx) parts.push(text.slice(lastIdx, match.index));
     if (n < 1 || n > sources.length) {
@@ -109,6 +111,7 @@ function interpolateCitations(
       matched = true;
     }
     lastIdx = pattern.lastIndex;
+    match = pattern.exec(text);
   }
   if (!matched) return text; // nothing replaced — hand back the original string
   if (lastIdx < text.length) parts.push(text.slice(lastIdx));
@@ -377,15 +380,21 @@ export function ChatMessage({
     return () => ctx.revert();
   }, []);
 
-  // Check if user messages overflows
+  // Check if user messages overflows. Re-measure whenever the rendered text
+  // changes; `content` is referenced so the measurement reflects the latest
+  // message body (it is what drives the DOM height read below).
+  const content = message.content;
   useEffect(() => {
+    // `content` is read so the effect re-runs and re-measures the rendered DOM
+    // height whenever the message body changes (e.g. while streaming).
+    void content;
     if (contentRef.current && isUser && !isEditing) {
       const lineHeight = 24;
       const maxLines = 5;
       const maxHeight = lineHeight * maxLines;
       setIsOverflowing(contentRef.current.scrollHeight > maxHeight);
     }
-  }, [message.content, isUser, isEditing]);
+  }, [content, isUser, isEditing]);
 
   // Auto-resize
   useEffect(() => {
@@ -418,10 +427,10 @@ export function ChatMessage({
   const getTruncatedContent = () => {
     const lines = displayContent.split("\n");
     if (lines.length > 5) {
-      return lines.slice(0, 5).join("\n") + "...";
+      return `${lines.slice(0, 5).join("\n")}...`;
     }
     if (displayContent.length > 300 && !displayContent.includes("\n")) {
-      return displayContent.slice(0, 300) + "...";
+      return `${displayContent.slice(0, 300)}...`;
     }
     return displayContent;
   };

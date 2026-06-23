@@ -1,7 +1,7 @@
 "use client";
 
 import { MessageCircle } from "lucide-react";
-import { EmptyState, btnPrimary } from "@/components/dashboard/common/ui";
+import { btnPrimary, EmptyState } from "@/components/dashboard/common/ui";
 import { useCreateConversationModal } from "./CreateConversationModalContext";
 
 export function MessagesEmptyState() {

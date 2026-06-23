@@ -57,7 +57,9 @@ export function RequestForm({ onSubmit, onCancel }: RequestFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredMembers = department
-    ? teamMembers.filter((m) => m.department === department || m.department === null)
+    ? teamMembers.filter(
+        (m) => m.department === department || m.department === null,
+      )
     : teamMembers;
 
   const selectedMember = teamMembers.find((m) => m.value === assignedTo);
@@ -141,7 +143,10 @@ export function RequestForm({ onSubmit, onCancel }: RequestFormProps) {
               sideOffset={4}
               className="bg-sbi-dark border-sbi-dark-border max-h-72 custom-scrollbar w-(--radix-dropdown-menu-trigger-width)"
             >
-              <DropdownMenuRadioGroup value={department} onValueChange={handleDepartmentChange}>
+              <DropdownMenuRadioGroup
+                value={department}
+                onValueChange={handleDepartmentChange}
+              >
                 {departmentOptions.map((o) => (
                   <DropdownMenuRadioItem
                     key={o.value}
@@ -164,7 +169,13 @@ export function RequestForm({ onSubmit, onCancel }: RequestFormProps) {
               disabled={isSubmitting}
               className="w-full inline-flex items-center justify-between gap-2 bg-sbi-dark border border-sbi-dark-border rounded-lg px-4 py-3 text-base text-white hover:border-sbi-green/40 focus:outline-none focus:border-sbi-green/50 disabled:opacity-50"
             >
-              <span className={selectedMember ? "truncate text-left" : "text-white/30 truncate text-left"}>
+              <span
+                className={
+                  selectedMember
+                    ? "truncate text-left"
+                    : "text-white/30 truncate text-left"
+                }
+              >
                 {selectedMember?.label ?? "Anyone available"}
               </span>
               <ChevronDown className="w-4 h-4 text-sbi-muted shrink-0" />
@@ -174,7 +185,10 @@ export function RequestForm({ onSubmit, onCancel }: RequestFormProps) {
               sideOffset={4}
               className="bg-sbi-dark border-sbi-dark-border max-h-72 custom-scrollbar w-(--radix-dropdown-menu-trigger-width)"
             >
-              <DropdownMenuRadioGroup value={assignedTo} onValueChange={setAssignedTo}>
+              <DropdownMenuRadioGroup
+                value={assignedTo}
+                onValueChange={setAssignedTo}
+              >
                 <DropdownMenuRadioItem
                   value=""
                   className="pl-3 [&>span:first-child]:hidden text-sm text-sbi-muted italic focus:bg-sbi-green/10 focus:text-sbi-green"

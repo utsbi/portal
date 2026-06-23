@@ -1,5 +1,6 @@
 "use client";
 
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   ArrowDown,
   ChevronLeft,
@@ -49,7 +50,7 @@ import { toastError } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation } from "./ConversationList";
-import { useCmdK } from "./cmdk/CommandPalette";
+import { useCmdKOptional } from "./cmdk/CommandPalette";
 import { renderMarkdown } from "./markdown";
 import { fetchLastRead, markRead } from "./read-state";
 
@@ -311,6 +312,7 @@ function ImageGrid({ images, onOpenLightbox }: ImageGridProps) {
             }
           >
             {url ? (
+              // biome-ignore lint/performance/noImgElement: user-uploaded attachment served from a short-lived signed Supabase URL or a local object-URL preview; next/image cannot optimize arbitrary signed/blob URLs and would break the preview
               <img
                 src={url}
                 alt={img.name}
@@ -377,6 +379,7 @@ function ImageThumb({
       className={wrapClass}
       aria-label="Open image preview"
     >
+      {/* biome-ignore lint/performance/noImgElement: user-uploaded attachment served from a short-lived signed Supabase URL or a local object-URL preview; next/image cannot optimize arbitrary signed/blob URLs and would break the preview */}
       <img
         src={url}
         alt={attachment.name}
@@ -430,6 +433,7 @@ function AttachmentBubbles({
         const url = a.signedUrl ?? a.localPreviewUrl ?? null;
         if (kind === "video" && url) {
           return (
+            // biome-ignore lint/a11y/useMediaCaption: user-uploaded video attachment of arbitrary content; no caption/transcript track exists or can be generated client-side
             <video
               key={a.id}
               src={url}
@@ -440,7 +444,10 @@ function AttachmentBubbles({
           );
         }
         if (kind === "audio" && url) {
-          return <audio key={a.id} src={url} controls className="w-[260px]" />;
+          return (
+            // biome-ignore lint/a11y/useMediaCaption: user-uploaded audio attachment of arbitrary content; no caption/transcript track exists or can be generated client-side
+            <audio key={a.id} src={url} controls className="w-[260px]" />
+          );
         }
         return (
           <div
@@ -518,6 +525,7 @@ function UnfurlCard({ unfurl }: { unfurl: UnfurlData }) {
           )}
         </div>
         {!imageError && unfurl.image_url && (
+          // biome-ignore lint/performance/noImgElement: link-unfurl thumbnail from an arbitrary external origin; not whitelisted in next/image remotePatterns and must degrade gracefully via onError
           <img
             src={unfurl.image_url}
             alt=""
@@ -707,8 +715,7 @@ export function MessageThread({
   // ---- Phase C state ----
   const [senderProfileId, setSenderProfileId] = useState<number | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const presenceChannelRef = useRef<any>(null);
+  const presenceChannelRef = useRef<RealtimeChannel | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const [otherLastReadAt, setOtherLastReadAt] = useState<number | null>(null);
@@ -725,21 +732,16 @@ export function MessageThread({
   const threadSurfaceRef = useRef<HTMLDivElement>(null);
 
   // ---- Cmd+K ----
-  let cmdK: ReturnType<typeof useCmdK> | null = null;
-  try {
-    // useCmdK may throw if provider is absent (e.g. storybook / test)
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    cmdK = useCmdK();
-  } catch {
-    cmdK = null;
-  }
+  // Optional: returns null when rendered outside a provider (e.g. storybook / test).
+  const cmdK = useCmdKOptional();
+  const setCmdKConversations = cmdK?.setConversations;
 
   // Feed conversations into the Cmd+K palette when provided.
   useEffect(() => {
-    if (cmdK && conversations && conversations.length > 0) {
-      cmdK.setConversations(conversations);
+    if (setCmdKConversations && conversations && conversations.length > 0) {
+      setCmdKConversations(conversations);
     }
-  }, [cmdK, conversations]);
+  }, [setCmdKConversations, conversations]);
 
   // Seeded from cache so the NEW-divider is already in place on first paint
   // when remounting on conv switch — no recomputation flash.
@@ -1091,10 +1093,11 @@ export function MessageThread({
     if (mapped.length > 0) {
       void markRead(conversationId);
     }
-  }, [conversationId, senderRole, senderProfileId]);
+  }, [conversationId, senderProfileId]);
 
   // ---- Realtime subscriptions ----
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: this effect owns the Supabase realtime subscriptions whose identity is the conversation only; it must re-run solely when conversationId changes. Including atBottom/senderRole/senderProfileId/basePath/scrollToBottom/initialCache/loadMessages would tear down and rebuild all four channels on every scroll and re-render, dropping live events. Those values are intentionally read as the latest closure at callback time.
   useEffect(() => {
     aliveRef.current = true;
     let cancelled = false;
@@ -1353,7 +1356,6 @@ export function MessageThread({
       supabase.removeChannel(attachChannel);
       supabase.removeChannel(unfurlChannel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
   // ---- Fetch the viewer's profile id once (drives message ownership) ----
@@ -1482,21 +1484,23 @@ export function MessageThread({
   }, [lightbox]);
 
   // Sign active lightbox attachment when index changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: must re-run only when the viewed index or the attachment set changes. Depending on the whole `lightbox` object (or its signedUrls map) would re-trigger on the very setLightbox calls this effect makes when caching a freshly signed URL, causing an infinite sign loop.
   useEffect(() => {
     if (!lightbox) return;
     const att = lightbox.attachments[lightbox.index];
     if (!att?.path) return;
+    const attPath = att.path;
 
-    if (lightbox.signedUrls.has(att.path)) {
+    if (lightbox.signedUrls.has(attPath)) {
       setLightbox((lb) => (lb ? { ...lb, loadingIndex: false } : lb));
       return;
     }
 
     setLightbox((lb) => (lb ? { ...lb, loadingIndex: true } : lb));
     const supabase = createClient();
-    signWithCache(supabase, [att.path], { expiresIn: 3600 })
+    signWithCache(supabase, [attPath], { expiresIn: 3600 })
       .then((urlMap) => {
-        const signed = urlMap.get(att.path!) ?? null;
+        const signed = urlMap.get(attPath) ?? null;
         if (!signed) {
           setLightbox((lb) => (lb ? { ...lb, loadingIndex: false } : lb));
           return;
@@ -1504,14 +1508,13 @@ export function MessageThread({
         setLightbox((lb) => {
           if (!lb) return lb;
           const next = new Map(lb.signedUrls);
-          next.set(att.path!, signed);
+          next.set(attPath, signed);
           return { ...lb, signedUrls: next, loadingIndex: false };
         });
       })
       .catch(() => {
         setLightbox((lb) => (lb ? { ...lb, loadingIndex: false } : lb));
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lightbox?.index, lightbox?.attachments]);
 
   // ---- Cmd+F search keyboard shortcut ----
@@ -1522,10 +1525,7 @@ export function MessageThread({
       const modifier = isMac ? e.metaKey : e.ctrlKey;
       if (modifier && e.key === "f") {
         // Only intercept when focus is inside the thread surface.
-        if (
-          threadSurfaceRef.current &&
-          threadSurfaceRef.current.contains(document.activeElement)
-        ) {
+        if (threadSurfaceRef.current?.contains(document.activeElement)) {
           e.preventDefault();
           setSearchOpen((prev) => {
             if (!prev) {
@@ -2309,6 +2309,7 @@ export function MessageThread({
 
   // ---- renderMessage (per-row) ----
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cancelEdit/persistEdit/handleEditKeyDown/retryMessage are plain (non-memoized) functions recreated every render; listing them would re-create this memoized row renderer on every render and force Virtuoso to re-render all visible rows, a perf regression. They only close over editValue/messages, which are already in this dependency list, so the captured handlers stay current.
   const renderMessage = useCallback(
     (msg: ThreadMessage, idx: number) => {
       const isMine =
@@ -2369,6 +2370,7 @@ export function MessageThread({
               <div className="h-px flex-1 bg-sbi-green/30" />
             </div>
           )}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: hover only reveals already-focusable action buttons (reply/edit/pin) as a pointer affordance; it adds no behavior unavailable to keyboard users, so a role/keyboard handler would be semantically inappropriate */}
           <div
             className={`relative flex items-end gap-2 pb-1 ${
               isGroupStart ? "pt-5" : "pt-0.5"
@@ -2599,15 +2601,17 @@ export function MessageThread({
                       </button>
                     </span>
                   )}
-                  {msg.status === "sent" && latestReadMsgId === msg.id && (
-                    <span className="text-[10px] text-sbi-green/80">
-                      Read ·{" "}
-                      {new Date(otherLastReadAt!).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  )}
+                  {msg.status === "sent" &&
+                    latestReadMsgId === msg.id &&
+                    otherLastReadAt !== null && (
+                      <span className="text-[10px] text-sbi-green/80">
+                        Read ·{" "}
+                        {new Date(otherLastReadAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    )}
                 </div>
               )}
             </div>
@@ -2617,7 +2621,7 @@ export function MessageThread({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      senderRole,
+      senderProfileId,
       editingMessageId,
       hoveredMessageId,
       highlightedMsgId,
@@ -2636,6 +2640,7 @@ export function MessageThread({
   );
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop file-upload surface; drag events are inherently pointer-based and have a keyboard-accessible equivalent in the attach-file button, so no interactive ARIA role applies to this drop target
     <div
       ref={threadSurfaceRef}
       className="absolute inset-0 flex flex-col animate-thread-fade-in"
@@ -2872,6 +2877,7 @@ export function MessageThread({
                   className="flex items-center gap-2 px-3 py-2 rounded-lg border border-sbi-dark-border/60 bg-sbi-dark-card shrink-0"
                 >
                   {pa.previewUrl ? (
+                    // biome-ignore lint/performance/noImgElement: local object-URL preview of a not-yet-uploaded file; next/image cannot process blob: URLs
                     <img
                       src={pa.previewUrl}
                       alt={pa.name}
@@ -2990,9 +2996,13 @@ export function MessageThread({
           const canNext = lightbox.index < total - 1;
 
           return (
+            // biome-ignore lint/a11y/noStaticElementInteractions: presentational click-outside backdrop carrying role="presentation"; it only dismisses the lightbox. Full keyboard control (Escape to close, arrows to navigate) is handled by a window keydown listener active while the lightbox is open.
             <div
               className="fixed inset-0 z-[60] flex items-center justify-center bg-sbi-dark/90 p-6"
               onClick={() => setLightbox(null)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setLightbox(null);
+              }}
               role="presentation"
             >
               {lightbox.loadingIndex && (
@@ -3041,6 +3051,8 @@ export function MessageThread({
               </button>
 
               {displayUrl && (
+                // biome-ignore lint/performance/noImgElement: full-size attachment from a short-lived signed Supabase URL or a local object-URL; next/image cannot optimize arbitrary signed/blob URLs
+                // biome-ignore lint/a11y/useKeyWithClickEvents: onClick only stops the backdrop's click-to-close from firing on the image itself; it triggers no action, and Escape/arrow keys are handled by the lightbox's window keydown listener
                 <img
                   src={displayUrl}
                   alt={att?.name ?? "Image preview"}
@@ -3049,6 +3061,8 @@ export function MessageThread({
                 />
               )}
 
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: presentational wrapper; onClick only stops the backdrop's click-to-close from firing when interacting with the counter/link inside */}
+              {/* biome-ignore lint/a11y/useKeyWithClickEvents: onClick carries no action of its own (just stopPropagation); the contained link is independently keyboard-accessible */}
               <div
                 className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4"
                 onClick={(e) => e.stopPropagation()}

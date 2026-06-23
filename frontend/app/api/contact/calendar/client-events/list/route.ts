@@ -40,7 +40,9 @@ export async function GET() {
     return NextResponse.json({ error: "Not a director" }, { status: 403 });
   }
 
-  const config = profile.config as any;
+  const config = profile.config as {
+    google?: { refresh_token?: string };
+  } | null;
   const refreshToken = config?.google?.refresh_token;
 
   if (!refreshToken) {

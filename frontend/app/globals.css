@@ -208,8 +208,10 @@ html::-webkit-scrollbar-thumb:hover {
 
 /* Sidebar dark theme and behavior */
 [data-sidebar] {
+  /* biome-ignore lint/complexity/noImportantStyles: override shadcn sidebar component's built-in inline/high-specificity styles for dark theme */
   background-color: rgb(24 24 27) !important;
   /* zinc-900 */
+  /* biome-ignore lint/complexity/noImportantStyles: override shadcn sidebar component's built-in inline/high-specificity styles for dark theme */
   border-color: rgb(39 39 42) !important;
   /* zinc-800 */
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -359,7 +361,9 @@ html::-webkit-scrollbar-thumb:hover {
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
   input:-webkit-autofill:active {
+    /* biome-ignore lint/complexity/noImportantStyles: !important required to override the browser UA autofill background style */
     -webkit-box-shadow: 0 0 0 30px #0a120c inset !important;
+    /* biome-ignore lint/complexity/noImportantStyles: !important required to override the browser UA autofill text color */
     -webkit-text-fill-color: white !important;
     transition: background-color 5000s ease-in-out 0s;
   }
@@ -367,6 +371,7 @@ html::-webkit-scrollbar-thumb:hover {
 
 /* Sidebar custom dark theme */
 [data-sidebar="sidebar"] {
+  /* biome-ignore lint/complexity/noImportantStyles: override shadcn sidebar component's built-in inline/high-specificity styles for dark theme */
   background-color: rgb(24 24 27) !important;
   /* zinc-900 */
 }
@@ -473,11 +478,14 @@ html::-webkit-scrollbar-thumb:hover {
 
 /* Sidebar refinements */
 [data-sidebar="sidebar"] {
+  /* biome-ignore lint/complexity/noImportantStyles: override shadcn sidebar component's built-in inline/high-specificity styles for dark theme */
   background-color: var(--color-sbi-dark) !important;
+  /* biome-ignore lint/complexity/noImportantStyles: override shadcn sidebar component's built-in inline/high-specificity styles for dark theme */
   border-color: rgba(22, 48, 29, 0.5) !important;
 }
 
 [data-sidebar] [data-sidebar-menu-button]:hover {
+  /* biome-ignore lint/complexity/noImportantStyles: override shadcn sidebar menu-button's built-in hover background */
   background-color: transparent !important;
 }
 

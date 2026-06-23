@@ -5,8 +5,8 @@ import { useMemo, useState } from "react";
 import { type ColumnDef, DataTable } from "@/components/data-table/data-table";
 import { StatusPill } from "@/components/data-table/status-pill";
 import { departmentLabel } from "@/lib/departments";
-import { cn } from "@/lib/utils";
 import type { RequestStatus } from "@/lib/supabase/requests";
+import { cn } from "@/lib/utils";
 
 export interface Request {
   id: string;
@@ -53,7 +53,9 @@ const columns: ColumnDef<Request>[] = [
     render: (value, row) => (
       <div className="min-w-0">
         <p className="text-sm font-medium text-white truncate">{value}</p>
-        <p className="text-xs text-sbi-muted truncate">{departmentLabel(row.department)}</p>
+        <p className="text-xs text-sbi-muted truncate">
+          {departmentLabel(row.department)}
+        </p>
       </div>
     ),
   },
@@ -67,7 +69,9 @@ const columns: ColumnDef<Request>[] = [
     header: "Date",
     sortable: true,
     render: (value) => (
-      <span className="text-xs text-sbi-muted whitespace-nowrap">{formatDate(value)}</span>
+      <span className="text-xs text-sbi-muted whitespace-nowrap">
+        {formatDate(value)}
+      </span>
     ),
   },
   {

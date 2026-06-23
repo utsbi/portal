@@ -3,7 +3,14 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { motion } from "motion/react";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ConnectionArcs } from "./ConnectionArcs";
@@ -149,10 +156,7 @@ function GlobeScene({
             globeRadius={GLOBE_RADIUS}
           />
         </Globe>
-        <GlobeAtmosphere
-          radius={GLOBE_RADIUS}
-          sunDirection={sunDirection}
-        />
+        <GlobeAtmosphere radius={GLOBE_RADIUS} sunDirection={sunDirection} />
       </group>
 
       <OrbitControls

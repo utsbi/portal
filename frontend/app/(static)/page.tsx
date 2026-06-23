@@ -13,7 +13,7 @@ import { DepartmentItem } from "@/components/department-item";
 import { LoadingScreen } from "@/components/loading-screen";
 import { MagneticButton } from "@/components/magnetic-button";
 import { StrategyCard } from "@/components/strategy-card";
-import { FORMS_LINK, departments, stats, strategy } from "@/lib/data/home";
+import { departments, FORMS_LINK, stats, strategy } from "@/lib/data/home";
 
 export default function Page() {
   const [isLoading, setIsLoading] = useState(true);

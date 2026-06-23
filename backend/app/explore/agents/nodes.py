@@ -53,7 +53,7 @@ async def generate_title(query: str) -> str:
     try:
         title_prompt = TITLE_GENERATOR_PROMPT.format(query=query.strip()[:2000])
         response = await openrouter_client.chat.completions.create(
-            model=settings.fast_model,
+            model=settings.title_model,
             messages=[{"role": "user", "content": title_prompt}],
         )
         title = (response.choices[0].message.content or "").strip()

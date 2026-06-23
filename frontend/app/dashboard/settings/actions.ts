@@ -1,19 +1,25 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from "./types";
 
 function getAdminClient() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+  if (!supabaseUrl || !supabaseSecretKey) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY environment variable",
+    );
+  }
+  return createAdminClient(supabaseUrl, supabaseSecretKey);
 }
 
 async function requireUser() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" as const };
 
   const admin = getAdminClient();
@@ -36,8 +42,11 @@ async function requireUser() {
 
 async function requireDirector() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" as const, admin: null, uid: null };
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user)
+    return { error: "Not authenticated" as const, admin: null, uid: null };
 
   const admin = getAdminClient();
   const { data: caller } = await admin
@@ -65,19 +74,24 @@ export async function createAccount(data: {
   companyName?: string;
   department?: string;
 }) {
+  const {
+    error: authzError,
+    admin,
+    profileId: callerProfileId,
+  } = await requireDirector();
+  if (authzError || !admin) return { error: authzError || "Not authorized" };
+
   if (data.password.length < 8) {
     return { error: "Password must be at least 8 characters" };
   }
 
-  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized" };
-
   // Create auth user
-  const { data: authData, error: authError } = await admin.auth.admin.createUser({
-    email: data.email,
-    password: data.password,
-    email_confirm: true,
-  });
+  const { data: authData, error: authError } =
+    await admin.auth.admin.createUser({
+      email: data.email,
+      password: data.password,
+      email_confirm: true,
+    });
 
   if (authError) {
     return { error: authError.message };
@@ -108,11 +122,13 @@ export async function createAccount(data: {
   // the client in the team list, and downstream queries that look up the
   // owner (calendar attendees, etc.) miss them entirely.
   if (data.role === "client" && data.companyName) {
-    const slug = data.companyName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      + "-" + Math.random().toString(36).slice(2, 6);
+    const slug =
+      data.companyName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") +
+      "-" +
+      Math.random().toString(36).slice(2, 6);
 
     const { data: project, error: projectError } = await admin
       .from("projects")
@@ -132,14 +148,12 @@ export async function createAccount(data: {
       return { error: projectError?.message || "Couldn't create project" };
     }
 
-    const { error: ownerError } = await admin
-      .from("project_members")
-      .insert({
-        profile_id: profile.id,
-        project_id: project.id,
-        role: "owner",
-        assigned_by: callerProfileId ?? null,
-      });
+    const { error: ownerError } = await admin.from("project_members").insert({
+      profile_id: profile.id,
+      project_id: project.id,
+      role: "owner",
+      assigned_by: callerProfileId ?? null,
+    });
 
     if (ownerError) {
       // Project exists but ownership link failed. Surface a non-fatal
@@ -160,7 +174,8 @@ export async function createAccount(data: {
 
 export async function listAccounts() {
   const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized", accounts: [] };
+  if (authzError || !admin)
+    return { error: authzError || "Not authorized", accounts: [] };
 
   const { data: profiles, error } = await admin
     .from("profiles")
@@ -177,7 +192,11 @@ export async function updateAccount(data: {
   role: "client" | "director" | "member";
   department: string | null;
 }) {
-  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
+  const {
+    error: authzError,
+    admin,
+    profileId: callerProfileId,
+  } = await requireDirector();
   if (authzError || !admin) return { error: authzError || "Not authorized" };
 
   const name = data.name.trim();
@@ -191,7 +210,8 @@ export async function updateAccount(data: {
     .select("id, role")
     .eq("id", data.id)
     .single();
-  if (existingError || !existing) return { error: existingError?.message || "Profile not found" };
+  if (existingError || !existing)
+    return { error: existingError?.message || "Profile not found" };
 
   // Block self role-change to prevent locking yourself out mid-session.
   if (data.id === callerProfileId && data.role !== existing.role) {
@@ -242,7 +262,8 @@ export async function deleteAccount(profileId: number) {
 
 export async function listProjects() {
   const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized", projects: [] };
+  if (authzError || !admin)
+    return { error: authzError || "Not authorized", projects: [] };
   const { data, error } = await admin
     .from("projects")
     .select("id, url_slug, company_name")
@@ -254,7 +275,8 @@ export async function listProjects() {
 
 export async function listProjectMembers(projectId: number) {
   const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized", members: [] };
+  if (authzError || !admin)
+    return { error: authzError || "Not authorized", members: [] };
 
   // project_members has two FKs to profiles (profile_id + assigned_by), so
   // we name the constraints. Aliasing the assigner embed as `assigner` keeps
@@ -285,10 +307,20 @@ export async function listProjectMembers(projectId: number) {
     role: string;
     profile_id: number;
     created_at: string | null;
-    profiles: { id: number; name: string; email: string | null; role: string } | null;
+    profiles: {
+      id: number;
+      name: string;
+      email: string | null;
+      role: string;
+    } | null;
     assigner: { id: number; name: string } | null;
   };
-  type DirectorRow = { id: number; name: string; email: string | null; role: string };
+  type DirectorRow = {
+    id: number;
+    name: string;
+    email: string | null;
+    role: string;
+  };
 
   const assignedRows = (assigned || []) as unknown as AssignedRow[];
   const directorRows = (directors || []) as unknown as DirectorRow[];
@@ -316,21 +348,27 @@ export async function listProjectMembers(projectId: number) {
   return { members: [...synthetic, ...real] };
 }
 
-export async function assignMemberToProject(profileId: number, projectId: number) {
-  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
+export async function assignMemberToProject(
+  profileId: number,
+  projectId: number,
+) {
+  const {
+    error: authzError,
+    admin,
+    profileId: callerProfileId,
+  } = await requireDirector();
   if (authzError || !admin) return { error: authzError || "Not authorized" };
 
-  const { error } = await admin
-    .from("project_members")
-    .insert({
-      profile_id: profileId,
-      project_id: projectId,
-      role: "member",
-      assigned_by: callerProfileId ?? null,
-    });
+  const { error } = await admin.from("project_members").insert({
+    profile_id: profileId,
+    project_id: projectId,
+    role: "member",
+    assigned_by: callerProfileId ?? null,
+  });
 
   if (error) {
-    if (error.code === "23505") return { error: "Already assigned to this project" };
+    if (error.code === "23505")
+      return { error: "Already assigned to this project" };
     return { error: error.message };
   }
 
@@ -357,8 +395,15 @@ export async function removeMemberFromProject(membershipId: number) {
   return { success: true };
 }
 
-export async function assignOwnerToProject(profileId: number, projectId: number) {
-  const { error: authzError, admin, profileId: callerProfileId } = await requireDirector();
+export async function assignOwnerToProject(
+  profileId: number,
+  projectId: number,
+) {
+  const {
+    error: authzError,
+    admin,
+    profileId: callerProfileId,
+  } = await requireDirector();
   if (authzError || !admin) return { error: authzError || "Not authorized" };
 
   // Verify the target is actually a client.
@@ -368,7 +413,8 @@ export async function assignOwnerToProject(profileId: number, projectId: number)
     .eq("id", profileId)
     .single();
   if (!target) return { error: "Profile not found" };
-  if (target.role !== "client") return { error: "Only clients can be project owners" };
+  if (target.role !== "client")
+    return { error: "Only clients can be project owners" };
 
   // Enforce one-owner-per-project at the application layer (no partial
   // unique index exists yet).
@@ -380,16 +426,15 @@ export async function assignOwnerToProject(profileId: number, projectId: number)
     .maybeSingle();
   if (existingOwner) return { error: "This project already has an owner" };
 
-  const { error } = await admin
-    .from("project_members")
-    .insert({
-      profile_id: profileId,
-      project_id: projectId,
-      role: "owner",
-      assigned_by: callerProfileId ?? null,
-    });
+  const { error } = await admin.from("project_members").insert({
+    profile_id: profileId,
+    project_id: projectId,
+    role: "owner",
+    assigned_by: callerProfileId ?? null,
+  });
   if (error) {
-    if (error.code === "23505") return { error: "Client is already on this project" };
+    if (error.code === "23505")
+      return { error: "Client is already on this project" };
     return { error: error.message };
   }
 
@@ -398,14 +443,17 @@ export async function assignOwnerToProject(profileId: number, projectId: number)
 
 export async function listAvailableOwners(projectId: number) {
   const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized", clients: [] };
+  if (authzError || !admin)
+    return { error: authzError || "Not authorized", clients: [] };
 
   // All clients not already a member of this project.
   const { data: existing } = await admin
     .from("project_members")
     .select("profile_id")
     .eq("project_id", projectId);
-  const taken = (existing || []).map((r: { profile_id: number }) => r.profile_id);
+  const taken = (existing || []).map(
+    (r: { profile_id: number }) => r.profile_id,
+  );
 
   let query = admin
     .from("profiles")
@@ -421,7 +469,8 @@ export async function listAvailableOwners(projectId: number) {
 
 export async function listUnassignedMembers(projectId: number) {
   const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized", members: [] };
+  if (authzError || !admin)
+    return { error: authzError || "Not authorized", members: [] };
 
   // Get all members not already in this project
   const { data: existingIds } = await admin
@@ -429,7 +478,9 @@ export async function listUnassignedMembers(projectId: number) {
     .select("profile_id")
     .eq("project_id", projectId);
 
-  const assignedIds = (existingIds || []).map((r: { profile_id: number }) => r.profile_id);
+  const assignedIds = (existingIds || []).map(
+    (r: { profile_id: number }) => r.profile_id,
+  );
 
   let query = admin
     .from("profiles")
@@ -455,8 +506,12 @@ export async function getMyAccount() {
   if (ctx.error) return { error: ctx.error };
 
   const config = (ctx.profile.config as Record<string, unknown>) || {};
-  const storedPrefs = (config.notifications as Partial<NotificationPrefs>) || {};
-  const prefs: NotificationPrefs = { ...DEFAULT_NOTIFICATION_PREFS, ...storedPrefs };
+  const storedPrefs =
+    (config.notifications as Partial<NotificationPrefs>) || {};
+  const prefs: NotificationPrefs = {
+    ...DEFAULT_NOTIFICATION_PREFS,
+    ...storedPrefs,
+  };
 
   return {
     error: null,
@@ -471,7 +526,10 @@ export async function getMyAccount() {
   };
 }
 
-export async function updateMyProfile(data: { name: string; department: string | null }) {
+export async function updateMyProfile(data: {
+  name: string;
+  department: string | null;
+}) {
   const ctx = await requireUser();
   if (ctx.error) return { error: ctx.error };
 
@@ -493,9 +551,12 @@ export async function updateMyPassword(newPassword: string) {
   const ctx = await requireUser();
   if (ctx.error) return { error: ctx.error };
 
-  if (newPassword.length < 8) return { error: "Password must be at least 8 characters" };
+  if (newPassword.length < 8)
+    return { error: "Password must be at least 8 characters" };
 
-  const { error } = await ctx.supabase.auth.updateUser({ password: newPassword });
+  const { error } = await ctx.supabase.auth.updateUser({
+    password: newPassword,
+  });
   if (error) return { error: error.message };
   return { success: true };
 }
@@ -504,7 +565,7 @@ export async function updateMyNotificationPrefs(prefs: NotificationPrefs) {
   const ctx = await requireUser();
   if (ctx.error) return { error: ctx.error };
 
-  const config = ((ctx.profile.config as Record<string, unknown>) || {});
+  const config = (ctx.profile.config as Record<string, unknown>) || {};
   const nextConfig = { ...config, notifications: prefs };
 
   const { error } = await ctx.admin

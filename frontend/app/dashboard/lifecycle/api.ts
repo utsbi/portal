@@ -309,7 +309,10 @@ export async function deleteLifecycleTask(id: number): Promise<boolean> {
   const supabase = createClient();
   // Remove assignee links first (defensive — independent of FK cascade).
   await supabase.from("lifecycle_task_assignees").delete().eq("task_id", id);
-  const { error } = await supabase.from("lifecycle_tasks").delete().eq("id", id);
+  const { error } = await supabase
+    .from("lifecycle_tasks")
+    .delete()
+    .eq("id", id);
   if (error) {
     console.error("Error deleting lifecycle task:", error);
     return false;

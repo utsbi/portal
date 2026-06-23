@@ -1,4 +1,8 @@
-import { DashboardShell, PageHeader, Panel } from "@/components/dashboard/common/ui";
+import {
+  DashboardShell,
+  PageHeader,
+  Panel,
+} from "@/components/dashboard/common/ui";
 
 export default function ChatsLoading() {
   return (
@@ -14,6 +18,7 @@ export default function ChatsLoading() {
       <Panel className="flex-1 min-h-0 overflow-hidden">
         <div className="animate-pulse divide-y divide-sbi-dark-border/40">
           {Array.from({ length: 7 }).map((_, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static fixed-length skeleton placeholders, never reordered
             <div key={i} className="flex items-center gap-3 py-3.5">
               <div className="h-4 flex-1 rounded bg-white/5" />
               <div className="h-3 w-12 shrink-0 rounded bg-white/5" />

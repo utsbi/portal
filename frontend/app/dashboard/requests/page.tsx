@@ -55,7 +55,10 @@ export default function RequestsPage() {
       files: data.attachments,
     });
     if (!newRequest) {
-      toastError("Couldn't submit your request. Please try again.", "Submission failed");
+      toastError(
+        "Couldn't submit your request. Please try again.",
+        "Submission failed",
+      );
       return;
     }
     await loadRequests();
@@ -75,7 +78,11 @@ export default function RequestsPage() {
         subtitle={subtitle}
         action={
           isClient ? (
-            <button type="button" onClick={() => setIsModalOpen(true)} className={btnPrimary}>
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className={btnPrimary}
+            >
               <Plus className="w-4 h-4" /> New Request
             </button>
           ) : null
@@ -89,7 +96,10 @@ export default function RequestsPage() {
         size="lg"
         padded={false}
       >
-        <RequestForm onSubmit={handleNewRequest} onCancel={() => setIsModalOpen(false)} />
+        <RequestForm
+          onSubmit={handleNewRequest}
+          onCancel={() => setIsModalOpen(false)}
+        />
       </Modal>
 
       <main className="flex-1 overflow-hidden">
@@ -97,12 +107,17 @@ export default function RequestsPage() {
           <div className="flex items-center justify-center h-full">
             <div className="space-y-3 text-center">
               <div className="w-6 h-6 border border-sbi-green/50 border-t-sbi-green rounded-full animate-spin mx-auto" />
-              <p className="text-xs text-sbi-muted tracking-[0.15em] uppercase">Loading requests</p>
+              <p className="text-xs text-sbi-muted tracking-[0.15em] uppercase">
+                Loading requests
+              </p>
             </div>
           </div>
         ) : (
           <div className="h-full">
-            <RequestHistory requests={requests} onRowClick={setSelectedRequest} />
+            <RequestHistory
+              requests={requests}
+              onRowClick={setSelectedRequest}
+            />
           </div>
         )}
       </main>

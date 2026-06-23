@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { EmptyState } from "@/components/dashboard/common/ui";
 import { EventRow } from "./EventRow";
 import type { RsvpChoice } from "./hooks/useCalendarEvents";
 import type { CalendarEvent, RawCalendarEvent } from "./types";
 import { bucketEvents, eventMatchesSearch } from "./utils";
-import { EmptyState } from "@/components/dashboard/common/ui";
 
 interface Props {
   events: CalendarEvent[];

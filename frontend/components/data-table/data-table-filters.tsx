@@ -1,9 +1,9 @@
 "use client";
 
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { SearchableDropdown } from "@/components/data-table/searchable-dropdown";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { SearchableDropdown } from "@/components/data-table/searchable-dropdown";
 import { cn } from "@/lib/utils";
 
 export interface FilterDef {

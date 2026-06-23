@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Test (Vitest)
+        run: bun run test
+
       # `biome check` currently reports pre-existing errors across the tree, so
       # lint is advisory for now. Run `bun run lint:fix`, clean up the rest, then
       # drop continue-on-error to make it a blocking gate.
@@ -80,6 +83,9 @@ jobs:
       - name: Compile check
         run: uv run python -m compileall app
 
+      - name: Test (pytest)
+        run: uv run pytest -q
+
       # ruff and pyright are not yet project dependencies, so these run via
       # `uvx` (ephemeral) and are advisory for now. Flip continue-on-error to
       # false (and/or add them to backend dev deps) once the code is clean.
@@ -92,3 +98,16 @@ jobs:
         run: uvx pyright
         env:
           VIRTUAL_ENV: .venv
+
+  database:
+    name: Database (pgTAP RLS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The harness spins up a disposable supabase/postgres container, applies
+      # the shim + every migration (sorted) + grants + seed + helpers, then runs
+      # the pgTAP suites. Docker is preinstalled on ubuntu-latest. run.sh exits
+      # non-zero on any failed assertion.
+      - name: Run pgTAP RLS suite
+        run: bash supabase/tests/run.sh

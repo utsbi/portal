@@ -1,4 +1,8 @@
-import { DashboardShell, PageHeader, SectionLabel } from "@/components/dashboard/common/ui";
+import {
+  DashboardShell,
+  PageHeader,
+  SectionLabel,
+} from "@/components/dashboard/common/ui";
 
 export default function LifecycleLoading() {
   return (
@@ -20,9 +24,11 @@ export default function LifecycleLoading() {
           <div>
             <SectionLabel>All Projects</SectionLabel>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-56 rounded-xl bg-white/5" />
-              ))}
+              {Array.from({ length: 3 }, (_, i) => `project-${i}`).map(
+                (key) => (
+                  <div key={key} className="h-56 rounded-xl bg-white/5" />
+                ),
+              )}
             </div>
           </div>
         </div>

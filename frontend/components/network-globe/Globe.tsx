@@ -288,13 +288,7 @@ declare module "@react-three/fiber" {
 // Earth material component — loads 4 textures, animates cloud UV
 // ---------------------------------------------------------------------------
 
-function EarthMaterial({
-  sunDirection,
-  rotationSpeed = 0.001,
-}: {
-  sunDirection: THREE.Vector3;
-  rotationSpeed?: number;
-}) {
+function EarthMaterial({ sunDirection }: { sunDirection: THREE.Vector3 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   const [dayTex, nightTex, cloudTex, bumpTex] = useTexture(
@@ -397,16 +391,18 @@ export const Globe = forwardRef<GlobeRef, GlobeProps>(function Globe(
             depthWrite={false}
           />
         );
-      case "earth":
       default:
-        return <EarthMaterial sunDirection={sunDirection} rotationSpeed={rotationSpeed} />;
+        return <EarthMaterial sunDirection={sunDirection} />;
     }
   };
 
   return (
     <group ref={groupRef}>
       <Suspense fallback={null}>
-        <mesh geometry={geometry} onClick={onClickBackground}>{renderMaterial()}</mesh>
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: <mesh> is a react-three-fiber 3D object, not a DOM element; onClick is a WebGL pointer event for which ARIA roles/keyboard handlers do not apply. */}
+        <mesh geometry={geometry} onClick={onClickBackground}>
+          {renderMaterial()}
+        </mesh>
       </Suspense>
       {children}
     </group>

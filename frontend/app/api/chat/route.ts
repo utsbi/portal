@@ -310,32 +310,39 @@ export async function POST(request: NextRequest) {
 
   // Forward to FastAPI, propagating the client's abort signal so cancellation
   // tears down the upstream generation too.
-  const backendRes = await fetch(`${BACKEND_URL}/api/v1/chat/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
-      query: body.query,
-      history: body.history ?? [],
-      attachments: body.attachments ?? [],
-      include_sources: body.include_sources ?? true,
-      model_preference: modelPreference,
-      // Authoritative: the session's own project, not the live header.
-      project_id: sessionProjectId,
-    }),
-    signal: request.signal,
-  });
+  let backendRes: Response;
+  try {
+    backendRes = await fetch(`${BACKEND_URL}/api/v1/chat/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        query: body.query,
+        history: body.history ?? [],
+        attachments: body.attachments ?? [],
+        include_sources: body.include_sources ?? true,
+        model_preference: modelPreference,
+        // Authoritative: the session's own project, not the live header.
+        project_id: sessionProjectId,
+      }),
+      signal: request.signal,
+    });
+  } catch (fetchErr) {
+    console.error("[/api/chat] network error contacting backend:", fetchErr);
+    return jsonError(502, "Upstream request failed");
+  }
 
   if (!backendRes.ok || !backendRes.body) {
     const errText = await backendRes.text().catch(() => "");
-    return jsonError(
-      backendRes.status || 502,
-      errText || `Backend HTTP ${backendRes.status}`,
-    );
+    console.error(`Backend error ${backendRes.status}:`, errText);
+    return jsonError(502, "Upstream request failed");
   }
 
+  // `backendRes.body` is guaranteed non-null by the guard above; capture it
+  // here so the stream closure can read it without a non-null assertion.
+  const backendBody = backendRes.body;
   const sessionIdForClosure = sessionId;
   const assistantParentForClosure = assistantParentId;
   const isNewSessionForClosure = isNewSession;
@@ -404,7 +411,7 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       const encoder = new TextEncoder();
       const decoder = new TextDecoder();
-      const reader = backendRes.body!.getReader();
+      const reader = backendBody.getReader();
       let buffer = "";
       // Whether the assistant turn has already been written to the DB (via the
       // `result` event). If the client aborts mid-stream we never see `result`,
