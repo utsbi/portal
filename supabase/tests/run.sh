@@ -3,11 +3,12 @@
 # Container-based pgTAP RLS test harness for the Supabase schema.
 # =====================================================================
 # Why a throwaway container + raw psql instead of `supabase db reset` / `db test`:
-# the Supabase CLI rejects this repo's migrations because 8 files share 4
-# timestamps (duplicate migration versions). We do NOT rename migrations. Raw SQL
-# does not care about version uniqueness, so we apply every migration in sorted
-# filename order via `psql -f` against a disposable Postgres container — exactly
-# how these migrations were originally validated.
+# this harness validates the schema directly against a disposable Postgres
+# container, applying every migration in sorted filename order via `psql -f` —
+# exactly how these migrations were originally validated, and decoupled from the
+# Supabase CLI (prod is deployed via MCP apply_migration, not `db push`). Note:
+# migration versions are all unique, so `supabase db reset` works locally too;
+# this container path stays the source of truth for the RLS test run.
 #
 # Pipeline (matches production ordering):
 #   shim  -> baseline migration -> grants -> remaining migrations
