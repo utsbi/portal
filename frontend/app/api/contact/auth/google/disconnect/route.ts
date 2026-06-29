@@ -1,5 +1,6 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { decryptToken } from "@/lib/crypto/tokens";
 import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -43,11 +44,12 @@ export async function POST() {
     string,
     unknown
   >;
-  const accessToken = existingGoogle.access_token as string | undefined;
+  const rawAccessToken = existingGoogle.access_token as string | undefined;
 
   // Best-effort revoke at Google. We don't fail the disconnect if this errors.
-  if (accessToken) {
+  if (rawAccessToken) {
     try {
+      const accessToken = decryptToken(rawAccessToken);
       await fetch(
         `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`,
         {

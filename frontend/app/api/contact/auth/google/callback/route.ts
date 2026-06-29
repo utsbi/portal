@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { encryptToken } from "@/lib/crypto/tokens";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -104,8 +105,10 @@ export async function GET(req: Request) {
     ...existingConfig,
     google: {
       ...existingGoogle,
-      refresh_token: tokens.refresh_token,
-      access_token: tokens.access_token ?? null,
+      refresh_token: encryptToken(tokens.refresh_token),
+      access_token: tokens.access_token
+        ? encryptToken(tokens.access_token)
+        : null,
       scope: tokens.scope ?? null,
       token_type: tokens.token_type ?? null,
       expiry_date: tokens.expiry_date ?? null,

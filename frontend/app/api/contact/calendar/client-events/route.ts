@@ -1,6 +1,7 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { decryptToken } from "@/lib/crypto/tokens";
 import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -180,13 +181,14 @@ export async function GET(req: Request) {
     for (const director of directors ?? []) {
       const config = (director.config ?? {}) as Record<string, unknown>;
       const google_ = (config.google ?? {}) as DirectorConfig;
-      const refreshToken = google_.refresh_token;
+      const rawRefreshToken = google_.refresh_token;
       const calendarId = google_.calendar_id;
 
-      if (!refreshToken || !calendarId) continue;
+      if (!rawRefreshToken || !calendarId) continue;
       connectedCount += 1;
 
       try {
+        const refreshToken = decryptToken(rawRefreshToken);
         oauth2.setCredentials({ refresh_token: refreshToken });
         const cal = google.calendar({ version: "v3", auth: oauth2 });
 
