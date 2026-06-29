@@ -181,6 +181,18 @@ function buildMarkdownComponents(sources: SourceDocument[]): Components {
         </a>
       );
     },
+    img: ({ alt }) => {
+      // Model/RAG-authored images are an uncontrolled egress channel: a single
+      // `![](http://tracker…)` in a response would auto-fetch without user intent.
+      // Unlike `a` (which requires a click), images load immediately, so even an
+      // https src is a silent tracking vector. Render a non-loading placeholder that
+      // preserves the alt text without making any outbound request.
+      return (
+        <span className="inline-flex items-center gap-1 rounded border border-sbi-dark-border px-2 py-0.5 text-xs text-sbi-muted">
+          [image{alt ? `: ${alt}` : ""}]
+        </span>
+      );
+    },
     blockquote: ({ children }) => (
       <blockquote className="border-l-2 border-sbi-green/40 pl-4 italic text-sbi-muted">
         {processCitations(children, sources)}
