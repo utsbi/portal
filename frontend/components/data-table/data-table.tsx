@@ -1,6 +1,6 @@
 "use client";
 
-import { CaretDownIcon, CaretUpIcon, ColumnsIcon } from "@phosphor-icons/react";
+import { ChevronDown, ChevronUp, Columns2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import React, {
   useCallback,
@@ -399,7 +399,7 @@ export function DataTable<T extends Record<string, any>>({
         onClick={() => setColumnToggleOpen((prev) => !prev)}
         className="flex items-center gap-1.5 px-3 py-2 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input"
       >
-        <ColumnsIcon size={14} />
+        <Columns2 size={14} />
         Columns
       </button>
       <AnimatePresence>
@@ -563,20 +563,20 @@ export function DataTable<T extends Record<string, any>>({
                         <span className="inline-flex flex-col items-center -space-y-1">
                           {isActive ? (
                             sortDirection === "asc" ? (
-                              <CaretUpIcon
+                              <ChevronUp
                                 size={14}
-                                weight="bold"
+                                strokeWidth={2.5}
                                 className="text-sbi-green"
                               />
                             ) : (
-                              <CaretDownIcon
+                              <ChevronDown
                                 size={14}
-                                weight="bold"
+                                strokeWidth={2.5}
                                 className="text-sbi-green"
                               />
                             )
                           ) : (
-                            <CaretDownIcon
+                            <ChevronDown
                               size={14}
                               className="text-sbi-muted-dark/40"
                             />
@@ -700,7 +700,7 @@ export function DataTable<T extends Record<string, any>>({
                                   onClick={() => toggleExpanded(key)}
                                   className="p-1 rounded-lg hover:bg-white/[0.06] transition-colors"
                                 >
-                                  <CaretDownIcon
+                                  <ChevronDown
                                     size={14}
                                     className={cn(
                                       "text-sbi-muted transition-transform duration-200",

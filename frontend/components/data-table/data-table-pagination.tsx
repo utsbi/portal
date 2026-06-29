@@ -1,6 +1,6 @@
 "use client";
 
-import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DataTablePaginationProps {
@@ -39,7 +39,7 @@ export function DataTablePagination({
               "opacity-30 cursor-not-allowed pointer-events-none",
           )}
         >
-          <CaretLeftIcon size={14} />
+          <ChevronLeft size={14} />
         </button>
 
         {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -88,7 +88,7 @@ export function DataTablePagination({
               "opacity-30 cursor-not-allowed pointer-events-none",
           )}
         >
-          <CaretRightIcon size={14} />
+          <ChevronRight size={14} />
         </button>
       </div>
     </div>

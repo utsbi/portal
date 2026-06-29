@@ -21,11 +21,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { EmptyState, inputClass } from "@/components/dashboard/common/ui";
 import { type ColumnDef, DataTable } from "@/components/data-table";
-import { SearchableDropdown } from "@/components/data-table/searchable-dropdown";
 import { StatusPill } from "@/components/data-table/status-pill";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
 import {
   Table,
   TableBody,
