@@ -263,7 +263,7 @@ class TestMaxToolIterations:
                 yield chunk
             return _inner()
 
-        async def _fake_execute_tool(name, args, client_id, access_token, project_id=None):
+        async def _fake_execute_tool(name, args, client_id, access_token, project_id=None, **kwargs):
             return "tool result text", []
 
         with (
@@ -318,7 +318,7 @@ class TestMaxToolIterations:
                     yield _make_chunk(content="SBI is a sustainable building org.")
                 return _answer()
 
-        async def _fake_execute_tool(name, args, client_id, access_token, project_id=None):
+        async def _fake_execute_tool(name, args, client_id, access_token, project_id=None, **kwargs):
             return "SBI knowledge text", []
 
         with (

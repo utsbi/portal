@@ -70,6 +70,28 @@ async def run_graph_streaming(
     history = history or []
     attachments = attachments or []
 
+    # Per-turn RLS client and project-id list, resolved lazily on the first
+    # tool call and then reused across all subsequent tool calls in this turn.
+    # This avoids N × (1 client creation + 2 DB queries) for N concurrent
+    # tools in asyncio.gather.  The asyncio.Lock prevents the case where two
+    # coroutines both see the "not yet resolved" flag and race to build the
+    # client concurrently (asyncio's cooperative scheduling makes this a real
+    # risk whenever the resolution path contains an ``await``).
+    _turn_lock = asyncio.Lock()
+    _turn_db: list = [None]   # mutable single-element container (closure target)
+    _turn_pids: list = [None]  # same — holds Optional[List[int]]
+
+    async def _resolve_turn_ctx():
+        async with _turn_lock:
+            if _turn_db[0] is None:
+                from app.explore.db.supabase import user_client as _uc
+                from app.explore.services.membership import (
+                    scoped_project_ids as _spi,
+                )
+                _turn_db[0] = _uc(access_token)
+                _turn_pids[0] = await _spi(_turn_db[0], client_id, project_id)
+        return _turn_db[0], _turn_pids[0]
+
     # First turn: start best-effort title generation as a background task so it
     # overlaps the first model call instead of serializing a full round-trip
     # ahead of it. ``generate_title`` already falls back internally, so the task
@@ -323,10 +345,19 @@ async def run_graph_streaming(
         for name, tc_id, args in parsed_calls:
             yield {"type": "tool_call", "id": tc_id, "name": name, "input": args}
 
+        # Resolve the per-turn RLS client and project-id list ONCE, then pass
+        # them to every execute_tool call so each tool skips its own
+        # user_client() + scoped_project_ids() queries.
+        _turn_context_db, _turn_context_pids = await _resolve_turn_ctx()
+
         # Execute all tool calls concurrently; asyncio.gather preserves order.
         tool_results = await asyncio.gather(
             *(
-                execute_tool(name, args, client_id, access_token, project_id)
+                execute_tool(
+                    name, args, client_id, access_token, project_id,
+                    db=_turn_context_db,
+                    resolved_project_ids=_turn_context_pids,
+                )
                 for name, tc_id, args in parsed_calls
             )
         )
