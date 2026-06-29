@@ -221,6 +221,15 @@ export async function submitPublicForm(
     };
   }
 
+  // Bot check BEFORE any password verification. Checking the password first
+  // would expose a timing/response oracle: an attacker could probe whether a
+  // password is correct by observing whether they receive "Incorrect password."
+  // vs "Captcha verification failed." Turnstile runs first so the password gate
+  // is only reachable by requests that have passed the bot challenge.
+  if (!(await verifyTurnstile(input.turnstileToken))) {
+    return { error: "Captcha verification failed. Please try again." };
+  }
+
   // Re-verify the password gate server-side on submit (never trust the client).
   if (row.visibility === "password") {
     if (
@@ -230,11 +239,6 @@ export async function submitPublicForm(
     ) {
       return { error: "Incorrect password." };
     }
-  }
-
-  // Bot check.
-  if (!(await verifyTurnstile(input.turnstileToken))) {
-    return { error: "Captcha verification failed. Please try again." };
   }
 
   // Submitter identity.

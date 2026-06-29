@@ -105,6 +105,26 @@ class TestCorsReflection:
 # the remote address only for unauthenticated requests.
 # ---------------------------------------------------------------------------
 
+def _make_jwt(sub: str) -> str:
+    """Build a minimal unsigned JWT string with the given ``sub`` claim.
+
+    The limiter key function only decodes the payload — it does not verify the
+    signature (that is the auth dependency's job). A fake signature segment
+    is sufficient for unit tests that only exercise the key derivation.
+    """
+    import base64
+    import json
+
+    header = (
+        base64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}')
+        .rstrip(b"=")
+        .decode()
+    )
+    payload_bytes = json.dumps({"sub": sub, "role": "authenticated"}).encode()
+    payload = base64.urlsafe_b64encode(payload_bytes).rstrip(b"=").decode()
+    return f"{header}.{payload}.fakesignature"
+
+
 class TestRateLimiterKeying:
     def test_unauthenticated_request_falls_back_to_remote_address(self):
         from slowapi.util import get_remote_address
@@ -122,21 +142,57 @@ class TestRateLimiterKeying:
     def test_two_users_one_ip_should_not_share_bucket(self):
         from app.explore.core.limiter import limiter
 
-        # Build two fake requests: same client IP, different bearer/user.
-        def _req(ip, token):
+        # Build two fake requests: same client IP, different JWT sub (user id).
+        # The key must be derived from the stable sub claim, NOT the raw token —
+        # keying on the raw token would create a new bucket on every refresh.
+        def _req(ip: str, sub: str):
             r = MagicMock()
             r.client = MagicMock()
             r.client.host = ip
-            r.headers = {"Authorization": f"Bearer {token}"}
+            r.headers = {"Authorization": f"Bearer {_make_jwt(sub)}"}
             return r
 
-        key_user_a = limiter._key_func(_req("10.0.0.1", "user-a-token"))
-        key_user_b = limiter._key_func(_req("10.0.0.1", "user-b-token"))
-        # A correct (per-user) key function would differ for different users.
+        key_user_a = limiter._key_func(_req("10.0.0.1", "uuid-user-a"))
+        key_user_b = limiter._key_func(_req("10.0.0.1", "uuid-user-b"))
+        # Two distinct sub claims on the same IP must produce different buckets.
         assert key_user_a != key_user_b, (
             "two distinct authenticated users on one IP must not share a "
             "rate-limit bucket"
         )
+
+    def test_token_refresh_keeps_same_bucket(self):
+        from app.explore.core.limiter import limiter
+
+        # Two different tokens for the same user (simulating a token refresh)
+        # must resolve to the same bucket — otherwise a refresh bypasses limits.
+        def _req(token: str):
+            r = MagicMock()
+            r.client = MagicMock()
+            r.client.host = "10.0.0.1"
+            r.headers = {"Authorization": f"Bearer {token}"}
+            return r
+
+        user_id = "stable-user-uuid-1234"
+        token_before_refresh = _make_jwt(user_id)
+        # Simulate a token refresh: same sub, different token string.
+        import base64
+        import json
+
+        header = (
+            base64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}')
+            .rstrip(b"=")
+            .decode()
+        )
+        payload_bytes = json.dumps(
+            {"sub": user_id, "role": "authenticated", "iat": 9999}
+        ).encode()
+        payload = base64.urlsafe_b64encode(payload_bytes).rstrip(b"=").decode()
+        token_after_refresh = f"{header}.{payload}.differentfakesig"
+
+        assert token_before_refresh != token_after_refresh, "tokens must differ"
+        assert limiter._key_func(_req(token_before_refresh)) == limiter._key_func(
+            _req(token_after_refresh)
+        ), "same user must map to the same bucket after a token refresh"
 
 
 # ---------------------------------------------------------------------------
