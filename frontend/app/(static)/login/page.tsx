@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import bg from "@/assets/images/login.jpg";
 import { BrandLoader } from "@/components/brand-loader";
@@ -19,7 +20,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loginAttempts, setLoginAttempts] = useState(0);
   const [portalTypeIndex, setPortalTypeIndex] = useState(0);
   const [formState, setFormState] = useState({
     email: "",
@@ -66,9 +66,6 @@ export default function LoginPage() {
 
       if (!result.success) {
         setError(result.error || "An error occurred. Please try again.");
-        if (result.error === "Invalid email or password") {
-          setLoginAttempts((prev) => prev + 1);
-        }
         return;
       }
 
@@ -102,7 +99,7 @@ export default function LoginPage() {
       setError("Failed to send reset email. Please try again.");
     } else {
       setError(null);
-      alert("Password reset email sent. Please check your inbox.");
+      toast.success("Password reset email sent. Please check your inbox.");
     }
   };
 
@@ -137,12 +134,6 @@ export default function LoginPage() {
             transition={{ delay: 0.1, duration: 0.6 }}
             className="text-center mb-12"
           >
-            {/* <Link href="/" className="inline-block group"> */}
-            {/*   <span className="text-4xl font-light tracking-tight"> */}
-            {/*     <span className="text-sbi-green">S</span>BI */}
-            {/*   </span> */}
-            {/*   <div className="h-px w-0 bg-sbi-green group-hover:w-full transition-all duration-300 mx-auto" /> */}
-            {/* </Link> */}
             <p className="mt-4 text-sbi-muted text-sm tracking-wider uppercase flex items-center justify-center gap-[0.3em]">
               <span>SBI</span>
               <AnimatePresence mode="wait">
@@ -257,17 +248,15 @@ export default function LoginPage() {
                   </motion.p>
                 )}
 
-                {loginAttempts >= 2 && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <button
-                      type="button"
-                      onClick={handleForgotPassword}
-                      className="text-sm text-white/50 hover:text-sbi-green transition-colors"
-                    >
-                      Forgot your password?
-                    </button>
-                  </motion.div>
-                )}
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-sm text-white/50 hover:text-sbi-green transition-colors"
+                  >
+                    Forgot your password?
+                  </button>
+                </div>
 
                 <motion.button
                   type="submit"
