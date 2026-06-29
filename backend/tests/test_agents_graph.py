@@ -3,6 +3,8 @@
 Covers:
   - Title task created only on first turn (no history), not on subsequent turns
   - MAX_TOOL_ITERATIONS constant is 4
+  - Attachment injection: text appears in model context, per-file cap enforced,
+    empty attachments leave context unchanged
   - Streaming loop: emits phase/delta/result events in a no-tool scenario (mocked LLM)
   - MAX_TOOL_ITERATIONS caps the loop when tool calls are always returned
 
@@ -342,3 +344,131 @@ class TestMaxToolIterations:
         types = [e.get("type") for e in events]
         assert "tool_call" in types
         assert "tool_result" in types
+
+
+# ---------------------------------------------------------------------------
+# Attachment injection into model context
+# ---------------------------------------------------------------------------
+
+class TestAttachmentInjection:
+    """Attachment content must be injected into the messages sent to the model."""
+
+    async def test_attachment_text_appears_in_model_context(self):
+        """Known attachment text must be present in the messages list on the first call."""
+        captured_messages: list = []
+
+        async def _capturing_stream(**kwargs):
+            if not captured_messages:
+                captured_messages.extend(kwargs.get("messages", []))
+            async def _inner():
+                yield _make_chunk(content="Based on the document, the budget is $1.5M.")
+            return _inner()
+
+        attachments = [
+            {
+                "filename": "report.pdf",
+                "content": "Project budget is $1.5M",
+                "file_type": "pdf",
+            }
+        ]
+
+        with (
+            patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
+            patch(_PATCHES["user_client"], return_value=MagicMock()),
+            patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
+            patch(_PATCHES["openrouter_client"]) as mock_client,
+        ):
+            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+
+            events = []
+            async for event in run_graph_streaming(
+                query="What is the budget?",
+                client_id="uid",
+                access_token="tok",
+                history=[],
+                attachments=attachments,
+            ):
+                events.append(event)
+
+        combined = " ".join(
+            m["content"] for m in captured_messages if isinstance(m.get("content"), str)
+        )
+        assert "Project budget is $1.5M" in combined
+        assert "report.pdf" in combined
+
+    async def test_attachment_text_truncated_to_per_file_cap(self):
+        """Attachment content exceeding _ATTACHMENT_CHARS_PER_FILE must be truncated."""
+        from app.explore.agents.graph import _ATTACHMENT_CHARS_PER_FILE
+
+        captured_messages: list = []
+
+        async def _capturing_stream(**kwargs):
+            if not captured_messages:
+                captured_messages.extend(kwargs.get("messages", []))
+            async def _inner():
+                yield _make_chunk(content="Answer.")
+            return _inner()
+
+        oversized_content = "A" * (_ATTACHMENT_CHARS_PER_FILE + 5_000)
+        attachments = [
+            {"filename": "big.pdf", "content": oversized_content, "file_type": "pdf"}
+        ]
+
+        with (
+            patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
+            patch(_PATCHES["user_client"], return_value=MagicMock()),
+            patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
+            patch(_PATCHES["openrouter_client"]) as mock_client,
+        ):
+            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+
+            events = []
+            async for event in run_graph_streaming(
+                query="summarize",
+                client_id="uid",
+                access_token="tok",
+                history=[],
+                attachments=attachments,
+            ):
+                events.append(event)
+
+        combined = " ".join(
+            m["content"] for m in captured_messages if isinstance(m.get("content"), str)
+        )
+        # The oversized original must not appear verbatim
+        assert oversized_content not in combined
+        # But the file must still contribute content up to the cap
+        assert "A" * 100 in combined
+
+    async def test_no_attachments_leaves_context_unchanged(self):
+        """When no attachments are provided, no attachment system block must appear."""
+        captured_messages: list = []
+
+        async def _capturing_stream(**kwargs):
+            if not captured_messages:
+                captured_messages.extend(kwargs.get("messages", []))
+            async def _inner():
+                yield _make_chunk(content="No attachments here.")
+            return _inner()
+
+        with (
+            patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
+            patch(_PATCHES["user_client"], return_value=MagicMock()),
+            patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
+            patch(_PATCHES["openrouter_client"]) as mock_client,
+        ):
+            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+
+            events = []
+            async for event in run_graph_streaming(
+                query="What is SBI?",
+                client_id="uid",
+                access_token="tok",
+                history=[],
+                attachments=[],
+            ):
+                events.append(event)
+
+        for m in captured_messages:
+            content = m.get("content") or ""
+            assert "User-attached documents" not in content

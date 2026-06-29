@@ -9,6 +9,16 @@ logger = logging.getLogger(__name__)
 # never spin the turn forever.
 MAX_TOOL_ITERATIONS = 4
 
+# Character caps for injecting attachment content into the model context.
+# The Pydantic schema already enforces 100 000 chars per file; these tighter
+# limits prevent a single large attachment from dominating the prompt while
+# still providing meaningful document coverage.
+_ATTACHMENT_CHARS_PER_FILE = 20_000
+# Aggregate cap across all attachments combined. With up to 10 attachments,
+# the uncapped maximum would be 200 000 chars; 40 000 is sufficient for
+# rich multi-document queries while keeping token cost predictable.
+_ATTACHMENT_CHARS_TOTAL = 40_000
+
 
 async def run_graph_streaming(
     query: str,
@@ -106,6 +116,40 @@ async def run_graph_streaming(
                 messages.append({"role": "system", "content": project_context})
         except Exception:
             logger.exception("Project-context injection failed; continuing without it")
+
+    # Inject attachment content as a system-level context block so the model
+    # can reference user-uploaded documents when answering. Content arrives
+    # pre-extracted (via /chat/extract-text); no parsing is needed here.
+    # Each file is truncated to _ATTACHMENT_CHARS_PER_FILE and the combined
+    # block is capped at _ATTACHMENT_CHARS_TOTAL so a large upload can never
+    # dominate the prompt or blow past token budgets.
+    if attachments:
+        attachment_parts: List[str] = []
+        total_attachment_chars = 0
+        for att in attachments:
+            if total_attachment_chars >= _ATTACHMENT_CHARS_TOTAL:
+                break
+            content = (att.get("content") or "").strip()
+            if not content:
+                continue
+            remaining = _ATTACHMENT_CHARS_TOTAL - total_attachment_chars
+            per_file_cap = min(_ATTACHMENT_CHARS_PER_FILE, remaining)
+            truncated = content[:per_file_cap]
+            total_attachment_chars += len(truncated)
+            filename = att.get("filename", "attachment")
+            file_type = att.get("file_type", "")
+            type_suffix = f" ({file_type})" if file_type else ""
+            attachment_parts.append(f"--- {filename}{type_suffix} ---\n{truncated}")
+        if attachment_parts:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "User-attached documents (reference these when answering "
+                    "document-specific questions; they take precedence over "
+                    "general knowledge for their content):\n\n"
+                    + "\n\n".join(attachment_parts)
+                ),
+            })
 
     for msg in history[-10:]:
         role = msg.get("role", "user")
