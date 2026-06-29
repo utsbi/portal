@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireDirector } from "@/lib/auth/guards";
 import { notifyFormSubmission } from "@/lib/questionnaire/notify";
 import { generatePublicToken, hashPassword } from "@/lib/questionnaire/public";
 import type { AnswerMap } from "@/lib/questionnaire/schema";
@@ -29,33 +30,9 @@ const BUILDER_PATH = "/dashboard/questionnaire/builder";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
-type DirectorGate =
-  | { ok: false; error: string }
-  | { ok: true; supabase: Supabase; userId: string; profileId: number };
-
 type AuthGate =
   | { ok: false; error: string }
   | { ok: true; supabase: Supabase; userId: string };
-
-async function requireDirector(): Promise<DirectorGate> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-  if (authError || !user) return { ok: false, error: "Not authenticated" };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, role")
-    .eq("uid", user.id)
-    .maybeSingle();
-  if (!profile) return { ok: false, error: "Profile not found" };
-  if (profile.role !== "director") {
-    return { ok: false, error: "Director role required" };
-  }
-  return { ok: true, supabase, userId: user.id, profileId: profile.id };
-}
 
 async function requireAuth(): Promise<AuthGate> {
   const supabase = await createClient();

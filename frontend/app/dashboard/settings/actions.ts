@@ -1,19 +1,17 @@
 "use server";
 
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { requireDirector } from "@/lib/auth/guards";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from "./types";
 
-function getAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
-  if (!supabaseUrl || !supabaseSecretKey) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY environment variable",
-    );
-  }
-  return createAdminClient(supabaseUrl, supabaseSecretKey);
-}
+// ---------------------------------------------------------------------------
+// requireUser — personal-account gate (any authenticated user).
+//
+// Uses the RLS-respecting server client for both the auth check and the
+// profile read.  A user reading / updating their own profile is permitted by
+// RLS, so the service-role client is not needed here.
+// ---------------------------------------------------------------------------
 
 async function requireUser() {
   const supabase = await createClient();
@@ -22,8 +20,7 @@ async function requireUser() {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" as const };
 
-  const admin = getAdminClient();
-  const { data: profile } = await admin
+  const { data: profile } = await supabase
     .from("profiles")
     .select("id, role, name, email, department, config")
     .eq("uid", user.id)
@@ -33,33 +30,10 @@ async function requireUser() {
 
   return {
     error: null,
-    admin,
     supabase,
     uid: user.id,
     profile,
   };
-}
-
-async function requireDirector() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return { error: "Not authenticated" as const, admin: null, uid: null };
-
-  const admin = getAdminClient();
-  const { data: caller } = await admin
-    .from("profiles")
-    .select("id, role")
-    .eq("uid", user.id)
-    .single();
-
-  if (!caller || caller.role !== "director") {
-    return { error: "Not authorized" as const, admin: null, uid: null };
-  }
-
-  return { error: null, admin, uid: user.id, profileId: caller.id };
 }
 
 // ============================================================
@@ -74,12 +48,10 @@ export async function createAccount(data: {
   companyName?: string;
   department?: string;
 }) {
-  const {
-    error: authzError,
-    admin,
-    profileId: callerProfileId,
-  } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized" };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  const admin = createAdminClient();
+  const callerProfileId = gate.profileId;
 
   if (data.password.length < 8) {
     return { error: "Password must be at least 8 characters" };
@@ -173,9 +145,9 @@ export async function createAccount(data: {
 }
 
 export async function listAccounts() {
-  const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin)
-    return { error: authzError || "Not authorized", accounts: [] };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error, accounts: [] };
+  const admin = createAdminClient();
 
   const { data: profiles, error } = await admin
     .from("profiles")
@@ -192,12 +164,10 @@ export async function updateAccount(data: {
   role: "client" | "director" | "member";
   department: string | null;
 }) {
-  const {
-    error: authzError,
-    admin,
-    profileId: callerProfileId,
-  } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized" };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  const admin = createAdminClient();
+  const callerProfileId = gate.profileId;
 
   const name = data.name.trim();
   if (name.length < 2) return { error: "Name must be at least 2 characters" };
@@ -235,8 +205,10 @@ export async function updateAccount(data: {
 }
 
 export async function deleteAccount(profileId: number) {
-  const { error: authzError, admin, uid } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized" };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  const admin = createAdminClient();
+  const uid = gate.userId;
 
   // Get the profile to delete
   const { data: profile } = await admin
@@ -261,9 +233,10 @@ export async function deleteAccount(profileId: number) {
 // ============================================================
 
 export async function listProjects() {
-  const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin)
-    return { error: authzError || "Not authorized", projects: [] };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error, projects: [] };
+  const admin = createAdminClient();
+
   const { data, error } = await admin
     .from("projects")
     .select("id, url_slug, company_name")
@@ -274,9 +247,9 @@ export async function listProjects() {
 }
 
 export async function listProjectMembers(projectId: number) {
-  const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin)
-    return { error: authzError || "Not authorized", members: [] };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error, members: [] };
+  const admin = createAdminClient();
 
   // project_members has two FKs to profiles (profile_id + assigned_by), so
   // we name the constraints. Aliasing the assigner embed as `assigner` keeps
@@ -352,12 +325,10 @@ export async function assignMemberToProject(
   profileId: number,
   projectId: number,
 ) {
-  const {
-    error: authzError,
-    admin,
-    profileId: callerProfileId,
-  } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized" };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  const admin = createAdminClient();
+  const callerProfileId = gate.profileId;
 
   const { error } = await admin.from("project_members").insert({
     profile_id: profileId,
@@ -383,8 +354,9 @@ export async function removeMemberFromProject(membershipId: number) {
     return { error: "Invalid membership id" };
   }
 
-  const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized" };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  const admin = createAdminClient();
 
   const { error } = await admin
     .from("project_members")
@@ -399,12 +371,10 @@ export async function assignOwnerToProject(
   profileId: number,
   projectId: number,
 ) {
-  const {
-    error: authzError,
-    admin,
-    profileId: callerProfileId,
-  } = await requireDirector();
-  if (authzError || !admin) return { error: authzError || "Not authorized" };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  const admin = createAdminClient();
+  const callerProfileId = gate.profileId;
 
   // Verify the target is actually a client.
   const { data: target } = await admin
@@ -442,9 +412,9 @@ export async function assignOwnerToProject(
 }
 
 export async function listAvailableOwners(projectId: number) {
-  const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin)
-    return { error: authzError || "Not authorized", clients: [] };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error, clients: [] };
+  const admin = createAdminClient();
 
   // All clients not already a member of this project.
   const { data: existing } = await admin
@@ -468,9 +438,9 @@ export async function listAvailableOwners(projectId: number) {
 }
 
 export async function listUnassignedMembers(projectId: number) {
-  const { error: authzError, admin } = await requireDirector();
-  if (authzError || !admin)
-    return { error: authzError || "Not authorized", members: [] };
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error, members: [] };
+  const admin = createAdminClient();
 
   // Get all members not already in this project
   const { data: existingIds } = await admin
@@ -538,7 +508,7 @@ export async function updateMyProfile(data: {
 
   const department = data.department?.trim() || null;
 
-  const { error } = await ctx.admin
+  const { error } = await ctx.supabase
     .from("profiles")
     .update({ name, department })
     .eq("id", ctx.profile.id);
@@ -568,7 +538,7 @@ export async function updateMyNotificationPrefs(prefs: NotificationPrefs) {
   const config = (ctx.profile.config as Record<string, unknown>) || {};
   const nextConfig = { ...config, notifications: prefs };
 
-  const { error } = await ctx.admin
+  const { error } = await ctx.supabase
     .from("profiles")
     .update({ config: nextConfig })
     .eq("id", ctx.profile.id);
