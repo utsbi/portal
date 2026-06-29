@@ -300,6 +300,8 @@ async def run_graph_streaming(
             yield {"type": "phase", "phase": "searching"}
             searched_emitted = True
 
+        # Parse all tool call args upfront (sync, cheap).
+        parsed_calls = []
         for i, tc in enumerate(tool_calls):
             name = tc["name"] or ""
             # Include the iteration in the fallback id so a provider that omits
@@ -315,14 +317,23 @@ async def run_graph_streaming(
             except (json.JSONDecodeError, TypeError):
                 logger.warning(f"Failed to parse tool args for {name}: {raw_args!r}")
                 args = {}
+            parsed_calls.append((name, tc_id, args))
 
+        # Emit tool_call events in deterministic input order before any I/O.
+        for name, tc_id, args in parsed_calls:
             yield {"type": "tool_call", "id": tc_id, "name": name, "input": args}
 
-            result_text, sources = await execute_tool(
-                name, args, client_id, access_token, project_id
+        # Execute all tool calls concurrently; asyncio.gather preserves order.
+        tool_results = await asyncio.gather(
+            *(
+                execute_tool(name, args, client_id, access_token, project_id)
+                for name, tc_id, args in parsed_calls
             )
-            collected_sources.extend(sources)
+        )
 
+        # Emit tool_result events and append history messages in the same stable order.
+        for (name, tc_id, args), (result_text, sources) in zip(parsed_calls, tool_results):
+            collected_sources.extend(sources)
             yield {"type": "tool_result", "id": tc_id, "name": name, "output": {
                 "sources": [
                     {"filename": s.get("filename"), "page_number": s.get("page_number")}
@@ -330,7 +341,6 @@ async def run_graph_streaming(
                 ],
                 "text": (result_text or "")[:1200],
             }}
-
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc_id,

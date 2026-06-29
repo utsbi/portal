@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from typing import List, Dict, Any, Optional
@@ -144,29 +145,33 @@ class RAGService:
         client_id: Optional[str] = None, limit: int = 5,
         vector_weight: float = 0.7) -> List[Dict[str, Any]]:
         """Perform hybrid search combining vector similarity and keyword matching."""
-        # Get vector search results
-        vector_results = await self.search_documents(
-            query=query,
-            project_ids=project_ids,
-            client_id=client_id,
-            limit=limit * 2
-        )
-
-        # Get keyword search results
-        keyword_results = await self._keyword_search(
-            query=query,
-            project_ids=project_ids,
-            client_id=client_id,
-            limit=limit * 2
+        # Run vector and keyword searches concurrently.
+        vector_results, keyword_results = await asyncio.gather(
+            self.search_documents(
+                query=query,
+                project_ids=project_ids,
+                client_id=client_id,
+                limit=limit * 2,
+            ),
+            self._keyword_search(
+                query=query,
+                project_ids=project_ids,
+                client_id=client_id,
+                limit=limit * 2,
+            ),
         )
 
         # Reciprocal Rank Fusion
-        combined_scores: Dict[int, Dict[str, Any]] = {}
+        # Keys must be stable and non-None; skip id-less docs so multiple
+        # None-id candidates never collapse into one corrupted bucket.
+        combined_scores: Dict[Any, Dict[str, Any]] = {}
         k = 60
 
         # Score vector results
         for rank, doc in enumerate(vector_results):
             doc_id = doc["id"]
+            if doc_id is None:
+                continue
             rrf_score = vector_weight / (k + rank + 1)
             combined_scores[doc_id] = {
                 **doc,
@@ -177,6 +182,8 @@ class RAGService:
         keyword_weight = 1 - vector_weight
         for rank, doc in enumerate(keyword_results):
             doc_id = doc["id"]
+            if doc_id is None:
+                continue
             rrf_score = keyword_weight / (k + rank + 1)
 
             if doc_id in combined_scores:
@@ -321,6 +328,7 @@ class RAGService:
                 .select("id, content, metadata") \
                 .or_(scope) \
                 .text_search("content", query, options={"type": "plain"}) \
+                .limit(limit) \
                 .execute()
 
             if not result.data:

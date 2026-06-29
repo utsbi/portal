@@ -8,7 +8,6 @@ Exposes these tools to the model:
   - ``get_reports`` — live project reports for the caller's project(s).
   - ``get_finance_summary`` — live budget/spend summary for the caller's project(s).
   - ``get_requests`` — live client requests (``tickets`` with ``ticket_type='request'``).
-  - ``get_calendar_events`` — upcoming Google Calendar events for the caller (see note).
 
 ``TOOLS`` is the OpenAI function-calling schema list passed to the chat
 completion. ``execute_tool`` dispatches a single tool call and returns the tool
@@ -191,18 +190,6 @@ TOOLS: List[Dict[str, Any]] = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_calendar_events",
-            "description": (
-                "Get the client's upcoming calendar events (meetings) scheduled "
-                "with their SBI team. Use this for 'what meetings do I have?', "
-                "'when is my next meeting?', or 'what's on my calendar?'."
-            ),
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
 ]
 
 
@@ -286,7 +273,6 @@ def _search_sbi_knowledge(query: str) -> Tuple[str, List[Dict[str, Any]]]:
 #   finance:        project_budgets.project_id IN (ids)
 #                     -> budget_categories.budget_id IN (budget ids)  (the budget)
 #                     -> budget_transactions.budget_id IN (budget ids)  (the spend)
-#   calendar:       Google Calendar (OAuth), not Supabase — see _get_calendar_events
 #
 # No project id is ever taken from model/user input; an empty project list short
 # -circuits to a "no data" summary so an unscoped (cross-tenant) query is
@@ -630,30 +616,6 @@ async def _get_requests(db: Client, client_id: str, project_id: Optional[int]) -
     return "\n".join(lines)
 
 
-async def _get_calendar_events(client_id: str) -> str:
-    """Upcoming Google Calendar events for the caller.
-
-    Calendar data lives in Google Calendar (OAuth), not Supabase: the frontend
-    route ``/api/contact/calendar/client-events`` refreshes a connected
-    director's Google token (stored in ``profiles.config.google``) and matches
-    events to the client by attendee email. The backend does not currently carry
-    the Google OAuth client credentials (``GOOGLE_CLIENT_ID``/``_SECRET``) in its
-    settings, so the token-refresh + Calendar API path cannot be performed here
-    safely without guessing config. Until that is wired up, this returns a clear
-    not-available message rather than broken/guessed Google code.
-    """
-    # TODO(confirm): wire Google Calendar — add GOOGLE_CLIENT_ID/SECRET to the
-    # backend settings, resolve the caller's project + a connected director's
-    # refresh_token from profiles.config.google, exchange it for an access token,
-    # and call the Calendar v3 events.list API (httpx) filtered to the caller's
-    # attendee email, mirroring frontend/app/api/contact/calendar/client-events.
-    return (
-        "Calendar access isn't wired up yet, so I can't pull your upcoming "
-        "meetings here. You can view your scheduled events on the Calendar page "
-        "of the portal."
-    )
-
-
 async def execute_tool(
     name: str,
     args: Dict[str, Any],
@@ -677,7 +639,7 @@ async def execute_tool(
     resolves the same membership-verified project ids and passes them to the RAG
     RPC (param-scoped + SECURITY DEFINER), so document retrieval is narrowed to
     the active project too. ``search_sbi_knowledge`` (static) and
-    ``get_calendar_events`` (stub) need no database client.
+    ``search_sbi_knowledge`` (static) needs no database client.
     """
     try:
         if name == "search_documents":
@@ -709,8 +671,6 @@ async def execute_tool(
         if name == "get_requests":
             db = user_client(access_token)
             return await _get_requests(db, client_id, project_id), []
-        if name == "get_calendar_events":
-            return await _get_calendar_events(client_id), []
         logger.warning(f"Unknown tool requested: {name}")
         return f"Unknown tool '{name}'. No action taken.", []
     except Exception:

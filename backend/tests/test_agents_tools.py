@@ -45,9 +45,6 @@ class TestToolsSchema:
     def test_get_requests_present(self):
         assert "get_requests" in self._tool_names()
 
-    def test_get_calendar_events_present(self):
-        assert "get_calendar_events" in self._tool_names()
-
     def test_all_tools_have_type_function(self):
         for tool in TOOLS:
             assert tool.get("type") == "function", f"Tool {tool} missing type=function"
@@ -284,25 +281,3 @@ class TestExecuteToolExceptionHandling:
         assert "SECRET_DB_CREDENTIALS_HERE" not in result_text
 
 
-# ---------------------------------------------------------------------------
-# execute_tool — calendar events stub
-# ---------------------------------------------------------------------------
-
-class TestExecuteToolCalendar:
-    async def test_calendar_returns_not_available_message(self):
-        result_text, sources = await execute_tool(
-            name="get_calendar_events",
-            args={},
-            client_id="uid",
-            access_token="tok",
-        )
-        # Calendar is a stub; must return a human-readable "not available" message
-        assert isinstance(result_text, str)
-        assert len(result_text) > 0
-        assert sources == []
-        # Must mention unavailability rather than silently returning empty
-        assert (
-            "calendar" in result_text.lower()
-            or "not" in result_text.lower()
-            or "wired" in result_text.lower()
-        )

@@ -41,28 +41,28 @@ def _patch_user(monkeypatch, user) -> None:
 # ---------------------------------------------------------------------------
 
 class TestEmptyIdentityIsRejected:
-    def test_empty_string_id_must_be_401(self, monkeypatch):
+    async def test_empty_string_id_must_be_401(self, monkeypatch):
         user = MagicMock()
         user.id = ""
         _patch_user(monkeypatch, user)
         with pytest.raises(HTTPException) as exc:
-            _validate_bearer("Bearer some-token")
+            await _validate_bearer("Bearer some-token")
         assert exc.value.status_code == 401
 
-    def test_none_id_must_be_401(self, monkeypatch):
+    async def test_none_id_must_be_401(self, monkeypatch):
         user = MagicMock()
         user.id = None
         _patch_user(monkeypatch, user)
         with pytest.raises(HTTPException) as exc:
-            _validate_bearer("Bearer some-token")
+            await _validate_bearer("Bearer some-token")
         assert exc.value.status_code == 401
 
-    def test_whitespace_only_id_must_be_401(self, monkeypatch):
+    async def test_whitespace_only_id_must_be_401(self, monkeypatch):
         user = MagicMock()
         user.id = "   "
         _patch_user(monkeypatch, user)
         with pytest.raises(HTTPException) as exc:
-            _validate_bearer("Bearer some-token")
+            await _validate_bearer("Bearer some-token")
         assert exc.value.status_code == 401
 
 
@@ -82,12 +82,12 @@ class TestMalformedHeaders:
             "Bearer\ttab-token",  # tab instead of space after scheme
         ],
     )
-    def test_malformed_header_raises_401(self, header):
+    async def test_malformed_header_raises_401(self, header):
         with pytest.raises(HTTPException) as exc:
-            _validate_bearer(header)
+            await _validate_bearer(header)
         assert exc.value.status_code == 401
 
-    def test_get_user_not_called_for_malformed_header(self, monkeypatch):
+    async def test_get_user_not_called_for_malformed_header(self, monkeypatch):
         """A structurally invalid header must short-circuit BEFORE hitting the
         auth backend (no wasted GoTrue round-trip / no oracle)."""
         user = MagicMock()
@@ -98,7 +98,7 @@ class TestMalformedHeaders:
         )
         monkeypatch.setattr(deps_mod, "supabase", mock_supa)
         with pytest.raises(HTTPException):
-            _validate_bearer("Bearer ")
+            await _validate_bearer("Bearer ")
         mock_supa.auth.get_user.assert_not_called()
 
 
@@ -107,14 +107,14 @@ class TestMalformedHeaders:
 # ---------------------------------------------------------------------------
 
 class TestNoLeakAndLogging:
-    def test_exception_text_never_in_detail(self, monkeypatch, caplog):
+    async def test_exception_text_never_in_detail(self, monkeypatch, caplog):
         secret = "PGRST-internal-stacktrace-token-leak"
         mock_supa = MagicMock()
         mock_supa.auth.get_user = MagicMock(side_effect=Exception(secret))
         monkeypatch.setattr(deps_mod, "supabase", mock_supa)
         with caplog.at_level(logging.WARNING, logger="security"):
             with pytest.raises(HTTPException) as exc:
-                _validate_bearer("Bearer bad")
+                await _validate_bearer("Bearer bad")
         assert secret not in str(exc.value.detail)
         # And a security warning is logged so the failure is observable.
         assert any("Auth failure" in r.message for r in caplog.records)

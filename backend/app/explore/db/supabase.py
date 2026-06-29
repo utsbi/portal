@@ -1,6 +1,18 @@
 from supabase import create_client, Client
 from app.explore.core.config import settings
 
+# Fail fast at startup if the service-role credentials are absent or empty.
+# A missing SUPABASE_SECRET_KEY causes supabase_secret to return "" which
+# makes create_client succeed but every privileged request silently operates
+# as the anon role, bypassing the service-role scope the backend depends on.
+if not settings.SUPABASE_URL or not settings.SUPABASE_URL.strip():
+    raise RuntimeError(
+        "SUPABASE_URL is not configured — set it in the environment or .env file"
+    )
+if not settings.supabase_secret or not settings.supabase_secret.strip():
+    raise RuntimeError(
+        "SUPABASE_SECRET_KEY is not configured — set it in the environment or .env file"
+    )
 
 # Initialize client with secret key (service role — bypasses RLS).
 supabase: Client = create_client(
