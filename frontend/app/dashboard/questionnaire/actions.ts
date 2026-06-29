@@ -241,6 +241,46 @@ export async function setAssignments(input: {
 // Client — save draft (autosave) and submit. Upsert on (form_id,user_id,project_id).
 // ---------------------------------------------------------------------------
 
+const MAX_ANSWER_LENGTH = 4000;
+
+/**
+ * Server-side cross-tenant guard for client form actions.
+ * Confirms the authenticated user (by auth uid → profile.id) is a member of
+ * the target project AND that the form is genuinely assigned to that project.
+ * Returns an error string on failure, null on success.
+ */
+async function verifyProjectMembership(
+  supabase: Supabase,
+  userId: string,
+  projectId: number,
+  formId: number,
+): Promise<string | null> {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("uid", userId)
+    .maybeSingle();
+  if (!profile) return "Profile not found";
+
+  const { data: membership } = await supabase
+    .from("project_members")
+    .select("project_id")
+    .eq("profile_id", profile.id)
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (!membership) return "You are not a member of this project";
+
+  const { data: assignment } = await supabase
+    .from("custom_form_assignments")
+    .select("id")
+    .eq("form_id", formId)
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (!assignment) return "This form is not assigned to your project";
+
+  return null;
+}
+
 async function loadSchema(
   supabase: Awaited<ReturnType<typeof createClient>>,
   formId: number,
@@ -272,8 +312,24 @@ export async function saveDraft(input: {
   const gate = await requireAuth();
   if (!gate.ok) return { error: gate.error };
 
+  const memberErr = await verifyProjectMembership(
+    gate.supabase,
+    gate.userId,
+    input.projectId,
+    input.formId,
+  );
+  if (memberErr) return { error: memberErr };
+
   const meta = await loadSchema(gate.supabase, input.formId);
   if (!meta) return { error: "Form not found or inactive" };
+
+  for (const value of Object.values(input.answers)) {
+    if (typeof value === "string" && value.length > MAX_ANSWER_LENGTH) {
+      return {
+        error: `Answer text exceeds the ${MAX_ANSWER_LENGTH}-character limit.`,
+      };
+    }
+  }
 
   const { data, error } = await gate.supabase
     .from("custom_form_submissions")
@@ -303,8 +359,24 @@ export async function submitForm(input: {
   const gate = await requireAuth();
   if (!gate.ok) return { error: gate.error };
 
+  const memberErr = await verifyProjectMembership(
+    gate.supabase,
+    gate.userId,
+    input.projectId,
+    input.formId,
+  );
+  if (memberErr) return { error: memberErr };
+
   const meta = await loadSchema(gate.supabase, input.formId);
   if (!meta) return { error: "Form not found or inactive" };
+
+  for (const value of Object.values(input.answers)) {
+    if (typeof value === "string" && value.length > MAX_ANSWER_LENGTH) {
+      return {
+        error: `Answer text exceeds the ${MAX_ANSWER_LENGTH}-character limit.`,
+      };
+    }
+  }
 
   const windowState = formWindowState(meta.opensAt, meta.closesAt);
   if (windowState !== "open") {
