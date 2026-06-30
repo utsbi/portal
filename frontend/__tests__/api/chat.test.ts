@@ -27,6 +27,15 @@ type SupabaseMockState = {
   insertMessageRow: { data: unknown; error: unknown };
   insertAsstRow: { data: unknown; error: unknown };
   updateResult: { error: unknown };
+  // Returned by the chat_begin_turn RPC mock (replaces serial inserts on happy path).
+  beginTurnRow: {
+    data: {
+      user_message_id: number | null;
+      assistant_message_id: number;
+      active_leaf_id: number;
+    } | null;
+    error: { message: string } | null;
+  };
 };
 
 const state: SupabaseMockState = {
@@ -37,6 +46,10 @@ const state: SupabaseMockState = {
   insertMessageRow: { data: null, error: null },
   insertAsstRow: { data: null, error: null },
   updateResult: { error: null },
+  beginTurnRow: {
+    data: { user_message_id: 100, assistant_message_id: 101, active_leaf_id: 101 },
+    error: null,
+  },
 };
 
 // A fluent chain mock. Every table operation feeds into state.
@@ -74,6 +87,10 @@ vi.mock("@/lib/supabase/server", () => ({
           : { data: { session: null }, error: null },
       ),
     },
+    // chat_begin_turn RPC: atomic user+assistant row creation (replaces serial inserts).
+    rpc: vi.fn((_fn: string, _args: unknown) => ({
+      single: vi.fn(async () => state.beginTurnRow),
+    })),
     from: vi.fn((table: string) => {
       if (table === "client_chat_sessions") {
         const c = makeDbChain(state.sessionRow);
@@ -174,6 +191,10 @@ describe("POST /api/chat", () => {
     state.insertMessageRow = { data: { id: 100 }, error: null };
     state.insertAsstRow = { data: { id: 101 }, error: null };
     state.updateResult = { error: null };
+    state.beginTurnRow = {
+      data: { user_message_id: 100, assistant_message_id: 101, active_leaf_id: 101 },
+      error: null,
+    };
   });
 
   afterEach(() => {

@@ -17,6 +17,12 @@ interface ChatAttachment {
   file_type: string;
 }
 
+interface BeginTurnRow {
+  user_message_id: number | null;
+  assistant_message_id: number;
+  active_leaf_id: number;
+}
+
 interface ChatRequestBody {
   query: string;
   history?: ChatHistoryMessage[];
@@ -67,9 +73,6 @@ export async function POST(request: NextRequest) {
   // Resolve session_id: use provided (verifying ownership via RLS) or create new.
   let sessionId = body.session_id ?? null;
   let isNewSession = false;
-  // Other keys in the session's metadata jsonb are carried forward on every
-  // active_leaf_id write so we never clobber them (read once here, not per write).
-  let sessionMetadata: Record<string, unknown> = {};
   // A chat's project is FIXED at creation. For an existing session we forward the
   // STORED project_id (not the client's current header value), so switching the
   // active project mid-chat — or reopening an old chat under a different project —
@@ -78,13 +81,10 @@ export async function POST(request: NextRequest) {
   if (sessionId !== null) {
     const { data: existing } = await supabase
       .from("client_chat_sessions")
-      .select("id, metadata, project_id")
+      .select("id, project_id")
       .eq("id", sessionId)
       .maybeSingle();
     if (!existing) return jsonError(404, "Session not found or not owned");
-    if (existing.metadata && typeof existing.metadata === "object") {
-      sessionMetadata = existing.metadata as Record<string, unknown>;
-    }
     sessionProjectId =
       typeof existing.project_id === "number" ? existing.project_id : null;
   } else {
@@ -126,134 +126,23 @@ export async function POST(request: NextRequest) {
     sessionId = newSession.id;
   }
 
-  // Branching: messages form a parent/child tree. The client resends the history
-  // up to the branch point (full thread for a normal turn; truncated for an
-  // edit). The new user turn attaches to active_path[history.length-1], so a
-  // normal turn appends to the tip while an edited turn forks a NEW sibling
-  // branch. The superseded branch is KEPT (not deleted) and simply sits off the
-  // active path until the user switches back to it.
-  //
-  // A regenerate is different: it produces a NEW answer for the SAME user turn,
-  // so it skips the user insert and parents its assistant row as a sibling of the
-  // current answer (i.e. onto the active leaf's parent).
   const isRegenerate = body.regenerate === true && !isNewSession;
-  let userParentId: number | null = null;
-  let regenAssistantParentId: number | null = null;
-  if (!isNewSession) {
-    const historyLen = Array.isArray(body.history) ? body.history.length : 0;
-    if (historyLen > 0 || isRegenerate) {
-      const { data: allRows } = await supabase
-        .from("client_chat_messages")
-        .select("id, parent_id, role")
-        .eq("session_id", sessionId);
-      const rows = (allRows ?? []) as Array<{
-        id: number;
-        parent_id: number | null;
-        role: string;
-      }>;
-      const byId = new Map<number, (typeof rows)[number]>();
-      let maxLeaf: (typeof rows)[number] | null = null;
-      for (const r of rows) {
-        byId.set(r.id, r);
-        if (!maxLeaf || r.id > maxLeaf.id) maxLeaf = r;
-      }
-      // Start from the session's active leaf (maintained on every turn and when a
-      // branch is switched), so a turn sent after switching to an older branch
-      // attaches to THAT branch's tip — not the newest row overall. Fall back to
-      // the newest row for legacy sessions that never got an active_leaf_id.
-      const activeLeafId =
-        typeof sessionMetadata.active_leaf_id === "number"
-          ? (sessionMetadata.active_leaf_id as number)
-          : null;
-      const leaf =
-        (activeLeafId != null ? byId.get(activeLeafId) : null) ?? maxLeaf;
+  const historyLen = Array.isArray(body.history) ? body.history.length : 0;
 
-      if (isRegenerate) {
-        // New answer = sibling of the current one: parent it to the active leaf's
-        // parent when that leaf is itself an answer; if the active leaf is an
-        // unanswered user turn, parent directly to it (its first answer).
-        regenAssistantParentId =
-          leaf == null
-            ? null
-            : leaf.role === "assistant"
-              ? leaf.parent_id
-              : leaf.id;
-      } else {
-        // Active branch, root -> leaf.
-        const path: number[] = [];
-        const seen = new Set<number>();
-        for (let cur = leaf; cur && !seen.has(cur.id); ) {
-          seen.add(cur.id);
-          path.push(cur.id);
-          cur =
-            cur.parent_id != null ? (byId.get(cur.parent_id) ?? null) : null;
-        }
-        path.reverse();
-        const idx = Math.min(historyLen, path.length) - 1;
-        userParentId = idx >= 0 ? path[idx] : null;
-      }
-    }
-  }
-
-  // Persist the user message immediately so cancelled streams still keep the user
-  // turn. Keep the extracted `content` too: the backend is stateless and requires
-  // each attachment's content on every turn, so a reloaded conversation must be
-  // able to re-send it. Storing only the filename made follow-up turns 422 after a
-  // reload. A regenerate reuses the existing user turn, so it skips this insert.
-  let userMessageId: number | null = null;
-  if (!isRegenerate) {
-    const userAttachmentsForRow = body.attachments?.length
-      ? body.attachments.map((a) => ({
-          filename: a.filename,
-          content: a.content,
-        }))
-      : null;
-    const { data: userRow, error: userMsgErr } = await supabase
-      .from("client_chat_messages")
-      .insert({
-        session_id: sessionId,
-        role: "user",
-        content: body.query,
-        attachments: userAttachmentsForRow,
-        model_preference: modelPreference,
-        parent_id: userParentId,
-      })
-      .select("id")
-      .single();
-    // A failed user insert must abort the turn: forwarding to the backend and
-    // persisting the answer with a null parent would orphan the assistant row,
-    // corrupting the message tree (an answer with no question above it).
-    if (userMsgErr || !userRow) {
-      return jsonError(
-        500,
-        `Failed to persist user message: ${userMsgErr?.message ?? "unknown"}`,
-      );
-    }
-    userMessageId = userRow.id;
-
-    // Make the just-created user turn the session's active leaf immediately. This
-    // both forks the branch (an edit points the active branch at the new turn) and
-    // guarantees the message survives a reload even if the client aborts before a
-    // single token streams. The assistant turn bumps the leaf deeper below.
-    await supabase
-      .from("client_chat_sessions")
-      .update({
-        metadata: { ...sessionMetadata, active_leaf_id: userMessageId },
-      })
-      .eq("id", sessionId);
-  }
-
-  // Parent for the assistant turn (and any cancelled partial) of this exchange:
-  // the freshly-inserted user row for a normal/edit turn, or the existing user
-  // turn for a regenerate.
-  const assistantParentId = isRegenerate
-    ? regenAssistantParentId
-    : userMessageId;
+  // Attachment payload stored with the user turn so a reloaded conversation can
+  // re-send file content to the stateless backend without re-uploading.
+  const userAttachmentsForRpc = body.attachments?.length
+    ? body.attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      }))
+    : null;
 
   // Advance the session's active leaf to a freshly persisted message, bumping
   // recency in the same write. Re-reads metadata immediately before writing so a
   // concurrent branch switch (which also writes active_leaf_id) is never clobbered
-  // by a stale snapshot captured at request start.
+  // by a stale snapshot captured at request start. Called only from error/cancel
+  // fallback paths — the happy path's leaf advance is done atomically by the RPC.
   const advanceActiveLeaf = async (leafId: number) => {
     const { data: fresh } = await supabase
       .from("client_chat_sessions")
@@ -275,62 +164,67 @@ export async function POST(request: NextRequest) {
       console.error("[/api/chat] failed to advance active leaf:", leafErr);
   };
 
-  // Pre-create the assistant row with empty content BEFORE the backend stream
-  // starts so a mid-stream reload, tab switch, or browser close can still see
-  // the partial reasoning/tool timeline. The row is mutated incrementally as
-  // events stream (debounced) and finalised on `result` (success) or in the
-  // cancel-fallback (abort/network). Without this, only the final `result`
-  // event would persist anything, and a reload before then would show a user
-  // message with no assistant turn at all.
-  const { data: asstRowInit, error: asstInitErr } = await supabase
-    .from("client_chat_messages")
-    .insert({
-      session_id: sessionId,
-      role: "assistant",
-      content: "",
-      sources: null,
-      model_preference: modelPreference,
-      parent_id: assistantParentId,
-    })
-    .select("id")
-    .single();
-  if (asstInitErr || !asstRowInit) {
-    console.error(
-      "[/api/chat] failed to pre-create assistant row:",
-      asstInitErr,
-    );
-  }
-  // The id we update during the stream. Null only when the pre-create failed;
-  // the cancel-fallback path then inserts a fresh row, preserving the prior
-  // behaviour of "always end up with an assistant turn on the branch".
-  const assistantMessageId: number | null = asstRowInit?.id ?? null;
-  if (assistantMessageId !== null) {
-    await advanceActiveLeaf(assistantMessageId);
-  }
-
-  // Forward to FastAPI, propagating the client's abort signal so cancellation
-  // tears down the upstream generation too.
+  // --- Parallel: atomic per-turn DB writes + backend fetch ---
+  // chat_begin_turn creates the user + assistant rows, walks the message tree to
+  // resolve the branch point, and advances active_leaf_id — all in one atomic
+  // transaction. The backend fetch depends only on query/history/attachments and
+  // the JWT, so both start concurrently; we wait for both before streaming.
   let backendRes: Response;
+  let assistantMessageId: number | null = null;
+  let assistantParentForClosure: number | null = null;
+
   try {
-    backendRes = await fetch(`${BACKEND_URL}/api/v1/chat/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        query: body.query,
-        history: body.history ?? [],
-        attachments: body.attachments ?? [],
-        include_sources: body.include_sources ?? true,
-        model_preference: modelPreference,
-        // Authoritative: the session's own project, not the live header.
-        project_id: sessionProjectId,
+    const [rpcResult, fetchResult] = await Promise.all([
+      supabase
+        .rpc("chat_begin_turn", {
+          _session_id: sessionId,
+          _query: body.query,
+          _attachments: userAttachmentsForRpc,
+          _model_preference: modelPreference,
+          _history_len: historyLen,
+          _regenerate: isRegenerate,
+        })
+        .single() as unknown as Promise<{
+        data: BeginTurnRow | null;
+        error: { message: string } | null;
+      }>,
+      fetch(`${BACKEND_URL}/api/v1/chat/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          query: body.query,
+          history: body.history ?? [],
+          attachments: body.attachments ?? [],
+          include_sources: body.include_sources ?? true,
+          model_preference: modelPreference,
+          // Authoritative: the session's own project, not the live header.
+          project_id: sessionProjectId,
+        }),
+        signal: request.signal,
       }),
-      signal: request.signal,
-    });
-  } catch (fetchErr) {
-    console.error("[/api/chat] network error contacting backend:", fetchErr);
+    ]);
+
+    const { data: rpcData, error: rpcErr } = rpcResult;
+    backendRes = fetchResult;
+
+    if (rpcErr || !rpcData) {
+      // RPC failed: drain the already-opened backend response to prevent a leaked
+      // upstream generation, then surface the error.
+      await backendRes.body?.cancel();
+      return jsonError(
+        500,
+        `Failed to begin turn: ${rpcErr?.message ?? "unknown"}`,
+      );
+    }
+
+    assistantMessageId = rpcData.assistant_message_id ?? null;
+    // Fallback parent for cancel/error paths that must insert a fresh assistant row.
+    assistantParentForClosure = rpcData.user_message_id ?? null;
+  } catch (err) {
+    console.error("[/api/chat] error starting turn:", err);
     return jsonError(502, "Upstream request failed");
   }
 
@@ -344,7 +238,6 @@ export async function POST(request: NextRequest) {
   // here so the stream closure can read it without a non-null assertion.
   const backendBody = backendRes.body;
   const sessionIdForClosure = sessionId;
-  const assistantParentForClosure = assistantParentId;
   const isNewSessionForClosure = isNewSession;
   const accumulated: string[] = [];
   // Reasoning/thinking chunks and tool lifecycle events streamed by the agent,
