@@ -18,6 +18,19 @@ logger = logging.getLogger(__name__)
 # partial-match passages are not dropped.
 MIN_VECTOR_SIMILARITY: float = 0.30
 
+# NOTE (audit idea #1 — ANN index, DEFERRED): client_knowledge.embedding is a
+# bare `vector` column, so similarity search is a sequential scan. An ANN index
+# (HNSW) would fix the scaling ceiling, BUT pgvector's HNSW dimension limit is
+# 2000 for `vector` and 4000 for `halfvec` — and these embeddings are 4096-dim
+# (Qwen3-Embedding-8B), so they CANNOT be indexed without reducing dimensions.
+# At the current corpus size (tens of rows) a seq scan is effectively instant,
+# so the index is premature. When the corpus grows large, index it by either:
+#   (a) Matryoshka-truncating to <=4000 dims (e.g. halfvec(2048) via
+#       subvector()+l2_normalize, truncating the query embedding to match), or
+#   (b) switching EMBEDDING_MODEL to a <=3072-dim model + a re-embed backfill.
+# Decided 2026-06-30 to defer; the relevance floor / real ts_rank / FTS GIN
+# improvements already shipped.
+
 # Canonical 8-4-4-4-12 UUID, as issued by Supabase auth.
 _UUID_RE = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
