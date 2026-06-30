@@ -38,17 +38,52 @@ const state = {
 };
 
 // ─── @/lib/supabase/server mock (SSR auth client) ────────────────────────────
+// The server client is used by both requireDirector() (guards.ts) and
+// requireUser() (actions.ts) for auth + caller-profile lookups, and also by
+// updateMyProfile / updateMyNotificationPrefs for the profile UPDATE mutation.
+// We expose .from("profiles") with a full fluent chain driven by state.
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: vi.fn(async () =>
-        state.user
-          ? { data: { user: state.user }, error: null }
-          : { data: { user: null }, error: { message: "unauthenticated" } },
-      ),
-      updateUser: vi.fn(async () => ({ error: null })),
-    },
-  })),
+  createClient: vi.fn(async () => {
+    const profilesChain: Record<string, ReturnType<typeof vi.fn>> = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      // Used by requireUser() (.single) and requireDirector() (.maybeSingle)
+      single: vi.fn(async () => ({
+        data: state.callerProfile,
+        error: state.callerProfileError,
+      })),
+      maybeSingle: vi.fn(async () => ({
+        data: state.callerProfile,
+        error: state.callerProfileError,
+      })),
+      // Used by updateMyProfile / updateMyNotificationPrefs
+      update: vi.fn(() => ({
+        eq: vi.fn(async () => state.updateResult),
+      })),
+    };
+    profilesChain.select.mockReturnValue(profilesChain);
+    profilesChain.eq.mockReturnValue(profilesChain);
+    return {
+      auth: {
+        getUser: vi.fn(async () =>
+          state.user
+            ? { data: { user: state.user }, error: null }
+            : { data: { user: null }, error: { message: "unauthenticated" } },
+        ),
+        updateUser: vi.fn(async () => ({ error: null })),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "profiles") return profilesChain;
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn(async () => ({ data: null, error: null })),
+          maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+          update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+        };
+      }),
+    };
+  }),
 }));
 
 // ─── @supabase/supabase-js mock (admin client) ───────────────────────────────
@@ -202,7 +237,10 @@ describe("settings/actions — auth gates", () => {
         name: "New User",
         role: "member",
       });
-      expect(result.error).toMatch(/not authorized/i);
+      // requireDirector() now returns "Director role required" (changed from
+      // "Not authorized" in the authz-gate refactor). The assertion intent is
+      // unchanged: a non-director is rejected.
+      expect(result.error).toMatch(/director role required/i);
     });
 
     it("returns auth error for unauthenticated caller even with a short password (authz runs first)", async () => {
@@ -254,7 +292,8 @@ describe("settings/actions — auth gates", () => {
       state.user = { id: "uid-member" };
       state.callerProfile = { id: 10, role: "member" };
       const result = await listAccounts();
-      expect(result.error).toMatch(/not authorized/i);
+      // requireDirector() now returns "Director role required"
+      expect(result.error).toMatch(/director role required/i);
     });
   });
 
@@ -270,7 +309,8 @@ describe("settings/actions — auth gates", () => {
       state.user = { id: "uid-member" };
       state.callerProfile = { id: 10, role: "member" };
       const result = await deleteAccount(99);
-      expect(result.error).toMatch(/not authorized/i);
+      // requireDirector() now returns "Director role required"
+      expect(result.error).toMatch(/director role required/i);
     });
   });
 
