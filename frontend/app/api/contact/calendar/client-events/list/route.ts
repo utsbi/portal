@@ -1,7 +1,7 @@
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { decryptToken } from "@/lib/crypto/tokens";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -22,10 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseAdmin = createAdminClient(
-    must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SECRET_KEY"),
-  );
+  const supabaseAdmin = createAdminClient();
 
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from("profiles")

@@ -1,7 +1,8 @@
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { decryptToken } from "@/lib/crypto/tokens";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -50,6 +51,13 @@ export async function GET(req: Request) {
         { status: 400 },
       );
     }
+    const projectIdNum = Number(projectId);
+    if (!Number.isInteger(projectIdNum) || projectIdNum <= 0) {
+      return NextResponse.json(
+        { error: "Invalid project_id" },
+        { status: 400 },
+      );
+    }
 
     // --- Auth + authorization gate -----------------------------------------
     // This endpoint builds a service-role client below, which bypasses RLS.
@@ -64,10 +72,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabaseAdmin = createAdminClient(
-      must("NEXT_PUBLIC_SUPABASE_URL"),
-      must("SUPABASE_SECRET_KEY"),
-    );
+    const supabaseAdmin = createAdminClient();
 
     // Resolve the caller's profile.
     const { data: callerProfile, error: callerErr } = await supabaseAdmin
@@ -84,7 +89,7 @@ export async function GET(req: Request) {
     const { data: membership } = await supabaseAdmin
       .from("project_members")
       .select("role")
-      .eq("project_id", projectId)
+      .eq("project_id", projectIdNum)
       .eq("profile_id", callerProfile.id)
       .in("role", ["director", "owner"])
       .maybeSingle();
@@ -98,7 +103,7 @@ export async function GET(req: Request) {
     const { data: project, error: projectErr } = await supabaseAdmin
       .from("projects")
       .select("id, url_slug, company_name")
-      .eq("id", projectId)
+      .eq("id", projectIdNum)
       .single();
 
     if (projectErr || !project) {
@@ -108,7 +113,7 @@ export async function GET(req: Request) {
     const { data: directorMembers, error: membersErr } = await supabaseAdmin
       .from("project_members")
       .select("profile_id")
-      .eq("project_id", projectId)
+      .eq("project_id", projectIdNum)
       .eq("role", "director");
 
     if (membersErr) {
@@ -139,7 +144,7 @@ export async function GET(req: Request) {
     const { data: ownerMember } = await supabaseAdmin
       .from("project_members")
       .select("profile_id, profiles!project_members_profile_id_fkey(email)")
-      .eq("project_id", projectId)
+      .eq("project_id", projectIdNum)
       .eq("role", "owner")
       .single();
 
@@ -251,7 +256,7 @@ export async function GET(req: Request) {
             config: {
               ...config,
               google: { ...google_, last_synced_at: syncedAt },
-            },
+            } as unknown as Json,
           })
           .eq("id", director.id)
           .then((res) => {

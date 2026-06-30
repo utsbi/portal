@@ -1,8 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { encryptToken } from "@/lib/crypto/tokens";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/database.types";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -55,10 +56,7 @@ export async function GET(req: Request) {
     );
   }
 
-  const supabaseAdmin = createClient(
-    must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SECRET_KEY"),
-  );
+  const supabaseAdmin = createAdminClient();
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -118,7 +116,7 @@ export async function GET(req: Request) {
 
   const { error: writeErr } = await supabaseAdmin
     .from("profiles")
-    .update({ config: newConfig })
+    .update({ config: newConfig as unknown as Json })
     .eq("id", profile.id);
 
   if (writeErr) {

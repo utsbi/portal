@@ -1,7 +1,7 @@
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { decryptToken } from "@/lib/crypto/tokens";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -52,10 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseAdmin = createAdminClient(
-    must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SECRET_KEY"),
-  );
+  const supabaseAdmin = createAdminClient();
 
   // Resolve the caller's profile email (this is the attendee whose RSVP we're updating).
   const { data: callerProfile, error: callerErr } = await supabaseAdmin
