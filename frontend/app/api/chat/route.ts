@@ -13,7 +13,10 @@ interface ChatHistoryMessage {
 
 interface ChatAttachment {
   filename: string;
-  content: string;
+  /** Full extracted text. Present for legacy inline attachments. */
+  content?: string;
+  /** SHA-256 reference: route resolves to content from client_chat_attachments. */
+  hash?: string;
   file_type: string;
 }
 
@@ -129,13 +132,16 @@ export async function POST(request: NextRequest) {
   const isRegenerate = body.regenerate === true && !isNewSession;
   const historyLen = Array.isArray(body.history) ? body.history.length : 0;
 
-  // Attachment payload stored with the user turn so a reloaded conversation can
-  // re-send file content to the stateless backend without re-uploading.
+  // Attachment payload stored with the user turn. New rows carry the reference
+  // shape {filename, hash, file_type} so full content is never stored in
+  // client_chat_messages; legacy inline rows ({filename, content}) pass through
+  // unchanged so old conversations keep working.
   const userAttachmentsForRpc = body.attachments?.length
-    ? body.attachments.map((a) => ({
-        filename: a.filename,
-        content: a.content,
-      }))
+    ? body.attachments.map((a) =>
+        a.hash
+          ? { filename: a.filename, hash: a.hash, file_type: a.file_type }
+          : { filename: a.filename, content: a.content },
+      )
     : null;
 
   // Advance the session's active leaf to a freshly persisted message, bumping
@@ -164,17 +170,59 @@ export async function POST(request: NextRequest) {
       console.error("[/api/chat] failed to advance active leaf:", leafErr);
   };
 
-  // --- Parallel: atomic per-turn DB writes + backend fetch ---
-  // chat_begin_turn creates the user + assistant rows, walks the message tree to
-  // resolve the branch point, and advances active_leaf_id — all in one atomic
-  // transaction. The backend fetch depends only on query/history/attachments and
-  // the JWT, so both start concurrently; we wait for both before streaming.
+  // --- Parallel: atomic per-turn DB writes + attachment resolution ---
+  // chat_begin_turn creates the user + assistant rows atomically. Alongside it,
+  // resolveAttachmentRefs fetches the full content for any hash-only reference
+  // attachments from client_chat_attachments (RLS-scoped to this user). Neither
+  // depends on the other, so both run concurrently. The backend fetch then uses
+  // the resolved full-content array — the backend schema/API is unchanged.
+  //
+  // Inline async resolver (closes over `supabase`). Items that already have
+  // `content` (legacy inline shape) pass through unchanged. Items with only a
+  // `hash` are batch-selected from client_chat_attachments in one query.
+  const resolveAttachmentRefs = async (
+    atts: ChatAttachment[],
+  ): Promise<ChatAttachment[]> => {
+    const refs = atts.filter((a) => !a.content && a.hash);
+    if (refs.length === 0) return atts;
+    const hashes = refs.map((a) => a.hash as string);
+    const { data } = await supabase
+      .from("client_chat_attachments")
+      .select("content_hash, content, file_type")
+      .in("content_hash", hashes);
+    const byHash = new Map<string, { content: string; file_type: string }>();
+    for (const row of (data ?? []) as Array<{
+      content_hash: string;
+      content: string;
+      file_type: string;
+    }>) {
+      byHash.set(row.content_hash, {
+        content: row.content,
+        file_type: row.file_type,
+      });
+    }
+    return atts
+      .map((a): ChatAttachment | null => {
+        if (!a.content && a.hash) {
+          const resolved = byHash.get(a.hash);
+          if (!resolved) return null; // not found (deleted?); drop attachment
+          return {
+            filename: a.filename,
+            content: resolved.content,
+            file_type: resolved.file_type,
+          };
+        }
+        return a;
+      })
+      .filter((a): a is ChatAttachment => a !== null && Boolean(a.content));
+  };
+
   let backendRes: Response;
   let assistantMessageId: number | null = null;
   let assistantParentForClosure: number | null = null;
 
   try {
-    const [rpcResult, fetchResult] = await Promise.all([
+    const [rpcResult, resolvedAttachments] = await Promise.all([
       supabase
         .rpc("chat_begin_turn", {
           _session_id: sessionId,
@@ -188,32 +236,12 @@ export async function POST(request: NextRequest) {
         data: BeginTurnRow | null;
         error: { message: string } | null;
       }>,
-      fetch(`${BACKEND_URL}/api/v1/chat/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          query: body.query,
-          history: body.history ?? [],
-          attachments: body.attachments ?? [],
-          include_sources: body.include_sources ?? true,
-          model_preference: modelPreference,
-          // Authoritative: the session's own project, not the live header.
-          project_id: sessionProjectId,
-        }),
-        signal: request.signal,
-      }),
+      resolveAttachmentRefs(body.attachments ?? []),
     ]);
 
     const { data: rpcData, error: rpcErr } = rpcResult;
-    backendRes = fetchResult;
 
     if (rpcErr || !rpcData) {
-      // RPC failed: drain the already-opened backend response to prevent a leaked
-      // upstream generation, then surface the error.
-      await backendRes.body?.cancel();
       return jsonError(
         500,
         `Failed to begin turn: ${rpcErr?.message ?? "unknown"}`,
@@ -223,6 +251,26 @@ export async function POST(request: NextRequest) {
     assistantMessageId = rpcData.assistant_message_id ?? null;
     // Fallback parent for cancel/error paths that must insert a fresh assistant row.
     assistantParentForClosure = rpcData.user_message_id ?? null;
+
+    // Backend fetch runs after resolve so it receives full content for every
+    // attachment (the backend API/schema is unchanged — always expects content).
+    backendRes = await fetch(`${BACKEND_URL}/api/v1/chat/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        query: body.query,
+        history: body.history ?? [],
+        attachments: resolvedAttachments,
+        include_sources: body.include_sources ?? true,
+        model_preference: modelPreference,
+        // Authoritative: the session's own project, not the live header.
+        project_id: sessionProjectId,
+      }),
+      signal: request.signal,
+    });
   } catch (err) {
     console.error("[/api/chat] error starting turn:", err);
     return jsonError(502, "Upstream request failed");

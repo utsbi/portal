@@ -113,6 +113,39 @@ export type Database = {
           },
         ];
       };
+      client_chat_attachments: {
+        Row: {
+          byte_len: number;
+          content: string;
+          content_hash: string;
+          created_at: string;
+          file_type: string;
+          filename: string;
+          id: number;
+          uid: string;
+        };
+        Insert: {
+          byte_len: number;
+          content: string;
+          content_hash: string;
+          created_at?: string;
+          file_type?: string;
+          filename: string;
+          id?: number;
+          uid?: string;
+        };
+        Update: {
+          byte_len?: number;
+          content?: string;
+          content_hash?: string;
+          created_at?: string;
+          file_type?: string;
+          filename?: string;
+          id?: number;
+          uid?: string;
+        };
+        Relationships: [];
+      };
       client_chat_messages: {
         Row: {
           attachments: Json | null;

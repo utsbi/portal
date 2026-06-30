@@ -63,6 +63,7 @@ function makeDbChain(tableResult: { data: unknown; error: unknown }) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.select = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
+  chain.in = vi.fn(async () => tableResult); // resolves directly (no terminal needed)
   chain.maybeSingle = vi.fn(async () => tableResult);
   chain.single = vi.fn(async () => tableResult);
   chain.insert = vi.fn(() => chain);
