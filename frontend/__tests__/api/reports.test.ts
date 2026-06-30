@@ -330,7 +330,12 @@ describe("POST /api/reports", () => {
     cookieStoreMock.getAll.mockReturnValue([]);
     authResult = { data: { user: { id: "uid-1" } }, error: null };
     profileResult = {
-      data: { id: 7, name: "Dana Director", role: "director", department: "Eng" },
+      data: {
+        id: 7,
+        name: "Dana Director",
+        role: "director",
+        department: "Eng",
+      },
       error: null,
     };
     membershipResult = { data: null, error: { message: "Not member" } };
@@ -430,7 +435,9 @@ describe("POST /api/reports", () => {
     expect(res.status).toBe(201);
     // Insert payload shape.
     expect(insertSpy).toHaveBeenCalledTimes(1);
-    const payload = (insertSpy.mock.calls[0][0] as Array<Record<string, unknown>>)[0];
+    const payload = (
+      insertSpy.mock.calls[0][0] as Array<Record<string, unknown>>
+    )[0];
     expect(payload.ticket_type).toBe("report");
     expect(payload.title).toBe("Roof leak");
     expect(payload.subject).toBe("Roof leak");

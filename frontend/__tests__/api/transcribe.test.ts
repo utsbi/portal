@@ -16,7 +16,10 @@ vi.mock("@/lib/supabase/server", () => ({
     auth: {
       getUser: vi.fn(async () => ({ data: { user: state.user } })),
     },
-    rpc: vi.fn(async () => ({ data: state.rateAllowed, error: state.rateError })),
+    rpc: vi.fn(async () => ({
+      data: state.rateAllowed,
+      error: state.rateError,
+    })),
   })),
 }));
 

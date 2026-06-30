@@ -47,7 +47,11 @@ const state: SupabaseMockState = {
   insertAsstRow: { data: null, error: null },
   updateResult: { error: null },
   beginTurnRow: {
-    data: { user_message_id: 100, assistant_message_id: 101, active_leaf_id: 101 },
+    data: {
+      user_message_id: 100,
+      assistant_message_id: 101,
+      active_leaf_id: 101,
+    },
     error: null,
   },
 };
@@ -193,7 +197,11 @@ describe("POST /api/chat", () => {
     state.insertAsstRow = { data: { id: 101 }, error: null };
     state.updateResult = { error: null };
     state.beginTurnRow = {
-      data: { user_message_id: 100, assistant_message_id: 101, active_leaf_id: 101 },
+      data: {
+        user_message_id: 100,
+        assistant_message_id: 101,
+        active_leaf_id: 101,
+      },
       error: null,
     };
   });

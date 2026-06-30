@@ -183,7 +183,11 @@ describe("ADVERSARIAL POST /api/chat — Authorization spoofing (C1)", () => {
     state.insertAsstRow = { data: { id: 11 }, error: null };
     state.updateResult = { error: null };
     state.beginTurnRow = {
-      data: { user_message_id: 10, assistant_message_id: 11, active_leaf_id: 11 },
+      data: {
+        user_message_id: 10,
+        assistant_message_id: 11,
+        active_leaf_id: 11,
+      },
       error: null,
     };
   });
@@ -267,7 +271,11 @@ describe("ADVERSARIAL POST /api/chat — upstream error leakage across failure s
     state.insertAsstRow = { data: { id: 11 }, error: null };
     state.updateResult = { error: null };
     state.beginTurnRow = {
-      data: { user_message_id: 10, assistant_message_id: 11, active_leaf_id: 11 },
+      data: {
+        user_message_id: 10,
+        assistant_message_id: 11,
+        active_leaf_id: 11,
+      },
       error: null,
     };
   });
@@ -338,7 +346,11 @@ describe("ADVERSARIAL POST /api/chat — public_id / UUID handling (C3)", () => 
     state.insertAsstRow = { data: { id: 11 }, error: null };
     state.updateResult = { error: null };
     state.beginTurnRow = {
-      data: { user_message_id: 10, assistant_message_id: 11, active_leaf_id: 11 },
+      data: {
+        user_message_id: 10,
+        assistant_message_id: 11,
+        active_leaf_id: 11,
+      },
       error: null,
     };
     fetchMock.mockResolvedValue(
