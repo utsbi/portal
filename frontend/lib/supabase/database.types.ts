@@ -1265,6 +1265,10 @@ export type Database = {
           active_leaf_id: number;
         }[];
       };
+      consume_rate_token: {
+        Args: { _bucket: string; _limit: number; _window: string };
+        Returns: boolean;
+      };
       current_user_role: { Args: never; Returns: string };
       hybrid_search: {
         Args: {
