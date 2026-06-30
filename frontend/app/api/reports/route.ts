@@ -163,8 +163,13 @@ export async function GET(request: Request) {
     const { data, error } = await query;
 
     if (error) {
+      // Log the raw Supabase error server-side, but never leak DB internals to
+      // the client.
       console.error("Supabase error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 },
+      );
     }
 
     const reports: ReportItem[] = ((data ?? []) as unknown as TicketRow[]).map(
@@ -300,8 +305,13 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      // Log the raw Supabase error server-side, but never leak DB internals to
+      // the client.
       console.error("Supabase insert error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 },
+      );
     }
 
     const report: ReportItem = rowToReport(data as unknown as TicketRow);
