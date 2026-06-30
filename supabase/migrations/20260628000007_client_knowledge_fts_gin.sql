@@ -86,10 +86,14 @@ BEGIN
 END;
 $$;
 
--- Restrict to service_role only (same ACL as match_client_knowledge).
+-- Restrict to service_role only (same ACL as match_client_knowledge). Supabase's
+-- default privileges auto-grant EXECUTE on new public functions to anon +
+-- authenticated, so REVOKE FROM PUBLIC alone is insufficient — revoke from those
+-- roles explicitly or this SECURITY DEFINER function (which trusts the caller's
+-- _filter_project_ids) would be a cross-tenant read of client_knowledge.
 REVOKE ALL ON FUNCTION public.keyword_search_client_knowledge(
     text, integer, uuid, bigint[]
-) FROM PUBLIC;
+) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.keyword_search_client_knowledge(
     text, integer, uuid, bigint[]

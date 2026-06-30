@@ -3,7 +3,7 @@
 -- policies are gone; the director NULL-project read path and the service-role
 -- RPC path still work.
 BEGIN;
-SELECT plan(9);
+SELECT plan(11);
 
 -- ---- the two redundant uploader-uid SELECT policies are dropped ----
 SELECT ok(
@@ -84,6 +84,18 @@ SELECT is(
   'service_role: reads all 4 client_knowledge rows (RPC/admin path intact)'
 );
 SELECT t.reset_auth();
+
+-- ---- keyword_search RPC must be locked to service_role (SECURITY DEFINER that
+--      trusts caller-supplied _filter_project_ids => leak if anon/auth callable) ----
+SELECT ok(
+  NOT has_function_privilege('anon', 'public.keyword_search_client_knowledge(text,integer,uuid,bigint[])', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.keyword_search_client_knowledge(text,integer,uuid,bigint[])', 'EXECUTE'),
+  'keyword_search_client_knowledge is NOT executable by anon/authenticated'
+);
+SELECT ok(
+  has_function_privilege('service_role', 'public.keyword_search_client_knowledge(text,integer,uuid,bigint[])', 'EXECUTE'),
+  'keyword_search_client_knowledge IS executable by service_role'
+);
 
 SELECT * FROM finish();
 ROLLBACK;
