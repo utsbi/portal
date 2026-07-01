@@ -194,11 +194,76 @@ export async function updateAccount(data: {
     .eq("id", data.id);
   if (error) return { error: error.message };
 
-  // If the role changed, clean stale project_members rows so they don't
-  // reference a role the profile no longer has. The caller can reassign
-  // memberships explicitly from the Team panel.
+  // If the role changed, reconcile project_members. Two hard rules:
+  //   1. NEVER delete 'owner' rows — removing one orphans the client's
+  //      project (no member sees them in the team list, owner-based lookups
+  //      miss them, and nothing recreates the row).
+  //   2. The DB director auto-link triggers fire only on profile INSERT and
+  //      project INSERT — never on a role UPDATE — so promotion to director
+  //      must backfill director memberships here, and demotion must remove
+  //      exactly the rows the auto-link would have created.
   if (data.role !== existing.role) {
-    await admin.from("project_members").delete().eq("profile_id", data.id);
+    if (existing.role === "director") {
+      // Demotion from director: drop only the auto-linked director rows,
+      // preserving owner/member memberships.
+      const { error: cleanupError } = await admin
+        .from("project_members")
+        .delete()
+        .eq("profile_id", data.id)
+        .eq("role", "director");
+      if (cleanupError) {
+        return {
+          error: `Role saved, but removing their director project access failed: ${cleanupError.message}. Remove them from projects via the Team panel.`,
+        };
+      }
+    } else {
+      // Other role changes: clean stale non-owner rows (e.g. 'member'
+      // assignments) so they don't reference a role the profile no longer
+      // has. The caller can reassign memberships from the Team panel.
+      const { error: cleanupError } = await admin
+        .from("project_members")
+        .delete()
+        .eq("profile_id", data.id)
+        .neq("role", "owner");
+      if (cleanupError) {
+        return {
+          error: `Role saved, but cleaning up their project memberships failed: ${cleanupError.message}. Adjust their projects via the Team panel.`,
+        };
+      }
+    }
+
+    if (data.role === "director") {
+      // Promotion to director: mirror auto_link_director_to_projects()
+      // (INSERT ... ON CONFLICT DO NOTHING) for all existing projects.
+      // ignoreDuplicates leaves any surviving row (e.g. 'owner') untouched,
+      // matching the trigger's ON CONFLICT DO NOTHING semantics.
+      const { data: projects, error: projectsError } = await admin
+        .from("projects")
+        .select("id");
+      if (projectsError) {
+        return {
+          error: `Role saved, but granting director project access failed: ${projectsError.message}. Assign their projects via the Team panel.`,
+        };
+      }
+      if (projects && projects.length > 0) {
+        const { error: backfillError } = await admin
+          .from("project_members")
+          .upsert(
+            projects.map((p: { id: number }) => ({
+              project_id: p.id,
+              profile_id: data.id,
+              role: "director" as const,
+              assigned_by: callerProfileId ?? null,
+            })),
+            { onConflict: "project_id,profile_id", ignoreDuplicates: true },
+          );
+        if (backfillError) {
+          return {
+            error: `Role saved, but granting director project access failed: ${backfillError.message}. Assign their projects via the Team panel.`,
+          };
+        }
+      }
+    }
   }
 
   return { success: true };
