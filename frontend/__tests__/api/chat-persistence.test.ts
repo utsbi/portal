@@ -5,7 +5,8 @@
  *  P1. chat_begin_turn RPC called with expected args; assistant_message_id used
  *      for subsequent DB writes.
  *  P2. Upstream fetch failure AFTER pre-create → 502 returned, no streaming
- *      success response, no phantom assistant row update attempted.
+ *      success response; the pre-created assistant row is marked cancelled
+ *      (never a phantom "success" content/sources write).
  *  P3. Successful finalization — delta(s) + result event → final assistant-row
  *      update carries accumulated content AND sources.
  *  P4. Cancellation — backend stream closes without a result event → row marked
@@ -14,6 +15,15 @@
  *      (pre-create unavailable) — insert fires on result, active_leaf advanced.
  *  P6. Existing session: the STORED project_id is forwarded to the backend fetch,
  *      NOT the client-supplied value.
+ *  P7. Client disconnect mid-stream — the response stream is cancelled but the
+ *      backend pump (lifetime pinned by next/server's after()) keeps running,
+ *      so the final content + sources are still persisted.
+ *  P8. A straggler delta after `result` never schedules a debounced write, so
+ *      no incremental write can land after finalization and clobber the final
+ *      content/sources.
+ *  P9. Early upstream failures AFTER the chat_begin_turn pre-create (fetch
+ *      throw / non-OK response) mark the pre-created assistant row cancelled
+ *      instead of leaving an orphaned blank row.
  *
  * Mocking approach:
  *  - Mirrors chat.test.ts / adversarial/chat-proxy.test.ts exactly: a mutable
@@ -33,6 +43,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // ─── next/headers mock ────────────────────────────────────────────────────────
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ getAll: () => [], set: vi.fn() })),
+}));
+
+// ─── next/server mock ─────────────────────────────────────────────────────────
+// The route pins its backend-pump lifetime with after(); outside a real Next
+// request scope after() throws, so the mock captures each task instead. Tests
+// that need the pump's persistence to have finished await `afterTasks` — the
+// same completion guarantee after() provides in production.
+const afterTasks: Array<Promise<unknown>> = [];
+vi.mock("next/server", () => ({
+  after: (task: Promise<unknown> | (() => unknown)) => {
+    afterTasks.push(
+      Promise.resolve(typeof task === "function" ? task() : task),
+    );
+  },
 }));
 
 // ─── Shared state + call-capture ─────────────────────────────────────────────
@@ -293,6 +317,7 @@ function resetState() {
     messagesInsert: [],
     backendFetchBody: null,
   };
+  afterTasks.length = 0;
 }
 
 // ─── Test suite ──────────────────────────────────────────────────────────────
@@ -349,7 +374,7 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
   });
 
   // ── P2: Upstream fetch failure AFTER pre-create ────────────────────────────
-  it("P2: fetch throw after successful pre-create → 502 JSON, no stream, no phantom row update", async () => {
+  it("P2: fetch throw after successful pre-create → 502 JSON, pre-created row marked cancelled, no phantom content write", async () => {
     fetchMock.mockRejectedValueOnce(
       new Error("connect ECONNREFUSED 10.0.0.5:8000"),
     );
@@ -364,11 +389,16 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
     // No sensitive internal detail must leak.
     expect(JSON.stringify(body)).not.toMatch(/ECONNREFUSED|10\.0\.0\.5/);
 
-    // RPC succeeded (pre-create happened) but no assistant-row update was
-    // attempted — the error path must not issue a phantom "success" write.
+    // RPC succeeded (pre-create happened). The pre-created assistant row must
+    // not be left as an orphaned blank row: it is marked cancelled — and that
+    // is the ONLY write; no phantom "success" content/sources update.
     expect(state.calls.rpc).toHaveLength(1);
     expect(state.calls.rpc[0].fn).toBe("chat_begin_turn");
-    expect(state.calls.messagesUpdate).toHaveLength(0);
+    expect(state.calls.messagesUpdate).toHaveLength(1);
+    expect(state.calls.messagesUpdate[0].payload).toEqual({
+      is_cancelled: true,
+    });
+    expect(state.calls.messagesUpdate[0].eqId).toBe(101);
   });
 
   // ── P3: Successful finalization persists content + sources ─────────────────
@@ -525,5 +555,109 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
     expect(state.calls.backendFetchBody).not.toBeNull();
     expect(state.calls.backendFetchBody!.project_id).toBe(7);
     expect(state.calls.backendFetchBody!.project_id).not.toBe(999);
+  });
+
+  // ── P7: Client disconnect mid-stream — final persistence still happens ─────
+  it("P7: client cancels the response stream mid-turn → backend pump continues; final content + sources persisted, no cancel marking", async () => {
+    const sources = [{ title: "Doc B", url: "https://example.com/b" }];
+    const enc = new TextEncoder();
+    const sse = (e: Record<string, unknown> | string) =>
+      enc.encode(`data: ${typeof e === "string" ? e : JSON.stringify(e)}\n\n`);
+
+    // Manually-controlled backend stream so the client can disconnect while
+    // the backend is still mid-generation.
+    let backendCtl!: ReadableStreamDefaultController<Uint8Array>;
+    const backendStream = new ReadableStream<Uint8Array>({
+      start(c) {
+        backendCtl = c;
+      },
+    });
+    fetchMock.mockResolvedValueOnce(backendOk(backendStream));
+
+    const req = makeRequest({ query: "long generation" });
+    const res = await POST(req as never);
+    expect(res.status).toBe(200);
+
+    // Read the session event + the first delta, then DISCONNECT the client.
+    const reader = res.body!.getReader();
+    await reader.read(); // session event
+    backendCtl.enqueue(sse({ type: "delta", text: "Hel" }));
+    await reader.read(); // forwarded delta
+    await reader.cancel(); // client goes away (tab closed / connection dropped)
+
+    // Backend keeps generating after the disconnect and eventually finishes.
+    backendCtl.enqueue(sse({ type: "delta", text: "lo" }));
+    backendCtl.enqueue(sse({ type: "result", answer: "Hello", sources }));
+    backendCtl.enqueue(sse("[DONE]"));
+    backendCtl.close();
+
+    // In production after() keeps the function alive until the pump settles;
+    // the mock captured that same task — await it.
+    await Promise.all(afterTasks);
+
+    // The final write must have landed despite the client disconnect.
+    const finalUpdate = state.calls.messagesUpdate.find(
+      (e) => "sources" in e.payload,
+    );
+    expect(finalUpdate).toBeDefined();
+    expect(finalUpdate!.payload.content).toBe("Hello");
+    expect(finalUpdate!.payload.sources).toEqual(sources);
+    expect(finalUpdate!.eqId).toBe(101);
+
+    // The turn completed normally — it must NOT be marked cancelled.
+    expect(
+      state.calls.messagesUpdate.some((e) => e.payload.is_cancelled === true),
+    ).toBe(false);
+  });
+
+  // ── P8: No incremental write can land after finalization ───────────────────
+  it("P8: a straggler delta after result never produces a debounced write that clobbers the final content/sources", async () => {
+    const sources = [{ title: "S" }];
+    fetchMock.mockResolvedValueOnce(
+      backendOk(
+        makeSseStream([
+          { type: "delta", text: "partial " },
+          { type: "result", answer: "final answer", sources },
+          // Straggler delta AFTER the result — without the finalized guard this
+          // would arm a 400ms debounce timer whose write lands after the final
+          // one, clobbering it with stale content (and no sources).
+          { type: "delta", text: "stray" },
+          "[DONE]",
+        ]),
+      ),
+    );
+
+    const req = makeRequest({ query: "late delta" });
+    const res = await POST(req as never);
+    await drain(res);
+    await Promise.all(afterTasks);
+
+    // The last write must be the final result write.
+    const updateCount = state.calls.messagesUpdate.length;
+    const last = state.calls.messagesUpdate[updateCount - 1];
+    expect(last.payload.content).toBe("final answer");
+    expect(last.payload.sources).toEqual(sources);
+
+    // Wait out the 400ms debounce window: no further write may land.
+    await new Promise((r) => setTimeout(r, 500));
+    expect(state.calls.messagesUpdate).toHaveLength(updateCount);
+  });
+
+  // ── P9: Non-OK backend response after pre-create marks the row cancelled ───
+  it("P9: backend responds non-OK after pre-create → 502 and the pre-created assistant row is marked cancelled", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("boom", { status: 500 }));
+
+    const res = await POST(makeRequest({ query: "backend 500" }) as never);
+    expect(res.status).toBe(502);
+
+    const cancelUpdate = state.calls.messagesUpdate.find(
+      (e) => e.payload.is_cancelled === true,
+    );
+    expect(cancelUpdate).toBeDefined();
+    expect(cancelUpdate!.eqId).toBe(101);
+    // No content/sources write — the turn never streamed anything.
+    expect(
+      state.calls.messagesUpdate.filter((e) => "sources" in e.payload),
+    ).toHaveLength(0);
   });
 });

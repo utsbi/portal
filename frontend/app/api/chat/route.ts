@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -221,6 +221,22 @@ export async function POST(request: NextRequest) {
   let assistantMessageId: number | null = null;
   let assistantParentForClosure: number | null = null;
 
+  // Mark the pre-created assistant row cancelled when an early failure (backend
+  // fetch throw / non-OK response) means it will never receive content — the
+  // orphaned blank row would otherwise render as a forever-loading turn.
+  const markPrecreatedRowCancelled = async () => {
+    if (assistantMessageId === null) return;
+    const { error: cancelErr } = await supabase
+      .from("client_chat_messages")
+      .update({ is_cancelled: true })
+      .eq("id", assistantMessageId);
+    if (cancelErr)
+      console.error(
+        "[/api/chat] failed to mark orphaned assistant row cancelled:",
+        cancelErr,
+      );
+  };
+
   try {
     const [rpcResult, resolvedAttachments] = await Promise.all([
       supabase
@@ -273,12 +289,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("[/api/chat] error starting turn:", err);
+    await markPrecreatedRowCancelled();
     return jsonError(502, "Upstream request failed");
   }
 
   if (!backendRes.ok || !backendRes.body) {
     const errText = await backendRes.text().catch(() => "");
     console.error(`Backend error ${backendRes.status}:`, errText);
+    await markPrecreatedRowCancelled();
     return jsonError(502, "Upstream request failed");
   }
 
@@ -300,13 +318,19 @@ export async function POST(request: NextRequest) {
   // tools + partial answer. Cleared + flushed on `result` and on cancel.
   let pendingUpdate: ReturnType<typeof setTimeout> | null = null;
   let updatingPromise: Promise<void> | null = null;
+  // Set once the turn's final write (the `result` handler or the cancel
+  // fallback) starts. Guards the debounce in BOTH directions — no new timer is
+  // scheduled and an already-armed timer becomes a no-op — so a straggling
+  // incremental write can never land after finalization and clobber the final
+  // content/sources with a stale snapshot.
+  let finalized = false;
 
   const scheduleAssistantUpdate = () => {
-    if (assistantMessageId === null) return;
+    if (finalized || assistantMessageId === null) return;
     if (pendingUpdate) clearTimeout(pendingUpdate);
     pendingUpdate = setTimeout(() => {
       pendingUpdate = null;
-      if (assistantMessageId === null) return;
+      if (finalized || assistantMessageId === null) return;
       const id = assistantMessageId;
       // Snapshot the latest state at the moment the update fires (the closures
       // above are mutated by later events; we want the values at flush time).
@@ -348,247 +372,300 @@ export async function POST(request: NextRequest) {
       console.error("[/api/chat] flush assistant update failed:", updateErr);
   };
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder();
-      const decoder = new TextDecoder();
-      const reader = backendBody.getReader();
-      let buffer = "";
-      // Whether the assistant turn has already been written to the DB (via the
-      // `result` event). If the client aborts mid-stream we never see `result`,
-      // so the `finally` persists whatever streamed so far as a cancelled turn.
-      let persisted = false;
+  // ── Client stream, decoupled from the backend pump ──────────────────────────
+  // The backend stream is pumped to completion by `pumpBackendStream()` below,
+  // whose lifetime is pinned by `after()` — so the final persistence writes
+  // (content, sources, timeline, cancel fallback, active-leaf bookkeeping) run
+  // even if the client disconnects mid-stream and this response stream is
+  // cancelled. The client stream is only a mirror of the pump: cancelling it
+  // stops the forwarding, never the pump or its writes. Explicit user
+  // cancellation is unchanged — the backend fetch is tied to `request.signal`,
+  // so aborting the request still stops backend generation, and the pump then
+  // persists the partial answer as a cancelled turn.
+  const encoder = new TextEncoder();
+  let clientController: ReadableStreamDefaultController<Uint8Array> | null =
+    null;
+  let clientClosed = false;
 
+  const sendToClient = (chunk: Uint8Array) => {
+    if (clientClosed || !clientController) return;
+    try {
+      clientController.enqueue(chunk);
+    } catch {
+      // Controller already closed/errored — the client went away mid-enqueue.
+      clientClosed = true;
+    }
+  };
+
+  const closeClient = () => {
+    if (clientClosed || !clientController) return;
+    clientClosed = true;
+    try {
+      clientController.close();
+    } catch {
+      // Already closed by cancellation.
+    }
+  };
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      clientController = controller;
       // Emit session event first so the client can pin its URL/state.
       controller.enqueue(
         encoder.encode(
           `data: ${JSON.stringify({ type: "session", session_id: sessionIdForClosure })}\n\n`,
         ),
       );
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          // Forward upstream bytes immediately so the user sees real-time streaming.
-          controller.enqueue(value);
-
-          // Also parse to accumulate text and intercept the final result.
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data: ")) continue;
-            const data = trimmed.slice(6);
-            if (data === "[DONE]") continue;
-
-            try {
-              const event = JSON.parse(data);
-              if (event.type === "delta" && typeof event.text === "string") {
-                accumulated.push(event.text);
-                scheduleAssistantUpdate();
-              } else if (
-                event.type === "reasoning" &&
-                typeof event.text === "string"
-              ) {
-                // Coalesce adjacent reasoning chunks into the trailing reasoning
-                // step (matches the client's coalescing in runAgent) so the
-                // persisted timeline matches what the user saw live.
-                accumulatedReasoning += event.text;
-                const last = processSteps[processSteps.length - 1];
-                if (
-                  last &&
-                  last.kind === "reasoning" &&
-                  typeof last.text === "string"
-                ) {
-                  processSteps[processSteps.length - 1] = {
-                    ...last,
-                    text: last.text + event.text,
-                  };
-                } else {
-                  processSteps.push({ kind: "reasoning", text: event.text });
-                }
-                scheduleAssistantUpdate();
-              } else if (
-                event.type === "tool_call" &&
-                typeof event.id === "string" &&
-                typeof event.name === "string"
-              ) {
-                processSteps.push({
-                  kind: "tool",
-                  toolCallId: event.id,
-                  toolName: event.name,
-                  state: "running",
-                });
-                scheduleAssistantUpdate();
-              } else if (
-                event.type === "tool_result" &&
-                typeof event.id === "string"
-              ) {
-                // Mark the most-recent still-running tool step with this id as
-                // done. The running guard means a duplicate/colliding id can
-                // never re-mark an already-completed step.
-                for (let i = processSteps.length - 1; i >= 0; i--) {
-                  const s = processSteps[i];
-                  if (
-                    s.kind === "tool" &&
-                    s.toolCallId === event.id &&
-                    s.state === "running"
-                  ) {
-                    processSteps[i] = {
-                      ...s,
-                      state: "done",
-                      output:
-                        (event.output as Record<string, unknown> | undefined) ??
-                        undefined,
-                    };
-                    break;
-                  }
-                }
-                scheduleAssistantUpdate();
-              } else if (
-                event.type === "title" &&
-                isNewSessionForClosure &&
-                typeof event.title === "string" &&
-                event.title.trim()
-              ) {
-                // Persist the generated title, but only for a freshly created
-                // session — never clobber a user rename or a regenerated turn.
-                const { error: titleErr } = await supabase
-                  .from("client_chat_sessions")
-                  .update({ title: event.title.trim() })
-                  .eq("id", sessionIdForClosure);
-                if (titleErr)
-                  console.error(
-                    "[/api/chat] failed to set generated title:",
-                    titleErr,
-                  );
-              } else if (event.type === "result") {
-                const finalContent =
-                  (event.answer as string | undefined) ?? accumulated.join("");
-                // Flush any pending incremental update first so the final write
-                // is the one true state (it carries sources; the incremental
-                // ones don't because sources only arrive on `result`).
-                await flushAssistantUpdate();
-                if (assistantMessageId !== null) {
-                  const { error: updateErr } = await supabase
-                    .from("client_chat_messages")
-                    .update({
-                      content: finalContent,
-                      sources: event.sources ?? null,
-                    })
-                    .eq("id", assistantMessageId);
-                  if (updateErr)
-                    console.error(
-                      "[/api/chat] failed to finalize assistant message:",
-                      updateErr,
-                    );
-                } else {
-                  // The pre-create failed earlier; fall back to a single insert
-                  // so the branch still ends with an assistant turn.
-                  const { data: asstRow, error: asstErr } = await supabase
-                    .from("client_chat_messages")
-                    .insert({
-                      session_id: sessionIdForClosure,
-                      role: "assistant",
-                      content: finalContent,
-                      sources: event.sources ?? null,
-                      reasoning:
-                        accumulatedReasoning.length > 0
-                          ? accumulatedReasoning
-                          : null,
-                      process_steps:
-                        processSteps.length > 0 ? processSteps : null,
-                      model_preference: modelPreference,
-                      parent_id: assistantParentForClosure,
-                    })
-                    .select("id")
-                    .single();
-                  if (asstErr)
-                    console.error(
-                      "[/api/chat] failed to persist assistant message (fallback):",
-                      asstErr,
-                    );
-                  if (asstRow?.id != null) {
-                    await advanceActiveLeaf(asstRow.id);
-                  }
-                }
-                persisted = true;
-              }
-            } catch {
-              // Non-JSON or partial lines — already forwarded as bytes.
-            }
-          }
-        }
-      } catch (err) {
-        // Client aborted, network issue, etc. Forwarding stops; cleanup happens in finally.
-        console.error("[/api/chat] stream error:", err);
-      } finally {
-        // If the turn streamed text but never reached `result` (client cancelled
-        // mid-stream, network error, or backend crash), persist the partial
-        // answer — plus any reasoning + tool steps that streamed so far — as a
-        // cancelled turn. This is what makes a reload after a stop-button click
-        // show the partial ProcessTimeline rather than a blank assistant bubble.
-        if (!persisted) {
-          // Cancel any pending debounced update and wait for in-flight writes
-          // so we don't double-write the row.
-          if (pendingUpdate) {
-            clearTimeout(pendingUpdate);
-            pendingUpdate = null;
-          }
-          if (updatingPromise) await updatingPromise;
-          const partialContent = accumulated.join("");
-          if (assistantMessageId !== null) {
-            const { error: updateErr } = await supabase
-              .from("client_chat_messages")
-              .update({
-                content: partialContent,
-                is_cancelled: true,
-                reasoning:
-                  accumulatedReasoning.length > 0 ? accumulatedReasoning : null,
-                process_steps: processSteps.length > 0 ? processSteps : null,
-              })
-              .eq("id", assistantMessageId);
-            if (updateErr)
-              console.error(
-                "[/api/chat] failed to mark assistant cancelled:",
-                updateErr,
-              );
-          } else if (partialContent.length > 0) {
-            // Pre-create failed; insert a fresh cancelled row so the branch
-            // still has an assistant turn (mirrors the prior fallback).
-            const { data: cancelRow, error: cancelErr } = await supabase
-              .from("client_chat_messages")
-              .insert({
-                session_id: sessionIdForClosure,
-                role: "assistant",
-                content: partialContent,
-                is_cancelled: true,
-                reasoning:
-                  accumulatedReasoning.length > 0 ? accumulatedReasoning : null,
-                process_steps: processSteps.length > 0 ? processSteps : null,
-                model_preference: modelPreference,
-                parent_id: assistantParentForClosure,
-              })
-              .select("id")
-              .single();
-            if (cancelErr) {
-              console.error(
-                "[/api/chat] failed to persist cancelled partial:",
-                cancelErr,
-              );
-            } else if (cancelRow?.id != null) {
-              await advanceActiveLeaf(cancelRow.id);
-            }
-          }
-        }
-        controller.close();
-      }
+    },
+    cancel() {
+      // Client disconnected (stop button, closed tab, dropped connection).
+      // Stop forwarding; the pump keeps running so persistence still completes.
+      clientClosed = true;
     },
   });
+
+  const pumpBackendStream = async () => {
+    const decoder = new TextDecoder();
+    const reader = backendBody.getReader();
+    let buffer = "";
+    // Whether the assistant turn has already been written to the DB (via the
+    // `result` event). If the backend stream ends without one (user abort,
+    // network error, or backend crash), the `finally` persists whatever
+    // streamed so far as a cancelled turn.
+    let persisted = false;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Forward upstream bytes immediately so the user sees real-time streaming.
+        sendToClient(value);
+
+        // Also parse to accumulate text and intercept the final result.
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data: ")) continue;
+          const data = trimmed.slice(6);
+          if (data === "[DONE]") continue;
+
+          try {
+            const event = JSON.parse(data);
+            if (event.type === "delta" && typeof event.text === "string") {
+              accumulated.push(event.text);
+              scheduleAssistantUpdate();
+            } else if (
+              event.type === "reasoning" &&
+              typeof event.text === "string"
+            ) {
+              // Coalesce adjacent reasoning chunks into the trailing reasoning
+              // step (matches the client's coalescing in runAgent) so the
+              // persisted timeline matches what the user saw live.
+              accumulatedReasoning += event.text;
+              const last = processSteps[processSteps.length - 1];
+              if (
+                last &&
+                last.kind === "reasoning" &&
+                typeof last.text === "string"
+              ) {
+                processSteps[processSteps.length - 1] = {
+                  ...last,
+                  text: last.text + event.text,
+                };
+              } else {
+                processSteps.push({ kind: "reasoning", text: event.text });
+              }
+              scheduleAssistantUpdate();
+            } else if (
+              event.type === "tool_call" &&
+              typeof event.id === "string" &&
+              typeof event.name === "string"
+            ) {
+              processSteps.push({
+                kind: "tool",
+                toolCallId: event.id,
+                toolName: event.name,
+                state: "running",
+              });
+              scheduleAssistantUpdate();
+            } else if (
+              event.type === "tool_result" &&
+              typeof event.id === "string"
+            ) {
+              // Mark the most-recent still-running tool step with this id as
+              // done. The running guard means a duplicate/colliding id can
+              // never re-mark an already-completed step.
+              for (let i = processSteps.length - 1; i >= 0; i--) {
+                const s = processSteps[i];
+                if (
+                  s.kind === "tool" &&
+                  s.toolCallId === event.id &&
+                  s.state === "running"
+                ) {
+                  processSteps[i] = {
+                    ...s,
+                    state: "done",
+                    output:
+                      (event.output as Record<string, unknown> | undefined) ??
+                      undefined,
+                  };
+                  break;
+                }
+              }
+              scheduleAssistantUpdate();
+            } else if (
+              event.type === "title" &&
+              isNewSessionForClosure &&
+              typeof event.title === "string" &&
+              event.title.trim()
+            ) {
+              // Persist the generated title, but only for a freshly created
+              // session — never clobber a user rename or a regenerated turn.
+              const { error: titleErr } = await supabase
+                .from("client_chat_sessions")
+                .update({ title: event.title.trim() })
+                .eq("id", sessionIdForClosure);
+              if (titleErr)
+                console.error(
+                  "[/api/chat] failed to set generated title:",
+                  titleErr,
+                );
+            } else if (event.type === "result") {
+              // From here on the final state is being written; block any
+              // straggling debounced write from landing after it.
+              finalized = true;
+              const finalContent =
+                (event.answer as string | undefined) ?? accumulated.join("");
+              // Flush any pending incremental update first so the final write
+              // is the one true state (it carries sources; the incremental
+              // ones don't because sources only arrive on `result`).
+              await flushAssistantUpdate();
+              if (assistantMessageId !== null) {
+                const { error: updateErr } = await supabase
+                  .from("client_chat_messages")
+                  .update({
+                    content: finalContent,
+                    sources: event.sources ?? null,
+                  })
+                  .eq("id", assistantMessageId);
+                if (updateErr)
+                  console.error(
+                    "[/api/chat] failed to finalize assistant message:",
+                    updateErr,
+                  );
+              } else {
+                // The pre-create failed earlier; fall back to a single insert
+                // so the branch still ends with an assistant turn.
+                const { data: asstRow, error: asstErr } = await supabase
+                  .from("client_chat_messages")
+                  .insert({
+                    session_id: sessionIdForClosure,
+                    role: "assistant",
+                    content: finalContent,
+                    sources: event.sources ?? null,
+                    reasoning:
+                      accumulatedReasoning.length > 0
+                        ? accumulatedReasoning
+                        : null,
+                    process_steps:
+                      processSteps.length > 0 ? processSteps : null,
+                    model_preference: modelPreference,
+                    parent_id: assistantParentForClosure,
+                  })
+                  .select("id")
+                  .single();
+                if (asstErr)
+                  console.error(
+                    "[/api/chat] failed to persist assistant message (fallback):",
+                    asstErr,
+                  );
+                if (asstRow?.id != null) {
+                  await advanceActiveLeaf(asstRow.id);
+                }
+              }
+              persisted = true;
+            }
+          } catch {
+            // Non-JSON or partial lines — already forwarded as bytes.
+          }
+        }
+      }
+    } catch (err) {
+      // Backend aborted (user cancel), network issue, etc. Cleanup happens in finally.
+      console.error("[/api/chat] stream error:", err);
+    } finally {
+      // Finalization starts now — no incremental write may land past this point.
+      finalized = true;
+      // If the turn streamed text but never reached `result` (user cancelled
+      // mid-stream, network error, or backend crash), persist the partial
+      // answer — plus any reasoning + tool steps that streamed so far — as a
+      // cancelled turn. This is what makes a reload after a stop-button click
+      // show the partial ProcessTimeline rather than a blank assistant bubble.
+      if (!persisted) {
+        // Cancel any pending debounced update and wait for in-flight writes
+        // so we don't double-write the row.
+        if (pendingUpdate) {
+          clearTimeout(pendingUpdate);
+          pendingUpdate = null;
+        }
+        if (updatingPromise) await updatingPromise;
+        const partialContent = accumulated.join("");
+        if (assistantMessageId !== null) {
+          const { error: updateErr } = await supabase
+            .from("client_chat_messages")
+            .update({
+              content: partialContent,
+              is_cancelled: true,
+              reasoning:
+                accumulatedReasoning.length > 0 ? accumulatedReasoning : null,
+              process_steps: processSteps.length > 0 ? processSteps : null,
+            })
+            .eq("id", assistantMessageId);
+          if (updateErr)
+            console.error(
+              "[/api/chat] failed to mark assistant cancelled:",
+              updateErr,
+            );
+        } else if (partialContent.length > 0) {
+          // Pre-create failed; insert a fresh cancelled row so the branch
+          // still has an assistant turn (mirrors the prior fallback).
+          const { data: cancelRow, error: cancelErr } = await supabase
+            .from("client_chat_messages")
+            .insert({
+              session_id: sessionIdForClosure,
+              role: "assistant",
+              content: partialContent,
+              is_cancelled: true,
+              reasoning:
+                accumulatedReasoning.length > 0 ? accumulatedReasoning : null,
+              process_steps: processSteps.length > 0 ? processSteps : null,
+              model_preference: modelPreference,
+              parent_id: assistantParentForClosure,
+            })
+            .select("id")
+            .single();
+          if (cancelErr) {
+            console.error(
+              "[/api/chat] failed to persist cancelled partial:",
+              cancelErr,
+            );
+          } else if (cancelRow?.id != null) {
+            await advanceActiveLeaf(cancelRow.id);
+          }
+        }
+      }
+      closeClient();
+    }
+  };
+
+  // Start pumping the backend immediately, and pin the (serverless) function's
+  // lifetime to the pump with `after()` so the writes above are guaranteed to
+  // run even when the client-facing response stream is cancelled mid-turn.
+  after(pumpBackendStream());
 
   return new Response(stream, {
     headers: {

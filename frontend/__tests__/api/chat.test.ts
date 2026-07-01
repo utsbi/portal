@@ -15,6 +15,18 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ getAll: () => [], set: vi.fn() })),
 }));
 
+// ─── next/server mock ────────────────────────────────────────────────────────
+// The route pins its backend-pump lifetime with after(); outside a real Next
+// request scope after() throws. The pump closes the client stream only after
+// persistence finishes, so draining the response is enough for these tests.
+vi.mock("next/server", () => ({
+  after: (task: Promise<unknown> | (() => unknown)) => {
+    void Promise.resolve(typeof task === "function" ? task() : task).catch(
+      () => {},
+    );
+  },
+}));
+
 // ─── Supabase server client mock ─────────────────────────────────────────────
 // The chat route imports createClient from @/lib/supabase/server.
 // We need precise per-test control over auth state and DB responses.
