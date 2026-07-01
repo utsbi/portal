@@ -46,6 +46,7 @@ export function TransactionsTable({
       header: "Date",
       sortable: true,
       width: "w-32",
+      responsivePriority: 2,
       render: (v) => (
         <span className="text-sbi-muted tabular-nums">
           {dateFormatter.format(new Date(String(v)))}
@@ -74,6 +75,7 @@ export function TransactionsTable({
       accessor: "category_id",
       header: "Category",
       width: "w-44",
+      responsivePriority: 3,
       render: (v) => (
         <span className="text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border border-sbi-dark-border/60 text-sbi-muted">
           {categoryById.get(Number(v)) ?? "—"}

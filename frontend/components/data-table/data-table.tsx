@@ -48,6 +48,16 @@ export interface ColumnDef<T> {
   className?: string;
   /** Custom sort comparator. Return negative, 0, or positive. */
   sortFn?: (a: T, b: T) => number;
+  /**
+   * Responsive visibility priority. Lower numbers survive smaller screens:
+   * - `1` (default) — always visible
+   * - `2` — hidden below `md` (768px)
+   * - `3` — hidden below `lg` (1024px)
+   * Hiding is pure CSS (`hidden md:table-cell`), so sorting/filtering/column
+   * toggling keep working; horizontal scroll remains the fallback for
+   * whatever is still too wide.
+   */
+  responsivePriority?: 1 | 2 | 3;
 }
 
 export interface DataTableProps<T> {
@@ -142,6 +152,13 @@ const alignClass = (align?: string) => {
   if (align === "right") return "text-right";
   if (align === "center") return "text-center";
   return "text-left";
+};
+
+/** Responsive classes for ColumnDef.responsivePriority (see its JSDoc). */
+const priorityClass = (priority?: 1 | 2 | 3) => {
+  if (priority === 2) return "hidden md:table-cell";
+  if (priority === 3) return "hidden lg:table-cell";
+  return undefined;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -543,6 +560,7 @@ export function DataTable<T extends Record<string, any>>({
                       "px-5 py-2.5 text-[11px] tracking-wider uppercase font-semibold select-none transition-colors",
                       col.width,
                       alignClass(col.align),
+                      priorityClass(col.responsivePriority),
                       col.sortable
                         ? "cursor-pointer hover:text-white text-sbi-muted-dark"
                         : "text-sbi-muted-dark",
@@ -613,7 +631,11 @@ export function DataTable<T extends Record<string, any>>({
                     {visibleColumns.map((col) => (
                       <TableCell
                         key={String(col.accessor)}
-                        className={cn("px-5 py-3", col.width)}
+                        className={cn(
+                          "px-5 py-3",
+                          col.width,
+                          priorityClass(col.responsivePriority),
+                        )}
                       >
                         <Skeleton
                           className={cn(
@@ -725,6 +747,7 @@ export function DataTable<T extends Record<string, any>>({
                                   "px-5 py-3",
                                   col.width,
                                   alignClass(col.align),
+                                  priorityClass(col.responsivePriority),
                                   isPrimary &&
                                     "font-medium text-white group-hover:text-sbi-green transition-colors text-sm",
                                   !isPrimary && "text-sbi-muted text-sm",

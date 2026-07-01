@@ -95,8 +95,9 @@ export function DataTableFilters({
         </div>
       )}
 
-      {/* Dropdown filters + column visibility (right) */}
-      <div className="flex items-center gap-3 text-sm ml-auto">
+      {/* Dropdown filters + column visibility (right; wraps on narrow screens
+          instead of overflowing the toolbar) */}
+      <div className="flex flex-wrap items-center gap-3 text-sm ml-auto">
         {filters.map((filter) => (
           <SearchableDropdown
             key={filter.key}

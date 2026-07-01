@@ -42,9 +42,9 @@ export function ProjectSwitcher() {
   // Clients: a static readout, no switching, no hover affordance.
   if (!canSwitch) {
     return (
-      <div className="ml-4 flex flex-col px-4 py-2">
+      <div className="ml-2 flex flex-col px-3 py-2 md:ml-4 md:px-4">
         {eyebrow}
-        <span className="max-w-[200px] truncate text-xs font-light text-white">
+        <span className="max-w-[140px] truncate text-xs font-light text-white sm:max-w-[200px]">
           {label}
         </span>
       </div>
@@ -57,11 +57,13 @@ export function ProjectSwitcher() {
         <button
           type="button"
           aria-label="Switch project"
-          className="group relative ml-4 flex flex-col px-4 py-2 text-left"
+          className="group relative ml-2 flex min-h-11 flex-col justify-center px-3 py-2 text-left md:ml-4 md:px-4"
         >
           {eyebrow}
           <span className="flex items-center gap-1.5 text-xs font-light text-white">
-            <span className="max-w-[160px] truncate">{label}</span>
+            <span className="max-w-[120px] truncate sm:max-w-[160px]">
+              {label}
+            </span>
             <ChevronDown
               className={cn(
                 "size-3 shrink-0 text-sbi-muted transition-transform duration-300",

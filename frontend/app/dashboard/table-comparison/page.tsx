@@ -530,6 +530,7 @@ const UNIFIED_COLUMNS: ColumnDef<UnifiedItem>[] = [
     accessor: "department",
     header: "Department",
     sortable: true,
+    responsivePriority: 3,
   },
   {
     accessor: "status",
@@ -573,12 +574,14 @@ const UNIFIED_COLUMNS: ColumnDef<UnifiedItem>[] = [
     accessor: "director",
     header: "Director",
     sortable: true,
+    responsivePriority: 3,
   },
   {
     accessor: "date",
     header: "Date",
     sortable: true,
     align: "right" as const,
+    responsivePriority: 2,
     render: (value: string) => (
       <span className="text-xs text-sbi-muted tabular-nums">
         {new Intl.DateTimeFormat("en-US", {

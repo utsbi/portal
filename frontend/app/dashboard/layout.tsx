@@ -46,10 +46,12 @@ export default async function DashboardLayout({
             <AppSidebar />
             <div className="flex-1 flex flex-col min-h-0">
               {/* Header */}
-              <header className="relative flex h-16 shrink-0 items-center gap-2 bg-sbi-dark pr-6 border-b border-sbi-dark-border/30">
-                {/* Sidebar trigger — px-6 on both sides so the right hairline
-                    mirrors the left inset (was an absolute w-16 strip). */}
-                <div className="relative z-10 flex h-full items-center px-6 border-r border-sbi-dark-border/20">
+              <header className="relative flex h-16 shrink-0 items-center gap-2 bg-sbi-dark pr-4 md:pr-6 border-b border-sbi-dark-border/30">
+                {/* Sidebar trigger — matching horizontal padding on both sides
+                    so the right hairline mirrors the left inset (was an
+                    absolute w-16 strip). Tighter below md to leave room for
+                    the project switcher on phones. */}
+                <div className="relative z-10 flex h-full items-center px-4 md:px-6 border-r border-sbi-dark-border/20">
                   <SidebarTriggerCustom />
                 </div>
 
@@ -62,6 +64,8 @@ export default async function DashboardLayout({
 
                 <div className="flex-1" />
 
+                {/* Clock/date readout is ambient info — hidden below md so the
+                    trigger + project switcher keep the phone header uncluttered. */}
                 <TimeDisplay />
               </header>
 

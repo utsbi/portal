@@ -137,6 +137,7 @@ function ProjectDetailInner() {
         accessor: "priority",
         header: "Priority",
         sortable: true,
+        responsivePriority: 2,
         sortFn: (a, b) =>
           TASK_PRIORITY_ORDER[b.priority] - TASK_PRIORITY_ORDER[a.priority],
         render: (_, row) => <PriorityPill priority={row.priority} />,
@@ -145,6 +146,7 @@ function ProjectDetailInner() {
         accessor: "team",
         header: "Team",
         sortable: true,
+        responsivePriority: 3,
         render: (_, row) => (
           <span className="text-sm text-sbi-muted">
             {TEAM_NAME_LABELS[row.team]}
@@ -155,6 +157,7 @@ function ProjectDetailInner() {
         accessor: "due_date",
         header: "Due",
         sortable: true,
+        responsivePriority: 2,
         sortFn: (a, b) => a.due_date.getTime() - b.due_date.getTime(),
         render: (_, row) => (
           <span className="text-sm text-sbi-muted tabular-nums whitespace-nowrap">

@@ -63,11 +63,13 @@ const columns: ColumnDef<Request>[] = [
     accessor: "name",
     header: "From",
     sortable: true,
+    responsivePriority: 2,
   },
   {
     accessor: "createdAt",
     header: "Date",
     sortable: true,
+    responsivePriority: 2,
     render: (value) => (
       <span className="text-xs text-sbi-muted whitespace-nowrap">
         {formatDate(value)}
