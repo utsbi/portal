@@ -373,7 +373,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           seen.add(a.filename);
           if (a.hash) {
             // Freshly staged attachment: content is stored in DB, send reference.
-            all.push({ filename: a.filename, hash: a.hash, file_type: a.file_type });
+            all.push({
+              filename: a.filename,
+              hash: a.hash,
+              file_type: a.file_type,
+            });
           } else if (a.content) {
             all.push(a);
           }

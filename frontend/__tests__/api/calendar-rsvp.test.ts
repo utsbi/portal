@@ -267,13 +267,13 @@ describe("POST /api/contact/calendar/client-events/rsvp", () => {
             // "profile_id" — directors list: .eq(x2), awaited as thenable
             const chain: {
               eq: ReturnType<typeof vi.fn>;
-              // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mirrors Supabase's await-able query builder
               then: (
                 onF: (v: unknown) => unknown,
                 onR?: (e: unknown) => unknown,
               ) => Promise<unknown>;
             } = {
               eq: vi.fn(),
+              // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mirrors Supabase's await-able query builder
               then: (onF, onR) =>
                 Promise.resolve(directorMembersResult).then(onF, onR),
             };

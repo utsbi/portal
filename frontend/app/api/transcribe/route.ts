@@ -69,9 +69,15 @@ export async function POST(request: NextRequest) {
   if (rlErr) {
     // Fail open: best-effort cost guardrail, not a security gate. Don't break
     // the mic on a transient limiter error; the budget cap is the hard backstop.
-    console.error("[transcribe] rate-limit check failed (allowing)", rlErr.message);
+    console.error(
+      "[transcribe] rate-limit check failed (allowing)",
+      rlErr.message,
+    );
   } else if (allowed === false) {
-    return jsonError(429, "Too many transcription requests — please wait a moment");
+    return jsonError(
+      429,
+      "Too many transcription requests — please wait a moment",
+    );
   }
 
   try {
