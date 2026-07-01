@@ -25,8 +25,9 @@ Title: use a conventional-commit style summary, e.g.
 
 ## Verification
 <!-- Evidence, not assertions. What did you actually run / click? -->
-- [ ] `bun build` passes (frontend typecheck + build)
-- [ ] `py_compile` / backend compiles (no backend test framework yet)
+- [ ] `bun run test` + `bun run build` pass (frontend tests, typecheck, build)
+- [ ] `uv run pytest` passes (backend)
+- [ ] pgTAP suite passes if this PR touches `supabase/` (`bash supabase/tests/run.sh`)
 - [ ] Manually tested the change locally — describe the flow:
 
 ## Screenshots / recordings

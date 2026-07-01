@@ -9,9 +9,10 @@ bun install           # Install dependencies (prefer bun over npm/yarn)
 bun dev               # Dev server with Turbopack on localhost:3000
 bun build             # Production build
 bun lint              # Run Biome (biome check)
+bun run test          # Vitest unit/workflow suites (blocking in CI)
+bun run test:watch    # Vitest watch mode
+bun run test:e2e      # Playwright smoke suite (not run in CI)
 ```
-
-**No test framework configured.** No test commands available.
 
 ## Project Structure
 
@@ -29,11 +30,13 @@ components/
     explore/           # AI portal components
     [feature]/         # Feature-specific (reports, messages, etc.)
 lib/
-  supabase/            # Client/server helpers + proxy.ts session refresh utility
-proxy.ts               # Next.js 16 proxy (formerly middleware) — refreshes Supabase session
+  supabase/            # Client/server/admin helpers + session refresh utility
   utils.ts             # Utility functions (cn for className merging)
+proxy.ts               # Next.js 16 proxy (formerly middleware) — refreshes Supabase session
 assets/                # Static assets (fonts, images, logos)
 public/models/         # 3D models
+__tests__/             # Vitest suites (api, components, lib, workflows, adversarial)
+e2e/                   # Playwright smoke specs
 ```
 
 ## Code Style (Biome)

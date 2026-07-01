@@ -47,7 +47,8 @@ backend/
         │           └── documents.py # POST /documents/upload, GET /documents/list
         ├── core/
         │   ├── config.py            # Env settings (pydantic-settings)
-        │   └── security.py          # Security utilities
+        │   ├── limiter.py           # Per-user rate limiting (keyed on JWT sub)
+        │   └── uploads.py           # Upload size/type bounds
         ├── db/
         │   └── supabase.py          # Supabase client (service-role + user-scoped)
         ├── knowledge/
@@ -56,11 +57,12 @@ backend/
         │   ├── chat.py              # Chat request/response Pydantic models
         │   └── document.py          # Document models
         └── services/
-            ├── google_cal.py        # Google Calendar integration
             ├── membership.py        # Project membership resolution
-            ├── pdf_parser.py        # PDF/DOCX text extraction
-            └── rag_service.py       # RAG embeddings + hybrid search
+            ├── pdf_parser.py        # PDF/DOCX text extraction (zip-bomb bounded)
+            └── rag_service.py       # RAG embeddings + hybrid search + rerank
 ```
+
+Tests live in `backend/tests/` (pytest; unit + adversarial suites, run in CI).
 
 **Import convention:** All internal imports use `app.explore.` prefix (e.g. `from app.explore.core.config import settings`).
 
@@ -95,7 +97,8 @@ to the model. `execute_tool()` dispatches a tool call and returns `(result_text,
 | `get_reports` | Live list of project reports | PostgREST (RLS-scoped) |
 | `get_finance_summary` | Live budget/spend summary | PostgREST (RLS-scoped) |
 | `get_requests` | Live client support requests | PostgREST (RLS-scoped) |
-| `get_calendar_events` | Upcoming Google Calendar meetings | Google Calendar API |
+
+(Google Calendar integration lives in the frontend's `app/api/contact/calendar/` routes, not in a backend tool.)
 
 **Security:** All live-data tools run queries under the **caller's RLS context** via
 `user_client(access_token)`, plus manual `project_id`/`client_id` scoping. No service-role
@@ -150,10 +153,12 @@ THINK_MODEL=...                              # Final answer when model_preferenc
 TITLE_MODEL=...                              # Optional; conversation-title model. Falls back to FAST_MODEL
 EMBEDDING_MODEL=...                          # Embedding model
 EMBEDDING_DIMENSIONS=4096                    # Optional; omit to use model default
+RERANK_MODEL=...                             # Optional; reranker for hybrid retrieval
+RERANK_CANDIDATES=...                        # Optional; candidate pool size for reranking
+RERANK_TOP_N=...                             # Optional; results kept after reranking
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLIC_KEY=your_anon_public_key
 SUPABASE_SECRET_KEY=your_service_role_secret_key
-SUPABASE_JWT_SECRET=your_jwt_secret          # For validating Supabase JWTs server-side
 
 # Security / hardening (optional; safe defaults)
 ENV=development                              # "production" disables docs + enables HSTS

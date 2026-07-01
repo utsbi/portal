@@ -29,10 +29,12 @@ Copy `.env.example` to `.env.local` and fill in the values before running.
 ## Scripts
 
 ```bash
-bun dev     # Start dev server (Turbopack)
-bun build   # Production build
-bun start   # Start production server
-bun lint    # Biome (biome check)
+bun dev            # Start dev server (Turbopack)
+bun build          # Production build
+bun start          # Start production server
+bun lint           # Biome (biome check)
+bun run test       # Vitest suites
+bun run test:e2e   # Playwright smoke suite
 ```
 
 ## Project structure
