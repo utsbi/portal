@@ -113,6 +113,39 @@ export type Database = {
           },
         ];
       };
+      client_chat_attachments: {
+        Row: {
+          byte_len: number;
+          content: string;
+          content_hash: string;
+          created_at: string;
+          file_type: string;
+          filename: string;
+          id: number;
+          uid: string;
+        };
+        Insert: {
+          byte_len: number;
+          content: string;
+          content_hash: string;
+          created_at?: string;
+          file_type?: string;
+          filename: string;
+          id?: number;
+          uid?: string;
+        };
+        Update: {
+          byte_len?: number;
+          content?: string;
+          content_hash?: string;
+          created_at?: string;
+          file_type?: string;
+          filename?: string;
+          id?: number;
+          uid?: string;
+        };
+        Relationships: [];
+      };
       client_chat_messages: {
         Row: {
           attachments: Json | null;
@@ -1217,6 +1250,25 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      chat_begin_turn: {
+        Args: {
+          _session_id: number;
+          _query: string;
+          _attachments: Json | null;
+          _model_preference: string;
+          _history_len: number;
+          _regenerate: boolean;
+        };
+        Returns: {
+          user_message_id: number | null;
+          assistant_message_id: number;
+          active_leaf_id: number;
+        }[];
+      };
+      consume_rate_token: {
+        Args: { _bucket: string; _limit: number; _window: string };
+        Returns: boolean;
+      };
       current_user_role: { Args: never; Returns: string };
       hybrid_search: {
         Args: {

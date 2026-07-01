@@ -2,6 +2,7 @@
  * Chat API client. Talks to Next.js server routes under /api/chat/*,
  * which proxy to the FastAPI backend and own auth + persistence.
  */
+import { createClient } from "@/lib/supabase/client";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -11,8 +12,13 @@ export interface ChatMessage {
 
 export interface AttachmentFile {
   filename: string;
-  content: string;
+  /** Full extracted text. Optional: reference-shape attachments (hash set, no content)
+   *  are emitted by collectSessionAttachments for prior turns; the route resolves them. */
+  content?: string;
   file_type: string;
+  /** Lowercase hex SHA-256 of content, set after a successful store in
+   *  client_chat_attachments. Absent for legacy inline attachments. */
+  hash?: string;
 }
 
 export interface SourceDocument {
@@ -190,9 +196,51 @@ export async function sendChatMessage(
 }
 
 /**
+ * Compute a lowercase hex SHA-256 of `content`, upsert it into
+ * client_chat_attachments (content-addressed; UNIQUE on uid+hash means a
+ * duplicate is silently ignored), and return the attachment with `hash` set.
+ * On any store failure the attachment is returned WITHOUT a hash so the caller
+ * falls back to the legacy inline-content path — the turn still works.
+ */
+async function storeAttachment(att: AttachmentFile): Promise<AttachmentFile> {
+  const text = att.content ?? "";
+  const buffer = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text),
+  );
+  const hash = Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const supabase = createClient();
+  const { error } = await supabase.from("client_chat_attachments").upsert(
+    {
+      content_hash: hash,
+      filename: att.filename,
+      file_type: att.file_type,
+      content: text,
+      byte_len: text.length,
+    },
+    { onConflict: "uid,content_hash", ignoreDuplicates: true },
+  );
+
+  if (error) {
+    console.warn(
+      "[chat] attachment store failed, falling back to inline:",
+      error.message,
+    );
+    return att; // No hash — route receives inline content (legacy path)
+  }
+
+  return { ...att, hash };
+}
+
+/**
  * Extract text from a file for session-only attachment.
  * PDF/DOCX go through the backend (via the /api/chat/extract proxy); plain text
  * is read entirely in the browser.
+ * After extraction the content is stored in client_chat_attachments (content-
+ * addressed) and subsequent turns reference it by hash rather than resending.
  */
 export async function extractFileText(file: File): Promise<AttachmentFile> {
   const filename = file.name.toLowerCase();
@@ -217,19 +265,16 @@ export async function extractFileText(file: File): Promise<AttachmentFile> {
       throw new Error(error.detail || `HTTP ${response.status}`);
     }
 
-    return response.json();
+    const att: AttachmentFile = await response.json();
+    return storeAttachment(att);
   }
 
-  return new Promise((resolve, reject) => {
+  const content = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      resolve({
-        filename: file.name,
-        content: reader.result as string,
-        file_type: "txt",
-      });
-    };
+    reader.onload = () => resolve(reader.result as string);
     reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsText(file);
   });
+
+  return storeAttachment({ filename: file.name, content, file_type: "txt" });
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ReportItem } from "@/app/api/reports/route";
-import { createClient } from "@/lib/supabase/client";
+import { updateReportStatus } from "@/app/dashboard/reports/actions";
 
 const STATUS_TO_DB: Record<ReportItem["status"], string> = {
   Pending: "pending",
@@ -37,13 +37,9 @@ export function useReports(projectId: string | number | null | undefined) {
     id: string,
     status: ReportItem["status"],
   ): Promise<boolean> => {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("tickets")
-      .update({ status: STATUS_TO_DB[status] })
-      .eq("id", id);
-    if (error) {
-      console.error("Failed to update report status:", error.message);
+    const result = await updateReportStatus(id, STATUS_TO_DB[status]);
+    if (result.error) {
+      console.error("Failed to update report status:", result.error);
       return false;
     }
     setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));

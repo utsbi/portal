@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   deleteCategory,
   deleteTransaction,
@@ -271,7 +272,7 @@ export function FinancesView({
           const result = await deleteCategory(pendingDeleteCategory.id);
           setPendingDeleteCategory(null);
           if (result.error) {
-            window.alert(result.error);
+            toast.error(result.error);
           }
           await refetch();
         }}
@@ -292,7 +293,7 @@ export function FinancesView({
           if (!pendingDeleteTx) return;
           const result = await deleteTransaction(pendingDeleteTx.id);
           setPendingDeleteTx(null);
-          if (result.error) window.alert(result.error);
+          if (result.error) toast.error(result.error);
           await refetch();
         }}
       />

@@ -1,9 +1,9 @@
 "use client";
 
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { SearchableDropdown } from "@/components/data-table/searchable-dropdown";
+import { Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
 import { cn } from "@/lib/utils";
 
 export interface FilterDef {
@@ -66,10 +66,7 @@ export function DataTableFilters({
       {/* Search bar (left, flex-grow) */}
       {searchable && (
         <div className="relative grow min-w-[240px] max-w-sm group">
-          <MagnifyingGlassIcon
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-sbi-muted-dark group-focus-within:text-sbi-green transition-colors"
-            size={15}
-          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-[15px] h-[15px] text-sbi-muted-dark group-focus-within:text-sbi-green transition-colors" />
           <input
             type="text"
             placeholder={searchPlaceholder}

@@ -40,7 +40,6 @@ const nextConfig: NextConfig = {
     optimizePackageImports: [
       "lucide-react",
       "gsap",
-      "@phosphor-icons/react",
       "@react-three/drei",
       "recharts",
       "motion",

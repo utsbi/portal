@@ -1,6 +1,6 @@
 "use client";
 
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type ColumnDef, DataTable } from "@/components/data-table/data-table";
 import { StatusPill } from "@/components/data-table/status-pill";
@@ -124,10 +124,7 @@ export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
       <div className="mb-4 flex flex-wrap items-center gap-3 shrink-0">
         {/* Search (left, grows) */}
         <div className="relative grow min-w-[240px] max-w-sm group">
-          <MagnifyingGlassIcon
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-sbi-muted-dark group-focus-within:text-sbi-green transition-colors"
-            size={15}
-          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-[15px] h-[15px] text-sbi-muted-dark group-focus-within:text-sbi-green transition-colors" />
           <input
             type="text"
             placeholder="Search requests..."

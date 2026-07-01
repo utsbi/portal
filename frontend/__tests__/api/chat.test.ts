@@ -15,6 +15,18 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ getAll: () => [], set: vi.fn() })),
 }));
 
+// ─── next/server mock ────────────────────────────────────────────────────────
+// The route pins its backend-pump lifetime with after(); outside a real Next
+// request scope after() throws. The pump closes the client stream only after
+// persistence finishes, so draining the response is enough for these tests.
+vi.mock("next/server", () => ({
+  after: (task: Promise<unknown> | (() => unknown)) => {
+    void Promise.resolve(typeof task === "function" ? task() : task).catch(
+      () => {},
+    );
+  },
+}));
+
 // ─── Supabase server client mock ─────────────────────────────────────────────
 // The chat route imports createClient from @/lib/supabase/server.
 // We need precise per-test control over auth state and DB responses.
@@ -27,6 +39,15 @@ type SupabaseMockState = {
   insertMessageRow: { data: unknown; error: unknown };
   insertAsstRow: { data: unknown; error: unknown };
   updateResult: { error: unknown };
+  // Returned by the chat_begin_turn RPC mock (replaces serial inserts on happy path).
+  beginTurnRow: {
+    data: {
+      user_message_id: number | null;
+      assistant_message_id: number;
+      active_leaf_id: number;
+    } | null;
+    error: { message: string } | null;
+  };
 };
 
 const state: SupabaseMockState = {
@@ -37,6 +58,14 @@ const state: SupabaseMockState = {
   insertMessageRow: { data: null, error: null },
   insertAsstRow: { data: null, error: null },
   updateResult: { error: null },
+  beginTurnRow: {
+    data: {
+      user_message_id: 100,
+      assistant_message_id: 101,
+      active_leaf_id: 101,
+    },
+    error: null,
+  },
 };
 
 // A fluent chain mock. Every table operation feeds into state.
@@ -44,6 +73,7 @@ function makeDbChain(tableResult: { data: unknown; error: unknown }) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.select = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
+  chain.in = vi.fn(async () => tableResult); // resolves directly (no terminal needed)
   chain.maybeSingle = vi.fn(async () => tableResult);
   chain.single = vi.fn(async () => tableResult);
   chain.insert = vi.fn(() => insertChain);
@@ -74,6 +104,10 @@ vi.mock("@/lib/supabase/server", () => ({
           : { data: { session: null }, error: null },
       ),
     },
+    // chat_begin_turn RPC: atomic user+assistant row creation (replaces serial inserts).
+    rpc: vi.fn((_fn: string, _args: unknown) => ({
+      single: vi.fn(async () => state.beginTurnRow),
+    })),
     from: vi.fn((table: string) => {
       if (table === "client_chat_sessions") {
         const c = makeDbChain(state.sessionRow);
@@ -174,6 +208,14 @@ describe("POST /api/chat", () => {
     state.insertMessageRow = { data: { id: 100 }, error: null };
     state.insertAsstRow = { data: { id: 101 }, error: null };
     state.updateResult = { error: null };
+    state.beginTurnRow = {
+      data: {
+        user_message_id: 100,
+        assistant_message_id: 101,
+        active_leaf_id: 101,
+      },
+      error: null,
+    };
   });
 
   afterEach(() => {

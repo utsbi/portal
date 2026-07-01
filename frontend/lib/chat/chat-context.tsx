@@ -33,7 +33,12 @@ export type LoadingPhase =
 
 export interface MessageAttachment {
   filename: string;
-  content: string;
+  /** Full extracted text. Present on legacy inline rows; absent on new reference rows. */
+  content?: string;
+  /** SHA-256 hash referencing a row in client_chat_attachments. Set on new rows. */
+  hash?: string;
+  /** MIME sub-type (e.g. "txt", "pdf"). Stored alongside hash for the resolver. */
+  file_type?: string;
 }
 
 // A source row carried by a tool result (filename + optional page).
@@ -335,27 +340,45 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       for (const msg of msgs) {
         if (msg.role === "user" && msg.attachments) {
           for (const a of msg.attachments) {
-            // Skip attachments whose content didn't survive (e.g. conversations
-            // persisted before attachment content was stored). The stateless
-            // backend rejects a contentless attachment with a 422, so dropping it
-            // degrades gracefully — the turn still sends, just without that doc.
-            if (!a.content) continue;
-            if (!seen.has(a.filename)) {
-              seen.add(a.filename);
+            if (seen.has(a.filename)) continue;
+            seen.add(a.filename);
+            if (a.hash) {
+              // New reference shape: route resolves content from
+              // client_chat_attachments — no full text in the request body.
+              all.push({
+                filename: a.filename,
+                hash: a.hash,
+                file_type: a.file_type ?? "txt",
+              });
+            } else if (a.content) {
+              // Legacy inline shape (conversations persisted before this change).
+              // Pass full content so the stateless backend still receives it.
               all.push({
                 filename: a.filename,
                 content: a.content,
-                file_type: a.filename.split(".").pop()?.toLowerCase() || "txt",
+                file_type:
+                  a.file_type ??
+                  a.filename.split(".").pop()?.toLowerCase() ??
+                  "txt",
               });
             }
+            // else: no hash AND no content — skip (unresolvable; turn still sends)
           }
         }
       }
 
       if (extraAttachments) {
         for (const a of extraAttachments) {
-          if (!seen.has(a.filename)) {
-            seen.add(a.filename);
+          if (seen.has(a.filename)) continue;
+          seen.add(a.filename);
+          if (a.hash) {
+            // Freshly staged attachment: content is stored in DB, send reference.
+            all.push({
+              filename: a.filename,
+              hash: a.hash,
+              file_type: a.file_type,
+            });
+          } else if (a.content) {
             all.push(a);
           }
         }
@@ -714,10 +737,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      const messageAttachments: MessageAttachment[] = attachments.map((a) => ({
-        filename: a.filename,
-        content: a.content,
-      }));
+      // Store reference shape {filename, hash, file_type} for new attachments so
+      // the persisted row never carries full content; legacy inline path kept as
+      // fallback when store failed (hash absent).
+      const messageAttachments: MessageAttachment[] = attachments.map((a) =>
+        a.hash
+          ? { filename: a.filename, hash: a.hash, file_type: a.file_type }
+          : { filename: a.filename, content: a.content },
+      );
 
       const userMessage: DisplayMessage = {
         id: `user-${Date.now()}`,

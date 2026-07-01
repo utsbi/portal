@@ -3,7 +3,7 @@
 -- 5 (D5 read-receipt forgery), 6 (D6 staff-only), 8 (claims tampering).
 -- =====================================================================
 BEGIN;
-SELECT plan(16);
+SELECT plan(23);
 
 -- NOTE ON ORDERING: pgTAP runs this whole file in ONE transaction, so mutations
 -- persist between assertions until the final ROLLBACK. The D5 read-receipt
@@ -31,6 +31,76 @@ SELECT is(
      WHERE conversation_id = (SELECT v FROM public._test_ids WHERE k='conv_alpha')
        AND profile_id = (SELECT v FROM public._test_ids WHERE k='profile_clientb'))::int, 0,
   'D5: no conversation_reads row was forged for non-participant Client B');
+SELECT t.reset_auth();
+
+-- ---------------------------------------------------------------------
+-- TARGET S1 [CRITICAL]: messages UPDATE cross-tenant write / identity forge.
+-- Runs BEFORE the D1 section, which mutates conv_alpha's participant roster --
+-- here Client A is STILL a participant of conv_alpha (pristine) and is NOT a
+-- participant of conv_beta, which is exactly the precondition S1 needs.
+--
+-- The seeded conv_alpha message is owned by Client A (sender_uid = clientA,
+-- sender_role = 'client'). We prove the post-fix UPDATE policy + immutability
+-- trigger block: (a) re-parenting the message into conv_beta (a conversation
+-- Client A cannot participate in), and (b) forging sender_role / reply_to_id;
+-- while a legitimate content edit by the still-present sender still succeeds.
+-- ---------------------------------------------------------------------
+SELECT t.as_user(t.uid_clienta());
+
+-- (a) cross-tenant write: relocate own message into conv_beta -> blocked.
+SELECT throws_ok(
+  $$ UPDATE public.messages
+        SET conversation_id = (SELECT v FROM public._test_ids WHERE k='conv_beta')
+      WHERE conversation_id = (SELECT v FROM public._test_ids WHERE k='conv_alpha')
+        AND sender_uid = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid $$,
+  NULL, NULL,
+  'S1: Client A cannot RE-PARENT own message into conv_beta (non-participant target)');
+
+-- (b) identity/threading forgery: sender_role is immutable.
+SELECT throws_ok(
+  $$ UPDATE public.messages
+        SET sender_role = 'director'
+      WHERE conversation_id = (SELECT v FROM public._test_ids WHERE k='conv_alpha')
+        AND sender_uid = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid $$,
+  NULL, NULL,
+  'S1: Client A cannot forge sender_role on own message (immutable)');
+
+-- (b) identity/threading forgery: reply_to_id is immutable.
+SELECT throws_ok(
+  $$ UPDATE public.messages
+        SET reply_to_id = (SELECT v FROM public._test_ids WHERE k='conv_alpha')
+      WHERE conversation_id = (SELECT v FROM public._test_ids WHERE k='conv_alpha')
+        AND sender_uid = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid $$,
+  NULL, NULL,
+  'S1: Client A cannot forge reply_to_id on own message (immutable)');
+
+-- CONTROL: a legitimate content edit by the still-present sender succeeds.
+SELECT lives_ok(
+  $$ UPDATE public.messages
+        SET content = 'edited by client A'
+      WHERE conversation_id = (SELECT v FROM public._test_ids WHERE k='conv_alpha')
+        AND sender_uid = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid $$,
+  'S1 CONTROL: Client A CAN still edit own message content (participant, identity unchanged)');
+SELECT t.reset_auth();
+
+-- Verify (as service, RLS bypassed) the immutable columns never moved and only
+-- the legitimate content edit persisted.
+SELECT t.as_service();
+SELECT is(
+  (SELECT conversation_id FROM public.messages
+     WHERE sender_uid = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid),
+  (SELECT v FROM public._test_ids WHERE k='conv_alpha'),
+  'S1: message stayed in conv_alpha (no relocation persisted)');
+SELECT is(
+  (SELECT sender_role FROM public.messages
+     WHERE sender_uid = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid),
+  'client',
+  'S1: sender_role unchanged after forge attempts');
+SELECT is(
+  (SELECT content FROM public.messages
+     WHERE sender_uid = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid),
+  'edited by client A',
+  'S1 CONTROL: legitimate content edit DID persist');
 SELECT t.reset_auth();
 
 -- ---------------------------------------------------------------------

@@ -172,15 +172,26 @@ export async function listFolder(
  * whose `id === null`.
  */
 export async function collectAllObjectPaths(prefix: string): Promise<string[]> {
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .list(withRoot(prefix), { limit: 1000 });
+  // Paginate: Supabase storage list() caps at `limit` per call, so a folder
+  // with more than one page of entries would otherwise be silently truncated —
+  // making deleteFolder/moveFolder split large folders. Loop on offset until a
+  // short page signals the end.
+  const PAGE = 1000;
+  const entries: StorageEntry[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .list(withRoot(prefix), { limit: PAGE, offset });
 
-  if (error) {
-    throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const page = (data ?? []) as StorageEntry[];
+    entries.push(...page);
+    if (page.length < PAGE) break;
   }
 
-  const entries = (data ?? []) as StorageEntry[];
   const paths: string[] = [];
 
   for (const entry of entries) {

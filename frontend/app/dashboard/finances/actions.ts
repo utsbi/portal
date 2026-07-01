@@ -6,40 +6,10 @@ import type {
   CategoryDraft,
   TransactionInput,
 } from "@/components/dashboard/finances/types";
+import { requireProjectDirector } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 
 const FINANCES_PATH = "/dashboard/finances";
-
-async function requireDirector(projectId: number) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-  if (authError || !user) return { error: "Not authenticated" as const };
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("uid", user.id)
-    .single();
-  if (profileError || !profile) {
-    return { error: "Profile not found" as const };
-  }
-
-  const { data: membership, error: memberError } = await supabase
-    .from("project_members")
-    .select("role")
-    .eq("profile_id", profile.id)
-    .eq("project_id", projectId)
-    .maybeSingle();
-  if (memberError) return { error: "Membership lookup failed" as const };
-  if (!membership || membership.role !== "director") {
-    return { error: "Director role required" as const };
-  }
-
-  return { supabase, profileId: profile.id };
-}
 
 async function projectIdForBudget(budgetId: number): Promise<number | null> {
   const supabase = await createClient();
@@ -57,7 +27,7 @@ export async function createBudget(input: {
   periodEnd: string;
   currency?: string;
 }): Promise<ActionResult> {
-  const gate = await requireDirector(input.projectId);
+  const gate = await requireProjectDirector(input.projectId);
   if ("error" in gate) return { error: gate.error };
 
   const { error } = await gate.supabase.from("project_budgets").insert({
@@ -79,7 +49,7 @@ export async function upsertCategories(
 ): Promise<ActionResult> {
   const projectId = await projectIdForBudget(budgetId);
   if (!projectId) return { error: "Budget not found" };
-  const gate = await requireDirector(projectId);
+  const gate = await requireProjectDirector(projectId);
   if ("error" in gate) return { error: gate.error };
 
   const rows = drafts.map((d) => {
@@ -114,7 +84,7 @@ export async function deleteCategory(
 
   const projectId = await projectIdForBudget(cat.budget_id);
   if (!projectId) return { error: "Budget not found" };
-  const gate = await requireDirector(projectId);
+  const gate = await requireProjectDirector(projectId);
   if ("error" in gate) return { error: gate.error };
 
   const { error } = await gate.supabase
@@ -139,7 +109,7 @@ export async function logTransaction(
 ): Promise<ActionResult> {
   const projectId = await projectIdForBudget(input.budget_id);
   if (!projectId) return { error: "Budget not found" };
-  const gate = await requireDirector(projectId);
+  const gate = await requireProjectDirector(projectId);
   if ("error" in gate) return { error: gate.error };
 
   const { error } = await gate.supabase.from("budget_transactions").insert({
@@ -171,7 +141,7 @@ export async function updateTransaction(
 
   const projectId = await projectIdForBudget(tx.budget_id);
   if (!projectId) return { error: "Budget not found" };
-  const gate = await requireDirector(projectId);
+  const gate = await requireProjectDirector(projectId);
   if ("error" in gate) return { error: gate.error };
 
   const updateRow: Record<string, unknown> = {};
@@ -206,7 +176,7 @@ export async function deleteTransaction(id: number): Promise<ActionResult> {
 
   const projectId = await projectIdForBudget(tx.budget_id);
   if (!projectId) return { error: "Budget not found" };
-  const gate = await requireDirector(projectId);
+  const gate = await requireProjectDirector(projectId);
   if ("error" in gate) return { error: gate.error };
 
   const { error } = await gate.supabase

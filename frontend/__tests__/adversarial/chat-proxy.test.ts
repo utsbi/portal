@@ -26,6 +26,17 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ getAll: () => [], set: vi.fn() })),
 }));
 
+// The route pins its backend-pump lifetime with after(); outside a real Next
+// request scope after() throws. The pump closes the client stream only after
+// persistence finishes, so draining the response is enough for these tests.
+vi.mock("next/server", () => ({
+  after: (task: Promise<unknown> | (() => unknown)) => {
+    void Promise.resolve(typeof task === "function" ? task() : task).catch(
+      () => {},
+    );
+  },
+}));
+
 type State = {
   user: unknown;
   session: unknown;
@@ -34,6 +45,15 @@ type State = {
   insertMessageRow: { data: unknown; error: unknown };
   insertAsstRow: { data: unknown; error: unknown };
   updateResult: { error: unknown };
+  // Returned by the chat_begin_turn RPC mock (replaces serial inserts on happy path).
+  beginTurnRow: {
+    data: {
+      user_message_id: number | null;
+      assistant_message_id: number;
+      active_leaf_id: number;
+    } | null;
+    error: { message: string } | null;
+  };
 };
 
 const state: State = {
@@ -44,12 +64,17 @@ const state: State = {
   insertMessageRow: { data: { id: 10 }, error: null },
   insertAsstRow: { data: { id: 11 }, error: null },
   updateResult: { error: null },
+  beginTurnRow: {
+    data: { user_message_id: 10, assistant_message_id: 11, active_leaf_id: 11 },
+    error: null,
+  },
 };
 
 function makeDbChain(tableResult: { data: unknown; error: unknown }) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.select = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
+  chain.in = vi.fn(async () => tableResult); // resolves directly (no terminal needed)
   chain.maybeSingle = vi.fn(async () => tableResult);
   chain.single = vi.fn(async () => tableResult);
   chain.insert = vi.fn(() => chain);
@@ -72,6 +97,10 @@ vi.mock("@/lib/supabase/server", () => ({
           : { data: { session: null }, error: null },
       ),
     },
+    // chat_begin_turn RPC: atomic user+assistant row creation (replaces serial inserts).
+    rpc: vi.fn((_fn: string, _args: unknown) => ({
+      single: vi.fn(async () => state.beginTurnRow),
+    })),
     from: vi.fn((table: string) => {
       if (table === "client_chat_sessions") {
         const c = makeDbChain(state.sessionRow);
@@ -164,6 +193,14 @@ describe("ADVERSARIAL POST /api/chat — Authorization spoofing (C1)", () => {
     state.insertMessageRow = { data: { id: 10 }, error: null };
     state.insertAsstRow = { data: { id: 11 }, error: null };
     state.updateResult = { error: null };
+    state.beginTurnRow = {
+      data: {
+        user_message_id: 10,
+        assistant_message_id: 11,
+        active_leaf_id: 11,
+      },
+      error: null,
+    };
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -244,6 +281,14 @@ describe("ADVERSARIAL POST /api/chat — upstream error leakage across failure s
     state.insertMessageRow = { data: { id: 10 }, error: null };
     state.insertAsstRow = { data: { id: 11 }, error: null };
     state.updateResult = { error: null };
+    state.beginTurnRow = {
+      data: {
+        user_message_id: 10,
+        assistant_message_id: 11,
+        active_leaf_id: 11,
+      },
+      error: null,
+    };
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -311,6 +356,14 @@ describe("ADVERSARIAL POST /api/chat — public_id / UUID handling (C3)", () => 
     state.insertMessageRow = { data: { id: 10 }, error: null };
     state.insertAsstRow = { data: { id: 11 }, error: null };
     state.updateResult = { error: null };
+    state.beginTurnRow = {
+      data: {
+        user_message_id: 10,
+        assistant_message_id: 11,
+        active_leaf_id: 11,
+      },
+      error: null,
+    };
     fetchMock.mockResolvedValue(
       new Response(backendOkStream(), { status: 200 }),
     );

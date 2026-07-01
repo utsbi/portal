@@ -1,6 +1,7 @@
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { decryptToken } from "@/lib/crypto/tokens";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -21,10 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseAdmin = createAdminClient(
-    must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SECRET_KEY"),
-  );
+  const supabaseAdmin = createAdminClient();
 
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from("profiles")
@@ -43,9 +41,9 @@ export async function GET() {
   const config = profile.config as {
     google?: { refresh_token?: string };
   } | null;
-  const refreshToken = config?.google?.refresh_token;
+  const rawRefreshToken = config?.google?.refresh_token;
 
-  if (!refreshToken) {
+  if (!rawRefreshToken) {
     return NextResponse.json(
       { error: "No refresh token found" },
       { status: 400 },
@@ -59,7 +57,7 @@ export async function GET() {
   );
 
   oauth2.setCredentials({
-    refresh_token: refreshToken,
+    refresh_token: decryptToken(rawRefreshToken),
   });
 
   const calendar = google.calendar({ version: "v3", auth: oauth2 });

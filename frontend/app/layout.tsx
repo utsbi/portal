@@ -104,8 +104,9 @@ export default function RootLayout({
       <body className="scrollbar font-urbanist">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark"
+          forcedTheme="dark"
+          enableSystem={false}
           disableTransitionOnChange
         >
           {children}

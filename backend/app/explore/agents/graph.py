@@ -9,6 +9,26 @@ logger = logging.getLogger(__name__)
 # never spin the turn forever.
 MAX_TOOL_ITERATIONS = 4
 
+# Character caps for injecting attachment content into the model context.
+# The Pydantic schema already enforces 100 000 chars per file; these tighter
+# limits prevent a single large attachment from dominating the prompt while
+# still providing meaningful document coverage.
+_ATTACHMENT_CHARS_PER_FILE = 20_000
+# Aggregate cap across all attachments combined. With up to 10 attachments,
+# the uncapped maximum would be 200 000 chars; 40 000 is sufficient for
+# rich multi-document queries while keeping token cost predictable.
+_ATTACHMENT_CHARS_TOTAL = 40_000
+
+# A tool-calling iteration may stream short preface prose ("Let me search…")
+# before its tool_call chunks arrive, and tool-call intent is only knowable
+# once the first tool_call chunk (or the end of the stream) is seen. Each
+# iteration therefore buffers its prose until either a tool_call chunk arrives
+# (buffer suppressed — it was never shown, so nothing is lost) or this many
+# characters accumulate (tool prefaces are typically one short sentence, so
+# this much prose means a real answer: flush and stream live from then on).
+# The holdback is the only delay a genuine final answer ever sees.
+_PREFACE_BUFFER_CHARS = 160
+
 
 async def run_graph_streaming(
     query: str,
@@ -28,12 +48,20 @@ async def run_graph_streaming(
          emitted as soon as it's ready.
       2. Emit ``phase: thinking``, then run a SINGLE STREAMING tool-calling loop
          (max ``MAX_TOOL_ITERATIONS``) with ``tools`` and ``tool_choice="auto"``.
-         ``delta.content`` streams as ``delta`` events and ``delta.reasoning`` as
-         ``reasoning`` events AS THEY ARRIVE. If a chunk yields tool calls, emit
+         ``delta.reasoning`` streams as ``reasoning`` events AS IT ARRIVES.
+         ``delta.content`` is held in a short per-iteration preface buffer
+         (``_PREFACE_BUFFER_CHARS``): if the iteration turns out to request
+         tools, the buffered prose is suppressed — the frontend appends every
+         ``delta`` to the visible answer and the protocol has no retraction
+         event, so tool-preface prose must never be emitted (it would vanish
+         from the persisted answer). Once the buffer exceeds the holdback (or
+         the stream ends tool-free) the prose flushes and streams live as
+         ``delta`` events. If a chunk yields tool calls, emit
          ``phase: searching`` once, execute each via ``execute_tool`` (
          ``search_documents`` results contribute citation sources), append the
          results, and loop again — the next iteration is ALSO streamed. A no-tool
-         query therefore starts streaming on the FIRST model call.
+         query therefore starts streaming on the FIRST model call (delayed only
+         by the preface holdback).
       3. Emit ``phase: generating`` before the answer-only iteration so the UI
          can flip out of "searching"; the final answer streamed in that same
          iteration carries [n] citations against the accumulated tool results.
@@ -59,6 +87,28 @@ async def run_graph_streaming(
 
     history = history or []
     attachments = attachments or []
+
+    # Per-turn RLS client and project-id list, resolved lazily on the first
+    # tool call and then reused across all subsequent tool calls in this turn.
+    # This avoids N × (1 client creation + 2 DB queries) for N concurrent
+    # tools in asyncio.gather.  The asyncio.Lock prevents the case where two
+    # coroutines both see the "not yet resolved" flag and race to build the
+    # client concurrently (asyncio's cooperative scheduling makes this a real
+    # risk whenever the resolution path contains an ``await``).
+    _turn_lock = asyncio.Lock()
+    _turn_db: list = [None]   # mutable single-element container (closure target)
+    _turn_pids: list = [None]  # same — holds Optional[List[int]]
+
+    async def _resolve_turn_ctx():
+        async with _turn_lock:
+            if _turn_db[0] is None:
+                from app.explore.db.supabase import user_client as _uc
+                from app.explore.services.membership import (
+                    scoped_project_ids as _spi,
+                )
+                _turn_db[0] = _uc(access_token)
+                _turn_pids[0] = await _spi(_turn_db[0], client_id, project_id)
+        return _turn_db[0], _turn_pids[0]
 
     # First turn: start best-effort title generation as a background task so it
     # overlaps the first model call instead of serializing a full round-trip
@@ -106,6 +156,40 @@ async def run_graph_streaming(
                 messages.append({"role": "system", "content": project_context})
         except Exception:
             logger.exception("Project-context injection failed; continuing without it")
+
+    # Inject attachment content as a system-level context block so the model
+    # can reference user-uploaded documents when answering. Content arrives
+    # pre-extracted (via /chat/extract-text); no parsing is needed here.
+    # Each file is truncated to _ATTACHMENT_CHARS_PER_FILE and the combined
+    # block is capped at _ATTACHMENT_CHARS_TOTAL so a large upload can never
+    # dominate the prompt or blow past token budgets.
+    if attachments:
+        attachment_parts: List[str] = []
+        total_attachment_chars = 0
+        for att in attachments:
+            if total_attachment_chars >= _ATTACHMENT_CHARS_TOTAL:
+                break
+            content = (att.get("content") or "").strip()
+            if not content:
+                continue
+            remaining = _ATTACHMENT_CHARS_TOTAL - total_attachment_chars
+            per_file_cap = min(_ATTACHMENT_CHARS_PER_FILE, remaining)
+            truncated = content[:per_file_cap]
+            total_attachment_chars += len(truncated)
+            filename = att.get("filename", "attachment")
+            file_type = att.get("file_type", "")
+            type_suffix = f" ({file_type})" if file_type else ""
+            attachment_parts.append(f"--- {filename}{type_suffix} ---\n{truncated}")
+        if attachment_parts:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "User-attached documents (reference these when answering "
+                    "document-specific questions; they take precedence over "
+                    "general knowledge for their content):\n\n"
+                    + "\n\n".join(attachment_parts)
+                ),
+            })
 
     for msg in history[-10:]:
         role = msg.get("role", "user")
@@ -161,6 +245,19 @@ async def run_graph_streaming(
         # fragments for one tool call (keyed by the streamed choice index).
         tool_calls_acc: Dict[int, Dict[str, Any]] = {}
 
+        # Prose streamed this iteration. ``iteration_flushed`` counts how many
+        # of these parts have already been emitted downstream as ``delta``
+        # events (0 while the preface holdback is buffering); ``tools_seen``
+        # flips on the first tool_call chunk and freezes emission for the rest
+        # of the iteration. If tools arrive AFTER an early flush (a preface
+        # longer than the holdback), the already-shown text stays in
+        # ``answer_parts`` so what the user saw always matches what is
+        # persisted — emitted text is never retracted.
+        iteration_parts: List[str] = []
+        iteration_chars = 0
+        iteration_flushed = 0
+        tools_seen = False
+
         try:
             stream = await openrouter_client.chat.completions.create(
                 model=model,
@@ -183,20 +280,40 @@ async def run_graph_streaming(
                 if reasoning:
                     yield {"type": "reasoning", "text": reasoning}
 
+                # Note tool-call intent BEFORE handling content so that a chunk
+                # carrying both never flushes its own preface prose.
+                chunk_tool_calls = getattr(delta, "tool_calls", None) or []
+                if chunk_tool_calls:
+                    tools_seen = True
+
                 content = delta.content
                 if content:
-                    # First answer token: flip the UI out of "thinking"/"searching"
-                    # into "generating" exactly once, on every path (a no-tool
-                    # query never runs the post-tools emission below).
-                    if not generating_emitted:
-                        yield {"type": "phase", "phase": "generating"}
-                        generating_emitted = True
-                    answer_parts.append(content)
-                    yield {"type": "delta", "text": content}
+                    iteration_parts.append(content)
+                    iteration_chars += len(content)
+                    # Hold prose in the preface buffer until this iteration is
+                    # confidently tool-free: once tool_call chunks appear the
+                    # buffer is suppressed (never emitted, never persisted);
+                    # once enough prose accumulates that it's clearly a real
+                    # answer, flush and stream live from then on.
+                    if not tools_seen and (
+                        iteration_flushed > 0
+                        or iteration_chars >= _PREFACE_BUFFER_CHARS
+                    ):
+                        # First answer token: flip the UI out of "thinking"/
+                        # "searching" into "generating" exactly once, on every
+                        # path (a no-tool query never runs the post-tools
+                        # emission below).
+                        if not generating_emitted:
+                            yield {"type": "phase", "phase": "generating"}
+                            generating_emitted = True
+                        for part in iteration_parts[iteration_flushed:]:
+                            answer_parts.append(part)
+                            yield {"type": "delta", "text": part}
+                        iteration_flushed = len(iteration_parts)
 
                 # Accumulate any tool_call fragments on this chunk. The id and
                 # name arrive once; arguments stream as concatenated fragments.
-                for tc in getattr(delta, "tool_calls", None) or []:
+                for tc in chunk_tool_calls:
                     idx = tc.index if tc.index is not None else 0
                     slot = tool_calls_acc.setdefault(
                         idx, {"id": None, "name": None, "arguments": ""}
@@ -221,21 +338,44 @@ async def run_graph_streaming(
             # A streaming failure must not crash the turn. Break out; the
             # fallbacks below surface a graceful message if nothing streamed.
             logger.exception("Streaming completion failed; ending tool loop")
+            # Surface any prose still held by the preface buffer so a partial
+            # answer isn't swallowed — unless tool chunks were already seen, in
+            # which case the buffer is a tool preface and stays suppressed.
+            if not tools_seen and iteration_flushed < len(iteration_parts):
+                if not generating_emitted:
+                    yield {"type": "phase", "phase": "generating"}
+                    generating_emitted = True
+                for part in iteration_parts[iteration_flushed:]:
+                    answer_parts.append(part)
+                    yield {"type": "delta", "text": part}
             break
 
         # Materialize accumulated tool calls in their streamed order.
         tool_calls = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
 
         if not tool_calls:
-            # No tools requested: the answer already streamed in this iteration.
-            # We're done.
+            # No tools requested: this iteration IS the final answer. Flush any
+            # prose still held by the preface buffer (answers shorter than the
+            # holdback finish without ever flushing mid-stream), then stop.
+            if iteration_flushed < len(iteration_parts):
+                if not generating_emitted:
+                    yield {"type": "phase", "phase": "generating"}
+                    generating_emitted = True
+                for part in iteration_parts[iteration_flushed:]:
+                    answer_parts.append(part)
+                    yield {"type": "delta", "text": part}
             break
 
         # Record the assistant's tool-call message so the tool results attach to
-        # the right call ids.
+        # the right call ids. Its content is this iteration's streamed prose
+        # (typically a short tool preface) — kept so the model sees its own
+        # words on the next iteration, but never emitted as answer deltas and
+        # never part of the persisted result unless it was already flushed to
+        # the client (in which case it stays in ``answer_parts`` so the shown
+        # and persisted answers always match).
         messages.append({
             "role": "assistant",
-            "content": "".join(answer_parts) if answer_parts else "",
+            "content": "".join(iteration_parts),
             "tool_calls": [
                 {
                     "id": tc["id"] or f"call_{i}",
@@ -248,14 +388,13 @@ async def run_graph_streaming(
                 for i, tc in enumerate(tool_calls)
             ],
         })
-        # The streamed deltas (if any) belonged to a tool-deciding turn, not the
-        # final answer; reset so they don't leak into the result.
-        answer_parts = []
 
         if not searched_emitted:
             yield {"type": "phase", "phase": "searching"}
             searched_emitted = True
 
+        # Parse all tool call args upfront (sync, cheap).
+        parsed_calls = []
         for i, tc in enumerate(tool_calls):
             name = tc["name"] or ""
             # Include the iteration in the fallback id so a provider that omits
@@ -271,14 +410,32 @@ async def run_graph_streaming(
             except (json.JSONDecodeError, TypeError):
                 logger.warning(f"Failed to parse tool args for {name}: {raw_args!r}")
                 args = {}
+            parsed_calls.append((name, tc_id, args))
 
+        # Emit tool_call events in deterministic input order before any I/O.
+        for name, tc_id, args in parsed_calls:
             yield {"type": "tool_call", "id": tc_id, "name": name, "input": args}
 
-            result_text, sources = await execute_tool(
-                name, args, client_id, access_token, project_id
-            )
-            collected_sources.extend(sources)
+        # Resolve the per-turn RLS client and project-id list ONCE, then pass
+        # them to every execute_tool call so each tool skips its own
+        # user_client() + scoped_project_ids() queries.
+        _turn_context_db, _turn_context_pids = await _resolve_turn_ctx()
 
+        # Execute all tool calls concurrently; asyncio.gather preserves order.
+        tool_results = await asyncio.gather(
+            *(
+                execute_tool(
+                    name, args, client_id, access_token, project_id,
+                    db=_turn_context_db,
+                    resolved_project_ids=_turn_context_pids,
+                )
+                for name, tc_id, args in parsed_calls
+            )
+        )
+
+        # Emit tool_result events and append history messages in the same stable order.
+        for (name, tc_id, args), (result_text, sources) in zip(parsed_calls, tool_results):
+            collected_sources.extend(sources)
             yield {"type": "tool_result", "id": tc_id, "name": name, "output": {
                 "sources": [
                     {"filename": s.get("filename"), "page_number": s.get("page_number")}
@@ -286,7 +443,6 @@ async def run_graph_streaming(
                 ],
                 "text": (result_text or "")[:1200],
             }}
-
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc_id,

@@ -47,24 +47,64 @@ const state = {
 };
 
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: vi.fn(async () => {
-        // Every action begins with exactly one getUser() (via requireUser /
-        // requireDirector). Use it as the action boundary so the profiles
-        // .single() router (caller-first, target-second) starts fresh per action
-        // even when one test invokes several actions in sequence.
-        state.profileSingleCalls = 0;
-        return state.user
-          ? { data: { user: state.user }, error: null }
-          : { data: { user: null }, error: { message: "unauthenticated" } };
+  createClient: vi.fn(async () => {
+    // requireDirector() (guards.ts) and requireUser() (actions.ts) both use
+    // the RLS-respecting server client for auth + caller-profile lookup.
+    // updateMyProfile / updateMyPassword also mutate via this same client.
+    // We expose .from("profiles") so those code paths work correctly.
+    const profilesChain: Record<string, ReturnType<typeof vi.fn>> = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      // requireUser() → .single(); requireDirector() → .maybeSingle()
+      single: vi.fn(async () => ({
+        data: state.callerProfile,
+        error: state.callerProfileError,
+      })),
+      maybeSingle: vi.fn(async () => ({
+        data: state.callerProfile,
+        error: state.callerProfileError,
+      })),
+      // updateMyProfile uses ctx.supabase.from("profiles").update().eq()
+      // Track calls so S4 assertions can verify the correct profile id is
+      // targeted and no spurious mutations occur on auth-rejected paths.
+      update: vi.fn((patch: Record<string, unknown>) => ({
+        eq: vi.fn(async (_col: string, id: unknown) => {
+          state.profileUpdateCalls.push({ patch, id });
+          return { error: null };
+        }),
+      })),
+    };
+    profilesChain.select.mockReturnValue(profilesChain);
+    profilesChain.eq.mockReturnValue(profilesChain);
+    return {
+      auth: {
+        getUser: vi.fn(async () => {
+          // Every action begins with exactly one getUser() (via requireUser /
+          // requireDirector). Reset the admin-mock single() counter here so
+          // the "first vs second .single() in admin" routing stays correct
+          // across back-to-back action calls in the same test.
+          state.profileSingleCalls = 0;
+          return state.user
+            ? { data: { user: state.user }, error: null }
+            : { data: { user: null }, error: { message: "unauthenticated" } };
+        }),
+        updateUser: vi.fn(async () => {
+          state.updateUserAuthCalls++;
+          return { error: null };
+        }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "profiles") return profilesChain;
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn(async () => ({ data: null, error: null })),
+          maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+          update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+        };
       }),
-      updateUser: vi.fn(async () => {
-        state.updateUserAuthCalls++;
-        return { error: null };
-      }),
-    },
-  })),
+    };
+  }),
 }));
 
 vi.mock("@supabase/supabase-js", () => {
@@ -94,13 +134,12 @@ vi.mock("@supabase/supabase-js", () => {
     // shared across chains (state.profileSingleCalls) because requireDirector and
     // the action each build their own from("profiles") chain.
     chain.eq.mockReturnValue(chain);
-    chain.single.mockImplementation(async () => {
-      state.profileSingleCalls++;
-      if (state.profileSingleCalls === 1) {
-        return { data: state.callerProfile, error: state.callerProfileError };
-      }
-      return state.existingProfile;
-    });
+    // The caller-profile lookup (first .single() in the old design) has moved
+    // to the server client mock above. The admin client's .single() on profiles
+    // is now ALWAYS a TARGET lookup (updateAccount existing-row fetch,
+    // deleteAccount uid fetch), so we return state.existingProfile directly
+    // without any call-counter routing.
+    chain.single.mockImplementation(async () => state.existingProfile);
     chain.maybeSingle.mockImplementation(async () => ({
       data: null,
       error: null,

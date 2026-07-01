@@ -15,9 +15,34 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@supabase/supabase-js": {
+                "importNames": ["createClient"],
+                "message": "Use createAdminClient from @/lib/supabase/admin instead of importing createClient from @supabase/supabase-js directly."
+              }
+            }
+          }
+        }
+      }
     }
   },
+  "overrides": [
+    {
+      "includes": ["lib/supabase/**", "scripts/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",

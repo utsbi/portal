@@ -16,7 +16,7 @@
 -- read Alpha-prefixed objects but never Beta-prefixed ones.
 -- =====================================================================
 BEGIN;
-SELECT plan(10);
+SELECT plan(23);
 
 -- ---------------------------------------------------------------------
 -- Files bucket: project-prefix scoping.
@@ -101,6 +101,127 @@ SELECT is(
   (SELECT count(*) FROM storage.objects
      WHERE bucket_id IN ('Files', 'Message Attachments', 'ticket-attachments'))::int, 0,
   'LEAK? anon must NOT read any private-bucket storage object');
+SELECT t.reset_auth();
+
+-- =====================================================================
+-- PARTICIPANT-MODEL retarget (20260628000002): message attachments + the
+-- 'Message Attachments' storage bucket now authorize via
+-- is_conversation_participant(conversation_id), NOT the legacy
+-- client_profile_id/director_profile_id columns. conv_alpha = {Client A,
+-- Director}; conv_beta = {Client B, Director}; Client B is NOT in conv_alpha.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- message_attachments TABLE SELECT: participant-scoped row visibility.
+-- ---------------------------------------------------------------------
+-- CONTROL: Client A (participant of conv_alpha) sees the conv_alpha attachment row.
+SELECT t.as_user(t.uid_clienta());
+SELECT is(
+  (SELECT count(*) FROM public.message_attachments
+     WHERE path = t.id('conv_alpha')::text || '/alpha-secret.pdf')::int, 1,
+  'CONTROL message_attachments: Client A (participant) reads own conv_alpha attachment row');
+-- LEAK probe: Client A must NOT see conv_beta's attachment row.
+SELECT is(
+  (SELECT count(*) FROM public.message_attachments
+     WHERE path = t.id('conv_beta')::text || '/beta-secret.pdf')::int, 0,
+  'LEAK? message_attachments: Client A must NOT read Beta conv attachment row');
+SELECT t.reset_auth();
+-- LEAK probe: Client B (non-participant of conv_alpha) must NOT see its attachment row.
+SELECT t.as_user(t.uid_clientb());
+SELECT is(
+  (SELECT count(*) FROM public.message_attachments
+     WHERE path = t.id('conv_alpha')::text || '/alpha-secret.pdf')::int, 0,
+  'LEAK? message_attachments: non-participant Client B must NOT read conv_alpha attachment row');
+SELECT t.reset_auth();
+-- CONTROL: the Director (also a participant of conv_alpha) CAN read the row.
+SELECT t.as_user(t.uid_director());
+SELECT is(
+  (SELECT count(*) FROM public.message_attachments
+     WHERE path = t.id('conv_alpha')::text || '/alpha-secret.pdf')::int, 1,
+  'CONTROL message_attachments: Director (participant) reads conv_alpha attachment row');
+SELECT t.reset_auth();
+
+-- ---------------------------------------------------------------------
+-- storage.objects 'Message Attachments' SELECT: participant-scoped.
+-- ---------------------------------------------------------------------
+-- LEAK probe: non-participant Client B must NOT read conv_alpha's storage object.
+SELECT t.as_user(t.uid_clientb());
+SELECT is(
+  (SELECT count(*) FROM storage.objects
+     WHERE bucket_id = 'Message Attachments'
+       AND name = t.id('conv_alpha')::text || '/alpha-secret.pdf')::int, 0,
+  'LEAK? Message Attachments: non-participant Client B must NOT read conv_alpha object');
+SELECT t.reset_auth();
+-- CONTROL: Director (participant) CAN read conv_alpha's storage object.
+SELECT t.as_user(t.uid_director());
+SELECT is(
+  (SELECT count(*) FROM storage.objects
+     WHERE bucket_id = 'Message Attachments'
+       AND name = t.id('conv_alpha')::text || '/alpha-secret.pdf')::int, 1,
+  'CONTROL Message Attachments: Director (participant) reads conv_alpha object');
+SELECT t.reset_auth();
+
+-- ---------------------------------------------------------------------
+-- storage.objects 'Message Attachments' INSERT: WITH CHECK requires the first
+-- path segment to name a conversation the uploader participates in.
+-- ---------------------------------------------------------------------
+-- non-participant Client B cannot upload into conv_alpha's prefix.
+SELECT t.as_user(t.uid_clientb());
+SELECT throws_ok(
+  $$ INSERT INTO storage.objects (bucket_id, name, owner)
+     VALUES ('Message Attachments',
+             (SELECT v FROM public._test_ids WHERE k='conv_alpha')::text || '/evil.pdf',
+             'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') $$,
+  NULL, NULL,
+  'INSERT Message Attachments: non-participant Client B cannot upload into conv_alpha prefix');
+-- CONTROL: Client B CAN upload into conv_beta's prefix (it is a participant there).
+SELECT lives_ok(
+  $$ INSERT INTO storage.objects (bucket_id, name, owner)
+     VALUES ('Message Attachments',
+             (SELECT v FROM public._test_ids WHERE k='conv_beta')::text || '/ok.pdf',
+             'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') $$,
+  'CONTROL INSERT Message Attachments: Client B (participant) CAN upload into conv_beta prefix');
+SELECT t.reset_auth();
+-- CONTROL: Director (participant of conv_alpha) CAN upload into conv_alpha's prefix.
+SELECT t.as_user(t.uid_director());
+SELECT lives_ok(
+  $$ INSERT INTO storage.objects (bucket_id, name, owner)
+     VALUES ('Message Attachments',
+             (SELECT v FROM public._test_ids WHERE k='conv_alpha')::text || '/legit.pdf',
+             'dddddddd-dddd-dddd-dddd-dddddddddddd') $$,
+  'CONTROL INSERT Message Attachments: Director (participant) CAN upload into conv_alpha prefix');
+SELECT t.reset_auth();
+
+-- ---------------------------------------------------------------------
+-- message_attachments TABLE DELETE: only the sending participant may delete;
+-- a non-participant (also non-sender) cannot. (DELETE policy is sender-scoped;
+-- a non-participant is never the sender, so removal is denied -> no-op.)
+-- ---------------------------------------------------------------------
+-- non-participant Client B cannot delete conv_alpha's attachment row (no-op).
+SELECT t.as_user(t.uid_clientb());
+SELECT lives_ok(
+  $$ DELETE FROM public.message_attachments
+       WHERE path = (SELECT v FROM public._test_ids WHERE k='conv_alpha')::text || '/alpha-secret.pdf' $$,
+  'DELETE message_attachments: non-participant Client B delete is a silent no-op');
+SELECT t.reset_auth();
+SELECT t.as_service();
+SELECT is(
+  (SELECT count(*) FROM public.message_attachments
+     WHERE path = t.id('conv_alpha')::text || '/alpha-secret.pdf')::int, 1,
+  'DELETE message_attachments: conv_alpha attachment row survives non-participant DELETE');
+SELECT t.reset_auth();
+-- CONTROL: the sending participant (Client A) CAN delete their own attachment row.
+SELECT t.as_user(t.uid_clienta());
+SELECT lives_ok(
+  $$ DELETE FROM public.message_attachments
+       WHERE path = (SELECT v FROM public._test_ids WHERE k='conv_alpha')::text || '/alpha-secret.pdf' $$,
+  'CONTROL DELETE message_attachments: sending participant Client A deletes own attachment row');
+SELECT t.reset_auth();
+SELECT t.as_service();
+SELECT is(
+  (SELECT count(*) FROM public.message_attachments
+     WHERE path = t.id('conv_alpha')::text || '/alpha-secret.pdf')::int, 0,
+  'CONTROL DELETE message_attachments: row is gone after the sender deletes it');
 SELECT t.reset_auth();
 
 SELECT * FROM finish();

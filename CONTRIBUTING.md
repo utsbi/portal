@@ -43,6 +43,33 @@ Copy each app's `.env.example` to `.env.local` (frontend) / `.env` (backend)
 and fill in the values first. See [`frontend/README.md`](frontend/README.md)
 and [`frontend/AGENTS.md`](frontend/AGENTS.md) for frontend details.
 
+## E2E browser tests (Playwright)
+
+The frontend has a Playwright smoke suite under `frontend/e2e/`.  It is **not**
+wired into CI — run it manually before touching public-facing pages.
+
+```bash
+# One-time: download Chromium (and optionally other browsers)
+cd frontend
+bunx playwright install --with-deps chromium
+
+# Run the full smoke suite (starts bun dev automatically)
+bun test:e2e
+
+# Interactive UI mode
+bun test:e2e:ui
+```
+
+The suite covers:
+- Public static pages (home, about) — HTTP 200 + key text
+- Login form — renders, HTML5 required validation, back-to-home link
+- Contact form — Turnstile is **mocked** (no external call), form fields present
+- Public form not-found — invalid token returns 404
+
+Specs live in `frontend/e2e/*.spec.ts`.  Vitest never picks them up because
+Vitest only matches `**/*.test.{ts,tsx}` and `e2e/**` is explicitly excluded
+from `vitest.config.ts`.
+
 ## Before opening a PR
 
 - Frontend: `bun lint` (Biome) and `bun build` pass.

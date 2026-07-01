@@ -163,8 +163,13 @@ export async function GET(request: Request) {
     const { data, error } = await query;
 
     if (error) {
+      // Log the raw Supabase error server-side, but never leak DB internals to
+      // the client.
       console.error("Supabase error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 },
+      );
     }
 
     const reports: ReportItem[] = ((data ?? []) as unknown as TicketRow[]).map(
@@ -222,7 +227,7 @@ export async function POST(request: Request) {
 
     const { data: profile, error: profileErr } = await supabase
       .from("profiles")
-      .select("name, role, department")
+      .select("id, name, role, department")
       .eq("uid", authData.user.id)
       .single();
 
@@ -235,6 +240,43 @@ export async function POST(request: Request) {
         { error: "Only directors or members can submit reports" },
         { status: 403 },
       );
+    }
+
+    // Length caps — enforce before any further processing.
+    const TITLE_MAX = 500;
+    const MESSAGE_MAX = 10_000;
+    if (typeof body.title === "string" && body.title.length > TITLE_MAX) {
+      return NextResponse.json(
+        { error: `Title must be at most ${TITLE_MAX} characters` },
+        { status: 400 },
+      );
+    }
+    if (typeof body.message === "string" && body.message.length > MESSAGE_MAX) {
+      return NextResponse.json(
+        { error: `Message must be at most ${MESSAGE_MAX} characters` },
+        { status: 400 },
+      );
+    }
+
+    // Mirror the GET handler's project-membership check: non-directors must
+    // supply a project_id they actually belong to.
+    if (profile.role !== "director") {
+      if (!body.project_id) {
+        return NextResponse.json(
+          { error: "project_id is required" },
+          { status: 400 },
+        );
+      }
+      const { data: membership, error: memberErr } = await supabase
+        .from("project_members")
+        .select("project_id")
+        .eq("profile_id", profile.id)
+        .eq("project_id", Number(body.project_id))
+        .single();
+
+      if (memberErr || !membership) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     const department =
@@ -263,8 +305,13 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      // Log the raw Supabase error server-side, but never leak DB internals to
+      // the client.
       console.error("Supabase insert error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 },
+      );
     }
 
     const report: ReportItem = rowToReport(data as unknown as TicketRow);

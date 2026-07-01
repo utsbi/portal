@@ -35,20 +35,66 @@ const state = {
     data: unknown;
     error: unknown;
   },
+  // Target-row lookups performed by the admin client (updateAccount's
+  // existing-row fetch, deleteAccount's uid fetch).
+  targetProfile: { data: null as unknown, error: null as unknown },
+  // listProjects / updateAccount's backfill query on the projects table.
+  projectsListResult: { data: [] as unknown, error: null as unknown },
+  // Recorded project_members mutations so tests can assert exactly which
+  // rows a role change deletes / backfills.
+  memberDeleteCalls: [] as Array<
+    Array<{ op: "eq" | "neq"; column: string; value: unknown }>
+  >,
+  memberUpsertCalls: [] as Array<{ rows: unknown; options: unknown }>,
 };
 
 // ─── @/lib/supabase/server mock (SSR auth client) ────────────────────────────
+// The server client is used by both requireDirector() (guards.ts) and
+// requireUser() (actions.ts) for auth + caller-profile lookups, and also by
+// updateMyProfile / updateMyNotificationPrefs for the profile UPDATE mutation.
+// We expose .from("profiles") with a full fluent chain driven by state.
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: vi.fn(async () =>
-        state.user
-          ? { data: { user: state.user }, error: null }
-          : { data: { user: null }, error: { message: "unauthenticated" } },
-      ),
-      updateUser: vi.fn(async () => ({ error: null })),
-    },
-  })),
+  createClient: vi.fn(async () => {
+    const profilesChain: Record<string, ReturnType<typeof vi.fn>> = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      // Used by requireUser() (.single) and requireDirector() (.maybeSingle)
+      single: vi.fn(async () => ({
+        data: state.callerProfile,
+        error: state.callerProfileError,
+      })),
+      maybeSingle: vi.fn(async () => ({
+        data: state.callerProfile,
+        error: state.callerProfileError,
+      })),
+      // Used by updateMyProfile / updateMyNotificationPrefs
+      update: vi.fn(() => ({
+        eq: vi.fn(async () => state.updateResult),
+      })),
+    };
+    profilesChain.select.mockReturnValue(profilesChain);
+    profilesChain.eq.mockReturnValue(profilesChain);
+    return {
+      auth: {
+        getUser: vi.fn(async () =>
+          state.user
+            ? { data: { user: state.user }, error: null }
+            : { data: { user: null }, error: { message: "unauthenticated" } },
+        ),
+        updateUser: vi.fn(async () => ({ error: null })),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "profiles") return profilesChain;
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn(async () => ({ data: null, error: null })),
+          maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+          update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+        };
+      }),
+    };
+  }),
 }));
 
 // ─── @supabase/supabase-js mock (admin client) ───────────────────────────────
@@ -71,14 +117,11 @@ vi.mock("@supabase/supabase-js", () => {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {
       select: vi.fn(),
       eq: vi.fn(),
-      single: vi.fn(async () => ({
-        data: state.callerProfile,
-        error: state.callerProfileError,
-      })),
-      maybeSingle: vi.fn(async () => ({
-        data: state.callerProfile,
-        error: state.callerProfileError,
-      })),
+      // Admin-client .single() on profiles is always a TARGET lookup
+      // (updateAccount's existing-row fetch, deleteAccount's uid fetch) —
+      // caller-profile lookups go through the server-client mock above.
+      single: vi.fn(async () => state.targetProfile),
+      maybeSingle: vi.fn(async () => state.targetProfile),
       update: vi.fn(),
       insert: vi.fn(),
       order: vi.fn(async () => state.accountsResult),
@@ -104,7 +147,36 @@ vi.mock("@supabase/supabase-js", () => {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       insert: vi.fn(async () => ({ error: null })),
-      delete: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+      // delete() returns a filter builder that is awaitable (thenable) like
+      // the real PostgREST builder. Filters are recorded so tests can assert
+      // that role changes never blanket-delete (e.g. 'owner' rows survive).
+      delete: vi.fn(() => {
+        const filters: Array<{
+          op: "eq" | "neq";
+          column: string;
+          value: unknown;
+        }> = [];
+        const builder = {
+          eq(column: string, value: unknown) {
+            filters.push({ op: "eq", column, value });
+            return builder;
+          },
+          neq(column: string, value: unknown) {
+            filters.push({ op: "neq", column, value });
+            return builder;
+          },
+          // biome-ignore lint/suspicious/noThenProperty: mimics the awaitable PostgREST filter builder
+          then(onfulfilled: (value: { error: unknown }) => unknown) {
+            state.memberDeleteCalls.push([...filters]);
+            return Promise.resolve({ error: null }).then(onfulfilled);
+          },
+        };
+        return builder;
+      }),
+      upsert: vi.fn(async (rows: unknown, options: unknown) => {
+        state.memberUpsertCalls.push({ rows, options });
+        return { error: null };
+      }),
       maybeSingle: vi.fn(async () => ({ data: null, error: null })),
       single: vi.fn(async () => ({ data: null, error: null })),
       order: vi.fn().mockReturnThis(),
@@ -122,6 +194,12 @@ vi.mock("@supabase/supabase-js", () => {
         })),
       })),
       order: vi.fn().mockReturnThis(),
+      // updateAccount's director backfill awaits .select("id") directly, so
+      // the chain itself must be thenable (like the real builder).
+      // biome-ignore lint/suspicious/noThenProperty: mimics the awaitable PostgREST query builder
+      then(onfulfilled: (value: unknown) => unknown) {
+        return Promise.resolve(state.projectsListResult).then(onfulfilled);
+      },
     };
     return c;
   }
@@ -157,23 +235,32 @@ vi.mock("@supabase/supabase-js", () => {
 const {
   createAccount,
   listAccounts,
+  updateAccount,
   deleteAccount,
   getMyAccount,
   updateMyProfile,
   updateMyPassword,
 } = await import("@/app/dashboard/settings/actions");
 
+function resetState() {
+  state.user = null;
+  state.callerProfile = null;
+  state.callerProfileError = null;
+  state.insertAuthResult = { data: { user: { id: "new-uid" } }, error: null };
+  state.insertProfileResult = { data: { id: 99 }, error: null };
+  state.deleteUserResult = { error: null };
+  state.updateResult = { error: null };
+  state.accountsResult = { data: [], error: null };
+  state.targetProfile = { data: null, error: null };
+  state.projectsListResult = { data: [], error: null };
+  state.memberDeleteCalls = [];
+  state.memberUpsertCalls = [];
+}
+
 describe("settings/actions — auth gates", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    state.user = null;
-    state.callerProfile = null;
-    state.callerProfileError = null;
-    state.insertAuthResult = { data: { user: { id: "new-uid" } }, error: null };
-    state.insertProfileResult = { data: { id: 99 }, error: null };
-    state.deleteUserResult = { error: null };
-    state.updateResult = { error: null };
-    state.accountsResult = { data: [], error: null };
+    resetState();
   });
 
   afterEach(() => {
@@ -202,7 +289,10 @@ describe("settings/actions — auth gates", () => {
         name: "New User",
         role: "member",
       });
-      expect(result.error).toMatch(/not authorized/i);
+      // requireDirector() now returns "Director role required" (changed from
+      // "Not authorized" in the authz-gate refactor). The assertion intent is
+      // unchanged: a non-director is rejected.
+      expect(result.error).toMatch(/director role required/i);
     });
 
     it("returns auth error for unauthenticated caller even with a short password (authz runs first)", async () => {
@@ -254,7 +344,8 @@ describe("settings/actions — auth gates", () => {
       state.user = { id: "uid-member" };
       state.callerProfile = { id: 10, role: "member" };
       const result = await listAccounts();
-      expect(result.error).toMatch(/not authorized/i);
+      // requireDirector() now returns "Director role required"
+      expect(result.error).toMatch(/director role required/i);
     });
   });
 
@@ -270,7 +361,8 @@ describe("settings/actions — auth gates", () => {
       state.user = { id: "uid-member" };
       state.callerProfile = { id: 10, role: "member" };
       const result = await deleteAccount(99);
-      expect(result.error).toMatch(/not authorized/i);
+      // requireDirector() now returns "Director role required"
+      expect(result.error).toMatch(/director role required/i);
     });
   });
 
@@ -402,5 +494,135 @@ describe("settings/actions — auth gates", () => {
       expect(result.error).toBeUndefined();
       expect(result.success).toBe(true);
     });
+  });
+});
+
+// ─── updateAccount — role-change membership reconciliation ───────────────────
+// Regression coverage for the audit data-loss bug: a role change used to
+// blanket-delete ALL project_members rows for the profile, destroying the
+// client's 'owner' row (orphaning their project) and leaving a freshly
+// promoted director without per-project access (the DB auto-link trigger is
+// INSERT-only and never fires on a profiles.role UPDATE).
+describe("settings/actions — updateAccount role-change membership reconciliation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetState();
+    // Caller: an authenticated director (profile id 1).
+    state.user = { id: "uid-director" };
+    state.callerProfile = { id: 1, role: "director" };
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("preserves 'owner' rows when a client's role changes (no blanket delete)", async () => {
+    state.targetProfile = { data: { id: 5, role: "client" }, error: null };
+
+    const result = await updateAccount({
+      id: 5,
+      name: "Acme Client",
+      role: "member",
+      department: null,
+    });
+
+    expect(result).toEqual({ success: true });
+    // Exactly one delete, scoped to the profile AND excluding 'owner' rows —
+    // never the old unfiltered .eq("profile_id", …) blanket delete.
+    expect(state.memberDeleteCalls).toEqual([
+      [
+        { op: "eq", column: "profile_id", value: 5 },
+        { op: "neq", column: "role", value: "owner" },
+      ],
+    ]);
+  });
+
+  it("backfills director memberships for all projects on promotion", async () => {
+    state.targetProfile = { data: { id: 6, role: "member" }, error: null };
+    state.projectsListResult = {
+      data: [{ id: 101 }, { id: 102 }],
+      error: null,
+    };
+
+    const result = await updateAccount({
+      id: 6,
+      name: "Promoted Member",
+      role: "director",
+      department: "Engineering",
+    });
+
+    expect(result).toEqual({ success: true });
+    // Stale non-owner rows cleaned first; owner rows untouched.
+    expect(state.memberDeleteCalls).toEqual([
+      [
+        { op: "eq", column: "profile_id", value: 6 },
+        { op: "neq", column: "role", value: "owner" },
+      ],
+    ]);
+    // Director rows backfilled for every project, mirroring the DB
+    // auto_link_director_to_projects trigger (ON CONFLICT DO NOTHING).
+    expect(state.memberUpsertCalls).toEqual([
+      {
+        rows: [
+          { project_id: 101, profile_id: 6, role: "director", assigned_by: 1 },
+          { project_id: 102, profile_id: 6, role: "director", assigned_by: 1 },
+        ],
+        options: {
+          onConflict: "project_id,profile_id",
+          ignoreDuplicates: true,
+        },
+      },
+    ]);
+  });
+
+  it("removes ONLY director rows on demotion — owner/member rows preserved", async () => {
+    state.targetProfile = { data: { id: 7, role: "director" }, error: null };
+
+    const result = await updateAccount({
+      id: 7,
+      name: "Demoted Director",
+      role: "member",
+      department: null,
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(state.memberDeleteCalls).toEqual([
+      [
+        { op: "eq", column: "profile_id", value: 7 },
+        { op: "eq", column: "role", value: "director" },
+      ],
+    ]);
+    // No backfill on demotion.
+    expect(state.memberUpsertCalls).toEqual([]);
+  });
+
+  it("leaves project_members completely untouched when the role is unchanged", async () => {
+    state.targetProfile = { data: { id: 8, role: "member" }, error: null };
+
+    const result = await updateAccount({
+      id: 8,
+      name: "Renamed Only",
+      role: "member",
+      department: "Design",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(state.memberDeleteCalls).toEqual([]);
+    expect(state.memberUpsertCalls).toEqual([]);
+  });
+
+  it("promotion with zero projects succeeds without an upsert", async () => {
+    state.targetProfile = { data: { id: 9, role: "client" }, error: null };
+    state.projectsListResult = { data: [], error: null };
+
+    const result = await updateAccount({
+      id: 9,
+      name: "New Director",
+      role: "director",
+      department: null,
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(state.memberUpsertCalls).toEqual([]);
   });
 });

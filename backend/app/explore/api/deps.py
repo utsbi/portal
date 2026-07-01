@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Optional, Tuple
@@ -20,11 +21,15 @@ class AuthContext:
     access_token: str
 
 
-def _validate_bearer(authorization: Optional[str]) -> Tuple[str, str]:
+async def _validate_bearer(authorization: Optional[str]) -> Tuple[str, str]:
     """Validate the bearer token and return ``(user_id, access_token)``.
 
     Raises 401 on a missing/malformed header or an invalid/expired token. This
     is the single source of token validation shared by every auth dependency.
+
+    The supabase-py ``auth.get_user`` call is blocking (synchronous I/O), so
+    it is dispatched to a thread pool via ``asyncio.to_thread`` to avoid
+    stalling the event loop.
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
@@ -40,7 +45,7 @@ def _validate_bearer(authorization: Optional[str]) -> Tuple[str, str]:
         )
 
     try:
-        user_response = supabase.auth.get_user(token)
+        user_response = await asyncio.to_thread(supabase.auth.get_user, token)
     except Exception:
         # Don't surface GoTrue internals to the caller; log-and-generic.
         logger.warning("Auth failure: token validation raised an exception")
@@ -77,7 +82,7 @@ async def get_current_user_id(authorization: Optional[str] = Header(None)) -> st
     otherwise. The Next.js proxy always forwards the caller's Supabase token
     (see frontend/app/api/chat/route.ts), so there is no anonymous path.
     """
-    user_id, _ = _validate_bearer(authorization)
+    user_id, _ = await _validate_bearer(authorization)
     return user_id
 
 
@@ -89,15 +94,5 @@ async def get_auth_context(authorization: Optional[str] = Header(None)) -> AuthC
     caller's row-level-security context (defense-in-depth alongside the
     backend's manual ``project_id`` scoping).
     """
-    user_id, access_token = _validate_bearer(authorization)
+    user_id, access_token = await _validate_bearer(authorization)
     return AuthContext(user_id=user_id, access_token=access_token)
-
-
-async def get_optional_user_id(
-    authorization: Optional[str] = Header(None),
-) -> Optional[str]:
-    """User ID when a valid token is present, otherwise ``None`` (no error)."""
-    try:
-        return await get_current_user_id(authorization)
-    except HTTPException:
-        return None

@@ -1,12 +1,8 @@
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { decryptToken } from "@/lib/crypto/tokens";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
-
-function must(name: string) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
-}
 
 export async function POST() {
   const supabase = await createClient();
@@ -19,10 +15,7 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseAdmin = createAdminClient(
-    must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SECRET_KEY"),
-  );
+  const supabaseAdmin = createAdminClient();
 
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from("profiles")
@@ -43,11 +36,12 @@ export async function POST() {
     string,
     unknown
   >;
-  const accessToken = existingGoogle.access_token as string | undefined;
+  const rawAccessToken = existingGoogle.access_token as string | undefined;
 
   // Best-effort revoke at Google. We don't fail the disconnect if this errors.
-  if (accessToken) {
+  if (rawAccessToken) {
     try {
+      const accessToken = decryptToken(rawAccessToken);
       await fetch(
         `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`,
         {
@@ -64,7 +58,7 @@ export async function POST() {
 
   const { error: writeErr } = await supabaseAdmin
     .from("profiles")
-    .update({ config: newConfig })
+    .update({ config: newConfig as unknown as Json })
     .eq("id", profile.id);
 
   if (writeErr) {

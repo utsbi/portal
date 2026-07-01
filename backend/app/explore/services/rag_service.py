@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from typing import List, Dict, Any, Optional
@@ -8,6 +9,27 @@ from app.explore.db.supabase import supabase
 from app.explore.services.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
+
+# Minimum cosine similarity for a vector result to be included in retrieval.
+# Qwen3-Embedding-8B (4096-dim) produces cosine similarities that cluster near
+# 0.0–0.25 for unrelated texts.  A floor of 0.30 sits above that noise band
+# while still admitting documents that share topic or domain with the query
+# even if they don't match it verbatim — conservative enough that genuine
+# partial-match passages are not dropped.
+MIN_VECTOR_SIMILARITY: float = 0.30
+
+# NOTE (audit idea #1 — ANN index, DEFERRED): client_knowledge.embedding is a
+# bare `vector` column, so similarity search is a sequential scan. An ANN index
+# (HNSW) would fix the scaling ceiling, BUT pgvector's HNSW dimension limit is
+# 2000 for `vector` and 4000 for `halfvec` — and these embeddings are 4096-dim
+# (Qwen3-Embedding-8B), so they CANNOT be indexed without reducing dimensions.
+# At the current corpus size (tens of rows) a seq scan is effectively instant,
+# so the index is premature. When the corpus grows large, index it by either:
+#   (a) Matryoshka-truncating to <=4000 dims (e.g. halfvec(2048) via
+#       subvector()+l2_normalize, truncating the query embedding to match), or
+#   (b) switching EMBEDDING_MODEL to a <=3072-dim model + a re-embed backfill.
+# Decided 2026-06-30 to defer; the relevance floor / real ts_rank / FTS GIN
+# improvements already shipped.
 
 # Canonical 8-4-4-4-12 UUID, as issued by Supabase auth.
 _UUID_RE = re.compile(
@@ -62,32 +84,57 @@ class RAGService:
         callers.
         """
         chunks = self.pdf_parser.chunk_text(content)
-        document_ids = []
+        if not chunks:
+            return []
 
-        for chunk_idx, chunk in enumerate(chunks):
-            embedding = await self.generate_embedding(chunk)
-
-            # Prepare metadata with chunk info
-            chunk_metadata = {
-                **metadata,
-                "chunk_index": chunk_idx,
-                "total_chunks": len(chunks)
+        # Batch-embed all chunks in a single API call (one round-trip instead of N).
+        # The OpenAI embeddings API accepts a list for `input`; result.data is
+        # returned sorted by index, so result.data[i] always corresponds to chunks[i].
+        try:
+            params: Dict[str, Any] = {
+                "model": settings.embedding_model,
+                "input": chunks,
             }
+            if settings.embedding_dimensions:
+                params["dimensions"] = settings.embedding_dimensions
 
-            # Insert into Supabase (using 'uid' column per schema)
-            result = supabase.table("client_knowledge").insert({
+            emb_result = await self.client.embeddings.create(**params)
+        except Exception as e:
+            logger.error(f"Batch embedding generation failed: {e}")
+            raise ValueError(f"Failed to generate embeddings: {str(e)}")
+
+        if not emb_result.data or len(emb_result.data) != len(chunks):
+            raise ValueError(
+                f"Embeddings API returned {len(emb_result.data) if emb_result.data else 0} "
+                f"results for {len(chunks)} chunks"
+            )
+
+        logger.info(
+            f"Batch-embedded {len(chunks)} chunks "
+            f"(model={settings.embedding_model}, dims={len(emb_result.data[0].embedding)})"
+        )
+
+        # Build all rows, preserving chunk order.
+        rows = [
+            {
                 "uid": client_id,
                 "project_id": project_id,
                 "content": chunk,
-                "metadata": chunk_metadata,
-                "embedding": embedding,
+                "metadata": {**metadata, "chunk_index": i, "total_chunks": len(chunks)},
+                "embedding": list(emb_result.data[i].embedding),
                 "storage_path": storage_path,
-                "source": source
-            }).execute()
+                "source": source,
+            }
+            for i, chunk in enumerate(chunks)
+        ]
 
-            if result.data and isinstance(result.data, list) and len(result.data) > 0:
-                document_ids.append(result.data[0]["id"])  # type: ignore
-
+        # Single bulk insert (one round-trip instead of N).
+        insert_result = supabase.table("client_knowledge").insert(rows).execute()
+        document_ids: List[int] = []
+        if insert_result.data and isinstance(insert_result.data, list):
+            document_ids = [
+                row["id"] for row in insert_result.data if row.get("id") is not None
+            ]
         return document_ids
 
     async def search_documents(self, query: str, project_ids: List[int],
@@ -144,29 +191,34 @@ class RAGService:
         client_id: Optional[str] = None, limit: int = 5,
         vector_weight: float = 0.7) -> List[Dict[str, Any]]:
         """Perform hybrid search combining vector similarity and keyword matching."""
-        # Get vector search results
-        vector_results = await self.search_documents(
-            query=query,
-            project_ids=project_ids,
-            client_id=client_id,
-            limit=limit * 2
-        )
-
-        # Get keyword search results
-        keyword_results = await self._keyword_search(
-            query=query,
-            project_ids=project_ids,
-            client_id=client_id,
-            limit=limit * 2
+        # Run vector and keyword searches concurrently.
+        vector_results, keyword_results = await asyncio.gather(
+            self.search_documents(
+                query=query,
+                project_ids=project_ids,
+                client_id=client_id,
+                limit=limit * 2,
+                similarity_threshold=MIN_VECTOR_SIMILARITY,
+            ),
+            self._keyword_search(
+                query=query,
+                project_ids=project_ids,
+                client_id=client_id,
+                limit=limit * 2,
+            ),
         )
 
         # Reciprocal Rank Fusion
-        combined_scores: Dict[int, Dict[str, Any]] = {}
+        # Keys must be stable and non-None; skip id-less docs so multiple
+        # None-id candidates never collapse into one corrupted bucket.
+        combined_scores: Dict[Any, Dict[str, Any]] = {}
         k = 60
 
         # Score vector results
         for rank, doc in enumerate(vector_results):
             doc_id = doc["id"]
+            if doc_id is None:
+                continue
             rrf_score = vector_weight / (k + rank + 1)
             combined_scores[doc_id] = {
                 **doc,
@@ -177,6 +229,8 @@ class RAGService:
         keyword_weight = 1 - vector_weight
         for rank, doc in enumerate(keyword_results):
             doc_id = doc["id"]
+            if doc_id is None:
+                continue
             rrf_score = keyword_weight / (k + rank + 1)
 
             if doc_id in combined_scores:
@@ -311,32 +365,50 @@ class RAGService:
     async def _keyword_search(self, query: str, project_ids: List[int],
         client_id: Optional[str] = None,
         limit: int = 10) -> List[Dict[str, Any]]:
-        """Perform keyword-based full-text search, scoped to the project(s) and
-        the caller's own legacy NULL-project documents."""
+        """Perform keyword-based full-text search via the
+        ``keyword_search_client_knowledge`` RPC, which returns real
+        ``ts_rank`` scores instead of a fabricated constant.
+
+        Scores are normalized so the top result is 1.0, making them
+        comparable to vector similarity scores in the RRF combiner.
+        Scoped to the caller's project(s) and legacy NULL-project rows.
+        """
         scope = self._scope_or_filter(project_ids, client_id)
         if scope is None:
             return []
         try:
-            result = supabase.table("client_knowledge") \
-                .select("id, content, metadata") \
-                .or_(scope) \
-                .text_search("content", query, options={"type": "plain"}) \
-                .execute()
+            result = supabase.rpc(
+                "keyword_search_client_knowledge",
+                {
+                    "_query": query,
+                    "_match_count": limit,
+                    "_filter_uid": client_id or None,
+                    "_filter_project_ids": project_ids or None,
+                },
+            ).execute()
 
             if not result.data:
                 return []
+
+            # Normalize ts_rank so the top result has similarity_score=1.0.
+            # ts_rank values are typically small floats (e.g. 0.06); normalizing
+            # keeps them on the same scale as the vector similarity scores used
+            # in the RRF combiner without distorting relative ordering.
+            ranks = [float(row.get("rank") or 0.0) for row in result.data]
+            max_rank = max(ranks) if ranks else 1.0
+            normalizer = max_rank if max_rank > 0.0 else 1.0
 
             return [
                 {
                     "id": doc["id"],
                     "content": doc["content"],
                     "metadata": doc.get("metadata", {}),
-                    "similarity_score": 0.5
+                    "similarity_score": float(doc.get("rank") or 0.0) / normalizer,
                 }
                 for doc in result.data[:limit]
             ]
         except Exception as e:
-            logger.warning(f"Full-text search failed, falling back to ILIKE: {e}")
+            logger.warning(f"Full-text search RPC failed, falling back to ILIKE: {e}")
             return await self._fallback_keyword_search(
                 query, project_ids, client_id, limit
             )

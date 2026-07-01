@@ -1,11 +1,11 @@
+import type { LucideIcon } from "lucide-react";
 import {
-  CheckCircleIcon,
-  CircleDashedIcon,
-  ClockIcon,
-  type Icon as PhosphorIcon,
-  ProhibitIcon,
-  WarningIcon,
-} from "@phosphor-icons/react";
+  Ban,
+  CircleCheck,
+  CircleDashed,
+  Clock,
+  TriangleAlert,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   TASK_PRIORITY_LABELS,
@@ -16,27 +16,27 @@ import {
 
 const STATUS_STYLES: Record<
   TaskStatusDB,
-  { className: string; Icon: PhosphorIcon }
+  { className: string; Icon: LucideIcon }
 > = {
   not_started: {
     className: "text-sbi-muted bg-white/5 border-white/10",
-    Icon: CircleDashedIcon,
+    Icon: CircleDashed,
   },
   in_progress: {
     className: "text-blue-400 bg-blue-400/10 border-blue-400/20",
-    Icon: ClockIcon,
+    Icon: Clock,
   },
   pending_approval: {
     className: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-    Icon: WarningIcon,
+    Icon: TriangleAlert,
   },
   blocked: {
     className: "text-red-400 bg-red-400/10 border-red-400/20",
-    Icon: ProhibitIcon,
+    Icon: Ban,
   },
   completed: {
     className: "text-sbi-green bg-sbi-green/10 border-sbi-green/20",
-    Icon: CheckCircleIcon,
+    Icon: CircleCheck,
   },
 };
 
@@ -56,7 +56,7 @@ export function TaskStatusPill({
         className,
       )}
     >
-      <Icon size={14} weight="bold" />
+      <Icon size={14} strokeWidth={2.5} />
       {TASK_STATUS_LABELS[status]}
     </span>
   );

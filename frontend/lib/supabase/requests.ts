@@ -1,4 +1,10 @@
+import {
+  createTicketRequest,
+  updateTicketRequestStatus,
+} from "@/app/dashboard/requests/actions";
+import type { Request } from "@/components/dashboard/requests/RequestHistory";
 import { createClient } from "./client";
+
 export type RequestStatus = "pending" | "in-progress" | "done" | "denied";
 
 function normalizeStatus(raw: string | null | undefined): RequestStatus {
@@ -9,8 +15,6 @@ function normalizeStatus(raw: string | null | undefined): RequestStatus {
   if (s === "denied") return "denied";
   return "pending";
 }
-
-import type { Request } from "@/components/dashboard/requests/RequestHistory";
 
 interface TicketRow {
   id: number;
@@ -114,48 +118,52 @@ export async function createRequest(payload: {
   message?: string;
   files?: File[];
 }): Promise<Request | null> {
-  const supabase = createClient();
-
-  const { data: inserted, error: insertError } = await supabase
-    .from("tickets")
-    .insert({
-      ticket_type: "request" as const,
-      project_id: payload.projectId ?? null,
-      name: payload.name,
-      email: payload.email,
-      department: payload.department ?? null,
-      assign_to: payload.assignTo ?? null,
-      project: payload.project ?? null,
-      subject: payload.subject,
-      message: payload.message ?? "",
-      status: "pending",
-    })
-    .select()
-    .single();
-
-  if (insertError) {
-    console.error("Error creating request:", insertError.message);
+  if (payload.projectId == null) {
+    console.error("Error creating request: projectId is required");
     return null;
   }
 
-  const row = inserted as TicketRow;
-
-  if (payload.files && payload.files.length > 0 && payload.projectId != null) {
-    const attachmentMeta = await uploadFiles(payload.projectId, payload.files);
-
-    if (attachmentMeta.length > 0) {
-      const { error: updateError } = await supabase
-        .from("tickets")
-        .update({ attachments: attachmentMeta })
-        .eq("id", row.id);
-
-      if (updateError) {
-        console.error("Error saving attachment metadata:", updateError.message);
-      } else {
-        row.attachments = attachmentMeta;
-      }
-    }
+  // File bytes are uploaded client-side (storage RLS gates access); the
+  // resulting metadata is forwarded to the server action for the DB write.
+  let attachments: { name: string; size: string; path: string }[] = [];
+  if (payload.files && payload.files.length > 0) {
+    attachments = await uploadFiles(payload.projectId, payload.files);
   }
+
+  const result = await createTicketRequest({
+    projectId: payload.projectId,
+    name: payload.name,
+    email: payload.email,
+    department: payload.department,
+    assignTo: payload.assignTo,
+    project: payload.project,
+    subject: payload.subject,
+    message: payload.message,
+    attachments,
+  });
+
+  if (result.error !== null) {
+    console.error("Error creating request:", result.error);
+    return null;
+  }
+
+  const { ticket } = result;
+  const row: TicketRow = {
+    id: ticket.id,
+    ticket_type: "request",
+    customer_id: null,
+    name: payload.name,
+    email: payload.email,
+    department: payload.department ?? null,
+    assign_to: payload.assignTo ?? null,
+    project: payload.project ?? null,
+    subject: payload.subject,
+    message: payload.message ?? "",
+    status: "pending",
+    attachments: ticket.attachments,
+    created_at: ticket.created_at,
+    updated_at: ticket.updated_at,
+  };
 
   return rowToRequest(row);
 }
@@ -164,14 +172,9 @@ export async function updateRequestStatus(
   requestId: string,
   status: string,
 ): Promise<boolean> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("tickets")
-    .update({ status })
-    .eq("id", requestId);
-
-  if (error) {
-    console.error("Error updating request status:", error.message);
+  const result = await updateTicketRequestStatus(requestId, status);
+  if (result.error) {
+    console.error("Error updating request status:", result.error);
     return false;
   }
   return true;

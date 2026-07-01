@@ -81,7 +81,7 @@ import {
 interface Account {
   id: number;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
   department: string | null;
   created_at: string;
@@ -106,7 +106,7 @@ interface ProjectMember {
 interface UnassignedMember {
   id: number;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
   department: string | null;
 }
@@ -1391,7 +1391,7 @@ function TeamSection() {
     null,
   );
   const [availableOwners, setAvailableOwners] = useState<
-    { id: number; name: string; email: string }[]
+    { id: number; name: string; email: string | null }[]
   >([]);
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
   const [ownerQuery, setOwnerQuery] = useState("");
@@ -1416,7 +1416,7 @@ function TeamSection() {
     return unassignedMembers.filter(
       (m) =>
         m.name.toLowerCase().includes(q) ||
-        m.email.toLowerCase().includes(q) ||
+        (m.email?.toLowerCase().includes(q) ?? false) ||
         (m.department?.toLowerCase().includes(q) ?? false),
     );
   }, [unassignedMembers, assignQuery]);
@@ -1452,7 +1452,8 @@ function TeamSection() {
     if (!q) return availableOwners;
     return availableOwners.filter(
       (c) =>
-        c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q),
+        c.name.toLowerCase().includes(q) ||
+        (c.email?.toLowerCase().includes(q) ?? false),
     );
   }, [availableOwners, ownerQuery]);
 
@@ -1883,7 +1884,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
         (a) =>
           !q ||
           a.name.toLowerCase().includes(q) ||
-          a.email.toLowerCase().includes(q),
+          (a.email?.toLowerCase().includes(q) ?? false),
       )
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [accounts, filter, query]);
@@ -2343,7 +2344,7 @@ function EditAccountModal({
               <input
                 id="edit-user-email"
                 type="email"
-                value={account.email}
+                value={account.email ?? ""}
                 readOnly
                 className={cn(
                   inputClass,

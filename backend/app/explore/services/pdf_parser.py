@@ -1,11 +1,32 @@
 from typing import List, Dict, Any, Optional
 from pypdf import PdfReader
+from fastapi import HTTPException
 import io
 import os
+import zipfile
 
 
 # Plain-text / markup formats whose bytes can be decoded directly as UTF-8.
 _PLAINTEXT_EXTENSIONS = {".txt", ".md"}
+
+# ---------------------------------------------------------------------------
+# Zip-bomb guard — Office formats (docx/pptx/xlsx) are zip archives.
+# We inspect the Central Directory before handing bytes to the Office
+# parsers, so a malicious archive cannot expand to gigabytes in memory.
+# ---------------------------------------------------------------------------
+
+# Maximum total *declared* uncompressed size across all members (200 MB).
+# Real Office documents rarely exceed 50 MB decompressed; 200 MB is generous.
+_ZIP_MAX_DECOMPRESSED_BYTES: int = 200 * 1024 * 1024
+
+# Maximum number of members in the archive.  A normal .docx has ~20-50
+# entries; 2 000 is very generous and still blocks archive-flooding attacks.
+_ZIP_MAX_MEMBER_COUNT: int = 2_000
+
+# Maximum compression ratio: total_uncompressed / on-wire archive size.
+# Legitimate text-heavy documents rarely compress beyond 10:1; 100 is a
+# conservative ceiling that catches classic nested-deflate zip bombs.
+_ZIP_MAX_RATIO: int = 100
 
 # Binary document formats we have a dedicated extractor for.
 _DOCX_EXTENSIONS = {".docx"}
@@ -22,6 +43,61 @@ SUPPORTED_EXTENSIONS = (
     | _XLSX_EXTENSIONS
     | _PDF_EXTENSIONS
 )
+
+
+def _check_zip_bomb(file_bytes: bytes) -> None:
+    """Inspect a zip archive's Central Directory for zip-bomb signatures.
+
+    Reads only metadata (no decompression) and raises ``HTTPException(400)``
+    if any of the three limits is exceeded:
+
+    * Total *declared* uncompressed size across all members > ``_ZIP_MAX_DECOMPRESSED_BYTES``
+    * Member count > ``_ZIP_MAX_MEMBER_COUNT``
+    * Compression ratio (total_uncompressed / archive_size) > ``_ZIP_MAX_RATIO``
+
+    The Central Directory can lie about sizes, but inflated declarations are
+    themselves the attack vector (they consume memory in the parsers that trust
+    them), so checking declared sizes is the correct defence.
+
+    If the bytes are not a valid zip at all we return silently and let the
+    downstream Office parser produce its own error.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            members = zf.infolist()
+    except zipfile.BadZipFile:
+        return
+
+    if len(members) > _ZIP_MAX_MEMBER_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Archive rejected: member count {len(members)} exceeds "
+                f"limit of {_ZIP_MAX_MEMBER_COUNT}"
+            ),
+        )
+
+    total_uncompressed = sum(m.file_size for m in members)
+    if total_uncompressed > _ZIP_MAX_DECOMPRESSED_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Archive rejected: declared decompressed size "
+                f"{total_uncompressed} bytes exceeds limit of "
+                f"{_ZIP_MAX_DECOMPRESSED_BYTES} bytes"
+            ),
+        )
+
+    archive_size = len(file_bytes)
+    if archive_size > 0 and total_uncompressed > archive_size * _ZIP_MAX_RATIO:
+        ratio = total_uncompressed / archive_size
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Archive rejected: compression ratio {ratio:.1f}x exceeds "
+                f"limit of {_ZIP_MAX_RATIO}x"
+            ),
+        )
 
 
 def _file_extension(filename: str) -> str:
@@ -52,6 +128,7 @@ def _extract_pdf(file_bytes: bytes) -> str:
 
 def _extract_docx(file_bytes: bytes) -> str:
     """Extract paragraph text from a .docx (Word) document."""
+    _check_zip_bomb(file_bytes)
     from docx import Document
 
     document = Document(io.BytesIO(file_bytes))
@@ -61,6 +138,7 @@ def _extract_docx(file_bytes: bytes) -> str:
 
 def _extract_pptx(file_bytes: bytes) -> str:
     """Extract text from every shape across all slides of a .pptx deck."""
+    _check_zip_bomb(file_bytes)
     from pptx import Presentation
 
     presentation = Presentation(io.BytesIO(file_bytes))
@@ -76,6 +154,7 @@ def _extract_pptx(file_bytes: bytes) -> str:
 
 def _extract_xlsx(file_bytes: bytes) -> str:
     """Extract cell values from every sheet of a .xlsx workbook as TSV rows."""
+    _check_zip_bomb(file_bytes)
     from openpyxl import load_workbook
 
     workbook = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)

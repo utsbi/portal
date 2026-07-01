@@ -25,9 +25,11 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.0",
     "pytest-asyncio>=1.4.0",
-    "respx>=0.23.1",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Dump tracebacks if any test hangs past this many seconds so a stuck stream /
+# to_thread mock surfaces in CI instead of silently blocking the run.
+faulthandler_timeout = 60

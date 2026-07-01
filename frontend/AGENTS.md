@@ -9,9 +9,10 @@ bun install           # Install dependencies (prefer bun over npm/yarn)
 bun dev               # Dev server with Turbopack on localhost:3000
 bun build             # Production build
 bun lint              # Run Biome (biome check)
+bun run test          # Vitest unit/workflow suites (blocking in CI)
+bun run test:watch    # Vitest watch mode
+bun run test:e2e      # Playwright smoke suite (not run in CI)
 ```
-
-**No test framework configured.** No test commands available.
 
 ## Project Structure
 
@@ -29,11 +30,13 @@ components/
     explore/           # AI portal components
     [feature]/         # Feature-specific (reports, messages, etc.)
 lib/
-  supabase/            # Client/server helpers + proxy.ts session refresh utility
-proxy.ts               # Next.js 16 proxy (formerly middleware) — refreshes Supabase session
+  supabase/            # Client/server/admin helpers + session refresh utility
   utils.ts             # Utility functions (cn for className merging)
+proxy.ts               # Next.js 16 proxy (formerly middleware) — refreshes Supabase session
 assets/                # Static assets (fonts, images, logos)
 public/models/         # 3D models
+__tests__/             # Vitest suites (api, components, lib, workflows, adversarial)
+e2e/                   # Playwright smoke specs
 ```
 
 ## Code Style (Biome)
@@ -197,6 +200,7 @@ BASIC_AUTH_PASSWORD=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=
+TOKEN_ENCRYPTION_KEY=
 ASSEMBLYAI_API_KEY=
 ```
 
@@ -209,6 +213,7 @@ ASSEMBLYAI_API_KEY=
 | `DISCORD_FORM_WEBHOOK_URL` | Server only | Optional. Discord webhook notified on each questionnaire submission (no-op if unset) |
 | `BASIC_AUTH_*` | Server only | HTTP basic auth for protected routes |
 | `GOOGLE_*` | Server only | Google Calendar OAuth for dashboard contact/calendar APIs |
+| `TOKEN_ENCRYPTION_KEY` | Server only | AES-256-GCM key (32 bytes, base64-encoded) for encrypting Google OAuth tokens at rest. Generate with: `openssl rand -base64 32` |
 | `ASSEMBLYAI_API_KEY` | Server only | AssemblyAI speech-to-text for the Explore composer; optional, mic disabled if unset |
 
 ## Adding New Features

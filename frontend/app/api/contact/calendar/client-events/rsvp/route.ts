@@ -1,6 +1,7 @@
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { decryptToken } from "@/lib/crypto/tokens";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function must(name: string) {
@@ -51,10 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseAdmin = createAdminClient(
-    must("NEXT_PUBLIC_SUPABASE_URL"),
-    must("SUPABASE_SECRET_KEY"),
-  );
+  const supabaseAdmin = createAdminClient();
 
   // Resolve the caller's profile email (this is the attendee whose RSVP we're updating).
   const { data: callerProfile, error: callerErr } = await supabaseAdmin
@@ -116,8 +114,8 @@ export async function POST(req: Request) {
 
   const config = (owningDirector.config ?? {}) as Record<string, unknown>;
   const g = (config.google ?? {}) as { refresh_token?: string };
-  const refreshToken = g.refresh_token;
-  if (!refreshToken) {
+  const rawRefreshToken = g.refresh_token;
+  if (!rawRefreshToken) {
     return NextResponse.json(
       { error: "Director's Google account is not connected" },
       { status: 404 },
@@ -129,7 +127,7 @@ export async function POST(req: Request) {
     must("GOOGLE_CLIENT_SECRET"),
     must("GOOGLE_REDIRECT_URI"),
   );
-  oauth2.setCredentials({ refresh_token: refreshToken });
+  oauth2.setCredentials({ refresh_token: decryptToken(rawRefreshToken) });
   const cal = google.calendar({ version: "v3", auth: oauth2 });
 
   // events.patch needs the full attendees list, so GET first.

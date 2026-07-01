@@ -57,6 +57,29 @@ export async function POST(request: NextRequest) {
     return jsonError(413, "Audio file is too large");
   }
 
+  // Per-user rate limit (Supabase-backed counter, so it works across isolated
+  // serverless instances without an in-memory store). AssemblyAI is billed per
+  // audio duration, so this caps burst spend from a compromised/looping client.
+  // 10/min is generous for the voice composer. Pair with an AssemblyAI account
+  // budget cap (set out-of-band) as the catastrophic-cost backstop.
+  const { data: allowed, error: rlErr } = await supabase.rpc(
+    "consume_rate_token",
+    { _bucket: "transcribe", _limit: 10, _window: "1 minute" },
+  );
+  if (rlErr) {
+    // Fail open: best-effort cost guardrail, not a security gate. Don't break
+    // the mic on a transient limiter error; the budget cap is the hard backstop.
+    console.error(
+      "[transcribe] rate-limit check failed (allowing)",
+      rlErr.message,
+    );
+  } else if (allowed === false) {
+    return jsonError(
+      429,
+      "Too many transcription requests — please wait a moment",
+    );
+  }
+
   try {
     // 1. Upload the raw audio bytes to AssemblyAI's temporary store.
     const uploadRes = await fetch(UPLOAD_URL, {

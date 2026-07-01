@@ -1,13 +1,13 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import {
-  CheckCircleIcon,
-  ClockIcon,
-  type Icon as PhosphorIcon,
-  ProhibitIcon,
-  QuestionIcon,
-  WarningIcon,
-} from "@phosphor-icons/react";
+  Ban,
+  CircleCheck,
+  CircleHelp,
+  Clock,
+  TriangleAlert,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type StatusVariant =
@@ -17,38 +17,43 @@ export type StatusVariant =
   | "denied"
   | "unknown";
 
-interface StatusConfig {
-  label: string;
-  icon: PhosphorIcon;
-  className: string;
-}
-
-const STATUS_MAP: Record<StatusVariant, StatusConfig> = {
+/**
+ * Canonical status → visual-token mapping.
+ * Both StatusPill and any Badge-based status usages should consume this
+ * instead of defining their own color literals.
+ */
+export const STATUS_INTENT: Record<
+  StatusVariant,
+  { label: string; className: string }
+> = {
   done: {
     label: "Done",
-    icon: CheckCircleIcon,
     className: "text-sbi-green bg-sbi-green/10 border-sbi-green/20",
   },
   "in-progress": {
     label: "In Progress",
-    icon: ClockIcon,
     className: "text-blue-400 bg-blue-400/10 border-blue-400/20",
   },
   pending: {
     label: "Pending",
-    icon: WarningIcon,
     className: "text-amber-400 bg-amber-400/10 border-amber-400/20",
   },
   denied: {
     label: "Denied",
-    icon: ProhibitIcon,
     className: "text-red-400 bg-red-400/10 border-red-400/20",
   },
   unknown: {
     label: "Unknown",
-    icon: QuestionIcon,
     className: "text-sbi-muted bg-white/5 border-white/10",
   },
+};
+
+const STATUS_ICON: Record<StatusVariant, LucideIcon> = {
+  done: CircleCheck,
+  "in-progress": Clock,
+  pending: TriangleAlert,
+  denied: Ban,
+  unknown: CircleHelp,
 };
 
 // Normalize different status string formats to our variant keys.
@@ -74,19 +79,19 @@ interface StatusPillProps {
 
 export function StatusPill({ status, className }: StatusPillProps) {
   const variant = normalizeStatus(status);
-  const config = STATUS_MAP[variant];
-  const Icon = config.icon;
+  const { label, className: intentClass } = STATUS_INTENT[variant];
+  const Icon = STATUS_ICON[variant];
 
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-sm whitespace-nowrap",
-        config.className,
+        intentClass,
         className,
       )}
     >
-      <Icon size={14} weight="bold" />
-      {config.label}
+      <Icon size={14} strokeWidth={2.5} />
+      {label}
     </span>
   );
 }
