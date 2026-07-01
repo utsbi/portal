@@ -3,6 +3,8 @@ name: CI
 on:
   pull_request:
     branches: [dev, main]
+  push:
+    branches: [dev, main]
   workflow_dispatch:
 
 # Cancel superseded runs on the same PR/branch to save minutes.
@@ -28,22 +30,24 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Test (Vitest)
         run: bun run test
 
-      # `biome check` currently reports pre-existing errors across the tree, so
-      # lint is advisory for now. Run `bun run lint:fix`, clean up the rest, then
-      # drop continue-on-error to make it a blocking gate.
-      - name: Lint (Biome, advisory)
-        continue-on-error: true
+      - name: Lint (Biome)
         run: bun run lint
 
       # `next build` type-checks with Next's generated `next-env.d.ts` (which
       # declares image/asset module types), so it is the typecheck + build gate.
-      # A standalone `tsc --noEmit` would spuriously fail on `@/assets/*` imports.
       - name: Build (includes typecheck)
         run: bun run build
         env:
@@ -86,18 +90,14 @@ jobs:
       - name: Test (pytest)
         run: uv run pytest -q
 
-      # ruff and pyright are not yet project dependencies, so these run via
-      # `uvx` (ephemeral) and are advisory for now. Flip continue-on-error to
-      # false (and/or add them to backend dev deps) once the code is clean.
-      - name: Lint (ruff, advisory)
-        continue-on-error: true
+      - name: Lint (ruff)
         run: uvx ruff check . --output-format=github
 
+      # Advisory: real type findings remain (~17). pyright resolves the project
+      # venv via pyrightconfig.json (venvPath/venv). Flip to blocking once clean.
       - name: Typecheck (pyright, advisory)
         continue-on-error: true
         run: uvx pyright
-        env:
-          VIRTUAL_ENV: .venv
 
   database:
     name: Database (pgTAP RLS)
