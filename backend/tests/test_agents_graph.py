@@ -7,6 +7,9 @@ Covers:
     empty attachments leave context unchanged
   - Streaming loop: emits phase/delta/result events in a no-tool scenario (mocked LLM)
   - MAX_TOOL_ITERATIONS caps the loop when tool calls are always returned
+  - Preface buffering: prose streamed by a tool-calling iteration is suppressed
+    (never emitted as delta events, never part of the persisted answer), while
+    the final tool-free iteration still streams live and persists intact
 
 These tests use heavy mocking of the OpenAI streaming client.
 """
@@ -15,7 +18,11 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-from app.explore.agents.graph import MAX_TOOL_ITERATIONS, run_graph_streaming
+from app.explore.agents.graph import (
+    MAX_TOOL_ITERATIONS,
+    _PREFACE_BUFFER_CHARS,
+    run_graph_streaming,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +70,18 @@ class _FakeStream:
         if not self._chunks:
             raise StopAsyncIteration
         return self._chunks.pop(0)
+
+
+def _make_tool_call(tc_id="call_1", name="search_sbi_knowledge", arguments='{"query": "x"}'):
+    """Build a streamed tool_call fragment as the OpenAI SDK delivers it."""
+    tc = MagicMock()
+    tc.index = 0
+    tc.id = tc_id
+    fn = MagicMock()
+    fn.name = name
+    fn.arguments = arguments
+    tc.function = fn
+    return tc
 
 
 # ---------------------------------------------------------------------------
@@ -472,3 +491,229 @@ class TestAttachmentInjection:
         for m in captured_messages:
             content = m.get("content") or ""
             assert "User-attached documents" not in content
+
+
+# ---------------------------------------------------------------------------
+# Preface buffering: tool-iteration prose suppressed, final answer streamed
+# ---------------------------------------------------------------------------
+
+_PREFACE = "Let me search the project documents for that information."
+_FINAL_ANSWER = "SBI focuses on sustainable building practices."
+
+
+def _tool_then_answer_client(call_streams):
+    """Return an AsyncMock create() that pops one chunk-list per call."""
+
+    captured_calls: list = []
+
+    async def _create(**kwargs):
+        captured_calls.append(kwargs)
+        chunks = call_streams.pop(0)
+
+        async def _inner():
+            for chunk in chunks:
+                yield chunk
+        return _inner()
+
+    return AsyncMock(side_effect=_create), captured_calls
+
+
+class TestPrefaceBuffering:
+    """Prose streamed before tool calls must never reach the client or the
+    persisted answer; the final tool-free iteration must stream and persist
+    intact (the audit's buffered-preface fix)."""
+
+    def _patches(self, mock_client, execute_tool=None):
+        patches = [
+            patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
+            patch(_PATCHES["user_client"], return_value=MagicMock()),
+            patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
+            patch(_PATCHES["openrouter_client"], new=mock_client),
+        ]
+        if execute_tool is not None:
+            patches.append(patch(_PATCHES["execute_tool"], new=execute_tool))
+        return patches
+
+    async def _run(self, mock_client, execute_tool=None, query="What is SBI?"):
+        import contextlib
+
+        events = []
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_client, execute_tool):
+                stack.enter_context(p)
+            async for event in run_graph_streaming(
+                query=query, client_id="uid", access_token="tok", history=[]
+            ):
+                events.append(event)
+        return events
+
+    @staticmethod
+    def _mock_client(call_streams):
+        mock_client = MagicMock()
+        create, captured = _tool_then_answer_client(call_streams)
+        mock_client.chat.completions.create = create
+        return mock_client, captured
+
+    async def test_tool_iteration_prose_suppressed(self):
+        """(a) Prose streamed before tool calls must not appear as delta events
+        nor in the persisted final answer."""
+        assert len(_PREFACE) < _PREFACE_BUFFER_CHARS  # stays buffered
+        call_streams = [
+            # Iteration 1: preface prose, then a tool call.
+            [
+                _make_chunk(content=_PREFACE[:30]),
+                _make_chunk(content=_PREFACE[30:]),
+                _make_chunk(tool_calls=[_make_tool_call()]),
+            ],
+            # Iteration 2: tool-free final answer.
+            [_make_chunk(content=_FINAL_ANSWER)],
+        ]
+        mock_client, _ = self._mock_client(call_streams)
+        execute_tool = AsyncMock(return_value=("knowledge text", []))
+
+        events = await self._run(mock_client, execute_tool)
+
+        deltas = "".join(e["text"] for e in events if e.get("type") == "delta")
+        result = next(e for e in events if e.get("type") == "result")
+        assert _PREFACE[:30] not in deltas
+        assert deltas == _FINAL_ANSWER
+        assert result["answer"] == _FINAL_ANSWER
+        assert _PREFACE[:30] not in result["answer"]
+
+    async def test_no_generating_phase_before_searching(self):
+        """Suppressed tool-iteration prose must not flip the UI to 'generating'
+        before 'searching' (the generating→searching→generating flicker)."""
+        call_streams = [
+            [
+                _make_chunk(content=_PREFACE),
+                _make_chunk(tool_calls=[_make_tool_call()]),
+            ],
+            [_make_chunk(content=_FINAL_ANSWER)],
+        ]
+        mock_client, _ = self._mock_client(call_streams)
+        execute_tool = AsyncMock(return_value=("knowledge text", []))
+
+        events = await self._run(mock_client, execute_tool)
+
+        phases = [e["phase"] for e in events if e.get("type") == "phase"]
+        assert "searching" in phases and "generating" in phases
+        assert phases.index("searching") < phases.index("generating")
+
+    async def test_final_answer_streams_token_by_token(self):
+        """(b) A final answer longer than the preface holdback must stream
+        live (deltas emitted before the stream ends), not buffered to the end,
+        and persist intact."""
+        part1 = "A" * (_PREFACE_BUFFER_CHARS + 40)  # crosses the holdback
+        part2 = " and the concluding tail."
+        timeline: list = []
+
+        async def _create(**kwargs):
+            async def _inner():
+                timeline.append("chunk:1")
+                yield _make_chunk(content=part1)
+                timeline.append("chunk:2")
+                yield _make_chunk(content=part2)
+            return _inner()
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(side_effect=_create)
+
+        import contextlib
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_client):
+                stack.enter_context(p)
+            async for event in run_graph_streaming(
+                query="long answer", client_id="uid", access_token="tok", history=[]
+            ):
+                timeline.append(event)
+
+        delta_positions = [
+            i for i, item in enumerate(timeline)
+            if isinstance(item, dict) and item.get("type") == "delta"
+        ]
+        chunk2_pos = timeline.index("chunk:2")
+        # The first flushed delta must be emitted BEFORE the second chunk is
+        # consumed — proof of live token-by-token streaming, not end-buffering.
+        assert delta_positions and delta_positions[0] < chunk2_pos
+
+        deltas = "".join(
+            item["text"] for item in timeline
+            if isinstance(item, dict) and item.get("type") == "delta"
+        )
+        result = next(
+            item for item in timeline
+            if isinstance(item, dict) and item.get("type") == "result"
+        )
+        assert deltas == part1 + part2
+        assert result["answer"] == part1 + part2
+
+    async def test_short_final_answer_flushed_and_persisted(self):
+        """(b) An answer shorter than the holdback still flushes at stream end:
+        emitted as delta events and persisted intact."""
+        short = "Yes."
+        assert len(short) < _PREFACE_BUFFER_CHARS
+        call_streams = [[_make_chunk(content=short)]]
+        mock_client, _ = self._mock_client(call_streams)
+
+        events = await self._run(mock_client)
+
+        deltas = "".join(e["text"] for e in events if e.get("type") == "delta")
+        result = next(e for e in events if e.get("type") == "result")
+        assert deltas == short
+        assert result["answer"] == short
+
+    async def test_multi_iteration_prefaces_suppressed_final_kept(self):
+        """(c) Across multiple tool iterations every preface is suppressed and
+        only the final iteration's prose is streamed and persisted."""
+        preface_2 = "Now let me check the lifecycle status."
+        call_streams = [
+            [
+                _make_chunk(content=_PREFACE),
+                _make_chunk(tool_calls=[_make_tool_call(tc_id="call_a")]),
+            ],
+            [
+                _make_chunk(content=preface_2),
+                _make_chunk(tool_calls=[
+                    _make_tool_call(tc_id="call_b", name="get_lifecycle_status")
+                ]),
+            ],
+            [_make_chunk(content=_FINAL_ANSWER)],
+        ]
+        mock_client, _ = self._mock_client(call_streams)
+        execute_tool = AsyncMock(return_value=("tool output", []))
+
+        events = await self._run(mock_client, execute_tool)
+
+        deltas = "".join(e["text"] for e in events if e.get("type") == "delta")
+        result = next(e for e in events if e.get("type") == "result")
+        tool_calls = [e for e in events if e.get("type") == "tool_call"]
+        assert deltas == _FINAL_ANSWER
+        assert result["answer"] == _FINAL_ANSWER
+        assert _PREFACE not in result["answer"]
+        assert preface_2 not in result["answer"]
+        assert len(tool_calls) == 2
+
+    async def test_preface_kept_in_assistant_tool_message_bookkeeping(self):
+        """The suppressed preface must still be recorded on the assistant
+        tool-call message so the model sees its own words next iteration."""
+        call_streams = [
+            [
+                _make_chunk(content=_PREFACE),
+                _make_chunk(tool_calls=[_make_tool_call()]),
+            ],
+            [_make_chunk(content=_FINAL_ANSWER)],
+        ]
+        mock_client, captured_calls = self._mock_client(call_streams)
+        execute_tool = AsyncMock(return_value=("knowledge text", []))
+
+        await self._run(mock_client, execute_tool)
+
+        # The second model call sees the assistant tool-call message.
+        second_call_messages = captured_calls[1]["messages"]
+        assistant_tool_msgs = [
+            m for m in second_call_messages
+            if m.get("role") == "assistant" and m.get("tool_calls")
+        ]
+        assert assistant_tool_msgs
+        assert assistant_tool_msgs[0]["content"] == _PREFACE

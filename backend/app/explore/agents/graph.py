@@ -19,6 +19,16 @@ _ATTACHMENT_CHARS_PER_FILE = 20_000
 # rich multi-document queries while keeping token cost predictable.
 _ATTACHMENT_CHARS_TOTAL = 40_000
 
+# A tool-calling iteration may stream short preface prose ("Let me search…")
+# before its tool_call chunks arrive, and tool-call intent is only knowable
+# once the first tool_call chunk (or the end of the stream) is seen. Each
+# iteration therefore buffers its prose until either a tool_call chunk arrives
+# (buffer suppressed — it was never shown, so nothing is lost) or this many
+# characters accumulate (tool prefaces are typically one short sentence, so
+# this much prose means a real answer: flush and stream live from then on).
+# The holdback is the only delay a genuine final answer ever sees.
+_PREFACE_BUFFER_CHARS = 160
+
 
 async def run_graph_streaming(
     query: str,
@@ -38,12 +48,20 @@ async def run_graph_streaming(
          emitted as soon as it's ready.
       2. Emit ``phase: thinking``, then run a SINGLE STREAMING tool-calling loop
          (max ``MAX_TOOL_ITERATIONS``) with ``tools`` and ``tool_choice="auto"``.
-         ``delta.content`` streams as ``delta`` events and ``delta.reasoning`` as
-         ``reasoning`` events AS THEY ARRIVE. If a chunk yields tool calls, emit
+         ``delta.reasoning`` streams as ``reasoning`` events AS IT ARRIVES.
+         ``delta.content`` is held in a short per-iteration preface buffer
+         (``_PREFACE_BUFFER_CHARS``): if the iteration turns out to request
+         tools, the buffered prose is suppressed — the frontend appends every
+         ``delta`` to the visible answer and the protocol has no retraction
+         event, so tool-preface prose must never be emitted (it would vanish
+         from the persisted answer). Once the buffer exceeds the holdback (or
+         the stream ends tool-free) the prose flushes and streams live as
+         ``delta`` events. If a chunk yields tool calls, emit
          ``phase: searching`` once, execute each via ``execute_tool`` (
          ``search_documents`` results contribute citation sources), append the
          results, and loop again — the next iteration is ALSO streamed. A no-tool
-         query therefore starts streaming on the FIRST model call.
+         query therefore starts streaming on the FIRST model call (delayed only
+         by the preface holdback).
       3. Emit ``phase: generating`` before the answer-only iteration so the UI
          can flip out of "searching"; the final answer streamed in that same
          iteration carries [n] citations against the accumulated tool results.
@@ -227,6 +245,19 @@ async def run_graph_streaming(
         # fragments for one tool call (keyed by the streamed choice index).
         tool_calls_acc: Dict[int, Dict[str, Any]] = {}
 
+        # Prose streamed this iteration. ``iteration_flushed`` counts how many
+        # of these parts have already been emitted downstream as ``delta``
+        # events (0 while the preface holdback is buffering); ``tools_seen``
+        # flips on the first tool_call chunk and freezes emission for the rest
+        # of the iteration. If tools arrive AFTER an early flush (a preface
+        # longer than the holdback), the already-shown text stays in
+        # ``answer_parts`` so what the user saw always matches what is
+        # persisted — emitted text is never retracted.
+        iteration_parts: List[str] = []
+        iteration_chars = 0
+        iteration_flushed = 0
+        tools_seen = False
+
         try:
             stream = await openrouter_client.chat.completions.create(
                 model=model,
@@ -249,20 +280,40 @@ async def run_graph_streaming(
                 if reasoning:
                     yield {"type": "reasoning", "text": reasoning}
 
+                # Note tool-call intent BEFORE handling content so that a chunk
+                # carrying both never flushes its own preface prose.
+                chunk_tool_calls = getattr(delta, "tool_calls", None) or []
+                if chunk_tool_calls:
+                    tools_seen = True
+
                 content = delta.content
                 if content:
-                    # First answer token: flip the UI out of "thinking"/"searching"
-                    # into "generating" exactly once, on every path (a no-tool
-                    # query never runs the post-tools emission below).
-                    if not generating_emitted:
-                        yield {"type": "phase", "phase": "generating"}
-                        generating_emitted = True
-                    answer_parts.append(content)
-                    yield {"type": "delta", "text": content}
+                    iteration_parts.append(content)
+                    iteration_chars += len(content)
+                    # Hold prose in the preface buffer until this iteration is
+                    # confidently tool-free: once tool_call chunks appear the
+                    # buffer is suppressed (never emitted, never persisted);
+                    # once enough prose accumulates that it's clearly a real
+                    # answer, flush and stream live from then on.
+                    if not tools_seen and (
+                        iteration_flushed > 0
+                        or iteration_chars >= _PREFACE_BUFFER_CHARS
+                    ):
+                        # First answer token: flip the UI out of "thinking"/
+                        # "searching" into "generating" exactly once, on every
+                        # path (a no-tool query never runs the post-tools
+                        # emission below).
+                        if not generating_emitted:
+                            yield {"type": "phase", "phase": "generating"}
+                            generating_emitted = True
+                        for part in iteration_parts[iteration_flushed:]:
+                            answer_parts.append(part)
+                            yield {"type": "delta", "text": part}
+                        iteration_flushed = len(iteration_parts)
 
                 # Accumulate any tool_call fragments on this chunk. The id and
                 # name arrive once; arguments stream as concatenated fragments.
-                for tc in getattr(delta, "tool_calls", None) or []:
+                for tc in chunk_tool_calls:
                     idx = tc.index if tc.index is not None else 0
                     slot = tool_calls_acc.setdefault(
                         idx, {"id": None, "name": None, "arguments": ""}
@@ -287,21 +338,44 @@ async def run_graph_streaming(
             # A streaming failure must not crash the turn. Break out; the
             # fallbacks below surface a graceful message if nothing streamed.
             logger.exception("Streaming completion failed; ending tool loop")
+            # Surface any prose still held by the preface buffer so a partial
+            # answer isn't swallowed — unless tool chunks were already seen, in
+            # which case the buffer is a tool preface and stays suppressed.
+            if not tools_seen and iteration_flushed < len(iteration_parts):
+                if not generating_emitted:
+                    yield {"type": "phase", "phase": "generating"}
+                    generating_emitted = True
+                for part in iteration_parts[iteration_flushed:]:
+                    answer_parts.append(part)
+                    yield {"type": "delta", "text": part}
             break
 
         # Materialize accumulated tool calls in their streamed order.
         tool_calls = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
 
         if not tool_calls:
-            # No tools requested: the answer already streamed in this iteration.
-            # We're done.
+            # No tools requested: this iteration IS the final answer. Flush any
+            # prose still held by the preface buffer (answers shorter than the
+            # holdback finish without ever flushing mid-stream), then stop.
+            if iteration_flushed < len(iteration_parts):
+                if not generating_emitted:
+                    yield {"type": "phase", "phase": "generating"}
+                    generating_emitted = True
+                for part in iteration_parts[iteration_flushed:]:
+                    answer_parts.append(part)
+                    yield {"type": "delta", "text": part}
             break
 
         # Record the assistant's tool-call message so the tool results attach to
-        # the right call ids.
+        # the right call ids. Its content is this iteration's streamed prose
+        # (typically a short tool preface) — kept so the model sees its own
+        # words on the next iteration, but never emitted as answer deltas and
+        # never part of the persisted result unless it was already flushed to
+        # the client (in which case it stays in ``answer_parts`` so the shown
+        # and persisted answers always match).
         messages.append({
             "role": "assistant",
-            "content": "".join(answer_parts) if answer_parts else "",
+            "content": "".join(iteration_parts),
             "tool_calls": [
                 {
                     "id": tc["id"] or f"call_{i}",
@@ -314,9 +388,6 @@ async def run_graph_streaming(
                 for i, tc in enumerate(tool_calls)
             ],
         })
-        # The streamed deltas (if any) belonged to a tool-deciding turn, not the
-        # final answer; reset so they don't leak into the result.
-        answer_parts = []
 
         if not searched_emitted:
             yield {"type": "phase", "phase": "searching"}
