@@ -1541,11 +1541,11 @@ function TeamSection() {
   return (
     <div className="max-w-3xl space-y-4">
       <Panel>
-        <div className="flex items-center justify-between gap-4 mb-5">
+        <div className="relative flex items-center justify-between gap-4 mb-5">
           <SectionLabel className="mb-0">Project members</SectionLabel>
           <div className="flex items-center gap-2">
             {!hasOwner && selectedProjectId && !isLoading && (
-              <div className="relative" ref={ownerDropdownRef}>
+              <div ref={ownerDropdownRef}>
                 <button
                   type="button"
                   onClick={() => setShowOwnerDropdown(!showOwnerDropdown)}
@@ -1555,7 +1555,7 @@ function TeamSection() {
                   Assign owner
                 </button>
                 {showOwnerDropdown && (
-                  <div className="absolute top-full mt-2 right-0 w-96 bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
+                  <div className="absolute top-full mt-2 right-0 w-[min(24rem,100%)] bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
                     <div className="p-2 border-b border-sbi-dark-border/40">
                       <div className="relative">
                         <Search
@@ -1616,7 +1616,7 @@ function TeamSection() {
                 )}
               </div>
             )}
-            <div className="relative" ref={assignDropdownRef}>
+            <div ref={assignDropdownRef}>
               <button
                 type="button"
                 onClick={() => setShowAssignDropdown(!showAssignDropdown)}
@@ -1627,7 +1627,7 @@ function TeamSection() {
                 Assign member
               </button>
               {showAssignDropdown && (
-                <div className="absolute top-full mt-2 right-0 w-96 bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
+                <div className="absolute top-full mt-2 right-0 w-[min(24rem,100%)] bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
                   <div className="p-2 border-b border-sbi-dark-border/40">
                     <div className="relative">
                       <Search
@@ -1953,7 +1953,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
             onSubmit={handleCreate}
             className="mb-6 p-4 bg-sbi-dark/50 border border-sbi-dark-border/20 rounded-lg space-y-3"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="create-name" className={labelClass}>
                   Name

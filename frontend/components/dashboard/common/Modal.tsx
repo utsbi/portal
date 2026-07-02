@@ -57,7 +57,7 @@ export function Modal({
         <Dialog.Content
           className={cn(
             "font-urbanist",
-            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full",
+            "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)]",
             sizeToMaxWidth[size],
             "bg-sbi-dark text-white border border-sbi-dark-border/50 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
             "max-h-[88vh] flex flex-col",

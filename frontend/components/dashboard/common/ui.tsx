@@ -29,7 +29,7 @@ export function DashboardShell({
   className?: string;
 }) {
   return (
-    <div className="h-[calc(100vh-4rem)] bg-sbi-dark flex flex-col p-6 md:p-8 overflow-hidden">
+    <div className="h-[calc(100vh-4rem)] bg-sbi-dark flex flex-col p-4 sm:p-6 md:p-8 overflow-hidden">
       <div
         className={cn(
           "max-w-7xl w-full mx-auto flex flex-col h-full min-h-0",
@@ -60,7 +60,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex justify-between items-end gap-4 mb-6 shrink-0",
+        "flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4 mb-6 shrink-0",
         className,
       )}
     >

@@ -151,7 +151,7 @@ export function FinancesView({
         subtitle="Track your project budget and spending"
         action={
           canEdit ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setCategoryEditorOpen(true)}

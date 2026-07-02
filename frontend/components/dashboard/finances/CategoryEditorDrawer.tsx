@@ -142,7 +142,7 @@ export function CategoryEditorDrawer({
         </p>
 
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_140px_40px] gap-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark px-1">
+          <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_140px_40px] gap-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark px-1">
             <div>Name</div>
             <div className="text-right">Expected ($)</div>
             <div />
@@ -154,21 +154,23 @@ export function CategoryEditorDrawer({
             return (
               <div
                 key={row._key}
-                className="grid grid-cols-[minmax(0,1fr)_140px_40px] gap-2 items-center"
+                className="grid grid-cols-[minmax(0,1fr)_40px] sm:grid-cols-[minmax(0,1fr)_140px_40px] gap-2 items-center"
               >
                 <input
                   type="text"
                   value={row.name}
                   placeholder="e.g. Design & Development"
+                  aria-label="Category name"
                   onChange={(e) =>
                     updateRow(row._key, { name: e.target.value })
                   }
-                  className="px-3 h-9 text-sm bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40"
+                  className="col-span-2 sm:col-span-1 px-3 h-9 text-sm bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40"
                 />
                 <input
                   type="number"
                   min={0}
                   step="0.01"
+                  aria-label="Expected amount ($)"
                   value={row.expected_amount}
                   onChange={(e) =>
                     updateRow(row._key, {
