@@ -242,14 +242,14 @@ class TestSettings:
         )
         assert s.allowed_hosts_list == ["example.com", "*.other.com"]
 
-    def test_embedding_dimensions_defaults_4096(self):
+    def test_embedding_dimensions_defaults_1536(self):
         from app.explore.core.config import Settings
 
         s = Settings(
             SUPABASE_URL="https://x.supabase.co",
             SUPABASE_PUBLIC_KEY="k",
         )
-        assert s.embedding_dimensions == 4096
+        assert s.embedding_dimensions == 1536
 
     def test_rerank_candidates_default(self):
         from app.explore.core.config import Settings

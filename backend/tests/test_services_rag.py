@@ -169,7 +169,7 @@ class TestSearchDocuments:
 
     async def test_rpc_returns_results(self):
         svc = self._service()
-        fake_embedding = [0.1] * 4096
+        fake_embedding = [0.1] * 1536
         svc.generate_embedding = AsyncMock(return_value=fake_embedding)
 
         mock_rpc_result = MagicMock()
@@ -198,7 +198,7 @@ class TestSearchDocuments:
     async def test_rpc_call_shape(self):
         """The RPC must be called with expected parameter names."""
         svc = self._service()
-        fake_embedding = [0.0] * 4096
+        fake_embedding = [0.0] * 1536
         svc.generate_embedding = AsyncMock(return_value=fake_embedding)
 
         with patch("app.explore.services.rag_service.supabase") as mock_supa:

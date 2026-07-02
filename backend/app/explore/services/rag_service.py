@@ -11,25 +11,24 @@ from app.explore.services.pdf_parser import PDFParser
 logger = logging.getLogger(__name__)
 
 # Minimum cosine similarity for a vector result to be included in retrieval.
-# Qwen3-Embedding-8B (4096-dim) produces cosine similarities that cluster near
-# 0.0–0.25 for unrelated texts.  A floor of 0.30 sits above that noise band
-# while still admitting documents that share topic or domain with the query
-# even if they don't match it verbatim — conservative enough that genuine
-# partial-match passages are not dropped.
-MIN_VECTOR_SIMILARITY: float = 0.30
+# Recalibrated 2026-07-02 for 1536-dim MRL-truncated Qwen3-Embedding-8B
+# vectors: truncation compresses similarities slightly downward (a
+# same-domain/different-topic pair that scored 0.30 at 4096 dims scores ~0.25
+# at 1536; unrelated texts ~0.15). 0.25 keeps the previous behaviour — above
+# the unrelated-text noise band, but still admitting documents that share
+# topic or domain with the query even without a verbatim match.
+MIN_VECTOR_SIMILARITY: float = 0.25
 
-# NOTE (audit idea #1 — ANN index, DEFERRED): client_knowledge.embedding is a
-# bare `vector` column, so similarity search is a sequential scan. An ANN index
-# (HNSW) would fix the scaling ceiling, BUT pgvector's HNSW dimension limit is
-# 2000 for `vector` and 4000 for `halfvec` — and these embeddings are 4096-dim
-# (Qwen3-Embedding-8B), so they CANNOT be indexed without reducing dimensions.
-# At the current corpus size (tens of rows) a seq scan is effectively instant,
-# so the index is premature. When the corpus grows large, index it by either:
-#   (a) Matryoshka-truncating to <=4000 dims (e.g. halfvec(2048) via
-#       subvector()+l2_normalize, truncating the query embedding to match), or
-#   (b) switching EMBEDDING_MODEL to a <=3072-dim model + a re-embed backfill.
-# Decided 2026-06-30 to defer; the relevance floor / real ts_rank / FTS GIN
-# improvements already shipped.
+# NOTE (audit idea #1 — ANN index, DONE 2026-07-02): client_knowledge.embedding
+# is now a typed vector(1536) column with an HNSW cosine index (migration
+# 20260702000001). Embeddings are Qwen3-Embedding-8B requested at
+# dimensions=1536 — Matryoshka truncation of the native 4096, returned
+# unit-normalized by the API, which fits under pgvector's 2000-dim HNSW limit.
+# Existing 4096-dim rows were converted in-place by the migration via
+# l2_normalize(subvector(embedding, 1, 1536)), which is numerically identical
+# (cos ≈ 0.9999, verified) to re-embedding at 1536, so no API backfill was
+# needed. EMBEDDING_DIMENSIONS must stay in lock-step with the column type;
+# a mismatch now fails loudly at insert/query time instead of silently.
 
 # Canonical 8-4-4-4-12 UUID, as issued by Supabase auth.
 _UUID_RE = re.compile(
