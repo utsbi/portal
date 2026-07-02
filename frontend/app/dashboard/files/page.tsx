@@ -55,6 +55,7 @@ import {
   uploadFile,
 } from "./storage";
 import TreeNode, { type FolderNode } from "./TreeNode";
+import { type UploadItem, UploadTray } from "./UploadTray";
 import { useDragMove } from "./useDragMove";
 
 // File types the RAG ingester accepts. Uploading one of these auto-indexes it
@@ -114,8 +115,14 @@ export default function FilesPage() {
 
   // Write-op UI state
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadCount, setUploadCount] = useState(0);
+  // Google-Drive-style upload tray (bottom right). Uploads never block the
+  // Upload button; each file's storage + indexing progress is a tray row.
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const updateUploadItem = (id: string, patch: Partial<UploadItem>) =>
+    setUploadItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+    );
+  const clearUploadTray = () => setUploadItems([]);
   const [isDragging, setIsDragging] = useState(false);
   const dragDepth = useRef(0);
 
@@ -567,54 +574,61 @@ export default function FilesPage() {
   const handleUploadFiles = async (fileList: FileList | File[]) => {
     const arr = Array.from(fileList);
     if (arr.length === 0) return;
-    setIsUploading(true);
-    setUploadCount(arr.length);
+
+    // Register every file in the tray up front, then work through them.
+    // Statuses (and errors) are reported per-row in the tray, not as toasts.
+    const batch = arr.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      targetPath: selectedFolderPath
+        ? `${selectedFolderPath}/${file.name}`
+        : file.name,
+    }));
+    setUploadItems((prev) => [
+      ...prev,
+      ...batch.map(({ id, file }) => ({
+        id,
+        name: file.name,
+        status: "uploading" as const,
+      })),
+    ]);
 
     let okCount = 0;
-    const failures: string[] = [];
-    const toIndex: string[] = [];
-    for (const file of arr) {
-      const targetPath = selectedFolderPath
-        ? `${selectedFolderPath}/${file.name}`
-        : file.name;
+    const toIndex: { id: string; path: string }[] = [];
+    for (const { id, file, targetPath } of batch) {
       const { error: upErr } = await uploadFile(targetPath, file);
       if (upErr) {
-        failures.push(
-          `${file.name}: ${humanizeStorageError(upErr.message, "upload")}`,
-        );
+        updateUploadItem(id, {
+          status: "error",
+          error: humanizeStorageError(upErr.message, "upload"),
+        });
       } else {
         okCount += 1;
-        if (isIndexable(file.name)) toIndex.push(targetPath);
+        if (isIndexable(file.name) && projectId !== null) {
+          toIndex.push({ id, path: targetPath });
+          updateUploadItem(id, { status: "indexing" });
+        } else {
+          updateUploadItem(id, { status: "done" });
+        }
       }
     }
 
-    setIsUploading(false);
-    setUploadCount(0);
-
-    if (okCount > 0) {
-      toastSuccess(
-        `${okCount} file${okCount === 1 ? "" : "s"} uploaded.`,
-        "Upload complete",
-      );
-    }
-    if (failures.length > 0) {
-      toastError(failures.join(" • "), "Some uploads failed");
-    }
-    await refreshAfterWrite();
+    if (okCount > 0) await refreshAfterWrite();
 
     // Best-effort auto-index of every newly uploaded indexable file. Each
-    // path shows "Indexing…" while its call is in flight, then the refreshed
-    // indexed-list flips it to "Indexed". A failed index just clears the
-    // in-flight badge — the storage upload already succeeded.
+    // path shows "Indexing…" while its call is in flight (grid badge + tray
+    // row), then the refreshed indexed-list flips it to "Indexed". A failed
+    // index resolves the tray row to done — the storage upload already
+    // succeeded — and reports the indexing failure as a toast.
     if (projectId !== null && toIndex.length > 0) {
       setIndexingPaths((prev) => {
         const next = new Set(prev);
-        for (const p of toIndex) next.add(p);
+        for (const { path } of toIndex) next.add(path);
         return next;
       });
       let indexedCount = 0;
       await Promise.all(
-        toIndex.map(async (path) => {
+        toIndex.map(async ({ id, path }) => {
           try {
             const res = await indexPortalFile(projectId, path);
             if (res.indexed) indexedCount += 1;
@@ -626,6 +640,7 @@ export default function FilesPage() {
               "Indexing failed",
             );
           } finally {
+            updateUploadItem(id, { status: "done" });
             setIndexingPaths((prev) => {
               const next = new Set(prev);
               next.delete(path);
@@ -930,20 +945,10 @@ export default function FilesPage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
                     className={btnPrimary}
                   >
-                    {isUploading ? (
-                      <>
-                        <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Uploading {uploadCount}…
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-3.5 w-3.5" />
-                        Upload
-                      </>
-                    )}
+                    <Upload className="h-3.5 w-3.5" />
+                    Upload
                   </button>
                   <button
                     type="button"
@@ -951,7 +956,6 @@ export default function FilesPage() {
                       setNewFolderName("");
                       setNewFolderOpen(true);
                     }}
-                    disabled={isUploading}
                     className={btnGhost}
                   >
                     <FolderPlus className="h-3.5 w-3.5" />
@@ -1198,6 +1202,7 @@ export default function FilesPage() {
           ) : null}
         </DragOverlay>
       </DndContext>
+      <UploadTray items={uploadItems} onClose={clearUploadTray} />
     </DashboardShell>
   );
 }
