@@ -28,7 +28,7 @@ export function setStorageRoot(root: string | null) {
 }
 
 /** Map a project-relative path to its absolute Storage path. */
-function withRoot(path: string): string {
+export function withRoot(path: string): string {
   if (!activeRoot) return path;
   return path ? `${activeRoot}/${path}` : activeRoot;
 }

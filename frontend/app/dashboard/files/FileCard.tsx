@@ -22,6 +22,7 @@ import { useState } from "react";
 import { Modal } from "@/components/dashboard/common/Modal";
 import { toastError } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/client";
+import { withRoot } from "./storage";
 
 type IndexState = "indexed" | "indexing" | "not-indexable";
 
@@ -113,10 +114,12 @@ export default function FileCard({
   ): Promise<string | null> => {
     const fullPath = folderPath ? `${folderPath}/${name}` : name;
     try {
+      // Storage keys are rooted under the active project prefix — signing the
+      // bare page-relative path returns "Object not found".
       const { data, error } = await supabase.storage
         .from("Files")
         .createSignedUrl(
-          fullPath,
+          withRoot(fullPath),
           expiresIn,
           opts?.download ? { download: opts.download } : undefined,
         );
