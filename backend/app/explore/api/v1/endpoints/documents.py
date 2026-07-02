@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import posixpath
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
@@ -68,6 +69,17 @@ class ByFileRequest(BaseModel):
     storage_path: str = Field(
         ..., description="Project-relative path of the file in the 'Files' bucket"
     )
+
+
+class IndexTextRequest(BaseModel):
+    """Save already-extracted text (e.g. a chat attachment) into the corpus."""
+
+    project_id: int = Field(..., description="Project to file the knowledge under")
+    filename: str = Field(
+        ..., min_length=1, max_length=255,
+        description="Display filename for citations (no path)",
+    )
+    content: str = Field(..., min_length=1, description="Extracted plain text")
 
 
 class MoveFileRequest(BaseModel):
@@ -288,6 +300,26 @@ async def index_file(
         if not content.strip():
             return {"indexed": False, "reason": "empty"}
 
+        # Content-hash dedup: if this exact text is already indexed at this
+        # path, skip the delete + re-embed entirely — a re-index of an
+        # unchanged file would otherwise burn an embeddings call to produce
+        # identical chunks. (Hash is over the EXTRACTED text, so a re-saved
+        # file with identical content still dedupes.)
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        existing = supabase.table("client_knowledge") \
+            .select("id, metadata") \
+            .eq("project_id", body.project_id) \
+            .eq("storage_path", body.storage_path) \
+            .execute()
+        if existing.data:
+            prior_hash = (existing.data[0].get("metadata") or {}).get("content_hash")
+            if prior_hash == content_hash:
+                return {
+                    "indexed": True,
+                    "chunks": len(existing.data),
+                    "unchanged": True,
+                }
+
         # Drop any existing chunks for this file so a re-index of a replaced
         # file doesn't leave stale/duplicate chunks behind.
         supabase.table("client_knowledge") \
@@ -303,6 +335,7 @@ async def index_file(
             metadata={
                 "filename": filename,
                 "storage_path": body.storage_path,
+                "content_hash": content_hash,
                 "upload_date": datetime.now().isoformat(),
             },
             client_id=auth.user_id,
@@ -355,6 +388,70 @@ async def delete_by_file(
             status_code=500,
             detail="Error deleting file index",
         )
+
+
+@router.post("/knowledge/index-text")
+@limiter.limit("10/minute")
+async def index_text(
+    request: Request,
+    body: IndexTextRequest,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """Index already-extracted text into the project's RAG corpus.
+
+    The "save to project knowledge" bridge for chat attachments: the caller
+    already holds the extracted text (their own ``client_chat_attachments``
+    row), so this skips storage entirely and chunks/embeds the text tagged
+    ``source='chat'``. Director + membership gated like every corpus write.
+
+    Dedup: if any chunk in the project already carries this content hash, the
+    text is already searchable — return ``{"indexed": true, "duplicate": true}``
+    without re-embedding (catches saving the same attachment twice, or saving
+    an attachment that is also an indexed portal file).
+    """
+    await _ensure_director_member(auth, body.project_id)
+
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Content is empty")
+    if len(content.encode("utf-8")) > 2_000_000:
+        raise HTTPException(status_code=413, detail="Content too large to index")
+
+    # Citations display this verbatim; never allow it to look like a path.
+    filename = body.filename.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if not filename or "\x00" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    try:
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        existing = supabase.table("client_knowledge") \
+            .select("id") \
+            .eq("project_id", body.project_id) \
+            .eq("metadata->>content_hash", content_hash) \
+            .limit(1) \
+            .execute()
+        if existing.data:
+            return {"indexed": True, "chunks": 0, "duplicate": True}
+
+        rag_service = RAGService()
+        doc_ids = await rag_service.store_document(
+            content=content,
+            metadata={
+                "filename": filename,
+                "content_hash": content_hash,
+                "upload_date": datetime.now().isoformat(),
+            },
+            client_id=auth.user_id,
+            project_id=body.project_id,
+            source="chat",
+        )
+        return {"indexed": True, "chunks": len(doc_ids)}
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Error indexing text: %s", filename, exc_info=True)
+        raise HTTPException(status_code=500, detail="Error indexing text")
 
 
 @router.post("/knowledge/move-file")

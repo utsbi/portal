@@ -45,6 +45,9 @@ class TestToolsSchema:
     def test_get_requests_present(self):
         assert "get_requests" in self._tool_names()
 
+    def test_create_request_present(self):
+        assert "create_request" in self._tool_names()
+
     def test_all_tools_have_type_function(self):
         for tool in TOOLS:
             assert tool.get("type") == "function", f"Tool {tool} missing type=function"
@@ -53,6 +56,66 @@ class TestToolsSchema:
         for tool in TOOLS:
             desc = tool.get("function", {}).get("description", "")
             assert desc, f"Tool {tool['function']['name']} has no description"
+
+
+# ---------------------------------------------------------------------------
+# create_request — draft-only proposal, never a write
+# ---------------------------------------------------------------------------
+
+class TestCreateRequestProposal:
+    async def _run(self, args):
+        return await execute_tool(
+            name="create_request",
+            args=args,
+            client_id="uid-123",
+            access_token="tok",
+            project_id=1,
+        )
+
+    async def test_returns_proposal_json_and_no_sources(self):
+        import json
+
+        text, sources = await self._run(
+            {"subject": "Updated schematics", "message": "Please send rev B."}
+        )
+        assert sources == []
+        assert "NOT SUBMITTED" in text
+        payload = next(
+            line for line in text.splitlines() if line.startswith("PROPOSAL_JSON:")
+        )
+        proposal = json.loads(payload.removeprefix("PROPOSAL_JSON:"))
+        assert proposal == {
+            "kind": "request_proposal",
+            "subject": "Updated schematics",
+            "message": "Please send rev B.",
+        }
+
+    async def test_empty_subject_is_error_string(self):
+        text, sources = await self._run({"subject": "  ", "message": "hi"})
+        assert text.startswith("Error:")
+        assert sources == []
+
+    async def test_lengths_are_capped(self):
+        import json
+
+        text, _ = await self._run({"subject": "s" * 500, "message": "m" * 10_000})
+        payload = next(
+            line for line in text.splitlines() if line.startswith("PROPOSAL_JSON:")
+        )
+        proposal = json.loads(payload.removeprefix("PROPOSAL_JSON:"))
+        assert len(proposal["subject"]) == 150
+        assert len(proposal["message"]) == 4000
+
+    async def test_no_db_client_is_built(self, monkeypatch):
+        """The draft tool must never touch a database client."""
+        import app.explore.agents.tools as tools_mod
+
+        def _boom(*a, **k):
+            raise AssertionError("create_request must not build a DB client")
+
+        monkeypatch.setattr(tools_mod, "user_client", _boom)
+        text, _ = await self._run({"subject": "s", "message": "m"})
+        assert "PROPOSAL_JSON:" in text
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ Covers:
   - upload: non-member gets 403
   - upload: non-director gets 403
   - list: requires auth
+  - index-text: director-gated save-to-knowledge (happy path, dedup, caps)
 """
 from __future__ import annotations
 
@@ -279,3 +280,134 @@ class TestDocumentList:
         assert "count" in body
         # Two distinct filenames
         assert body["count"] == 2
+
+
+class TestIndexText:
+    """POST /api/v1/documents/knowledge/index-text (save chat text to corpus)"""
+
+    def teardown_method(self):
+        app.dependency_overrides.clear()
+
+    def _client_as_director(self, monkeypatch):
+        import app.explore.api.v1.endpoints.documents as docs_mod
+        from app.explore.api.deps import get_auth_context
+
+        app.dependency_overrides[get_auth_context] = _auth_override
+
+        async def _yes(*a, **k):
+            return True
+
+        monkeypatch.setattr(docs_mod, "is_project_member", _yes)
+        monkeypatch.setattr(docs_mod, "_is_director", _yes)
+        return TestClient(app, raise_server_exceptions=False)
+
+    def _mock_no_duplicate(self, monkeypatch):
+        import app.explore.api.v1.endpoints.documents as docs_mod
+
+        chain = MagicMock()
+        chain.select.return_value = chain
+        chain.eq.return_value = chain
+        chain.limit.return_value = chain
+        chain.execute.return_value = MagicMock(data=[])
+        mock_supa = MagicMock()
+        mock_supa.table.return_value = chain
+        monkeypatch.setattr(docs_mod, "supabase", mock_supa)
+        return chain
+
+    def test_requires_auth(self):
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post(
+            "/api/v1/documents/knowledge/index-text",
+            json={"project_id": 1, "filename": "a.pdf", "content": "hello"},
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_non_director_gets_403(self, monkeypatch):
+        import app.explore.api.v1.endpoints.documents as docs_mod
+        from app.explore.api.deps import get_auth_context
+
+        app.dependency_overrides[get_auth_context] = _auth_override
+
+        async def _member(*a, **k):
+            return True
+
+        async def _not_director(*a, **k):
+            return False
+
+        monkeypatch.setattr(docs_mod, "is_project_member", _member)
+        monkeypatch.setattr(docs_mod, "_is_director", _not_director)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post(
+            "/api/v1/documents/knowledge/index-text",
+            headers={"Authorization": "Bearer test-token"},
+            json={"project_id": 1, "filename": "a.pdf", "content": "hello"},
+        )
+        assert resp.status_code == 403
+
+    def test_happy_path_stores_with_source_chat(self, monkeypatch):
+        import app.explore.api.v1.endpoints.documents as docs_mod
+
+        client = self._client_as_director(monkeypatch)
+        self._mock_no_duplicate(monkeypatch)
+
+        store = AsyncMock(return_value=[1, 2, 3])
+        monkeypatch.setattr(
+            docs_mod.RAGService, "store_document", store, raising=True
+        )
+        resp = client.post(
+            "/api/v1/documents/knowledge/index-text",
+            headers={"Authorization": "Bearer test-token"},
+            json={
+                "project_id": 7,
+                "filename": "notes/meeting.txt",
+                "content": "Meeting notes body",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"indexed": True, "chunks": 3}
+        kwargs = store.call_args.kwargs
+        assert kwargs["source"] == "chat"
+        assert kwargs["project_id"] == 7
+        # Path components are stripped from the display filename.
+        assert kwargs["metadata"]["filename"] == "meeting.txt"
+        assert kwargs["metadata"]["content_hash"]
+
+    def test_duplicate_hash_skips_embedding(self, monkeypatch):
+        import app.explore.api.v1.endpoints.documents as docs_mod
+
+        client = self._client_as_director(monkeypatch)
+        chain = self._mock_no_duplicate(monkeypatch)
+        chain.execute.return_value = MagicMock(data=[{"id": 42}])
+
+        store = AsyncMock()
+        monkeypatch.setattr(
+            docs_mod.RAGService, "store_document", store, raising=True
+        )
+        resp = client.post(
+            "/api/v1/documents/knowledge/index-text",
+            headers={"Authorization": "Bearer test-token"},
+            json={"project_id": 7, "filename": "a.txt", "content": "same text"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["duplicate"] is True
+        store.assert_not_called()
+
+    def test_oversized_content_returns_413(self, monkeypatch):
+        client = self._client_as_director(monkeypatch)
+        self._mock_no_duplicate(monkeypatch)
+        resp = client.post(
+            "/api/v1/documents/knowledge/index-text",
+            headers={"Authorization": "Bearer test-token"},
+            json={"project_id": 7, "filename": "big.txt", "content": "x" * 2_000_001},
+        )
+        assert resp.status_code == 413
+
+    def test_blank_content_rejected(self, monkeypatch):
+        client = self._client_as_director(monkeypatch)
+        self._mock_no_duplicate(monkeypatch)
+        resp = client.post(
+            "/api/v1/documents/knowledge/index-text",
+            headers={"Authorization": "Bearer test-token"},
+            json={"project_id": 7, "filename": "a.txt", "content": "   "},
+        )
+        assert resp.status_code == 400

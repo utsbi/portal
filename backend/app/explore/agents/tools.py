@@ -8,6 +8,8 @@ Exposes these tools to the model:
   - ``get_reports`` — live project reports for the caller's project(s).
   - ``get_finance_summary`` — live budget/spend summary for the caller's project(s).
   - ``get_requests`` — live client requests (``tickets`` with ``ticket_type='request'``).
+  - ``create_request`` — draft a request as a PROPOSAL; the write happens
+    client-side under the caller's RLS only after an explicit UI confirm.
 
 ``TOOLS`` is the OpenAI function-calling schema list passed to the chat
 completion. ``execute_tool`` dispatches a single tool call and returns the tool
@@ -35,6 +37,7 @@ longer used by these tools.
 """
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -188,6 +191,44 @@ TOOLS: List[Dict[str, Any]] = [
                 "of my request?'."
             ),
             "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_request",
+            "description": (
+                "Draft a support/change request to the client's SBI team. Use "
+                "this when the user wants to ask their team for something — a "
+                "change, a document, a meeting, clarification, or help. This "
+                "does NOT submit anything: it produces a draft that is shown "
+                "to the user as a confirmation card, and the request is only "
+                "sent after the user explicitly confirms it in the UI. Write "
+                "the draft from the user's perspective, incorporating relevant "
+                "context from the conversation."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "subject": {
+                        "type": "string",
+                        "description": (
+                            "Short, specific subject line (max 150 chars), "
+                            "e.g. 'Request updated electrical schematics for "
+                            "Building B'."
+                        ),
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": (
+                            "The request body: what is needed, why, and any "
+                            "relevant details (dates, document names, budget "
+                            "figures) from the conversation. Max 4000 chars."
+                        ),
+                    },
+                },
+                "required": ["subject", "message"],
+            },
         },
     },
 ]
@@ -645,6 +686,32 @@ async def _get_requests(
     return "\n".join(lines)
 
 
+def _create_request_proposal(args: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
+    """Build a request DRAFT for the user to confirm — performs NO write.
+
+    The proposal JSON is embedded in the tool result on its own line prefixed
+    ``PROPOSAL_JSON:``; the frontend timeline parses it into a confirmation
+    card, and the actual ticket insert happens client-side under the caller's
+    own RLS session (the same ``createTicketRequest`` server action the
+    Requests page uses) only after the user clicks Confirm. The model never
+    gains a write path — this tool is string-in, string-out.
+    """
+    subject = str(args.get("subject", "")).strip()[:150]
+    message = str(args.get("message", "")).strip()[:4000]
+    if not subject:
+        return "Error: the request draft needs a non-empty subject.", []
+
+    proposal = {"kind": "request_proposal", "subject": subject, "message": message}
+    text = (
+        "DRAFT ONLY — NOT SUBMITTED. A confirmation card with this draft is now "
+        "shown to the user next to your reply. Briefly summarize the draft and "
+        "tell the user to press Confirm on the card to submit it (or ask you to "
+        "revise it). Never state or imply the request has been submitted.\n"
+        "PROPOSAL_JSON:" + json.dumps(proposal, ensure_ascii=False)
+    )
+    return text, []
+
+
 async def execute_tool(
     name: str,
     args: Dict[str, Any],
@@ -699,6 +766,10 @@ async def execute_tool(
         if name == "search_sbi_knowledge":
             query = str(args.get("query", "")) if args else ""
             return _search_sbi_knowledge(query)
+        if name == "create_request":
+            # Pure draft-builder: no DB client, no write. See the helper's
+            # docstring for the confirm-on-frontend contract.
+            return _create_request_proposal(args or {})
         # --- Live-data tools: use pre-resolved db/project_ids when available ---
         _db = db if db is not None else user_client(access_token)
         if name == "get_lifecycle_status":
