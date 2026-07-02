@@ -44,7 +44,7 @@ export default async function DashboardLayout({
         <SidebarProvider defaultOpen={sidebarOpen}>
           <div className="font-urbanist bg-sbi-dark h-screen overflow-hidden flex">
             <AppSidebar />
-            <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 flex flex-col min-h-0 min-w-0">
               {/* Header */}
               <header className="relative flex h-16 shrink-0 items-center gap-2 bg-sbi-dark pr-4 md:pr-6 border-b border-sbi-dark-border/30">
                 {/* Sidebar trigger — matching horizontal padding on both sides

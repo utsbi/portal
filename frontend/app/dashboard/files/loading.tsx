@@ -14,8 +14,8 @@ export default function FilesLoading() {
       />
 
       <div className="flex flex-1 min-h-0 gap-6">
-        {/* Folder tree sidebar */}
-        <Panel className="w-64 shrink-0 overflow-hidden" padded>
+        {/* Folder tree sidebar (hidden on phones, matching the loaded page) */}
+        <Panel className="hidden w-64 shrink-0 overflow-hidden md:block" padded>
           <SectionLabel className="mb-4">Folders</SectionLabel>
           <ul className="space-y-2 text-sm animate-pulse">
             {Array.from({ length: 6 }, (_, i) => `folder-${i}`).map((key) => (
@@ -27,9 +27,17 @@ export default function FilesLoading() {
           </ul>
         </Panel>
 
-        {/* Breadcrumb + file grid */}
+        {/* Breadcrumb + toolbar + file grid (mirrors the loaded layout) */}
         <main className="flex-1 min-w-0 flex flex-col">
-          <div className="mb-6 h-5 w-48 shrink-0 animate-pulse rounded bg-white/5" />
+          <div className="mb-6 flex flex-col gap-3 shrink-0 animate-pulse sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex min-h-10 items-center">
+              <div className="h-4 w-40 rounded bg-white/5" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-10 w-28 rounded-md border border-sbi-dark-border/50 bg-white/5" />
+              <div className="h-10 w-32 rounded-md border border-sbi-dark-border/50 bg-white/5" />
+            </div>
+          </div>
           <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
             {Array.from({ length: 8 }, (_, i) => `file-${i}`).map((key) => (
               <div

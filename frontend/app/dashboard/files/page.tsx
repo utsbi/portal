@@ -844,10 +844,10 @@ export default function FilesPage() {
 
           <main className="flex-1 min-w-0 overflow-y-auto flex flex-col">
             {/* Breadcrumb + director toolbar */}
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="mb-6 flex flex-col gap-3 shrink-0 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <nav
                 aria-label="Folder breadcrumb"
-                className="text-sm text-sbi-muted flex flex-wrap items-center gap-1"
+                className="min-h-10 text-sm text-sbi-muted flex flex-wrap items-center gap-1"
               >
                 {breadcrumbSegments.map((seg, i) => {
                   const isLast = i === breadcrumbSegments.length - 1;

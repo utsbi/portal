@@ -156,7 +156,7 @@ function FormCard({ form, index }: { form: DirectorFormView; index: number }) {
         ease: [0.22, 1, 0.36, 1],
       }}
     >
-      <Panel className="flex items-center gap-4">
+      <Panel className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm text-white/90 truncate">{form.title}</span>
@@ -183,7 +183,7 @@ function FormCard({ form, index }: { form: DirectorFormView; index: number }) {
             {` · ${form.submittedCount} submitted`}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           <Link
             href={`/dashboard/questionnaire/builder/${form.id}/responses`}
             className={cn(btnGhost, "h-8 px-3 text-[11px]")}

@@ -165,7 +165,7 @@ export function SearchableDropdown({
         onKeyDown={handleTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className="flex items-center justify-between w-full bg-sbi-input border border-sbi-green/10 text-sbi-muted hover:text-white px-4 py-2.5 rounded-lg text-sm transition-colors focus:outline-none focus:border-sbi-green/30"
+        className="flex h-10 items-center justify-between w-full bg-sbi-input border border-sbi-green/10 text-sbi-muted hover:text-white px-4 rounded-lg text-sm transition-colors focus:outline-none focus:border-sbi-green/30"
       >
         <span
           className={cn("truncate", !displayLabel && "text-sbi-muted-dark")}

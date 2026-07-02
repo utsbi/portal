@@ -269,6 +269,21 @@ export function DataTable<T extends Record<string, any>>({
   const totalColSpan =
     visibleColumns.length + (selectable ? 1 : 0) + (expandable ? 1 : 0);
 
+  // Columns still visible on phones (responsivePriority 2/3 are hidden below
+  // md/lg). The first one absorbs the leftover width and the last one hugs the
+  // right edge so narrow tables don't strand a dead zone on the right.
+  const { firstMobileAccessor, lastMobileAccessor } = useMemo(() => {
+    const mobileCols = visibleColumns.filter(
+      (c) => !c.responsivePriority || c.responsivePriority === 1,
+    );
+    if (mobileCols.length < 2)
+      return { firstMobileAccessor: undefined, lastMobileAccessor: undefined };
+    return {
+      firstMobileAccessor: String(mobileCols[0].accessor),
+      lastMobileAccessor: String(mobileCols[mobileCols.length - 1].accessor),
+    };
+  }, [visibleColumns]);
+
   // ── Handlers ──
   const getRowKey = useCallback(
     (row: T, index: number): string => {
@@ -410,11 +425,11 @@ export function DataTable<T extends Record<string, any>>({
 
   // ── Column Toggle Slot ──
   const columnToggleSlot = columnToggle ? (
-    <div className="relative" ref={columnToggleRef}>
+    <div className="relative max-sm:grow" ref={columnToggleRef}>
       <button
         type="button"
         onClick={() => setColumnToggleOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 px-3 py-2 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input"
+        className="flex h-10 w-full items-center justify-center gap-1.5 px-3 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input sm:w-auto sm:justify-start"
       >
         <Columns2 size={14} />
         Columns
@@ -557,10 +572,14 @@ export function DataTable<T extends Record<string, any>>({
                   <TableHead
                     key={accessor}
                     className={cn(
-                      "px-5 py-2.5 text-[11px] tracking-wider uppercase font-semibold select-none transition-colors",
+                      "px-3 py-2.5 md:px-5 text-[11px] tracking-wider uppercase font-semibold select-none transition-colors",
                       col.width,
                       alignClass(col.align),
                       priorityClass(col.responsivePriority),
+                      accessor === firstMobileAccessor && "w-full md:w-auto",
+                      accessor === lastMobileAccessor &&
+                        !col.align &&
+                        "text-right md:text-left",
                       col.sortable
                         ? "cursor-pointer hover:text-white text-sbi-muted-dark"
                         : "text-sbi-muted-dark",
@@ -574,6 +593,9 @@ export function DataTable<T extends Record<string, any>>({
                         "flex items-center gap-1.5",
                         col.align === "right" && "justify-end",
                         col.align === "center" && "justify-center",
+                        accessor === lastMobileAccessor &&
+                          !col.align &&
+                          "justify-end md:justify-start",
                       )}
                     >
                       {col.header}
@@ -632,15 +654,21 @@ export function DataTable<T extends Record<string, any>>({
                       <TableCell
                         key={String(col.accessor)}
                         className={cn(
-                          "px-5 py-3",
+                          "px-3 py-3 md:px-5",
                           col.width,
                           priorityClass(col.responsivePriority),
+                          String(col.accessor) === firstMobileAccessor &&
+                            "w-full md:w-auto",
                         )}
                       >
                         <Skeleton
                           className={cn(
                             "h-4 rounded bg-white/[0.06]",
-                            col.align === "right" ? "ml-auto w-16" : "w-3/4",
+                            col.align === "right" ||
+                              String(col.accessor) === lastMobileAccessor
+                              ? "ml-auto w-16 md:ml-0 md:w-3/4"
+                              : "w-3/4",
+                            col.align === "right" && "md:ml-auto md:w-16",
                           )}
                         />
                       </TableCell>
@@ -744,10 +772,15 @@ export function DataTable<T extends Record<string, any>>({
                               <TableCell
                                 key={accessor}
                                 className={cn(
-                                  "px-5 py-3",
+                                  "px-3 py-3 md:px-5",
                                   col.width,
                                   alignClass(col.align),
                                   priorityClass(col.responsivePriority),
+                                  accessor === firstMobileAccessor &&
+                                    "w-full md:w-auto",
+                                  accessor === lastMobileAccessor &&
+                                    !col.align &&
+                                    "text-right md:text-left",
                                   isPrimary &&
                                     "font-medium text-white group-hover:text-sbi-green transition-colors text-sm",
                                   !isPrimary && "text-sbi-muted text-sm",

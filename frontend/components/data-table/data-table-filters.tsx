@@ -63,23 +63,24 @@ export function DataTableFilters({
         disabled && "opacity-50 pointer-events-none",
       )}
     >
-      {/* Search bar (left, flex-grow) */}
+      {/* Search bar (full-width row on phones; left, flex-grow from sm up) */}
       {searchable && (
-        <div className="relative grow min-w-[240px] max-w-sm group">
+        <div className="relative w-full group sm:w-auto sm:grow sm:min-w-[240px] sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-[15px] h-[15px] text-sbi-muted-dark group-focus-within:text-sbi-green transition-colors" />
           <input
             type="text"
             placeholder={searchPlaceholder}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-sbi-input rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
+            className="w-full h-10 pl-9 pr-4 text-sm bg-sbi-input rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
           />
         </div>
       )}
 
-      {/* Toggle filter (left of dropdowns, small element) */}
+      {/* Toggle filter (left of dropdowns on sm+; last in the control row on
+          phones so the full-height controls group together) */}
       {toggleFilter && (
-        <div className="flex items-center gap-2">
+        <div className="flex h-10 items-center gap-2 max-sm:order-last">
           <Checkbox
             id="dt-toggle-filter"
             checked={toggleActive}
@@ -95,16 +96,16 @@ export function DataTableFilters({
         </div>
       )}
 
-      {/* Dropdown filters + column visibility (right; wraps on narrow screens
-          instead of overflowing the toolbar) */}
-      <div className="flex flex-wrap items-center gap-3 text-sm ml-auto">
+      {/* Dropdown filters + column visibility (right on sm+; on phones they
+          grow to share tidy full-width rows under the search bar) */}
+      <div className="flex grow flex-wrap items-center gap-3 text-sm sm:grow-0 sm:ml-auto">
         {filters.map((filter) => (
           <SearchableDropdown
             key={filter.key}
             value={filterValues[filter.key] ?? filter.defaultValue}
             onChange={(val) => onFilterChange(filter.key, val)}
             options={filter.options}
-            className={filter.width ?? "w-36"}
+            className={cn(filter.width ?? "w-36", "max-sm:grow")}
           />
         ))}
 
