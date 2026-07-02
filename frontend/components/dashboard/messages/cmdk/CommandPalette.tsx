@@ -150,7 +150,7 @@ function PaletteModal({ conversations, basePath, onClose }: PaletteModalProps) {
     >
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: onClick here only stops backdrop click-to-close propagation; it triggers no action of its own, and keyboard dismissal is handled by the backdrop and the search input's Escape handler */}
       <div
-        className="w-[520px] max-h-[480px] flex flex-col rounded-xl border border-sbi-dark-border/60 bg-sbi-dark-card shadow-[0_24px_64px_-12px_rgba(0,0,0,0.8)] overflow-hidden"
+        className="w-[min(520px,calc(100vw-2rem))] max-h-[480px] flex flex-col rounded-xl border border-sbi-dark-border/60 bg-sbi-dark-card shadow-[0_24px_64px_-12px_rgba(0,0,0,0.8)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Switch conversation"

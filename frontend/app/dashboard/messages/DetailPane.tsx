@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useActor } from "@/components/dashboard/messages/ActorContext";
 import { useCmdK } from "@/components/dashboard/messages/cmdk/CommandPalette";
@@ -46,7 +48,16 @@ export function DetailPane() {
 
   return (
     <>
-      <div className="shrink-0 px-6 py-4 border-b border-sbi-dark-border/40 bg-sbi-dark-card/30 flex items-center gap-3">
+      <div className="shrink-0 px-4 md:px-6 py-4 border-b border-sbi-dark-border/40 bg-sbi-dark-card/30 flex items-center gap-3">
+        {/* Back to the conversation list — only relevant below md, where the
+            master–detail shell shows a single pane at a time. */}
+        <Link
+          href="/dashboard/messages"
+          aria-label="Back to conversations"
+          className="md:hidden -ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sbi-muted hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" strokeWidth={1.75} />
+        </Link>
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sbi-green/20 bg-sbi-green/5 text-sbi-green text-sm font-light select-none">
           {displayName.charAt(0).toUpperCase()}
         </div>
