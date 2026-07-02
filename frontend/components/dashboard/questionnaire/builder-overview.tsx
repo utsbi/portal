@@ -21,6 +21,7 @@ import {
   deleteForm,
   duplicateForm,
 } from "@/app/dashboard/questionnaire/actions";
+import { StatSummary } from "@/components/dashboard/common/StatSummary";
 import {
   btnGhost,
   btnPrimary,
@@ -29,7 +30,6 @@ import {
   PageHeader,
   Panel,
   SectionLabel,
-  StatTile,
 } from "@/components/dashboard/common/ui";
 import type { DirectorFormView } from "@/lib/data/questionnaire";
 import { toastError, toastSuccess } from "@/lib/notifications";
@@ -58,7 +58,7 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
         action={
           <Link
             href="/dashboard/questionnaire/builder/new"
-            className={cn(btnPrimary, "h-9")}
+            className={btnPrimary}
           >
             <Plus className="size-4" /> New Form
           </Link>
@@ -66,20 +66,21 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
       />
 
       <main className="flex-1 overflow-auto dashboard-scrollbar">
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark">
-            Start from a template
+        <div className="mb-6 flex flex-wrap items-center gap-x-1 gap-y-1">
+          <span className="mr-2 text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark">
+            Start from a template:
           </span>
           {FORM_TEMPLATES.map((t) => (
             <Link
               key={t.id}
               href={`/dashboard/questionnaire/builder/new?template=${t.id}`}
               title={t.description}
-              className="inline-flex h-8 items-center rounded-md border border-sbi-dark-border/50 bg-sbi-dark-card px-3 text-xs text-sbi-muted transition-colors hover:border-sbi-green/40 hover:text-sbi-green"
+              className="inline-flex h-8 items-center rounded-md px-2 text-xs text-sbi-muted transition-colors hover:bg-sbi-green/5 hover:text-sbi-green"
             >
               {t.name}
             </Link>
           ))}
+          <span aria-hidden className="mx-1 h-3.5 w-px bg-sbi-dark-border/60" />
           <Link
             href="/dashboard/questionnaire/builder/templates"
             className="inline-flex h-8 items-center rounded-md px-2 text-xs text-sbi-green/80 transition-colors hover:text-sbi-green"
@@ -109,27 +110,30 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col gap-8"
           >
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <StatTile
-                label="Total Forms"
-                value={totalForms}
-                sublabel="Drafts and published"
-                icon={<ClipboardList className="h-4 w-4" />}
-              />
-              <StatTile
-                label="Published"
-                value={published}
-                sublabel="Visible to clients"
-                tone="accent"
-                icon={<CheckCircle2 className="h-4 w-4" />}
-              />
-              <StatTile
-                label="Submissions"
-                value={totalSubmitted}
-                sublabel="Completed by clients"
-                icon={<Users className="h-4 w-4" />}
-              />
-            </div>
+            <StatSummary
+              desktopGridClassName="sm:grid-cols-2 md:grid-cols-3"
+              items={[
+                {
+                  label: "Total Forms",
+                  value: totalForms,
+                  sublabel: "Drafts and published",
+                  icon: <ClipboardList className="h-4 w-4" />,
+                },
+                {
+                  label: "Published",
+                  value: published,
+                  sublabel: "Visible to clients",
+                  tone: "accent",
+                  icon: <CheckCircle2 className="h-4 w-4" />,
+                },
+                {
+                  label: "Submissions",
+                  value: totalSubmitted,
+                  sublabel: "Completed by clients",
+                  icon: <Users className="h-4 w-4" />,
+                },
+              ]}
+            />
 
             <div className="flex flex-col gap-3">
               <SectionLabel>Your Forms</SectionLabel>

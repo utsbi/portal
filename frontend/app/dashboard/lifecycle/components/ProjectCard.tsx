@@ -39,7 +39,9 @@ export default function ProjectCard({ project, index = 0 }: ProjectCardProps) {
           isComplete && "opacity-65 hover:opacity-100",
         )}
       >
-        <div className="relative h-40 overflow-hidden bg-sbi-dark-border/10">
+        {/* Image / placeholder region: desktop only — phones get a dense row
+            card (status, name, progress, open) with no empty artwork block. */}
+        <div className="relative hidden h-40 overflow-hidden bg-sbi-dark-border/10 sm:block">
           {project.image ? (
             <Image
               src={project.image}
@@ -74,10 +76,10 @@ export default function ProjectCard({ project, index = 0 }: ProjectCardProps) {
           ) : null}
         </div>
 
-        <div className="flex items-center gap-4 p-5">
-          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+        <div className="flex items-center gap-3 p-4 sm:gap-4 sm:p-5">
+          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center sm:h-14 sm:w-14">
             <svg
-              className="h-14 w-14 -rotate-90"
+              className="h-11 w-11 -rotate-90 sm:h-14 sm:w-14"
               viewBox="0 0 56 56"
               role="img"
               aria-label={`${pct}% complete`}
@@ -105,17 +107,37 @@ export default function ProjectCard({ project, index = 0 }: ProjectCardProps) {
                 strokeLinecap="round"
               />
             </svg>
-            <span className="absolute text-xs font-medium tabular-nums text-white">
+            <span className="absolute text-[10px] font-medium tabular-nums text-white sm:text-xs">
               {pct}%
             </span>
           </div>
 
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-base text-white group-hover:text-sbi-green transition-colors">
+            <h3 className="truncate text-sm text-white group-hover:text-sbi-green transition-colors sm:text-base">
               {project.title}
             </h3>
-            <p className="mt-1 text-xs uppercase tracking-[0.15em] text-sbi-muted-dark">
-              {taskLabel}
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark sm:mt-1 sm:text-xs">
+              <span>{taskLabel}</span>
+              {/* Status lives in the image overlay on sm+; phones show it
+                  inline so the dense row still reads at a glance. */}
+              <span className="inline-flex items-center gap-1 sm:hidden">
+                ·
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isComplete ? "bg-sbi-green" : "bg-amber-400"
+                  }`}
+                />
+                <span
+                  className={isComplete ? "text-sbi-green" : "text-amber-400"}
+                >
+                  {isComplete ? "Complete" : "In Progress"}
+                </span>
+              </span>
+              {blocked > 0 ? (
+                <span className="text-red-400 sm:hidden">
+                  · {blocked} blocked
+                </span>
+              ) : null}
             </p>
           </div>
 

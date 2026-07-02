@@ -107,7 +107,7 @@ function LifecyclePageInner() {
             description="New lifecycle projects will appear here as your team kicks them off."
           />
         ) : (
-          <div className="flex flex-col gap-8 pb-2">
+          <div className="flex flex-col gap-6 pb-2 sm:gap-8">
             {hero ? (
               <div>
                 <SectionLabel>Current Focus</SectionLabel>
@@ -118,7 +118,7 @@ function LifecyclePageInner() {
             {rest.length > 0 ? (
               <div>
                 <SectionLabel>{`All Projects · ${projects.length}`}</SectionLabel>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
                   {rest.map((p, i) => (
                     <ProjectCard key={p.id} project={p} index={i} />
                   ))}

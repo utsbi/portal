@@ -423,13 +423,51 @@ export function DataTable<T extends Record<string, any>>({
       ? sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize)
       : sortedData;
 
-  // ── Column Toggle Slot ──
+  // ── Column visibility checkbox list (shared by the desktop popover and the
+  // mobile Filters panel) ──
+  const columnCheckboxList = columnToggle
+    ? columns.map((col) => {
+        const accessor = String(col.accessor);
+        return (
+          <label
+            key={accessor}
+            htmlFor={`column-toggle-${accessor}`}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-white/[0.04] transition-colors"
+          >
+            <Checkbox
+              id={`column-toggle-${accessor}`}
+              checked={!hiddenColumns.has(accessor)}
+              onCheckedChange={(checked) => {
+                setHiddenColumns((prev) => {
+                  const next = new Set(prev);
+                  if (checked) next.delete(accessor);
+                  else next.add(accessor);
+                  return next;
+                });
+              }}
+              className="border-sbi-dark-border data-[state=checked]:bg-sbi-green data-[state=checked]:text-sbi-dark"
+            />
+            <span
+              className={cn(
+                hiddenColumns.has(accessor)
+                  ? "text-sbi-muted-dark"
+                  : "text-white",
+              )}
+            >
+              {col.header}
+            </span>
+          </label>
+        );
+      })
+    : null;
+
+  // ── Column Toggle Slot (desktop inline button + popover) ──
   const columnToggleSlot = columnToggle ? (
-    <div className="relative max-sm:grow" ref={columnToggleRef}>
+    <div className="relative" ref={columnToggleRef}>
       <button
         type="button"
         onClick={() => setColumnToggleOpen((prev) => !prev)}
-        className="flex h-10 w-full items-center justify-center gap-1.5 px-3 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input sm:w-auto sm:justify-start"
+        className="flex h-10 items-center gap-1.5 px-3 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input"
       >
         <Columns2 size={14} />
         Columns
@@ -443,42 +481,21 @@ export function DataTable<T extends Record<string, any>>({
             transition={{ duration: 0.1 }}
             className="absolute right-0 top-full mt-1 w-48 bg-sbi-dark-card border border-sbi-dark-border rounded-lg shadow-xl z-50 p-2"
           >
-            {columns.map((col) => {
-              const accessor = String(col.accessor);
-              return (
-                <label
-                  key={accessor}
-                  htmlFor={`column-toggle-${accessor}`}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-white/[0.04] transition-colors"
-                >
-                  <Checkbox
-                    id={`column-toggle-${accessor}`}
-                    checked={!hiddenColumns.has(accessor)}
-                    onCheckedChange={(checked) => {
-                      setHiddenColumns((prev) => {
-                        const next = new Set(prev);
-                        if (checked) next.delete(accessor);
-                        else next.add(accessor);
-                        return next;
-                      });
-                    }}
-                    className="border-sbi-dark-border data-[state=checked]:bg-sbi-green data-[state=checked]:text-sbi-dark"
-                  />
-                  <span
-                    className={cn(
-                      hiddenColumns.has(accessor)
-                        ? "text-sbi-muted-dark"
-                        : "text-white",
-                    )}
-                  >
-                    {col.header}
-                  </span>
-                </label>
-              );
-            })}
+            {columnCheckboxList}
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  ) : undefined;
+
+  // ── Column visibility as an inline section for the mobile Filters panel ──
+  const columnPanelSlot = columnToggle ? (
+    <div>
+      <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-medium uppercase tracking-[0.15em] text-sbi-muted-dark">
+        <Columns2 size={12} />
+        Columns
+      </div>
+      {columnCheckboxList}
     </div>
   ) : undefined;
 
@@ -524,6 +541,7 @@ export function DataTable<T extends Record<string, any>>({
             toggleActive={toggleActive}
             onToggleChange={setToggleActive}
             columnToggleSlot={columnToggleSlot}
+            columnPanelSlot={columnPanelSlot}
             disabled={loading}
           />
         </div>

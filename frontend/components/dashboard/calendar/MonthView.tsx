@@ -141,7 +141,7 @@ export function MonthView({
               aria-label={`${key}${isToday ? " (today)" : ""}${dayEvs.length > 0 ? `, ${dayEvs.length} ${dayEvs.length === 1 ? "event" : "events"}` : ""}`}
               onClick={() => onSelectDate(isSelected ? null : key)}
               className={[
-                "group relative flex min-h-[56px] flex-col items-start gap-1 border-b border-r border-sbi-dark-border/40 p-1 text-left transition-colors sm:min-h-[112px] sm:gap-2 sm:p-2.5",
+                "group relative flex min-h-[68px] flex-col items-start gap-1.5 border-b border-r border-sbi-dark-border/40 p-1.5 text-left transition-colors sm:min-h-[112px] sm:gap-2 sm:p-2.5",
                 isSelected
                   ? "bg-sbi-green/[0.06] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.4)]"
                   : "hover:bg-white/[0.02]",
