@@ -172,8 +172,9 @@ SELECT is(
 SELECT t.reset_auth();
 
 -- ---------------------------------------------------------------------
--- TARGET 6 (D6): client reads ZERO from legal_documents AND website_forms; anon
--- can INSERT website_forms but cannot read back even its OWN insert.
+-- TARGET 6 (D6): website_forms is staff-only to read; anon can INSERT
+-- (public intake) but cannot read back even its OWN insert.
+-- (legal_documents, the other D6 table, was dropped in 20260702000002.)
 -- ---------------------------------------------------------------------
 SELECT t.as_anon();
 -- anon inserts a uniquely-identifiable lead ...
@@ -208,11 +209,11 @@ SET ROLE authenticated;  -- real DB role stays authenticated; only claims say se
 SELECT is(
   (SELECT count(*) FROM public.projects WHERE id = t.id('project_beta'))::int, 0,
   'TARGET 8: role=service_role in CLAIMS does not grant BYPASSRLS (cross-tenant still blocked)');
--- And legal_documents (staff-only) stays empty: claims cannot fake director-ness
+-- And website_forms (staff-only) stays empty: claims cannot fake director-ness
 -- beyond what is_director(auth.uid()) derives from the real profile row.
 SELECT is(
-  (SELECT count(*) FROM public.legal_documents)::int, 0,
-  'TARGET 8: forged service_role claim does not unlock staff-only legal_documents');
+  (SELECT count(*) FROM public.website_forms)::int, 0,
+  'TARGET 8: forged service_role claim does not unlock staff-only website_forms');
 SELECT t.reset_auth();
 
 SELECT * FROM finish();

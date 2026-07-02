@@ -1,14 +1,15 @@
--- D6: legal_documents and website_forms are director-only reads; clients see 0
--- rows; anon can still INSERT into website_forms (public intake path).
+-- D6: website_forms is a director-only read; clients/anon see 0 rows; anon can
+-- still INSERT (public intake path). legal_documents — the other D6 table —
+-- was dropped outright in 20260702000002, asserted here.
 BEGIN;
-SELECT plan(8);
+SELECT plan(6);
+
+-- ---- legal_documents is gone (dropped, not just locked down) ----
+SELECT hasnt_table('public', 'legal_documents',
+  'legal_documents table is dropped');
 
 -- ---- a client (non-director) sees nothing ----
 SELECT t.as_user(t.uid_clienta());
-SELECT is(
-  (SELECT count(*) FROM public.legal_documents)::int, 0,
-  'client: legal_documents returns 0 rows'
-);
 SELECT is(
   (SELECT count(*) FROM public.website_forms)::int, 0,
   'client: website_forms returns 0 rows'
@@ -17,10 +18,6 @@ SELECT t.reset_auth();
 
 -- ---- a director sees the seeded rows ----
 SELECT t.as_user(t.uid_director());
-SELECT is(
-  (SELECT count(*) FROM public.legal_documents)::int, 2,
-  'director: legal_documents returns the 2 seeded rows'
-);
 SELECT is(
   (SELECT count(*) FROM public.website_forms)::int, 2,
   'director: website_forms returns the 2 seeded rows'
@@ -40,25 +37,15 @@ SELECT lives_ok(
 );
 SELECT t.reset_auth();
 
--- ---- anon cannot read legal_documents either ----
-SELECT t.as_anon();
-SELECT is(
-  (SELECT count(*) FROM public.legal_documents)::int, 0,
-  'anon: legal_documents returns 0 rows'
-);
-SELECT t.reset_auth();
-
--- ---- the legacy "Authenticated users can view ..." policies are gone ----
+-- ---- the legacy "Authenticated users can view ..." policy is gone ----
 SELECT ok(
   NOT EXISTS (
     SELECT 1 FROM pg_policies
     WHERE schemaname = 'public'
-      AND (
-        (tablename = 'legal_documents' AND policyname = 'Authenticated users can view legal documents')
-        OR (tablename = 'website_forms' AND policyname = 'Authenticated users can view website forms')
-      )
+      AND tablename = 'website_forms'
+      AND policyname = 'Authenticated users can view website forms'
   ),
-  'legacy authenticated-view policies on legal_documents/website_forms are dropped'
+  'legacy authenticated-view policy on website_forms is dropped'
 );
 
 SELECT * FROM finish();
