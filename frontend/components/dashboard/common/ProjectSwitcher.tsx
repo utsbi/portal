@@ -106,12 +106,6 @@ export function ProjectSwitcher() {
                   : "text-sbi-muted focus:text-white",
               )}
             >
-              <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full transition-colors",
-                  isActive ? "bg-sbi-green" : "bg-sbi-muted-dark/40",
-                )}
-              />
               <span className="truncate">{project.companyName}</span>
               {isActive && (
                 <Check className="ml-auto size-3.5 shrink-0" strokeWidth={2} />
