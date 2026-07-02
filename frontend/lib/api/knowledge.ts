@@ -163,6 +163,34 @@ export async function deletePortalFileIndex(
   return res.json();
 }
 
+/**
+ * Retarget a Document-Portal file's indexed chunks after a move/rename. Both
+ * paths are project-relative. A pure metadata update (no re-embedding) that
+ * keeps the "Indexed" badge and citation links pointing at the new location.
+ */
+export async function movePortalFileIndex(
+  projectId: number,
+  fromPath: string,
+  toPath: string,
+): Promise<{ moved: number }> {
+  const res = await fetch("/api/knowledge/move-file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      project_id: projectId,
+      from_path: fromPath,
+      to_path: toPath,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: `Index move failed (${res.status})` }));
+    throw new Error(err.detail || `Index move failed (${res.status})`);
+  }
+  return res.json();
+}
+
 /** List the project's indexed Document-Portal files (project-relative paths). */
 export async function listIndexedFiles(
   projectId: number,

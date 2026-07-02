@@ -31,6 +31,14 @@ interface UseDragMoveArgs {
     srcParent: string,
     destFolderPath: string,
   ) => Promise<void>;
+  // Best-effort post-move hook (e.g. retarget RAG-index paths). Called after
+  // a successful forward move AND after a successful undo (with the paths
+  // reversed). Must not throw.
+  onMoved?: (
+    srcPath: string,
+    destPath: string,
+    kind: "file" | "folder",
+  ) => Promise<void>;
 }
 
 function showMovingToast(name: string): string | number {
@@ -49,6 +57,7 @@ export function useDragMove({
   isDirector,
   removeFromGrid,
   refreshAfterMove,
+  onMoved,
 }: UseDragMoveArgs) {
   const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(
     null,
@@ -152,6 +161,7 @@ export function useDragMove({
         invalidatePath(destFolderPath);
 
         await refreshAfterMove(srcParent, destFolderPath);
+        await onMoved?.(srcPath, newPath, srcKind);
 
         toastMoveUndo(srcName, destLabel, async () => {
           try {
@@ -183,6 +193,7 @@ export function useDragMove({
             invalidatePath(srcParent);
             invalidatePath(destFolderPath);
             await refreshAfterMove(destFolderPath, srcParent);
+            await onMoved?.(newPath, srcPath, srcKind);
           } catch (err) {
             // Converge cache + UI to the true state even on
             // a (partially) failed reverse so nothing is
@@ -209,7 +220,7 @@ export function useDragMove({
         toastError(humanizeStorageError(msg, "rename"), "Move failed");
       }
     },
-    [isDirector, removeFromGrid, refreshAfterMove],
+    [isDirector, removeFromGrid, refreshAfterMove, onMoved],
   );
 
   return { activeDragItem, handleDragStart, handleDragEnd };

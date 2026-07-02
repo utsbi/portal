@@ -70,6 +70,18 @@ class ByFileRequest(BaseModel):
     )
 
 
+class MoveFileRequest(BaseModel):
+    """Retarget a Document Portal file's indexed chunks after a move/rename."""
+
+    project_id: int = Field(..., description="Project the file belongs to")
+    from_path: str = Field(
+        ..., description="Previous project-relative path in the 'Files' bucket"
+    )
+    to_path: str = Field(
+        ..., description="New project-relative path in the 'Files' bucket"
+    )
+
+
 async def _ensure_director_member(auth: AuthContext, project_id: int) -> None:
     """Authorize a knowledge-mutating call: director AND member of ``project_id``.
 
@@ -342,6 +354,54 @@ async def delete_by_file(
         raise HTTPException(
             status_code=500,
             detail="Error deleting file index",
+        )
+
+
+@router.post("/knowledge/move-file")
+async def move_file_index(
+    body: MoveFileRequest,
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """Retarget a Document Portal file's indexed chunks after a move/rename.
+
+    Updates ``client_knowledge.storage_path`` (and the mirrored
+    ``metadata.storage_path``/``metadata.filename``) from ``from_path`` to
+    ``to_path`` via the service-role ``move_client_knowledge_file`` RPC — no
+    re-embedding, since embeddings are content-derived. Keeps the "Indexed"
+    badge and citation deep-links pointing at the file's new location, and
+    stops a later re-index at the new path from duplicating content.
+    Director + membership gated. Returns ``{"moved": n}``.
+    """
+    await _ensure_director_member(auth, body.project_id)
+
+    # Validate BOTH client-supplied paths with the same guard as index-file so
+    # neither side of the move can address another project's rows.
+    _safe_storage_key(body.project_id, body.from_path)
+    _safe_storage_key(body.project_id, body.to_path)
+
+    try:
+        result = supabase.rpc(
+            "move_client_knowledge_file",
+            {
+                "_project_id": body.project_id,
+                "_from_path": body.from_path,
+                "_to_path": body.to_path,
+            },
+        ).execute()
+
+        moved = result.data if isinstance(result.data, int) else 0
+        return {"moved": moved}
+
+    except Exception:
+        logger.error(
+            "Error moving file index: %s -> %s",
+            body.from_path,
+            body.to_path,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Error moving file index",
         )
 
 

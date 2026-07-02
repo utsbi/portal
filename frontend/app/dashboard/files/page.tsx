@@ -30,6 +30,7 @@ import {
   deletePortalFileIndex,
   indexPortalFile,
   listIndexedFiles,
+  movePortalFileIndex,
 } from "@/lib/api/knowledge";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
@@ -151,6 +152,41 @@ export default function FilesPage() {
       // Non-critical: the badge just won't show. Don't disrupt the page.
     }
   }, [projectId]);
+
+  // Best-effort cascade of a storage move/rename into the RAG index so chunks
+  // keep pointing at the file's new path (mirrors the delete cascade — never
+  // blocks or fails the storage operation). Reads the indexed list fresh
+  // rather than from `indexedPaths` state: the drag-move Undo closure runs
+  // after the forward move already retargeted the index, so a captured set
+  // would be stale and the reverse cascade would silently no-op.
+  const propagateIndexMove = useCallback(
+    async (srcPath: string, destPath: string, kind: "file" | "folder") => {
+      if (projectId === null) return;
+      try {
+        const indexed = await listIndexedFiles(projectId);
+        const current = new Set(indexed.map((f) => f.storage_path));
+        const prefix = `${srcPath}/`;
+        const moves: Array<[string, string]> =
+          kind === "file"
+            ? current.has(srcPath)
+              ? [[srcPath, destPath]]
+              : []
+            : Array.from(current)
+                .filter((p) => p.startsWith(prefix))
+                .map((p) => [p, `${destPath}${p.slice(srcPath.length)}`]);
+        if (moves.length === 0) return;
+        await Promise.all(
+          moves.map(([from, to]) =>
+            movePortalFileIndex(projectId, from, to).catch(() => {}),
+          ),
+        );
+        await refreshIndexedFiles();
+      } catch {
+        // Non-critical: worst case the badge goes stale until re-index.
+      }
+    },
+    [projectId, refreshIndexedFiles],
+  );
 
   // Load the indexed list on mount and on project switch; clear stale state
   // first so a previous project's badges never bleed across the switch.
@@ -518,6 +554,7 @@ export default function FilesPage() {
     isDirector,
     removeFromGrid,
     refreshAfterMove,
+    onMoved: propagateIndexMove,
   });
 
   const sensors = useSensors(
@@ -709,6 +746,7 @@ export default function FilesPage() {
       );
       setRenameTarget(null);
       await refreshAfterWrite();
+      await propagateIndexMove(renameTarget.path, newPath, renameTarget.kind);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toastError(humanizeStorageError(msg, "rename"));
