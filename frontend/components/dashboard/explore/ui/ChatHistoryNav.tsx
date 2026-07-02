@@ -273,7 +273,7 @@ export function ChatHistoryNav({ focusSearchRef }: ChatHistoryNavProps = {}) {
                 type="button"
                 aria-label="Conversation options"
                 onClick={(e) => e.stopPropagation()}
-                className="mr-1 h-6 w-6 shrink-0 inline-flex items-center justify-center rounded text-sbi-muted-dark opacity-0 group-hover/item:opacity-100 data-[state=open]:opacity-100 hover:text-white hover:bg-sbi-dark-card transition-opacity"
+                className="mr-1 h-6 w-6 shrink-0 inline-flex items-center justify-center rounded text-sbi-muted-dark opacity-0 group-hover/item:opacity-100 data-[state=open]:opacity-100 max-sm:opacity-100 hover:text-white hover:bg-sbi-dark-card transition-opacity"
               >
                 <MoreHorizontal className="h-4 w-4" strokeWidth={1.5} />
               </button>

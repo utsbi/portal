@@ -779,7 +779,10 @@ export default function FilesPage() {
 
         <div className="flex flex-1 min-h-0 gap-6">
           {/* Folder tree sidebar */}
-          <Panel className="w-64 shrink-0 overflow-y-auto" padded>
+          <Panel
+            className="hidden w-64 shrink-0 overflow-y-auto md:block"
+            padded
+          >
             <SectionLabel className="mb-4">Folders</SectionLabel>
             {/* Home / Root droppable — move items to storage root. */}
             <button

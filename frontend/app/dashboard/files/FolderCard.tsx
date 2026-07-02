@@ -94,13 +94,13 @@ export default function FolderCard({
         </span>
       </button>
       {canManage ? (
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center gap-1 pl-8 pr-3 bg-gradient-to-l from-sbi-dark-card via-sbi-dark-card to-transparent opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center gap-1 pl-8 pr-3 bg-gradient-to-l from-sbi-dark-card via-sbi-dark-card to-transparent opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 max-sm:pointer-events-auto max-sm:opacity-100">
           <button
             type="button"
             onClick={onRename}
             aria-label={`Rename ${name}`}
             title="Rename"
-            className="cursor-pointer p-1.5 rounded-md text-sbi-muted hover:text-white hover:bg-white/5 transition-colors"
+            className="cursor-pointer p-1.5 max-sm:p-2.5 rounded-md text-sbi-muted hover:text-white hover:bg-white/5 transition-colors"
           >
             <Pencil className="h-4 w-4" />
           </button>
@@ -109,7 +109,7 @@ export default function FolderCard({
             onClick={onDelete}
             aria-label={`Delete ${name}`}
             title="Delete"
-            className="cursor-pointer p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            className="cursor-pointer p-1.5 max-sm:p-2.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
           >
             <Trash2 className="h-4 w-4" />
           </button>

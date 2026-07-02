@@ -299,7 +299,7 @@ export function FormBuilder({
             : "Draft — not yet visible"
         }
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <AutoSaveBadge state={autoSave} />
             <button
               type="button"
@@ -1340,7 +1340,7 @@ function ValidationEditor({
 
   if (field.type === "short_text" || field.type === "paragraph") {
     return (
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <NumberInput
           label="Min length"
           value={v.minLength}
@@ -1360,7 +1360,7 @@ function ValidationEditor({
   }
   if (field.type === "number") {
     return (
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <NumberInput
           label="Min"
           value={v.min}

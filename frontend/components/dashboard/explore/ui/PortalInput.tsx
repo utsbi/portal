@@ -494,7 +494,7 @@ export function PortalInput({
           />
 
           {/* Bottom toolbar */}
-          <div className="flex items-center justify-between px-3 pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-y-1 px-3 pb-3">
             {/* Left side buttons */}
             <div className="flex items-center gap-1">
               {/* Add file button */}
@@ -618,7 +618,7 @@ export function PortalInput({
                       className="w-4 h-4 text-sbi-green"
                       strokeWidth={1.5}
                     />
-                    <span className="text-sm font-light">
+                    <span className="text-sm font-light max-sm:hidden">
                       {currentModel.name}
                     </span>
                     <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
