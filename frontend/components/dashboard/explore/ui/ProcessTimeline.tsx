@@ -6,11 +6,15 @@ import {
   Clock,
   FileText,
   Search,
+  Send,
   Sparkles,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { createTicketRequest } from "@/app/dashboard/requests/actions";
 import type { TimelineStep, ToolStepOutput } from "@/lib/chat/chat-context";
+import { toastError, toastSuccess } from "@/lib/notifications";
+import { useProject } from "@/lib/project/project-context";
 import { cn } from "@/lib/utils";
 import { getFileInfo } from "./file-info";
 
@@ -28,6 +32,9 @@ const TOOL_LABELS: Record<string, string> = {
   get_reports: "Fetched reports",
   get_finance_summary: "Fetched finances",
   get_lifecycle_status: "Checked project status",
+  get_questionnaire_status: "Checked questionnaires",
+  get_requests: "Fetched requests",
+  create_request: "Drafted a request",
 };
 
 function toolLabel(toolName: string): string {
@@ -40,6 +47,102 @@ function isFetchTool(toolName: string): boolean {
     toolName === "get_reports" ||
     toolName === "get_finance_summary" ||
     toolName === "get_lifecycle_status"
+  );
+}
+
+interface RequestProposal {
+  subject: string;
+  message: string;
+}
+
+// The create_request tool returns a DRAFT embedded in its result text on a
+// `PROPOSAL_JSON:` line — nothing is written server-side. Parse it out; a
+// malformed payload just falls back to the plain text-summary body.
+function parseRequestProposal(text?: string): RequestProposal | null {
+  const line = text?.split("\n").find((l) => l.startsWith("PROPOSAL_JSON:"));
+  if (!line) return null;
+  try {
+    const parsed = JSON.parse(line.slice("PROPOSAL_JSON:".length));
+    if (
+      parsed?.kind === "request_proposal" &&
+      typeof parsed.subject === "string" &&
+      typeof parsed.message === "string"
+    ) {
+      return { subject: parsed.subject, message: parsed.message };
+    }
+  } catch {
+    // fall through to null
+  }
+  return null;
+}
+
+// Confirmation card for an assistant-drafted request. The submit runs the same
+// membership-gated `createTicketRequest` server action as the Requests page,
+// under the user's own session — the assistant only ever produced a draft.
+function RequestProposalCard({ proposal }: { proposal: RequestProposal }) {
+  const { user, activeProject } = useProject();
+  const [state, setState] = useState<"idle" | "submitting" | "submitted">(
+    "idle",
+  );
+  const projectId = activeProject?.projectId ?? null;
+  const canSubmit = projectId !== null && !!user;
+
+  const handleConfirm = async () => {
+    if (!canSubmit || state !== "idle" || projectId === null || !user) return;
+    setState("submitting");
+    const result = await createTicketRequest({
+      projectId,
+      name: user.name,
+      email: user.email,
+      subject: proposal.subject,
+      message: proposal.message,
+    });
+    if (result.error !== null) {
+      setState("idle");
+      toastError(result.error, "Request not submitted");
+      return;
+    }
+    setState("submitted");
+    toastSuccess(
+      "Your team will see it on the Requests page.",
+      "Request submitted",
+    );
+  };
+
+  return (
+    <div className="border-t border-sbi-dark-border px-3 py-2.5 space-y-2">
+      <div className="text-[13px] font-medium text-white/90">
+        {proposal.subject}
+      </div>
+      <p className="whitespace-pre-wrap break-words text-[13px] font-light leading-snug text-sbi-muted line-clamp-6">
+        {proposal.message}
+      </p>
+      {state === "submitted" ? (
+        <div className="flex items-center gap-1.5 text-[12px] font-medium text-sbi-green">
+          <Check className="size-3.5" strokeWidth={2} />
+          Request submitted
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!canSubmit || state === "submitting"}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sbi-green/40 bg-sbi-green/15 px-2.5 py-1 text-[12px] font-medium text-sbi-green hover:bg-sbi-green/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {state === "submitting" ? (
+              <span className="size-3 animate-spin rounded-full border border-sbi-green/40 border-t-sbi-green/90" />
+            ) : (
+              <Send className="size-3" strokeWidth={1.5} />
+            )}
+            Confirm &amp; submit
+          </button>
+          <span className="text-[11px] font-light text-sbi-muted-dark">
+            Draft only — nothing is sent until you confirm.
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -56,6 +159,10 @@ interface ToolCardProps {
 function ToolCard({ toolName, done, output }: ToolCardProps) {
   const label = toolLabel(toolName);
   const sources = output?.sources ?? [];
+  const proposal =
+    toolName === "create_request" && done
+      ? parseRequestProposal(output?.text)
+      : null;
 
   return (
     <div className="overflow-hidden rounded-xl border border-sbi-dark-border bg-sbi-dark-card/40">
@@ -107,11 +214,17 @@ function ToolCard({ toolName, done, output }: ToolCardProps) {
         </div>
       )}
 
-      {done && sources.length === 0 && output?.text && (
-        <div className="border-t border-sbi-dark-border px-3 py-2 text-[13px] font-light leading-snug text-sbi-muted">
-          {output.text.slice(0, 300)}
-          {output.text.length > 300 ? "…" : ""}
-        </div>
+      {proposal ? (
+        <RequestProposalCard proposal={proposal} />
+      ) : (
+        done &&
+        sources.length === 0 &&
+        output?.text && (
+          <div className="border-t border-sbi-dark-border px-3 py-2 text-[13px] font-light leading-snug text-sbi-muted">
+            {output.text.slice(0, 300)}
+            {output.text.length > 300 ? "…" : ""}
+          </div>
+        )
       )}
     </div>
   );

@@ -612,10 +612,12 @@ export default function FilesPage() {
         for (const p of toIndex) next.add(p);
         return next;
       });
+      let indexedCount = 0;
       await Promise.all(
         toIndex.map(async (path) => {
           try {
-            await indexPortalFile(projectId, path);
+            const res = await indexPortalFile(projectId, path);
+            if (res.indexed) indexedCount += 1;
           } catch (err) {
             toastError(
               err instanceof Error
@@ -633,6 +635,14 @@ export default function FilesPage() {
         }),
       );
       await refreshIndexedFiles();
+      // Adoption nudge: uploading isn't the payoff — asking about the files
+      // is. Tell the director the assistant can now search what they added.
+      if (indexedCount > 0) {
+        toastSuccess(
+          `${indexedCount} file${indexedCount === 1 ? "" : "s"} added to project knowledge — ask Explore about ${indexedCount === 1 ? "it" : "them"}.`,
+          "Knowledge updated",
+        );
+      }
     }
   };
 

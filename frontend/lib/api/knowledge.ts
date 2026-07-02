@@ -191,6 +191,30 @@ export async function movePortalFileIndex(
   return res.json();
 }
 
+/**
+ * Save already-extracted text (e.g. a chat attachment) into the project's RAG
+ * corpus (`source='chat'`). Directors only (enforced backend-side). Returns
+ * `duplicate: true` when identical content is already indexed for the project.
+ */
+export async function saveTextToKnowledge(
+  projectId: number,
+  filename: string,
+  content: string,
+): Promise<{ indexed: boolean; chunks: number; duplicate?: boolean }> {
+  const res = await fetch("/api/knowledge/index-text", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId, filename, content }),
+  });
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ detail: `Save failed (${res.status})` }));
+    throw new Error(err.detail || `Save failed (${res.status})`);
+  }
+  return res.json();
+}
+
 /** List the project's indexed Document-Portal files (project-relative paths). */
 export async function listIndexedFiles(
   projectId: number,

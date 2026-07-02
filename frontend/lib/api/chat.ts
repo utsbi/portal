@@ -236,6 +236,24 @@ async function storeAttachment(att: AttachmentFile): Promise<AttachmentFile> {
 }
 
 /**
+ * Fetch the full extracted text of one of the caller's own chat attachments by
+ * content hash (RLS: owner-only). Used by "Save to project knowledge". Returns
+ * null when the row is missing or unreadable.
+ */
+export async function getAttachmentContent(
+  hash: string,
+): Promise<{ filename: string; content: string } | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("client_chat_attachments")
+    .select("filename, content")
+    .eq("content_hash", hash)
+    .maybeSingle();
+  if (error || !data?.content) return null;
+  return { filename: data.filename, content: data.content };
+}
+
+/**
  * Extract text from a file for session-only attachment.
  * PDF/DOCX go through the backend (via the /api/chat/extract proxy); plain text
  * is read entirely in the browser.
