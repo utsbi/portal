@@ -242,11 +242,20 @@ function MessageAttachmentChip({
             </TooltipTrigger>
             <TooltipContent
               side="top"
-              className="text-xs bg-sbi-dark-card border-sbi-dark-border"
+              className="max-w-56 text-xs leading-relaxed bg-sbi-dark-card border border-sbi-dark-border"
             >
-              {state === "saved"
-                ? "Saved to project knowledge"
-                : "Save to project knowledge — makes this searchable for the whole team"}
+              {state === "saved" ? (
+                <div className="text-white">Saved to project knowledge</div>
+              ) : (
+                <>
+                  <div className="text-white font-medium mb-1">
+                    Save to project knowledge
+                  </div>
+                  <div className="text-sbi-muted">
+                    Lets the assistant search this file for the whole team.
+                  </div>
+                </>
+              )}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
