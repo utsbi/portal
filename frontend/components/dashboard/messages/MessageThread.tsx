@@ -32,6 +32,7 @@ import {
   useState,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { shouldShowScrollToBottom } from "@/components/dashboard/common/scroll-to-bottom";
 import { btnPrimary, EmptyState } from "@/components/dashboard/common/ui";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -687,6 +688,16 @@ export function MessageThread({
   const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_OFFSET);
   const [atBottom, setAtBottom] = useState(true);
   const [hasNew, setHasNew] = useState(false);
+  // Virtuoso's scroll element (via scrollerRef), held in state so the effects
+  // below re-arm when the list mounts (it only renders after loading settles).
+  const [scrollerEl, setScrollerEl] = useState<HTMLElement | null>(null);
+  // Shows the floating scroll-to-latest button once scrolled up ~a viewport.
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  // Keep the thread pinned to the newest message through late layout shifts
+  // (image/attachment loads, unfurls) after opening a conversation, until the
+  // user scrolls for the first time. Without this the initial "scroll to
+  // bottom" lands short whenever async content grows the items afterwards.
+  const initialPinRef = useRef(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   // Seed from cache: if we have fewer than a full page of messages cached, we
   // know there are no older messages on the server — don't let Virtuoso's
@@ -783,6 +794,71 @@ export function MessageThread({
     });
     setHasNew(false);
   }, []);
+
+  // Initial bottom pin: Virtuoso lands on the last item on mount, but items
+  // that finish loading afterwards (attachment thumbnails, link unfurls) grow
+  // the content and leave the viewport short of the true bottom. Observe the
+  // scroller + its item list and instantly re-snap to the bottom on every size
+  // change until the user's first scroll gesture, which hands control back.
+  useEffect(() => {
+    const el = scrollerEl;
+    if (!el || !initialPinRef.current) return;
+
+    const pin = () => {
+      if (!initialPinRef.current) return;
+      // Let Virtuoso do the positioning math (it re-anchors on item-height
+      // changes, so a raw scrollTop write can be immediately adjusted away).
+      virtuosoRef.current?.scrollToIndex({
+        index: "LAST",
+        align: "end",
+        behavior: "auto",
+      });
+      el.scrollTop = el.scrollHeight;
+    };
+    const disarm = () => {
+      initialPinRef.current = false;
+      observer.disconnect();
+    };
+
+    const observer = new ResizeObserver(pin);
+    observer.observe(el);
+    // The scroller's direct child is height:100%; the element that actually
+    // grows with late-loading content is Virtuoso's inner item list.
+    const itemList = el.querySelector('[data-testid="virtuoso-item-list"]');
+    if (itemList) observer.observe(itemList);
+    else if (el.firstElementChild) observer.observe(el.firstElementChild);
+    pin();
+
+    // Real scroll intent only: wheel/touch/keyboard (and scrollbar drags via
+    // mousedown on the scroller). Programmatic scrollTop writes fire `scroll`
+    // events too, so listening to `scroll` here would disarm the pin itself.
+    el.addEventListener("wheel", disarm, { passive: true });
+    el.addEventListener("touchstart", disarm, { passive: true });
+    el.addEventListener("mousedown", disarm, { passive: true });
+    el.addEventListener("keydown", disarm);
+    return () => {
+      observer.disconnect();
+      el.removeEventListener("wheel", disarm);
+      el.removeEventListener("touchstart", disarm);
+      el.removeEventListener("mousedown", disarm);
+      el.removeEventListener("keydown", disarm);
+    };
+  }, [scrollerEl]);
+
+  // Toggle the floating scroll-to-latest button as the user scrolls.
+  useEffect(() => {
+    const el = scrollerEl;
+    if (!el) return;
+    const update = () => setShowJumpToLatest(shouldShowScrollToBottom(el));
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [scrollerEl]);
 
   // ---- jumpToMessage ----
 
@@ -2817,6 +2893,9 @@ export function MessageThread({
         ) : (
           <Virtuoso
             ref={virtuosoRef}
+            scrollerRef={(el) =>
+              setScrollerEl(el instanceof HTMLElement ? el : null)
+            }
             firstItemIndex={firstItemIndex}
             initialTopMostItemIndex={messages.length - 1}
             data={messages}
@@ -2847,6 +2926,22 @@ export function MessageThread({
                 ) : noMoreOlder.current ? null : null,
             }}
           />
+        )}
+
+        {/* Floating scroll-to-latest — appears once scrolled up ~a viewport
+            from the newest message; the "New messages" pill takes precedence. */}
+        {showJumpToLatest && !hasNew && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
+            <button
+              type="button"
+              onClick={() => scrollToBottom()}
+              aria-label="Scroll to latest message"
+              title="Scroll to bottom"
+              className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-sbi-dark-border/60 bg-sbi-dark/80 text-white/80 backdrop-blur-sm shadow-lg transition-colors hover:text-white hover:bg-sbi-dark-card"
+            >
+              <ArrowDown className="h-4 w-4" strokeWidth={1.5} />
+            </button>
+          </div>
         )}
       </div>
 

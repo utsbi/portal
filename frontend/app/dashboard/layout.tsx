@@ -5,6 +5,7 @@ import { ProjectStatusBar } from "@/components/dashboard/common/ProjectStatusBar
 import { ProjectSwitcher } from "@/components/dashboard/common/ProjectSwitcher";
 import { ProjectSwitchOverlay } from "@/components/dashboard/common/ProjectSwitchOverlay";
 import { SidebarTriggerCustom } from "@/components/dashboard/common/SidebarTriggerCustom";
+import { MobileNewChatButton } from "@/components/dashboard/explore/ui/MobileNewChatButton";
 import { TimeDisplay } from "@/components/dashboard/explore/ui/TimeDisplay";
 import { ChatProvider } from "@/lib/chat/chat-context";
 import { ProjectProvider } from "@/lib/project/project-context";
@@ -63,6 +64,11 @@ export default async function DashboardLayout({
                 <ProjectStatusBar />
 
                 <div className="flex-1" />
+
+                {/* Phone-only quick action: start a new Explore chat without
+                    opening the sidebar. Renders nothing off the Explore routes
+                    and at md+ (where the sidebar's own "New chat" is at hand). */}
+                <MobileNewChatButton />
 
                 {/* Clock/date readout is ambient info — hidden below md so the
                     trigger + project switcher keep the phone header uncluttered. */}

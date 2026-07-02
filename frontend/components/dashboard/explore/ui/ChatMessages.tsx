@@ -2,6 +2,7 @@
 
 import { ArrowDown, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { shouldShowScrollToBottom } from "@/components/dashboard/common/scroll-to-bottom";
 import { useChat } from "@/lib/chat/chat-context";
 import { ChatLoading } from "./ChatLoading";
 import { ChatMessage } from "./ChatMessage";
@@ -12,8 +13,14 @@ export function ChatMessages() {
   // Shows the scroll-to-bottom affordance once the user has scrolled meaningfully
   // away from the latest message (e.g. reading back through a long answer).
   const [showScrollButton, setShowScrollButton] = useState(false);
+  // One-shot: set when the user taps the scroll-to-bottom button mid-stream so
+  // the auto-follow effect below re-engages even though they're still far from
+  // the bottom. Cleared once the bottom is reached, or on any manual scroll
+  // gesture (don't fight a user who changed their mind on the way down).
+  const followRequestedRef = useRef(false);
 
   const scrollToBottom = () => {
+    followRequestedRef.current = true;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -37,7 +44,13 @@ export function ChatMessages() {
     if (scroller) {
       const distanceFromBottom =
         scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-      if (distanceFromBottom > 160) return;
+      if (distanceFromBottom <= 160) {
+        // Reached (or near) the bottom: a pending follow request is fulfilled
+        // and normal near-bottom auto-follow takes over from here.
+        followRequestedRef.current = false;
+      } else if (!followRequestedRef.current) {
+        return;
+      }
     }
 
     anchor.scrollIntoView({ behavior: "smooth" });
@@ -53,13 +66,22 @@ export function ChatMessages() {
     if (!scroller) return;
 
     const update = () => {
-      const distanceFromBottom =
-        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-      setShowScrollButton(distanceFromBottom > 240);
+      setShowScrollButton(shouldShowScrollToBottom(scroller));
+    };
+    // Any manual scroll gesture cancels a pending follow request — the user
+    // took back control while we were smooth-scrolling down for them.
+    const cancelFollow = () => {
+      followRequestedRef.current = false;
     };
     update();
     scroller.addEventListener("scroll", update, { passive: true });
-    return () => scroller.removeEventListener("scroll", update);
+    scroller.addEventListener("wheel", cancelFollow, { passive: true });
+    scroller.addEventListener("touchstart", cancelFollow, { passive: true });
+    return () => {
+      scroller.removeEventListener("scroll", update);
+      scroller.removeEventListener("wheel", cancelFollow);
+      scroller.removeEventListener("touchstart", cancelFollow);
+    };
   }, [messages.length, lastContentLength]);
 
   if (messages.length === 0 && !isLoading) {
