@@ -14,6 +14,7 @@ import { Suspense, useMemo, useState } from "react";
 import {
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   EmptyState,
   PageHeader,
@@ -283,7 +284,7 @@ function ProjectDetailInner() {
         }
       />
 
-      <main className="flex-1 overflow-y-auto custom-scrollbar">
+      <DashboardMain>
         <div className="flex flex-col gap-8 pb-2">
           <div className="flex flex-col items-center gap-6 rounded-2xl border border-sbi-dark-border/50 bg-sbi-dark-card/40 p-6 sm:flex-row sm:items-center">
             <StatusDonut tasks={project.tasks} size={128} thickness={14} />
@@ -341,7 +342,7 @@ function ProjectDetailInner() {
             )}
           </div>
         </div>
-      </main>
+      </DashboardMain>
 
       <TaskPopUp
         task={selectedTask}

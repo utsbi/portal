@@ -10,6 +10,7 @@ import { deleteTemplate } from "@/app/dashboard/questionnaire/actions";
 import {
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   PageHeader,
   Panel,
@@ -43,7 +44,7 @@ export function TemplatesView({ templates }: TemplatesViewProps) {
         }
       />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar">
+      <DashboardMain>
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -77,7 +78,7 @@ export function TemplatesView({ templates }: TemplatesViewProps) {
             )}
           </div>
         </motion.div>
-      </main>
+      </DashboardMain>
     </DashboardShell>
   );
 }

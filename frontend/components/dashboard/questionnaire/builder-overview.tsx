@@ -25,6 +25,7 @@ import { StatSummary } from "@/components/dashboard/common/StatSummary";
 import {
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   EmptyState,
   PageHeader,
@@ -65,7 +66,7 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
         }
       />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar">
+      <DashboardMain>
         <div className="mb-6 flex flex-wrap items-center gap-x-1 gap-y-1">
           <span className="mr-2 text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark">
             Start from a template:
@@ -143,7 +144,7 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
             </div>
           </motion.div>
         )}
-      </main>
+      </DashboardMain>
     </DashboardShell>
   );
 }

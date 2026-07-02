@@ -32,6 +32,7 @@ import {
 import {
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   inputClass,
   labelClass,
@@ -342,7 +343,7 @@ export function FormBuilder({
         }
       />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar pb-10">
+      <DashboardMain className="pb-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -454,7 +455,7 @@ export function FormBuilder({
             <AddFieldBar onAdd={addField} />
           </div>
         </motion.div>
-      </main>
+      </DashboardMain>
     </DashboardShell>
   );
 }

@@ -87,7 +87,7 @@ export function MonthView({
     : null;
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar">
+    <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 sm:-mr-6 md:-mr-8 pr-4 sm:pr-6 md:pr-8">
       <div className="flex items-center justify-between px-1 pb-4">
         <MonthPicker currentMonth={currentMonth} onPick={onChangeMonth} />
         <div className="flex items-center gap-1">

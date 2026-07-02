@@ -32,6 +32,7 @@ import {
   btnDanger,
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   EmptyState,
   inputClass,
@@ -244,7 +245,7 @@ function SettingsPageInner() {
   if (isLoading || !user) return null;
 
   return (
-    <DashboardShell className="overflow-y-auto">
+    <DashboardShell>
       <PageHeader
         title="Settings"
         subtitle={
@@ -254,24 +255,26 @@ function SettingsPageInner() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-5 md:gap-8 lg:gap-12 pb-8">
-        <SettingsNav
-          sections={visibleSections}
-          activeSection={activeSection}
-          onSelect={setActiveSection}
-        />
+      <DashboardMain>
+        <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-5 md:gap-8 lg:gap-12 pb-8">
+          <SettingsNav
+            sections={visibleSections}
+            activeSection={activeSection}
+            onSelect={setActiveSection}
+          />
 
-        <div className="min-w-0">
-          {activeSection === "profile" && <ProfileSection />}
-          {activeSection === "security" && <SecuritySection />}
-          {activeSection === "notifications" && <NotificationsSection />}
-          {activeSection === "calendar" && isDirector && <CalendarSection />}
-          {activeSection === "team" && isDirector && <TeamSection />}
-          {activeSection === "accounts" && isDirector && (
-            <AccountsSection currentUserId={user.id} />
-          )}
+          <div className="min-w-0">
+            {activeSection === "profile" && <ProfileSection />}
+            {activeSection === "security" && <SecuritySection />}
+            {activeSection === "notifications" && <NotificationsSection />}
+            {activeSection === "calendar" && isDirector && <CalendarSection />}
+            {activeSection === "team" && isDirector && <TeamSection />}
+            {activeSection === "accounts" && isDirector && (
+              <AccountsSection currentUserId={user.id} />
+            )}
+          </div>
         </div>
-      </div>
+      </DashboardMain>
     </DashboardShell>
   );
 }

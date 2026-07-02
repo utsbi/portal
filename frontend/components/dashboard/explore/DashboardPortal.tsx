@@ -11,8 +11,8 @@ import { ChatMessages } from "./ui/ChatMessages";
 import { FloatingNodes } from "./ui/FloatingNodes";
 import { PortalHero } from "./ui/PortalHero";
 import { PortalInput } from "./ui/PortalInput";
+import { QuickActionChips } from "./ui/QuickActionChips";
 import { SourcesPanel } from "./ui/SourcesPanel";
-import { SuggestionChips } from "./ui/SuggestionChips";
 
 /**
  * The single Explore surface for both the new-chat welcome and an active thread.
@@ -307,12 +307,15 @@ export function ExplorePortal() {
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="shrink-0 w-full max-w-3xl mx-auto px-4 pt-2 pb-4"
         >
-          <PortalInput animated={false} />
-          {showWelcome ? (
-            <div className="mt-4">
-              <SuggestionChips disableAutoAnimation />
+          {/* Quick-action chips: only on the empty new-chat hero. Once the
+              first message lands, showWelcome flips and the row unmounts. */}
+          {showWelcome && (
+            <div className="mb-3">
+              <QuickActionChips />
             </div>
-          ) : (
+          )}
+          <PortalInput animated={false} />
+          {!showWelcome && (
             <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
               AI can make mistakes, so double check responses
             </p>

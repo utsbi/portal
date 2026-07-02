@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import {
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   EmptyState,
   PageHeader,
@@ -90,7 +91,7 @@ function LifecyclePageInner() {
         onSaved={refetch}
       />
 
-      <main className="flex-1 overflow-y-auto custom-scrollbar">
+      <DashboardMain>
         {loading && projects.length === 0 ? (
           <div className="animate-pulse space-y-6">
             <div className="h-40 rounded-2xl bg-white/5" />
@@ -127,7 +128,7 @@ function LifecyclePageInner() {
             ) : null}
           </div>
         )}
-      </main>
+      </DashboardMain>
     </DashboardShell>
   );
 }

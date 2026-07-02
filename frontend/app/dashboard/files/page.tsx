@@ -842,7 +842,7 @@ export default function FilesPage() {
             <KnowledgeSourcesPanel className="mt-4" />
           </Panel>
 
-          <main className="flex-1 min-w-0 overflow-y-auto flex flex-col">
+          <main className="flex-1 min-w-0 overflow-y-auto dashboard-scrollbar flex flex-col -mr-4 sm:-mr-6 md:-mr-8 pr-4 sm:pr-6 md:pr-8">
             {/* Breadcrumb + director toolbar */}
             <div className="mb-6 flex flex-col gap-3 shrink-0 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <nav

@@ -43,6 +43,38 @@ export function DashboardShell({
 }
 
 /**
+ * Primary page scroll region. The scroller spans the shell's full width
+ * (negative margins cancel DashboardShell's horizontal padding) so the
+ * scrollbar track sits at the pane/viewport right edge instead of floating
+ * inset inside the padded content; the padding is re-applied on an inner
+ * wrapper so content alignment is unchanged. `className` lands on the
+ * scroller (e.g. extra bottom padding), `contentClassName` on the inner
+ * padded wrapper.
+ */
+export function DashboardMain({
+  children,
+  className,
+  contentClassName,
+}: {
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+}) {
+  return (
+    <main
+      className={cn(
+        "flex-1 min-h-0 overflow-auto dashboard-scrollbar -mx-4 sm:-mx-6 md:-mx-8",
+        className,
+      )}
+    >
+      <div className={cn("px-4 sm:px-6 md:px-8", contentClassName)}>
+        {children}
+      </div>
+    </main>
+  );
+}
+
+/**
  * Page title + subtitle + optional right-aligned action. Every dashboard page
  * uses this so headers are pixel-identical.
  */

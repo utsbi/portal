@@ -10,6 +10,7 @@ import { saveDraft, submitForm } from "@/app/dashboard/questionnaire/actions";
 import {
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   PageHeader,
   Panel,
@@ -161,7 +162,7 @@ export function FillOutForm({
         }
       />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar pb-8">
+      <DashboardMain className="pb-8">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -253,7 +254,7 @@ export function FillOutForm({
             )}
           </div>
         </motion.div>
-      </main>
+      </DashboardMain>
 
       <ConfirmDialog
         opened={confirmOpen}
