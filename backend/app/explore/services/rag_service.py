@@ -30,6 +30,13 @@ MIN_VECTOR_SIMILARITY: float = 0.25
 # needed. EMBEDDING_DIMENSIONS must stay in lock-step with the column type;
 # a mismatch now fails loudly at insert/query time instead of silently.
 
+# Max rows per client_knowledge INSERT. One statement for a whole document
+# does NOT scale: a ~700-chunk book carries tens of MB of vector payload and
+# pays per-row HNSW index maintenance, blowing Postgres's statement timeout
+# (observed: 57014 on a 763-chunk insert). ~100 rows stays comfortably under
+# the timeout while keeping round-trips low.
+INSERT_BATCH_SIZE: int = 100
+
 # Canonical 8-4-4-4-12 UUID, as issued by Supabase auth.
 _UUID_RE = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
@@ -127,13 +134,18 @@ class RAGService:
             for i, chunk in enumerate(chunks)
         ]
 
-        # Single bulk insert (one round-trip instead of N).
-        insert_result = supabase.table("client_knowledge").insert(rows).execute()
+        # Batched bulk insert (see INSERT_BATCH_SIZE). A mid-batch failure can
+        # leave a partial document behind, but both index paths delete by
+        # (project_id, storage_path) / dedupe by content hash before storing,
+        # so a retry self-heals rather than duplicating.
         document_ids: List[int] = []
-        if insert_result.data and isinstance(insert_result.data, list):
-            document_ids = [
-                row["id"] for row in insert_result.data if row.get("id") is not None
-            ]
+        for start in range(0, len(rows), INSERT_BATCH_SIZE):
+            batch = rows[start:start + INSERT_BATCH_SIZE]
+            insert_result = supabase.table("client_knowledge").insert(batch).execute()
+            if insert_result.data and isinstance(insert_result.data, list):
+                document_ids.extend(
+                    row["id"] for row in insert_result.data if row.get("id") is not None
+                )
         return document_ids
 
     async def search_documents(self, query: str, project_ids: List[int],

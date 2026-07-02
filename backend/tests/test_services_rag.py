@@ -257,3 +257,53 @@ class TestBuildContextString:
         ]
         result = RAGService.build_context_string(docs, max_context_length=10_000)
         assert len(result) <= 10_500  # some slack for surrounding text
+
+
+# ---------------------------------------------------------------------------
+# store_document — batched inserts (statement-timeout regression)
+# ---------------------------------------------------------------------------
+
+class TestStoreDocumentBatching:
+    """A whole-document insert must be split into INSERT_BATCH_SIZE batches:
+    a 763-chunk book in ONE statement blew Postgres's statement timeout
+    (57014) via payload size + per-row HNSW maintenance."""
+
+    def _service(self) -> RAGService:
+        with patch("app.explore.services.rag_service.AsyncOpenAI"):
+            return RAGService()
+
+    async def test_large_document_inserts_in_batches(self):
+        from app.explore.services.rag_service import INSERT_BATCH_SIZE
+
+        svc = self._service()
+        n_chunks = INSERT_BATCH_SIZE * 2 + 50  # 3 batches: full, full, partial
+        svc.pdf_parser = MagicMock()
+        svc.pdf_parser.chunk_text.return_value = [f"chunk {i}" for i in range(n_chunks)]
+
+        emb = MagicMock()
+        emb.data = [MagicMock(embedding=[0.0] * 8) for _ in range(n_chunks)]
+        svc.client = MagicMock()
+        svc.client.embeddings.create = AsyncMock(return_value=emb)
+
+        inserted_batches: list[int] = []
+
+        def _insert(rows):
+            inserted_batches.append(len(rows))
+            chain = MagicMock()
+            chain.execute.return_value = MagicMock(
+                data=[{"id": i} for i in range(len(rows))]
+            )
+            return chain
+
+        with patch("app.explore.services.rag_service.supabase") as mock_supa:
+            mock_supa.table.return_value.insert.side_effect = _insert
+            ids = await svc.store_document(
+                content="irrelevant", metadata={}, client_id="uid-1", project_id=1
+            )
+
+        assert inserted_batches == [
+            INSERT_BATCH_SIZE,
+            INSERT_BATCH_SIZE,
+            50,
+        ]
+        assert len(ids) == n_chunks
