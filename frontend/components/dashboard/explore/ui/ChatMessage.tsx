@@ -1,6 +1,7 @@
 "use client";
 
 import { code } from "@streamdown/code";
+import { math } from "@streamdown/math";
 import gsap from "gsap";
 import {
   BookmarkPlus,
@@ -42,6 +43,7 @@ import type { DisplayMessage, TimelineStep } from "@/lib/chat/chat-context";
 import { useChat } from "@/lib/chat/chat-context";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
+import { createClient } from "@/lib/supabase/client";
 import { getFileInfo } from "./file-info";
 import { ProcessTimeline } from "./ProcessTimeline";
 
@@ -72,7 +74,7 @@ function CitationChip({
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="inline-flex items-center justify-center align-baseline mx-0.5 px-1.5 h-5 text-[11px] font-medium text-sbi-green/90 bg-sbi-green/10 border border-sbi-green/30 rounded-md hover:bg-sbi-green/20 hover:text-sbi-green transition-colors"
+              className="inline-flex items-center justify-center align-baseline mx-0.5 h-[1.125rem] min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold tabular-nums text-sbi-green/90 bg-sbi-green/10 ring-1 ring-inset ring-sbi-green/30 hover:bg-sbi-green/25 hover:ring-sbi-green/60 hover:text-sbi-green transition-all"
               aria-label={`Source ${index}: ${filename}`}
             >
               {index}
@@ -170,6 +172,28 @@ function MessageAttachmentChip({
     user?.role === "director" &&
     projectId !== null &&
     Boolean(attachment.hash || attachment.content);
+
+  // A saved attachment stays saved across reloads: the corpus stamps the same
+  // SHA-256 (both sides hash the extracted text), so a hash hit in
+  // client_knowledge means this exact content is already indexed. Members can
+  // read their project's rows under RLS, so this is a cheap existence check.
+  useEffect(() => {
+    if (!canSave || !attachment.hash || projectId === null) return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("client_knowledge")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("metadata->>content_hash", attachment.hash)
+      .limit(1)
+      .then(({ data }) => {
+        if (!cancelled && data && data.length > 0) setState("saved");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canSave, attachment.hash, projectId]);
 
   const handleSave = async () => {
     if (!canSave || state !== "idle" || projectId === null) return;
@@ -678,8 +702,13 @@ export function ChatMessage({
   if (isUser) {
     return (
       <div ref={containerRef} className="group flex justify-end">
-        {/* Content column, right aligned, set width */}
-        <div className="flex flex-col items-end gap-2 max-w-[80%] overflow-hidden">
+        {/* Content column, right aligned, set width. While editing it takes
+            the full row so the textarea gets real horizontal room. */}
+        <div
+          className={`flex flex-col items-end gap-2 overflow-hidden ${
+            isEditing ? "w-full" : "max-w-[80%]"
+          }`}
+        >
           {/* Attached files, horizontal row, right-aligned */}
           {messageAttachments.length > 0 && !isEditing && (
             <div className="flex flex-row flex-wrap justify-end gap-2">
@@ -727,7 +756,11 @@ export function ChatMessage({
             </div>
 
             {/* Message bubble */}
-            <div className="min-w-0 bg-sbi-dark-card/80 border border-sbi-green/20 rounded-2xl overflow-hidden relative">
+            <div
+              className={`min-w-0 bg-sbi-dark-card/80 border border-sbi-green/20 rounded-2xl overflow-hidden relative ${
+                isEditing ? "flex-1" : ""
+              }`}
+            >
               {/* Expand/Collapse button */}
               {isOverflowing && !isEditing && (
                 <button
@@ -824,7 +857,7 @@ export function ChatMessage({
     <div ref={containerRef} className="flex items-start gap-4">
       {/* AI Avatar — top-aligned with, and centered to, the first line of text */}
       <div className="relative shrink-0">
-        <div className="w-8 h-8 rounded-full bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center">
           {message.isCancelled ? (
             <div className="w-2.5 h-2.5 bg-sbi-muted/60 rounded-full" />
           ) : (
@@ -832,12 +865,12 @@ export function ChatMessage({
           )}
         </div>
         <div
-          className={`absolute inset-0 w-8 h-8 rounded-full blur-md -z-10 ${message.isCancelled ? "bg-sbi-muted/10" : "bg-sbi-green/20"}`}
+          className={`absolute inset-0 w-10 h-10 rounded-full blur-md -z-10 ${message.isCancelled ? "bg-sbi-muted/10" : "bg-sbi-green/20"}`}
         />
       </div>
 
       {/* Message content */}
-      <div className="flex-1 min-w-0 pt-1">
+      <div className="flex-1 min-w-0">
         {hasTimeline && (
           <div className="mb-3">
             <ProcessTimeline
@@ -852,7 +885,7 @@ export function ChatMessage({
             {displayContent && (
               <div className="prose-ai dark text-white font-light text-base leading-relaxed">
                 <Streamdown
-                  plugins={{ code }}
+                  plugins={{ code, math }}
                   components={markdownComponents}
                   shikiTheme={["github-dark", "github-dark"]}
                   isAnimating={false}
@@ -875,7 +908,7 @@ export function ChatMessage({
               aria-busy={message.isStreaming}
             >
               <Streamdown
-                plugins={{ code }}
+                plugins={{ code, math }}
                 components={markdownComponents}
                 shikiTheme={["github-dark", "github-dark"]}
                 isAnimating={message.isStreaming && !streamStatusLabel}
