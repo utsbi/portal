@@ -16,6 +16,7 @@ import asyncio
 import json
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.explore.main import app
@@ -41,6 +42,16 @@ def _user_id_override():
 
 class TestExtractText:
     """POST /api/v1/chat/extract-text"""
+
+    @pytest.fixture(autouse=True)
+    def _reset_rate_limiter(self):
+        # The endpoint's 10/minute limit is keyed per client and shared across
+        # the whole suite run; without a reset the class's later tests trip
+        # 429s once enough requests accumulate.
+        from app.explore.core.limiter import limiter
+
+        limiter.reset()
+        yield
 
     def _client_with_auth(self) -> TestClient:
         from app.explore.api.deps import get_current_user_id
@@ -100,6 +111,45 @@ class TestExtractText:
         assert body["filename"] == "notes.txt"
         assert "Hello from the test file." in body["content"]
         assert body["file_type"] == "txt"
+
+    def test_image_file_is_transcribed_by_vision(self, monkeypatch):
+        """Images route through the vision transcription service."""
+        import app.explore.services.vision as vision_mod
+        from unittest.mock import AsyncMock
+
+        transcribe = AsyncMock(return_value="A bar chart of grades: A 40%, B 35%.")
+        monkeypatch.setattr(vision_mod, "extract_image_text", transcribe)
+
+        client = self._client_with_auth()
+        resp = client.post(
+            "/api/v1/chat/extract-text",
+            files={"file": ("grades.png", b"\x89PNG fake", "image/png")},
+            headers={"Authorization": "Bearer test-token"},
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["file_type"] == "image"
+        assert "bar chart" in body["content"]
+        # MIME type from the upload is forwarded for the data URL.
+        assert transcribe.call_args.args[1] == "image/png"
+
+    def test_image_with_vision_disabled_returns_400(self, monkeypatch):
+        import app.explore.services.vision as vision_mod
+        from unittest.mock import AsyncMock
+
+        monkeypatch.setattr(
+            vision_mod,
+            "extract_image_text",
+            AsyncMock(side_effect=vision_mod.VisionDisabledError()),
+        )
+        client = self._client_with_auth()
+        resp = client.post(
+            "/api/v1/chat/extract-text",
+            files={"file": ("photo.jpg", b"fake", "image/jpeg")},
+            headers={"Authorization": "Bearer test-token"},
+        )
+        assert resp.status_code == 400
+        assert "not enabled" in resp.json()["detail"]
 
     def test_valid_pdf_file_returns_content(self):
         """A valid PDF must be parsed; parser is mocked."""

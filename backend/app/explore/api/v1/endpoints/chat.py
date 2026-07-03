@@ -103,7 +103,8 @@ async def extract_file_text(
 ):
     """Extract text from file without adding to database.
 
-    Supports PDF, DOCX, DOC, and TXT files.
+    Supports PDF, DOCX, DOC, TXT, and image files (images are transcribed by
+    the vision model — see ``services.vision``, the chat models are text-only).
     Returns the extracted text content for session-only use.
     """
     # Enforce upload size cap via Content-Length header first (fast path),
@@ -116,7 +117,43 @@ async def extract_file_text(
         filename = file.filename or "attachment"
         file_lower = filename.lower()
 
-        if file_lower.endswith('.pdf'):
+        image_mimes = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+        }
+        image_ext = next(
+            (ext for ext in image_mimes if file_lower.endswith(ext)), None
+        )
+
+        if image_ext or (file.content_type or "").startswith("image/"):
+            from app.explore.services.vision import (
+                VisionDisabledError,
+                extract_image_text,
+            )
+
+            mime = (
+                file.content_type
+                if (file.content_type or "").startswith("image/")
+                else image_mimes[image_ext or ".png"]
+            )
+            try:
+                content = await extract_image_text(file_bytes, mime)
+            except VisionDisabledError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Image attachments are not enabled on this server",
+                )
+            if not content:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Couldn't read any content from the image",
+                )
+            file_type = "image"
+
+        elif file_lower.endswith('.pdf'):
             # Use PDF parser for PDF files
             pdf_parser = PDFParser()
             pages = pdf_parser.extract_text_with_metadata(file_bytes, filename)
