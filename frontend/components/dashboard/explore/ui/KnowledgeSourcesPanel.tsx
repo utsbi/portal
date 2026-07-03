@@ -49,10 +49,11 @@ export function KnowledgeSourcesPanel({ className }: { className?: string }) {
     setSources([]);
   }, [projectId]);
 
-  // Load on first expand (and when the project changes while expanded).
+  // Load eagerly on mount / project switch so the header count is correct
+  // before the first expand (it's one cheap RLS-scoped select).
   useEffect(() => {
-    if (open && projectId !== null) void refresh();
-  }, [open, projectId, refresh]);
+    if (projectId !== null) void refresh();
+  }, [projectId, refresh]);
 
   if (projectId === null) return null;
 
@@ -77,7 +78,7 @@ export function KnowledgeSourcesPanel({ className }: { className?: string }) {
           Assistant knowledge
         </span>
         {loaded && sources.length > 0 && (
-          <span className="shrink-0 rounded-md border border-sbi-green/25 bg-sbi-green/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-sbi-green/90">
+          <span className="shrink-0 text-[11px] font-light tabular-nums text-sbi-muted-dark">
             {sources.length}
           </span>
         )}

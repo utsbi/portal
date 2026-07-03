@@ -76,8 +76,8 @@ function isIndexable(name: string): boolean {
 
 function SkeletonTile() {
   return (
-    <div className="flex min-h-[3.75rem] items-center gap-3 border border-sbi-dark-border/50 rounded-lg px-4 py-3 bg-sbi-dark-card/30 animate-pulse">
-      <div className="h-4 w-4 bg-white/5 rounded shrink-0" />
+    <div className="flex min-h-[4.5rem] items-center gap-3.5 border border-sbi-dark-border/50 rounded-xl px-5 py-4 bg-sbi-dark-card/30 animate-pulse">
+      <div className="h-9 w-9 bg-white/5 rounded-lg shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="h-4 w-3/5 bg-white/5 rounded mb-1.5" />
         <div className="h-3 w-2/5 bg-white/5 rounded" />
