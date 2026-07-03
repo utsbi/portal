@@ -360,7 +360,7 @@ export function ProcessTimeline({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
       >
         {streaming && !done ? (
           <span className="size-3.5 shrink-0 animate-spin rounded-full border border-sbi-green/40 border-t-sbi-green/90" />
