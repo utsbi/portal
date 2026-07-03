@@ -79,9 +79,17 @@ interface NavLinkProps {
   isActive: boolean;
   baseUrl: string;
   isCollapsed: boolean;
+  /** Optional click override (e.g. Explore always starts a fresh chat). */
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }
 
-function NavLink({ item, isActive, baseUrl, isCollapsed }: NavLinkProps) {
+function NavLink({
+  item,
+  isActive,
+  baseUrl,
+  isCollapsed,
+  onClick,
+}: NavLinkProps) {
   const indicatorRef = useRef<HTMLDivElement>(null);
   const fullUrl = `${baseUrl}${item.path}`;
 
@@ -108,6 +116,7 @@ function NavLink({ item, isActive, baseUrl, isCollapsed }: NavLinkProps) {
   return (
     <Link
       href={fullUrl}
+      onClick={onClick}
       className={`group relative flex items-center gap-3 px-3 py-2.5 transition-all duration-300 ${
         isCollapsed ? "justify-center" : ""
       } ${isActive ? "text-white" : "text-sbi-muted hover:text-white"}`}
@@ -233,6 +242,25 @@ export function AppSidebar() {
   const handleCollapsedNewChat = () => {
     newSession();
     window.history.replaceState(null, "", "/dashboard/explore/new");
+  };
+
+  // Explore nav = ALWAYS a fresh chat. Plain left-clicks reset the session and
+  // land on the new-chat route; modified clicks (new tab, etc.) keep native
+  // link behavior. Inside the Explore surface, use replaceState like the New
+  // chat button so useParams stays stable and the portal's hydrate effect
+  // doesn't re-fire; from any other page, a real navigation mounts the portal
+  // on /explore/new (isNewRoute), which shows the welcome state.
+  const handleExploreNav = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
+    e.preventDefault();
+    newSession();
+    if (pathname === baseUrl || pathname.startsWith(`${baseUrl}/explore`)) {
+      window.history.replaceState(null, "", "/dashboard/explore/new");
+    } else {
+      router.push("/dashboard/explore/new");
+    }
   };
 
   const handleCollapsedSearch = () => {
@@ -433,6 +461,9 @@ export function AppSidebar() {
                   isActive={isActive(item.path)}
                   baseUrl={baseUrl}
                   isCollapsed={isCollapsed}
+                  onClick={
+                    item.title === "Explore" ? handleExploreNav : undefined
+                  }
                 />
               ))}
             </div>
