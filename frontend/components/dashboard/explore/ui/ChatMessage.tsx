@@ -1,7 +1,7 @@
 "use client";
 
 import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
+import { createMathPlugin } from "@streamdown/math";
 import gsap from "gsap";
 import {
   BookmarkPlus,
@@ -47,6 +47,11 @@ import { createClient } from "@/lib/supabase/client";
 import { getFileInfo } from "./file-info";
 import { ProcessTimeline } from "./ProcessTimeline";
 
+// Single-dollar inline math ON (the default is $$-only): the model is
+// prompted to write inline math as $…$ and to escape currency as \$, and
+// remark-math's whitespace rules reject most accidental currency pairs anyway.
+const math = createMathPlugin({ singleDollarTextMath: true });
+
 interface ChatMessageProps {
   message: DisplayMessage;
   isLatestAssistant?: boolean;
@@ -74,7 +79,7 @@ function CitationChip({
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="inline-flex items-center justify-center align-baseline mx-0.5 h-[1.125rem] min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold tabular-nums text-sbi-green/90 bg-sbi-green/10 ring-1 ring-inset ring-sbi-green/30 hover:bg-sbi-green/25 hover:ring-sbi-green/60 hover:text-sbi-green transition-all"
+              className="inline-flex items-center justify-center align-middle mx-0.5 h-[1.125rem] min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold tabular-nums text-sbi-green/90 bg-sbi-green/10 ring-1 ring-inset ring-sbi-green/30 hover:bg-sbi-green/25 hover:ring-sbi-green/60 hover:text-sbi-green transition-all"
               aria-label={`Source ${index}: ${filename}`}
             >
               {index}

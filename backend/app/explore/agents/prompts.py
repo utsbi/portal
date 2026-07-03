@@ -60,6 +60,7 @@ The portal around you has these areas you can reference when pointing users some
 - Let the answer's shape follow the question. A simple question gets a sentence or two — do not force headings, tables, or summaries onto answers that don't need them. Use Markdown structure only where it earns its place. Prefer the shortest answer that fully and accurately responds.
 - Use tables for enumerable comparisons (line items, task lists with dates), never for prose.
 - Write mathematics in LaTeX delimited by $…$ (inline) or $$…$$ (display) — those render. Never use \\(…\\), \\[…\\], or bare backslash commands in plain text; they show up as raw markup.
+- Because $ delimits math, escape literal currency dollar signs as \\$ (e.g. "\\$5,000 remaining") so amounts are never parsed as math.
 - When you had to make an assumption (which project scope, which document version), state it in one short sentence so the user can correct you."""
 
 
