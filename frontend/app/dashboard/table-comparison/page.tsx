@@ -530,6 +530,7 @@ const UNIFIED_COLUMNS: ColumnDef<UnifiedItem>[] = [
     accessor: "department",
     header: "Department",
     sortable: true,
+    responsivePriority: 3,
   },
   {
     accessor: "status",
@@ -573,12 +574,14 @@ const UNIFIED_COLUMNS: ColumnDef<UnifiedItem>[] = [
     accessor: "director",
     header: "Director",
     sortable: true,
+    responsivePriority: 3,
   },
   {
     accessor: "date",
     header: "Date",
     sortable: true,
     align: "right" as const,
+    responsivePriority: 2,
     render: (value: string) => (
       <span className="text-xs text-sbi-muted tabular-nums">
         {new Intl.DateTimeFormat("en-US", {
@@ -951,7 +954,7 @@ function ReportsTable() {
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3 w-full bg-sbi-dark p-2 rounded-xl">
-        <div className="relative flex-grow min-w-[300px] max-w-md group bg-sbi-input rounded-lg border border-sbi-green/10">
+        <div className="relative flex-grow min-w-0 w-full sm:w-auto sm:min-w-[300px] max-w-md group bg-sbi-input rounded-lg border border-sbi-green/10">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sbi-green/60 group-focus-within:text-sbi-green transition-colors" />
           <input
             type="text"
@@ -989,91 +992,93 @@ function ReportsTable() {
 
       {/* Table */}
       <div className="bg-sbi-dark-card rounded-xl border border-sbi-dark-border overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-sbi-dark-border bg-sbi-dark-btn/50">
-              <th
-                onClick={() => handleSort("numid")}
-                className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs w-24 cursor-pointer hover:text-white transition-colors select-none"
-              >
-                ID {renderSortIcon("numid")}
-              </th>
-              <th
-                onClick={() => handleSort("status")}
-                className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs w-48 cursor-pointer hover:text-white transition-colors select-none"
-              >
-                Status {renderSortIcon("status")}
-              </th>
-              <th
-                onClick={() => handleSort("title")}
-                className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors select-none"
-              >
-                Report Task {renderSortIcon("title")}
-              </th>
-              <th
-                onClick={() => handleSort("department")}
-                className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors select-none"
-              >
-                Team {renderSortIcon("department")}
-              </th>
-              <th
-                onClick={() => handleSort("date")}
-                className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors select-none"
-              >
-                Date {renderSortIcon("date")}
-              </th>
-              <th
-                onClick={() => handleSort("director")}
-                className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors select-none"
-              >
-                Director {renderSortIcon("director")}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-sbi-dark-border">
-            {sortedReports.map((report) => (
-              <tr
-                key={report.id}
-                className="hover:bg-white/[0.02] cursor-pointer transition-colors group"
-              >
-                <td className="px-6 py-5 text-sbi-muted font-mono text-xs">
-                  #{report.numid}
-                </td>
-                <td className="px-6 py-5">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-sm",
-                      getStatusColor(report.status),
-                    )}
-                  >
-                    {getStatusIcon(report.status)}
-                    {report.status}
-                  </span>
-                </td>
-                <td className="px-6 py-5 font-medium text-white group-hover:text-sbi-green transition-colors text-base">
-                  {report.title}
-                </td>
-                <td className="px-6 py-5 text-sbi-muted">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full border border-sbi-dark-border bg-transparent" />
-                    {report.department}
-                  </div>
-                </td>
-                <td className="px-6 py-5 text-sbi-muted text-xs font-mono">
-                  {formatDate(report.date)}
-                </td>
-                <td className="px-6 py-5 text-sbi-muted">
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-sbi-dark-btn border border-sbi-dark-border flex items-center justify-center text-xs font-medium text-white shadow-sm">
-                      {report.director.charAt(0)}
-                    </div>
-                    {report.director}
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-sbi-dark-border bg-sbi-dark-btn/50">
+                <th
+                  onClick={() => handleSort("numid")}
+                  className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs w-24 cursor-pointer hover:text-white transition-colors select-none"
+                >
+                  ID {renderSortIcon("numid")}
+                </th>
+                <th
+                  onClick={() => handleSort("status")}
+                  className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs w-48 cursor-pointer hover:text-white transition-colors select-none"
+                >
+                  Status {renderSortIcon("status")}
+                </th>
+                <th
+                  onClick={() => handleSort("title")}
+                  className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors select-none"
+                >
+                  Report Task {renderSortIcon("title")}
+                </th>
+                <th
+                  onClick={() => handleSort("department")}
+                  className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors select-none"
+                >
+                  Team {renderSortIcon("department")}
+                </th>
+                <th
+                  onClick={() => handleSort("date")}
+                  className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors select-none"
+                >
+                  Date {renderSortIcon("date")}
+                </th>
+                <th
+                  onClick={() => handleSort("director")}
+                  className="px-6 py-5 font-semibold text-sbi-muted-dark uppercase tracking-wider text-xs cursor-pointer hover:text-white transition-colors select-none"
+                >
+                  Director {renderSortIcon("director")}
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-sbi-dark-border">
+              {sortedReports.map((report) => (
+                <tr
+                  key={report.id}
+                  className="hover:bg-white/[0.02] cursor-pointer transition-colors group"
+                >
+                  <td className="px-6 py-5 text-sbi-muted font-mono text-xs">
+                    #{report.numid}
+                  </td>
+                  <td className="px-6 py-5">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-sm",
+                        getStatusColor(report.status),
+                      )}
+                    >
+                      {getStatusIcon(report.status)}
+                      {report.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-5 font-medium text-white group-hover:text-sbi-green transition-colors text-base">
+                    {report.title}
+                  </td>
+                  <td className="px-6 py-5 text-sbi-muted">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full border border-sbi-dark-border bg-transparent" />
+                      {report.department}
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 text-sbi-muted text-xs font-mono">
+                    {formatDate(report.date)}
+                  </td>
+                  <td className="px-6 py-5 text-sbi-muted">
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-full bg-sbi-dark-btn border border-sbi-dark-border flex items-center justify-center text-xs font-medium text-white shadow-sm">
+                        {report.director.charAt(0)}
+                      </div>
+                      {report.director}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -1493,7 +1498,7 @@ export default function TableComparisonPage() {
           selectable
           columnToggle
           renderExpandedRow={(row) => (
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
               <div>
                 <span className="text-sbi-muted-dark text-xs uppercase tracking-wider">
                   Director

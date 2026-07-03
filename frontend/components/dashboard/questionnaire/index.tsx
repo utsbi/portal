@@ -9,6 +9,7 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import {
+  DashboardMain,
   DashboardShell,
   EmptyState,
   PageHeader,
@@ -110,7 +111,7 @@ export function QuestionnaireView({ forms }: QuestionnaireViewProps) {
     <DashboardShell>
       <PageHeader title="Questionnaire" subtitle={subtitle} />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar">
+      <DashboardMain>
         {forms.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="h-6 w-6" />}
@@ -156,7 +157,7 @@ export function QuestionnaireView({ forms }: QuestionnaireViewProps) {
             </div>
           </motion.div>
         )}
-      </main>
+      </DashboardMain>
     </DashboardShell>
   );
 }

@@ -64,7 +64,7 @@ export function TransactionDetailModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark mb-1">
                 Date

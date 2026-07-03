@@ -9,6 +9,7 @@ import { isActionError } from "@/app/dashboard/questionnaire/action-types";
 import { restoreFormVersion } from "@/app/dashboard/questionnaire/actions";
 import {
   btnGhost,
+  DashboardMain,
   DashboardShell,
   EmptyState,
   PageHeader,
@@ -76,7 +77,7 @@ export function FormHistory({ formId, title, versions }: FormHistoryProps) {
         }
       />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar">
+      <DashboardMain>
         {versions.length === 0 ? (
           <EmptyState
             icon={<History className="h-6 w-6" />}
@@ -176,7 +177,7 @@ export function FormHistory({ formId, title, versions }: FormHistoryProps) {
             })}
           </motion.div>
         )}
-      </main>
+      </DashboardMain>
 
       <ConfirmDialog
         opened={pendingRestore !== null}

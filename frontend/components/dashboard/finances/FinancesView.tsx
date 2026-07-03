@@ -9,6 +9,7 @@ import {
 import {
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   PageHeader,
   SectionLabel,
@@ -128,12 +129,12 @@ export function FinancesView({
           title="Finances"
           subtitle="Track your project budget and spending"
         />
-        <main className="flex-1 overflow-auto dashboard-scrollbar">
+        <DashboardMain>
           <EmptyBudgetState
             canEdit={canEdit}
             onSetUp={() => setSetupOpen(true)}
           />
-        </main>
+        </DashboardMain>
         <SetupBudgetDrawer
           open={setupOpen}
           onClose={() => setSetupOpen(false)}
@@ -151,7 +152,7 @@ export function FinancesView({
         subtitle="Track your project budget and spending"
         action={
           canEdit ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setCategoryEditorOpen(true)}
@@ -173,7 +174,7 @@ export function FinancesView({
           ) : null
         }
       />
-      <main className="flex-1 overflow-auto dashboard-scrollbar">
+      <DashboardMain>
         <div className="flex flex-col gap-8 pb-8">
           <OverviewTiles
             totalBudget={totalExpected}
@@ -222,7 +223,7 @@ export function FinancesView({
             />
           </div>
         </div>
-      </main>
+      </DashboardMain>
 
       <CategoryEditorDrawer
         open={categoryEditorOpen}

@@ -32,6 +32,7 @@ import {
 import {
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   inputClass,
   labelClass,
@@ -299,7 +300,7 @@ export function FormBuilder({
             : "Draft — not yet visible"
         }
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <AutoSaveBadge state={autoSave} />
             <button
               type="button"
@@ -342,7 +343,7 @@ export function FormBuilder({
         }
       />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar pb-10">
+      <DashboardMain className="pb-10">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -454,7 +455,7 @@ export function FormBuilder({
             <AddFieldBar onAdd={addField} />
           </div>
         </motion.div>
-      </main>
+      </DashboardMain>
     </DashboardShell>
   );
 }
@@ -1340,7 +1341,7 @@ function ValidationEditor({
 
   if (field.type === "short_text" || field.type === "paragraph") {
     return (
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <NumberInput
           label="Min length"
           value={v.minLength}
@@ -1360,7 +1361,7 @@ function ValidationEditor({
   }
   if (field.type === "number") {
     return (
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <NumberInput
           label="Min"
           value={v.min}

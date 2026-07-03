@@ -29,7 +29,7 @@ export function DashboardShell({
   className?: string;
 }) {
   return (
-    <div className="h-[calc(100vh-4rem)] bg-sbi-dark flex flex-col p-6 md:p-8 overflow-hidden">
+    <div className="h-[calc(100vh-4rem)] bg-sbi-dark flex flex-col p-4 sm:p-6 md:p-8 overflow-hidden">
       <div
         className={cn(
           "max-w-7xl w-full mx-auto flex flex-col h-full min-h-0",
@@ -39,6 +39,38 @@ export function DashboardShell({
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * Primary page scroll region. The scroller spans the shell's full width
+ * (negative margins cancel DashboardShell's horizontal padding) so the
+ * scrollbar track sits at the pane/viewport right edge instead of floating
+ * inset inside the padded content; the padding is re-applied on an inner
+ * wrapper so content alignment is unchanged. `className` lands on the
+ * scroller (e.g. extra bottom padding), `contentClassName` on the inner
+ * padded wrapper.
+ */
+export function DashboardMain({
+  children,
+  className,
+  contentClassName,
+}: {
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+}) {
+  return (
+    <main
+      className={cn(
+        "flex-1 min-h-0 overflow-auto dashboard-scrollbar -mx-4 sm:-mx-6 md:-mx-8",
+        className,
+      )}
+    >
+      <div className={cn("px-4 sm:px-6 md:px-8", contentClassName)}>
+        {children}
+      </div>
+    </main>
   );
 }
 
@@ -60,7 +92,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex justify-between items-end gap-4 mb-6 shrink-0",
+        "flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4 mb-6 shrink-0",
         className,
       )}
     >

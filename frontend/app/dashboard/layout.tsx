@@ -5,6 +5,7 @@ import { ProjectStatusBar } from "@/components/dashboard/common/ProjectStatusBar
 import { ProjectSwitcher } from "@/components/dashboard/common/ProjectSwitcher";
 import { ProjectSwitchOverlay } from "@/components/dashboard/common/ProjectSwitchOverlay";
 import { SidebarTriggerCustom } from "@/components/dashboard/common/SidebarTriggerCustom";
+import { MobileNewChatButton } from "@/components/dashboard/explore/ui/MobileNewChatButton";
 import { TimeDisplay } from "@/components/dashboard/explore/ui/TimeDisplay";
 import { ChatProvider } from "@/lib/chat/chat-context";
 import { ProjectProvider } from "@/lib/project/project-context";
@@ -44,12 +45,14 @@ export default async function DashboardLayout({
         <SidebarProvider defaultOpen={sidebarOpen}>
           <div className="font-urbanist bg-sbi-dark h-screen overflow-hidden flex">
             <AppSidebar />
-            <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 flex flex-col min-h-0 min-w-0">
               {/* Header */}
-              <header className="relative flex h-16 shrink-0 items-center gap-2 bg-sbi-dark pr-6 border-b border-sbi-dark-border/30">
-                {/* Sidebar trigger — px-6 on both sides so the right hairline
-                    mirrors the left inset (was an absolute w-16 strip). */}
-                <div className="relative z-10 flex h-full items-center px-6 border-r border-sbi-dark-border/20">
+              <header className="relative flex h-16 shrink-0 items-center gap-2 bg-sbi-dark pr-4 md:pr-6 border-b border-sbi-dark-border/30">
+                {/* Sidebar trigger — matching horizontal padding on both sides
+                    so the right hairline mirrors the left inset (was an
+                    absolute w-16 strip). Tighter below md to leave room for
+                    the project switcher on phones. */}
+                <div className="relative z-10 flex h-full items-center px-4 md:px-6 border-r border-sbi-dark-border/20">
                   <SidebarTriggerCustom />
                 </div>
 
@@ -62,6 +65,13 @@ export default async function DashboardLayout({
 
                 <div className="flex-1" />
 
+                {/* Phone-only quick action: start a new Explore chat without
+                    opening the sidebar. Renders nothing off the Explore routes
+                    and at md+ (where the sidebar's own "New chat" is at hand). */}
+                <MobileNewChatButton />
+
+                {/* Clock/date readout is ambient info — hidden below md so the
+                    trigger + project switcher keep the phone header uncluttered. */}
                 <TimeDisplay />
               </header>
 

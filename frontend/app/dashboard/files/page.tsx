@@ -842,7 +842,10 @@ export default function FilesPage() {
 
         <div className="flex flex-1 min-h-0 gap-6">
           {/* Folder tree sidebar */}
-          <Panel className="w-64 shrink-0 overflow-y-auto" padded>
+          <Panel
+            className="hidden w-64 shrink-0 overflow-y-auto md:block"
+            padded
+          >
             <SectionLabel className="mb-4">Folders</SectionLabel>
             {/* Home / Root droppable — move items to storage root. */}
             <button
@@ -902,12 +905,12 @@ export default function FilesPage() {
             <KnowledgeSourcesPanel className="mt-4" />
           </Panel>
 
-          <main className="flex-1 min-w-0 overflow-y-auto flex flex-col">
+          <main className="flex-1 min-w-0 overflow-y-auto dashboard-scrollbar flex flex-col -mr-4 sm:-mr-6 md:-mr-8 pr-4 sm:pr-6 md:pr-8">
             {/* Breadcrumb + director toolbar */}
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="mb-6 flex flex-col gap-3 shrink-0 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <nav
                 aria-label="Folder breadcrumb"
-                className="text-sm text-sbi-muted flex flex-wrap items-center gap-1"
+                className="min-h-10 text-sm text-sbi-muted flex flex-wrap items-center gap-1"
               >
                 {breadcrumbSegments.map((seg, i) => {
                   const isLast = i === breadcrumbSegments.length - 1;

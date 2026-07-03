@@ -177,7 +177,7 @@ export function ChatsView() {
                   type="button"
                   aria-label="Conversation options"
                   className={cn(
-                    "h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-md text-sbi-muted-dark opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 hover:text-white hover:bg-sbi-dark-card transition-opacity",
+                    "h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-md text-sbi-muted-dark opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 hover:text-white hover:bg-sbi-dark-card transition-opacity max-sm:h-10 max-sm:w-10 max-sm:opacity-100",
                   )}
                 >
                   <MoreHorizontal className="h-4 w-4" strokeWidth={1.5} />

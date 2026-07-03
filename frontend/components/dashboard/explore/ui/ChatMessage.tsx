@@ -733,7 +733,7 @@ export function ChatMessage({
               className={`flex items-center gap-1 shrink-0 pt-2 transition-opacity duration-200 ${
                 isEditing
                   ? "opacity-0"
-                  : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                  : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-sm:opacity-100"
               }`}
             >
               <button

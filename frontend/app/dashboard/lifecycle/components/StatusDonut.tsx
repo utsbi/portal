@@ -34,6 +34,8 @@ export function StatusDonut({
   const outer = size / 2;
   const inner = outer - thickness;
   const isEmpty = data.length === 0;
+  // Small donuts (compact hero on phones) only fit the percentage.
+  const compact = size < 90;
 
   return (
     <div
@@ -67,12 +69,20 @@ export function StatusDonut({
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-light tabular-nums text-white leading-none">
+        <span
+          className={
+            compact
+              ? "text-sm font-light tabular-nums text-white leading-none"
+              : "text-2xl font-light tabular-nums text-white leading-none"
+          }
+        >
           {pct}%
         </span>
-        <span className="mt-1 text-[9px] uppercase tracking-[0.18em] text-sbi-muted-dark">
-          Complete
-        </span>
+        {!compact && (
+          <span className="mt-1 text-[9px] uppercase tracking-[0.18em] text-sbi-muted-dark">
+            Complete
+          </span>
+        )}
       </div>
     </div>
   );

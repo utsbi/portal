@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import {
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   EmptyState,
   PageHeader,
@@ -90,7 +91,7 @@ function LifecyclePageInner() {
         onSaved={refetch}
       />
 
-      <main className="flex-1 overflow-y-auto custom-scrollbar">
+      <DashboardMain>
         {loading && projects.length === 0 ? (
           <div className="animate-pulse space-y-6">
             <div className="h-40 rounded-2xl bg-white/5" />
@@ -107,7 +108,7 @@ function LifecyclePageInner() {
             description="New lifecycle projects will appear here as your team kicks them off."
           />
         ) : (
-          <div className="flex flex-col gap-8 pb-2">
+          <div className="flex flex-col gap-6 pb-2 sm:gap-8">
             {hero ? (
               <div>
                 <SectionLabel>Current Focus</SectionLabel>
@@ -118,7 +119,7 @@ function LifecyclePageInner() {
             {rest.length > 0 ? (
               <div>
                 <SectionLabel>{`All Projects · ${projects.length}`}</SectionLabel>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
                   {rest.map((p, i) => (
                     <ProjectCard key={p.id} project={p} index={i} />
                   ))}
@@ -127,7 +128,7 @@ function LifecyclePageInner() {
             ) : null}
           </div>
         )}
-      </main>
+      </DashboardMain>
     </DashboardShell>
   );
 }

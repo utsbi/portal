@@ -102,7 +102,7 @@ export default function RequestsPage() {
         />
       </Modal>
 
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="space-y-3 text-center">

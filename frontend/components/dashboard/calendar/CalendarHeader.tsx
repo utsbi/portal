@@ -29,7 +29,7 @@ export function CalendarHeader({
       <div
         role="tablist"
         aria-label="Calendar view"
-        className="relative inline-flex rounded-md border border-sbi-dark-border/60 bg-sbi-dark-card/40 p-0.5 shrink-0"
+        className="relative inline-flex w-fit self-start rounded-md border border-sbi-dark-border/60 bg-sbi-dark-card/40 p-0.5 shrink-0 sm:self-auto"
       >
         {VIEW_OPTIONS.map(({ id, label }) => {
           const active = view === id;

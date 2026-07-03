@@ -442,14 +442,16 @@ export function AppSidebar() {
         {/* The active project lives in the top bar (ProjectSwitcher) so it stays
             visible regardless of the sidebar's collapsed state. */}
 
-        {/* Navigation. On Explore the primary nav stays fixed at its natural height
-          and the chat-history list takes the remaining space with its own scroll;
-          elsewhere the nav itself scrolls. */}
+        {/* Navigation. On Explore the chat-history list is the primary surface:
+          it takes the available vertical space (with its own scroll) and the nav
+          is allowed to shrink behind its own scrollbar when the viewport is
+          short, so more than a sliver of recent chats stays visible. Elsewhere
+          the nav itself scrolls. */}
         <div className="flex-1 flex flex-col min-h-0">
           <nav
             className={cn(
               "overflow-y-auto overflow-x-hidden py-4 px-2",
-              showChatHistory ? "shrink-0" : "flex-1",
+              showChatHistory ? "shrink min-h-0" : "flex-1",
             )}
           >
             {/* General (cross-project) Navigation */}
@@ -541,9 +543,11 @@ export function AppSidebar() {
             )}
           </nav>
 
-          {/* Contextual chat history (Explore only) */}
+          {/* Contextual chat history (Explore only). flex-1 claims the remaining
+            height; the min-height guarantees the recent list a meaningful share
+            on short viewports (the nav above shrinks + scrolls instead). */}
           {showChatHistory && (
-            <div className="flex-1 min-h-0 flex flex-col border-t border-sbi-dark-border/30">
+            <div className="flex-1 min-h-[55%] flex flex-col border-t border-sbi-dark-border/30">
               <ChatHistoryNav focusSearchRef={pendingSearchFocusRef} />
             </div>
           )}

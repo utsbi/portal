@@ -87,7 +87,7 @@ export function MonthView({
     : null;
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar">
+    <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 sm:-mr-6 md:-mr-8 pr-4 sm:pr-6 md:pr-8">
       <div className="flex items-center justify-between px-1 pb-4">
         <MonthPicker currentMonth={currentMonth} onPick={onChangeMonth} />
         <div className="flex items-center gap-1">
@@ -95,7 +95,7 @@ export function MonthView({
             type="button"
             onClick={goPrev}
             aria-label="Previous month"
-            className="inline-flex size-7 items-center justify-center rounded-md border border-sbi-dark-border/60 text-sbi-muted hover:bg-sbi-green/5 hover:text-sbi-green transition-colors"
+            className="inline-flex size-10 items-center justify-center rounded-md border border-sbi-dark-border/60 text-sbi-muted hover:bg-sbi-green/5 hover:text-sbi-green transition-colors md:size-7"
           >
             <ChevronLeft className="size-3.5" />
           </button>
@@ -103,7 +103,7 @@ export function MonthView({
             type="button"
             onClick={goNext}
             aria-label="Next month"
-            className="inline-flex size-7 items-center justify-center rounded-md border border-sbi-dark-border/60 text-sbi-muted hover:bg-sbi-green/5 hover:text-sbi-green transition-colors"
+            className="inline-flex size-10 items-center justify-center rounded-md border border-sbi-dark-border/60 text-sbi-muted hover:bg-sbi-green/5 hover:text-sbi-green transition-colors md:size-7"
           >
             <ChevronRight className="size-3.5" />
           </button>
@@ -141,7 +141,7 @@ export function MonthView({
               aria-label={`${key}${isToday ? " (today)" : ""}${dayEvs.length > 0 ? `, ${dayEvs.length} ${dayEvs.length === 1 ? "event" : "events"}` : ""}`}
               onClick={() => onSelectDate(isSelected ? null : key)}
               className={[
-                "group relative flex min-h-[112px] flex-col items-start gap-2 border-b border-r border-sbi-dark-border/40 p-2.5 text-left transition-colors",
+                "group relative flex min-h-[68px] flex-col items-start gap-1.5 border-b border-r border-sbi-dark-border/40 p-1.5 text-left transition-colors sm:min-h-[112px] sm:gap-2 sm:p-2.5",
                 isSelected
                   ? "bg-sbi-green/[0.06] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.4)]"
                   : "hover:bg-white/[0.02]",
@@ -163,29 +163,44 @@ export function MonthView({
               </span>
 
               {dayEvs.length > 0 ? (
-                <div className="flex w-full flex-col gap-1">
-                  {dayEvs.slice(0, 2).map((ev) => (
-                    <div
-                      key={ev.id}
-                      className={[
-                        "flex items-center gap-1.5 truncate border-l-2 pl-2 text-[12px] leading-snug",
-                        ev.past
-                          ? "border-l-zinc-600/60 text-zinc-500"
-                          : "border-l-sbi-green/70 text-sbi-muted",
-                      ].join(" ")}
-                    >
-                      <span className="font-medium tabular-nums">
-                        {ev.startTime}
+                <>
+                  {/* Compact event-presence dots on phones — tapping the day
+                      surfaces the full list in the selected-day panel below. */}
+                  <div className="flex items-center gap-1 pl-0.5 sm:hidden">
+                    {dayEvs.slice(0, 3).map((ev) => (
+                      <span
+                        key={ev.id}
+                        className={[
+                          "size-1.5 rounded-full",
+                          ev.past ? "bg-zinc-600/60" : "bg-sbi-green/70",
+                        ].join(" ")}
+                      />
+                    ))}
+                  </div>
+                  <div className="hidden w-full flex-col gap-1 sm:flex">
+                    {dayEvs.slice(0, 2).map((ev) => (
+                      <div
+                        key={ev.id}
+                        className={[
+                          "flex items-center gap-1.5 truncate border-l-2 pl-2 text-[12px] leading-snug",
+                          ev.past
+                            ? "border-l-zinc-600/60 text-zinc-500"
+                            : "border-l-sbi-green/70 text-sbi-muted",
+                        ].join(" ")}
+                      >
+                        <span className="hidden font-medium tabular-nums sm:inline">
+                          {ev.startTime}
+                        </span>
+                        <span className="truncate">{ev.title}</span>
+                      </div>
+                    ))}
+                    {dayEvs.length > 2 ? (
+                      <span className="text-[10px] tabular-nums text-sbi-muted/60 pl-0.5">
+                        +{dayEvs.length - 2} more
                       </span>
-                      <span className="truncate">{ev.title}</span>
-                    </div>
-                  ))}
-                  {dayEvs.length > 2 ? (
-                    <span className="text-[10px] tabular-nums text-sbi-muted/60 pl-0.5">
-                      +{dayEvs.length - 2} more
-                    </span>
-                  ) : null}
-                </div>
+                    ) : null}
+                  </div>
+                </>
               ) : null}
             </button>
           );
@@ -206,7 +221,7 @@ export function MonthView({
             <button
               type="button"
               onClick={() => onSelectDate(null)}
-              className="inline-flex items-center gap-1 text-[11px] text-sbi-muted-dark hover:text-white transition-colors"
+              className="inline-flex min-h-10 items-center gap-1 px-2 text-[11px] text-sbi-muted-dark hover:text-white transition-colors md:min-h-0 md:px-0"
               aria-label="Clear selected day"
             >
               <X className="size-3" />

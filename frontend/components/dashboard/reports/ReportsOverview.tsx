@@ -18,7 +18,8 @@ import {
   XAxis,
 } from "recharts";
 import type { ReportItem } from "@/app/api/reports/route";
-import { Panel, StatTile } from "@/components/dashboard/common/ui";
+import { StatSummary } from "@/components/dashboard/common/StatSummary";
+import { Panel } from "@/components/dashboard/common/ui";
 
 interface ReportsOverviewProps {
   reports: ReportItem[];
@@ -86,32 +87,35 @@ export function ReportsOverview({ reports }: ReportsOverviewProps) {
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="space-y-6"
     >
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatTile
-          label="Total Reports"
-          value={stats.total.toLocaleString()}
-          sublabel="Across this project"
-          icon={<FileText className="h-4 w-4" />}
-        />
-        <StatTile
-          label="In Progress"
-          value={stats.inProgress.toLocaleString()}
-          sublabel="Currently active"
-          icon={<Clock className="h-4 w-4" />}
-        />
-        <StatTile
-          label="Done"
-          value={stats.done.toLocaleString()}
-          sublabel="Finalized deliverables"
-          icon={<CheckCircle2 className="h-4 w-4" />}
-        />
-        <StatTile
-          label="Needs Attention"
-          value={(stats.pending + stats.denied).toLocaleString()}
-          sublabel="Pending or denied"
-          icon={<AlertCircle className="h-4 w-4" />}
-        />
-      </div>
+      <StatSummary
+        desktopGridClassName="sm:grid-cols-2 md:grid-cols-4"
+        items={[
+          {
+            label: "Total Reports",
+            value: stats.total.toLocaleString(),
+            sublabel: "Across this project",
+            icon: <FileText className="h-4 w-4" />,
+          },
+          {
+            label: "In Progress",
+            value: stats.inProgress.toLocaleString(),
+            sublabel: "Currently active",
+            icon: <Clock className="h-4 w-4" />,
+          },
+          {
+            label: "Done",
+            value: stats.done.toLocaleString(),
+            sublabel: "Finalized deliverables",
+            icon: <CheckCircle2 className="h-4 w-4" />,
+          },
+          {
+            label: "Needs Attention",
+            value: (stats.pending + stats.denied).toLocaleString(),
+            sublabel: "Pending or denied",
+            icon: <AlertCircle className="h-4 w-4" />,
+          },
+        ]}
+      />
 
       <Panel>
         <div className="flex items-start justify-between mb-4">

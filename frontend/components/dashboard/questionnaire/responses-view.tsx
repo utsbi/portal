@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   btnGhost,
+  DashboardMain,
   DashboardShell,
   EmptyState,
   PageHeader,
@@ -93,7 +94,7 @@ export function ResponsesView({ title, schema, rows }: ResponsesViewProps) {
         }
       />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar">
+      <DashboardMain>
         {rows.length === 0 ? (
           <EmptyState
             icon={<Inbox className="h-6 w-6" />}
@@ -160,7 +161,7 @@ export function ResponsesView({ title, schema, rows }: ResponsesViewProps) {
             </div>
           </motion.div>
         )}
-      </main>
+      </DashboardMain>
     </DashboardShell>
   );
 }

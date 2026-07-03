@@ -21,17 +21,24 @@ const COLUMNS: ColumnDef<ReportItem>[] = [
       </div>
     ),
   },
-  { accessor: "director", header: "Assigned To", sortable: true },
+  {
+    accessor: "director",
+    header: "Assigned To",
+    sortable: true,
+    responsivePriority: 2,
+  },
   {
     accessor: "department",
     header: "Department",
     sortable: true,
+    responsivePriority: 3,
     render: (value) => departmentLabel(value),
   },
   {
     accessor: "date",
     header: "Date",
     sortable: true,
+    responsivePriority: 2,
     render: (value) =>
       new Date(value).toLocaleDateString("en-US", {
         year: "numeric",

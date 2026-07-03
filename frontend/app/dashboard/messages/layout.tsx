@@ -7,6 +7,7 @@ import { MemberMessages } from "@/components/dashboard/messages/MemberMessages";
 import { resolveActor } from "@/lib/project/resolve-actor";
 import { CmdKShell } from "./CmdKShell";
 import { DetailPane } from "./DetailPane";
+import { MessagesPanes } from "./MessagesPanes";
 
 const BASE_PATH = "/dashboard/messages";
 
@@ -32,26 +33,31 @@ export default async function MessagesLayout({
   const shell = (
     <ActorProvider actor={{ role, profileId }}>
       <CmdKShell basePath={BASE_PATH}>
-        <div className="flex flex-1 min-h-0 h-full">
-          <div className="w-96 shrink-0 overflow-hidden border-r border-sbi-dark-border/40">
-            {role === "director" ? (
+        {/* MessagesPanes handles the responsive master–detail switching:
+            single-column below md (list ⇄ thread driven by the URL param),
+            side-by-side two-pane layout from md up. */}
+        <MessagesPanes
+          list={
+            role === "director" ? (
               <DirectorMessages profileId={profileId} />
             ) : isMember ? (
               <MemberMessages profileId={profileId} />
             ) : (
               <Messages />
-            )}
-          </div>
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {/* DetailPane mounts ONCE here. It reads conversationId from
-                useParams() so URL changes flow through state instead of via
-                route remounting — eliminates the route-transition flash. */}
-            <DetailPane />
-            {/* Page renders null but stays in the tree so Next.js's route
-                matching + params unwrap still runs. */}
-            <span className="hidden">{children}</span>
-          </div>
-        </div>
+            )
+          }
+          detail={
+            <>
+              {/* DetailPane mounts ONCE here. It reads conversationId from
+                  useParams() so URL changes flow through state instead of via
+                  route remounting — eliminates the route-transition flash. */}
+              <DetailPane />
+              {/* Page renders null but stays in the tree so Next.js's route
+                  matching + params unwrap still runs. */}
+              <span className="hidden">{children}</span>
+            </>
+          }
+        />
       </CmdKShell>
     </ActorProvider>
   );

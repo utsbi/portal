@@ -48,6 +48,16 @@ export interface ColumnDef<T> {
   className?: string;
   /** Custom sort comparator. Return negative, 0, or positive. */
   sortFn?: (a: T, b: T) => number;
+  /**
+   * Responsive visibility priority. Lower numbers survive smaller screens:
+   * - `1` (default) — always visible
+   * - `2` — hidden below `md` (768px)
+   * - `3` — hidden below `lg` (1024px)
+   * Hiding is pure CSS (`hidden md:table-cell`), so sorting/filtering/column
+   * toggling keep working; horizontal scroll remains the fallback for
+   * whatever is still too wide.
+   */
+  responsivePriority?: 1 | 2 | 3;
 }
 
 export interface DataTableProps<T> {
@@ -142,6 +152,13 @@ const alignClass = (align?: string) => {
   if (align === "right") return "text-right";
   if (align === "center") return "text-center";
   return "text-left";
+};
+
+/** Responsive classes for ColumnDef.responsivePriority (see its JSDoc). */
+const priorityClass = (priority?: 1 | 2 | 3) => {
+  if (priority === 2) return "hidden md:table-cell";
+  if (priority === 3) return "hidden lg:table-cell";
+  return undefined;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -251,6 +268,21 @@ export function DataTable<T extends Record<string, any>>({
   // Total visible column count (including selection + expand columns)
   const totalColSpan =
     visibleColumns.length + (selectable ? 1 : 0) + (expandable ? 1 : 0);
+
+  // Columns still visible on phones (responsivePriority 2/3 are hidden below
+  // md/lg). The first one absorbs the leftover width and the last one hugs the
+  // right edge so narrow tables don't strand a dead zone on the right.
+  const { firstMobileAccessor, lastMobileAccessor } = useMemo(() => {
+    const mobileCols = visibleColumns.filter(
+      (c) => !c.responsivePriority || c.responsivePriority === 1,
+    );
+    if (mobileCols.length < 2)
+      return { firstMobileAccessor: undefined, lastMobileAccessor: undefined };
+    return {
+      firstMobileAccessor: String(mobileCols[0].accessor),
+      lastMobileAccessor: String(mobileCols[mobileCols.length - 1].accessor),
+    };
+  }, [visibleColumns]);
 
   // ── Handlers ──
   const getRowKey = useCallback(
@@ -391,13 +423,51 @@ export function DataTable<T extends Record<string, any>>({
       ? sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize)
       : sortedData;
 
-  // ── Column Toggle Slot ──
+  // ── Column visibility checkbox list (shared by the desktop popover and the
+  // mobile Filters panel) ──
+  const columnCheckboxList = columnToggle
+    ? columns.map((col) => {
+        const accessor = String(col.accessor);
+        return (
+          <label
+            key={accessor}
+            htmlFor={`column-toggle-${accessor}`}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-white/[0.04] transition-colors"
+          >
+            <Checkbox
+              id={`column-toggle-${accessor}`}
+              checked={!hiddenColumns.has(accessor)}
+              onCheckedChange={(checked) => {
+                setHiddenColumns((prev) => {
+                  const next = new Set(prev);
+                  if (checked) next.delete(accessor);
+                  else next.add(accessor);
+                  return next;
+                });
+              }}
+              className="border-sbi-dark-border data-[state=checked]:bg-sbi-green data-[state=checked]:text-sbi-dark"
+            />
+            <span
+              className={cn(
+                hiddenColumns.has(accessor)
+                  ? "text-sbi-muted-dark"
+                  : "text-white",
+              )}
+            >
+              {col.header}
+            </span>
+          </label>
+        );
+      })
+    : null;
+
+  // ── Column Toggle Slot (desktop inline button + popover) ──
   const columnToggleSlot = columnToggle ? (
     <div className="relative" ref={columnToggleRef}>
       <button
         type="button"
         onClick={() => setColumnToggleOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 px-3 py-2 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input"
+        className="flex h-10 items-center gap-1.5 px-3 text-xs text-sbi-muted hover:text-white border border-sbi-dark-border/50 rounded-lg transition-colors bg-sbi-input"
       >
         <Columns2 size={14} />
         Columns
@@ -411,42 +481,21 @@ export function DataTable<T extends Record<string, any>>({
             transition={{ duration: 0.1 }}
             className="absolute right-0 top-full mt-1 w-48 bg-sbi-dark-card border border-sbi-dark-border rounded-lg shadow-xl z-50 p-2"
           >
-            {columns.map((col) => {
-              const accessor = String(col.accessor);
-              return (
-                <label
-                  key={accessor}
-                  htmlFor={`column-toggle-${accessor}`}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-white/[0.04] transition-colors"
-                >
-                  <Checkbox
-                    id={`column-toggle-${accessor}`}
-                    checked={!hiddenColumns.has(accessor)}
-                    onCheckedChange={(checked) => {
-                      setHiddenColumns((prev) => {
-                        const next = new Set(prev);
-                        if (checked) next.delete(accessor);
-                        else next.add(accessor);
-                        return next;
-                      });
-                    }}
-                    className="border-sbi-dark-border data-[state=checked]:bg-sbi-green data-[state=checked]:text-sbi-dark"
-                  />
-                  <span
-                    className={cn(
-                      hiddenColumns.has(accessor)
-                        ? "text-sbi-muted-dark"
-                        : "text-white",
-                    )}
-                  >
-                    {col.header}
-                  </span>
-                </label>
-              );
-            })}
+            {columnCheckboxList}
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  ) : undefined;
+
+  // ── Column visibility as an inline section for the mobile Filters panel ──
+  const columnPanelSlot = columnToggle ? (
+    <div>
+      <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-medium uppercase tracking-[0.15em] text-sbi-muted-dark">
+        <Columns2 size={12} />
+        Columns
+      </div>
+      {columnCheckboxList}
     </div>
   ) : undefined;
 
@@ -492,6 +541,7 @@ export function DataTable<T extends Record<string, any>>({
             toggleActive={toggleActive}
             onToggleChange={setToggleActive}
             columnToggleSlot={columnToggleSlot}
+            columnPanelSlot={columnPanelSlot}
             disabled={loading}
           />
         </div>
@@ -540,9 +590,14 @@ export function DataTable<T extends Record<string, any>>({
                   <TableHead
                     key={accessor}
                     className={cn(
-                      "px-5 py-2.5 text-[11px] tracking-wider uppercase font-semibold select-none transition-colors",
+                      "px-3 py-2.5 md:px-5 text-[11px] tracking-wider uppercase font-semibold select-none transition-colors",
                       col.width,
                       alignClass(col.align),
+                      priorityClass(col.responsivePriority),
+                      accessor === firstMobileAccessor && "w-full md:w-auto",
+                      accessor === lastMobileAccessor &&
+                        !col.align &&
+                        "text-right md:text-left",
                       col.sortable
                         ? "cursor-pointer hover:text-white text-sbi-muted-dark"
                         : "text-sbi-muted-dark",
@@ -556,6 +611,9 @@ export function DataTable<T extends Record<string, any>>({
                         "flex items-center gap-1.5",
                         col.align === "right" && "justify-end",
                         col.align === "center" && "justify-center",
+                        accessor === lastMobileAccessor &&
+                          !col.align &&
+                          "justify-end md:justify-start",
                       )}
                     >
                       {col.header}
@@ -613,12 +671,22 @@ export function DataTable<T extends Record<string, any>>({
                     {visibleColumns.map((col) => (
                       <TableCell
                         key={String(col.accessor)}
-                        className={cn("px-5 py-3", col.width)}
+                        className={cn(
+                          "px-3 py-3 md:px-5",
+                          col.width,
+                          priorityClass(col.responsivePriority),
+                          String(col.accessor) === firstMobileAccessor &&
+                            "w-full md:w-auto",
+                        )}
                       >
                         <Skeleton
                           className={cn(
                             "h-4 rounded bg-white/[0.06]",
-                            col.align === "right" ? "ml-auto w-16" : "w-3/4",
+                            col.align === "right" ||
+                              String(col.accessor) === lastMobileAccessor
+                              ? "ml-auto w-16 md:ml-0 md:w-3/4"
+                              : "w-3/4",
+                            col.align === "right" && "md:ml-auto md:w-16",
                           )}
                         />
                       </TableCell>
@@ -722,9 +790,15 @@ export function DataTable<T extends Record<string, any>>({
                               <TableCell
                                 key={accessor}
                                 className={cn(
-                                  "px-5 py-3",
+                                  "px-3 py-3 md:px-5",
                                   col.width,
                                   alignClass(col.align),
+                                  priorityClass(col.responsivePriority),
+                                  accessor === firstMobileAccessor &&
+                                    "w-full md:w-auto",
+                                  accessor === lastMobileAccessor &&
+                                    !col.align &&
+                                    "text-right md:text-left",
                                   isPrimary &&
                                     "font-medium text-white group-hover:text-sbi-green transition-colors text-sm",
                                   !isPrimary && "text-sbi-muted text-sm",

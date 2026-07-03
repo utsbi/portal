@@ -32,6 +32,7 @@ import {
   btnDanger,
   btnGhost,
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   EmptyState,
   inputClass,
@@ -244,7 +245,7 @@ function SettingsPageInner() {
   if (isLoading || !user) return null;
 
   return (
-    <DashboardShell className="overflow-y-auto">
+    <DashboardShell>
       <PageHeader
         title="Settings"
         subtitle={
@@ -254,24 +255,26 @@ function SettingsPageInner() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-8 lg:gap-12 pb-8">
-        <SettingsNav
-          sections={visibleSections}
-          activeSection={activeSection}
-          onSelect={setActiveSection}
-        />
+      <DashboardMain>
+        <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-5 md:gap-8 lg:gap-12 pb-8">
+          <SettingsNav
+            sections={visibleSections}
+            activeSection={activeSection}
+            onSelect={setActiveSection}
+          />
 
-        <div className="min-w-0">
-          {activeSection === "profile" && <ProfileSection />}
-          {activeSection === "security" && <SecuritySection />}
-          {activeSection === "notifications" && <NotificationsSection />}
-          {activeSection === "calendar" && isDirector && <CalendarSection />}
-          {activeSection === "team" && isDirector && <TeamSection />}
-          {activeSection === "accounts" && isDirector && (
-            <AccountsSection currentUserId={user.id} />
-          )}
+          <div className="min-w-0">
+            {activeSection === "profile" && <ProfileSection />}
+            {activeSection === "security" && <SecuritySection />}
+            {activeSection === "notifications" && <NotificationsSection />}
+            {activeSection === "calendar" && isDirector && <CalendarSection />}
+            {activeSection === "team" && isDirector && <TeamSection />}
+            {activeSection === "accounts" && isDirector && (
+              <AccountsSection currentUserId={user.id} />
+            )}
+          </div>
         </div>
-      </div>
+      </DashboardMain>
     </DashboardShell>
   );
 }
@@ -293,22 +296,52 @@ function SettingsNav({
   const workspace = sections.filter((s) => s.group === "workspace");
 
   return (
-    <nav className="md:sticky md:top-0 self-start space-y-7">
-      <NavGroup
-        label="Personal"
-        sections={personal}
-        active={activeSection}
-        onSelect={onSelect}
-      />
-      {workspace.length > 0 && (
+    <>
+      {/* Below md: one horizontal, scrollable segmented row (same chip idiom
+          as the requests status filters) above the full-width content panel. */}
+      <nav
+        aria-label="Settings sections"
+        className="flex items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:hidden"
+      >
+        {sections.map((s) => {
+          const isActive = activeSection === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => onSelect(s.id)}
+              className={`inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-xs font-medium transition-colors ${
+                isActive
+                  ? "border-sbi-green/60 bg-sbi-green/10 text-sbi-green shadow-[inset_0_0_0_1px_currentColor]"
+                  : "border-sbi-dark-border/60 bg-transparent text-sbi-muted hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <s.icon className="size-3.5" strokeWidth={1.5} />
+              <span>{s.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* md and up: the familiar sticky vertical nav */}
+      <nav className="hidden md:sticky md:top-0 md:block self-start space-y-7">
         <NavGroup
-          label="Workspace"
-          sections={workspace}
+          label="Personal"
+          sections={personal}
           active={activeSection}
           onSelect={onSelect}
         />
-      )}
-    </nav>
+        {workspace.length > 0 && (
+          <NavGroup
+            label="Workspace"
+            sections={workspace}
+            active={activeSection}
+            onSelect={onSelect}
+          />
+        )}
+      </nav>
+    </>
   );
 }
 
@@ -1541,11 +1574,11 @@ function TeamSection() {
   return (
     <div className="max-w-3xl space-y-4">
       <Panel>
-        <div className="flex items-center justify-between gap-4 mb-5">
+        <div className="relative flex items-center justify-between gap-4 mb-5">
           <SectionLabel className="mb-0">Project members</SectionLabel>
           <div className="flex items-center gap-2">
             {!hasOwner && selectedProjectId && !isLoading && (
-              <div className="relative" ref={ownerDropdownRef}>
+              <div ref={ownerDropdownRef}>
                 <button
                   type="button"
                   onClick={() => setShowOwnerDropdown(!showOwnerDropdown)}
@@ -1555,7 +1588,7 @@ function TeamSection() {
                   Assign owner
                 </button>
                 {showOwnerDropdown && (
-                  <div className="absolute top-full mt-2 right-0 w-96 bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
+                  <div className="absolute top-full mt-2 right-0 w-[min(24rem,100%)] bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
                     <div className="p-2 border-b border-sbi-dark-border/40">
                       <div className="relative">
                         <Search
@@ -1616,7 +1649,7 @@ function TeamSection() {
                 )}
               </div>
             )}
-            <div className="relative" ref={assignDropdownRef}>
+            <div ref={assignDropdownRef}>
               <button
                 type="button"
                 onClick={() => setShowAssignDropdown(!showAssignDropdown)}
@@ -1627,7 +1660,7 @@ function TeamSection() {
                 Assign member
               </button>
               {showAssignDropdown && (
-                <div className="absolute top-full mt-2 right-0 w-96 bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
+                <div className="absolute top-full mt-2 right-0 w-[min(24rem,100%)] bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
                   <div className="p-2 border-b border-sbi-dark-border/40">
                     <div className="relative">
                       <Search
@@ -1953,7 +1986,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
             onSubmit={handleCreate}
             className="mb-6 p-4 bg-sbi-dark/50 border border-sbi-dark-border/20 rounded-lg space-y-3"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="create-name" className={labelClass}>
                   Name

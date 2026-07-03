@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReportItem } from "@/app/api/reports/route";
 import {
   btnPrimary,
+  DashboardMain,
   DashboardShell,
   PageHeader,
   SectionLabel,
@@ -67,7 +68,7 @@ export function ReportsView() {
         }
       />
 
-      <main className="flex-1 overflow-auto dashboard-scrollbar">
+      <DashboardMain>
         <div className="flex flex-col gap-8">
           {loading ? (
             <div className="animate-pulse space-y-6">
@@ -94,7 +95,7 @@ export function ReportsView() {
             </>
           )}
         </div>
-      </main>
+      </DashboardMain>
 
       <ReportDetailModal
         report={selectedReport}

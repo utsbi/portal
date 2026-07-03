@@ -63,11 +63,13 @@ const columns: ColumnDef<Request>[] = [
     accessor: "name",
     header: "From",
     sortable: true,
+    responsivePriority: 2,
   },
   {
     accessor: "createdAt",
     header: "Date",
     sortable: true,
+    responsivePriority: 2,
     render: (value) => (
       <span className="text-xs text-sbi-muted whitespace-nowrap">
         {formatDate(value)}
@@ -123,19 +125,20 @@ export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
     <div className="flex flex-col h-full">
       <div className="mb-4 flex flex-wrap items-center gap-3 shrink-0">
         {/* Search (left, grows) */}
-        <div className="relative grow min-w-[240px] max-w-sm group">
+        <div className="relative w-full group sm:w-auto sm:grow sm:min-w-[240px] sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-[15px] h-[15px] text-sbi-muted-dark group-focus-within:text-sbi-green transition-colors" />
           <input
             type="text"
             placeholder="Search requests..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-sbi-input rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
+            className="w-full h-10 pl-9 pr-4 text-sm bg-sbi-input rounded-lg border border-sbi-dark-border/60 text-white placeholder:text-sbi-muted-dark focus:outline-none focus:border-sbi-green/40 transition-colors"
           />
         </div>
 
-        {/* Status chips (right) */}
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+        {/* Status chips (right). One scrollable row on phones (scrollbar
+            hidden, overscroll contained); wraps normally from sm up. */}
+        <div className="ml-auto flex w-full items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:w-auto sm:flex-wrap sm:overflow-x-visible">
           {STATUS_CHIPS.map((chip) => {
             const isActive = activeStatus === chip.value;
             const count = counts[chip.value];
@@ -146,7 +149,7 @@ export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
                 aria-pressed={isActive}
                 onClick={() => setActiveStatus(chip.value)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3",
                   isActive
                     ? "border-sbi-green/60 bg-sbi-green/10 text-sbi-green shadow-[inset_0_0_0_1px_currentColor]"
                     : "border-sbi-dark-border/60 bg-transparent text-sbi-muted hover:bg-white/5 hover:text-white",
@@ -160,7 +163,7 @@ export function RequestHistory({ requests, onRowClick }: RequestHistoryProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 sm:-mr-6 md:-mr-8 pr-4 sm:pr-6 md:pr-8">
         <DataTable<Request>
           data={filtered}
           columns={columns}

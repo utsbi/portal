@@ -39,6 +39,7 @@ All three stages are `useMemo`-wrapped. Changing any filter/search/sort resets `
 - **Dot-path accessors**: `"user.name"` works via `getNestedValue()` helper
 - **Controlled vs uncontrolled selection**: if `selectedRows` + `onSelectionChange` are passed, selection is controlled; otherwise internal `Set<string>`
 - **Deprecated props**: `hideCompletedToggle/Key/Value/Label` resolve internally to `toggleFilter` via `resolvedToggle`
+- **Responsive columns**: `ColumnDef.responsivePriority` (1 = always visible, 2 = hidden below `md`, 3 = hidden below `lg`) hides secondary columns via CSS only (`hidden md:table-cell`); horizontal scroll from the shadcn `Table` wrapper stays as the fallback
 
 ## Styling Rules
 

@@ -32,8 +32,10 @@ import {
   useState,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { shouldShowScrollToBottom } from "@/components/dashboard/common/scroll-to-bottom";
 import { btnPrimary, EmptyState } from "@/components/dashboard/common/ui";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { signWithCache } from "@/lib/messages/attachment-cache";
 import {
   ensureHydrated,
@@ -235,15 +237,18 @@ function ImageGrid({ images, onOpenLightbox }: ImageGridProps) {
         attachment={img}
         url={url}
         onOpen={() => onOpenLightbox(img)}
-        className="max-w-[280px] max-h-[280px] rounded-xl object-cover block"
-        wrapClass="block overflow-hidden rounded-xl cursor-pointer"
+        className="max-w-[min(280px,100%)] max-h-[280px] rounded-xl object-cover block"
+        wrapClass="block max-w-full overflow-hidden rounded-xl cursor-pointer"
       />
     );
   }
 
+  // Multi-image tiles are fluid: the grid fills the bubble column (capped at
+  // the old 280px footprint) and each tile keeps a square aspect, so nothing
+  // overflows narrow panes.
   if (count === 2) {
     return (
-      <div className="flex gap-1">
+      <div className="grid w-full max-w-[280px] grid-cols-2 gap-1">
         {images.map((img) => {
           const url = img.signedUrl ?? img.localPreviewUrl ?? null;
           return (
@@ -252,8 +257,8 @@ function ImageGrid({ images, onOpenLightbox }: ImageGridProps) {
               attachment={img}
               url={url}
               onOpen={() => onOpenLightbox(img)}
-              className="w-[138px] h-[138px] rounded-xl object-cover block"
-              wrapClass="block overflow-hidden rounded-xl cursor-pointer shrink-0"
+              className="w-full h-full rounded-xl object-cover block"
+              wrapClass="block aspect-square w-full overflow-hidden rounded-xl cursor-pointer"
             />
           );
         })}
@@ -265,36 +270,34 @@ function ImageGrid({ images, onOpenLightbox }: ImageGridProps) {
     const [first, ...rest] = images;
     const url0 = first.signedUrl ?? first.localPreviewUrl ?? null;
     return (
-      <div className="flex gap-1">
+      <div className="grid w-full max-w-[280px] grid-cols-2 gap-1">
         <ImageThumb
           attachment={first}
           url={url0}
           onOpen={() => onOpenLightbox(first)}
-          className="w-[138px] h-[280px] rounded-xl object-cover block"
-          wrapClass="block overflow-hidden rounded-xl cursor-pointer shrink-0"
+          className="w-full h-full rounded-xl object-cover block"
+          wrapClass="block row-span-2 h-full w-full overflow-hidden rounded-xl cursor-pointer"
         />
-        <div className="flex flex-col gap-1">
-          {rest.map((img) => {
-            const url = img.signedUrl ?? img.localPreviewUrl ?? null;
-            return (
-              <ImageThumb
-                key={img.id}
-                attachment={img}
-                url={url}
-                onOpen={() => onOpenLightbox(img)}
-                className="w-[138px] h-[138px] rounded-xl object-cover block"
-                wrapClass="block overflow-hidden rounded-xl cursor-pointer shrink-0"
-              />
-            );
-          })}
-        </div>
+        {rest.map((img) => {
+          const url = img.signedUrl ?? img.localPreviewUrl ?? null;
+          return (
+            <ImageThumb
+              key={img.id}
+              attachment={img}
+              url={url}
+              onOpen={() => onOpenLightbox(img)}
+              className="w-full h-full rounded-xl object-cover block"
+              wrapClass="block aspect-square w-full overflow-hidden rounded-xl cursor-pointer"
+            />
+          );
+        })}
       </div>
     );
   }
 
   // 4+ images: 2×2 grid, 4th tile shows "+N more" overlay if >4.
   return (
-    <div className="grid grid-cols-2 gap-1">
+    <div className="grid w-full max-w-[280px] grid-cols-2 gap-1">
       {display.map((img, tileIdx) => {
         const url = img.signedUrl ?? img.localPreviewUrl ?? null;
         const isLastWithOverflow = tileIdx === 3 && overflow > 0;
@@ -304,7 +307,7 @@ function ImageGrid({ images, onOpenLightbox }: ImageGridProps) {
             key={img.id}
             type="button"
             onClick={() => onOpenLightbox(targetImg)}
-            className="relative block overflow-hidden rounded-xl cursor-pointer"
+            className="relative block aspect-square w-full overflow-hidden rounded-xl cursor-pointer"
             aria-label={
               isLastWithOverflow
                 ? `Show all ${count} images`
@@ -320,10 +323,10 @@ function ImageGrid({ images, onOpenLightbox }: ImageGridProps) {
                 decoding="async"
                 width={img.meta?.width}
                 height={img.meta?.height}
-                className="w-[138px] h-[138px] object-cover block"
+                className="w-full h-full object-cover block"
               />
             ) : (
-              <div className="w-[138px] h-[138px] flex items-center justify-center bg-sbi-dark-card/70">
+              <div className="w-full h-full flex items-center justify-center bg-sbi-dark-card/70">
                 <ImageIcon
                   className="w-6 h-6 text-sbi-muted"
                   strokeWidth={1.75}
@@ -439,14 +442,19 @@ function AttachmentBubbles({
               src={url}
               controls
               preload="metadata"
-              className="max-w-[320px] max-h-[280px] rounded-xl"
+              className="max-w-[min(320px,100%)] max-h-[280px] rounded-xl"
             />
           );
         }
         if (kind === "audio" && url) {
           return (
             // biome-ignore lint/a11y/useMediaCaption: user-uploaded audio attachment of arbitrary content; no caption/transcript track exists or can be generated client-side
-            <audio key={a.id} src={url} controls className="w-[260px]" />
+            <audio
+              key={a.id}
+              src={url}
+              controls
+              className="w-full max-w-[260px]"
+            />
           );
         }
         return (
@@ -680,6 +688,16 @@ export function MessageThread({
   const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_OFFSET);
   const [atBottom, setAtBottom] = useState(true);
   const [hasNew, setHasNew] = useState(false);
+  // Virtuoso's scroll element (via scrollerRef), held in state so the effects
+  // below re-arm when the list mounts (it only renders after loading settles).
+  const [scrollerEl, setScrollerEl] = useState<HTMLElement | null>(null);
+  // Shows the floating scroll-to-latest button once scrolled up ~a viewport.
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  // Keep the thread pinned to the newest message through late layout shifts
+  // (image/attachment loads, unfurls) after opening a conversation, until the
+  // user scrolls for the first time. Without this the initial "scroll to
+  // bottom" lands short whenever async content grows the items afterwards.
+  const initialPinRef = useRef(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   // Seed from cache: if we have fewer than a full page of messages cached, we
   // know there are no older messages on the server — don't let Virtuoso's
@@ -700,6 +718,19 @@ export function MessageThread({
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+  // Touch devices have no hover, and on narrow viewports the beside-the-bubble
+  // action pill would clip off-screen. When either applies, message actions are
+  // revealed by tapping the message row and the pill overlays above the bubble.
+  const isMobile = useIsMobile();
+  const [coarsePointer, setCoarsePointer] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia("(hover: none), (pointer: coarse)");
+    const onChange = () => setCoarsePointer(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  const compactActions = isMobile || coarsePointer;
   const [pendingAttachments, setPendingAttachments] = useState<
     PendingAttachment[]
   >([]);
@@ -763,6 +794,71 @@ export function MessageThread({
     });
     setHasNew(false);
   }, []);
+
+  // Initial bottom pin: Virtuoso lands on the last item on mount, but items
+  // that finish loading afterwards (attachment thumbnails, link unfurls) grow
+  // the content and leave the viewport short of the true bottom. Observe the
+  // scroller + its item list and instantly re-snap to the bottom on every size
+  // change until the user's first scroll gesture, which hands control back.
+  useEffect(() => {
+    const el = scrollerEl;
+    if (!el || !initialPinRef.current) return;
+
+    const pin = () => {
+      if (!initialPinRef.current) return;
+      // Let Virtuoso do the positioning math (it re-anchors on item-height
+      // changes, so a raw scrollTop write can be immediately adjusted away).
+      virtuosoRef.current?.scrollToIndex({
+        index: "LAST",
+        align: "end",
+        behavior: "auto",
+      });
+      el.scrollTop = el.scrollHeight;
+    };
+    const disarm = () => {
+      initialPinRef.current = false;
+      observer.disconnect();
+    };
+
+    const observer = new ResizeObserver(pin);
+    observer.observe(el);
+    // The scroller's direct child is height:100%; the element that actually
+    // grows with late-loading content is Virtuoso's inner item list.
+    const itemList = el.querySelector('[data-testid="virtuoso-item-list"]');
+    if (itemList) observer.observe(itemList);
+    else if (el.firstElementChild) observer.observe(el.firstElementChild);
+    pin();
+
+    // Real scroll intent only: wheel/touch/keyboard (and scrollbar drags via
+    // mousedown on the scroller). Programmatic scrollTop writes fire `scroll`
+    // events too, so listening to `scroll` here would disarm the pin itself.
+    el.addEventListener("wheel", disarm, { passive: true });
+    el.addEventListener("touchstart", disarm, { passive: true });
+    el.addEventListener("mousedown", disarm, { passive: true });
+    el.addEventListener("keydown", disarm);
+    return () => {
+      observer.disconnect();
+      el.removeEventListener("wheel", disarm);
+      el.removeEventListener("touchstart", disarm);
+      el.removeEventListener("mousedown", disarm);
+      el.removeEventListener("keydown", disarm);
+    };
+  }, [scrollerEl]);
+
+  // Toggle the floating scroll-to-latest button as the user scrolls.
+  useEffect(() => {
+    const el = scrollerEl;
+    if (!el) return;
+    const update = () => setShowJumpToLatest(shouldShowScrollToBottom(el));
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [scrollerEl]);
 
   // ---- jumpToMessage ----
 
@@ -2370,22 +2466,37 @@ export function MessageThread({
               <div className="h-px flex-1 bg-sbi-green/30" />
             </div>
           )}
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: hover only reveals already-focusable action buttons (reply/edit/pin) as a pointer affordance; it adds no behavior unavailable to keyboard users, so a role/keyboard handler would be semantically inappropriate */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: hover/tap only reveals already-focusable action buttons (reply/edit/pin) as a pointer affordance; it adds no behavior unavailable to keyboard users, so a role/keyboard handler would be semantically inappropriate */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: the click handler is the touch-device equivalent of the hover reveal above; the revealed buttons themselves are fully keyboard-operable */}
           <div
             className={`relative flex items-end gap-2 pb-1 ${
               isGroupStart ? "pt-5" : "pt-0.5"
             } ${isMine ? "justify-end" : "justify-start"}`}
-            onMouseEnter={() => setHoveredMessageId(msg.id)}
+            onMouseEnter={() => {
+              // Touch browsers emulate mouseenter right before click; letting
+              // it set the hover state would make the click toggle it back
+              // off, so the reveal is click-driven only in compact mode.
+              if (compactActions) return;
+              setHoveredMessageId(msg.id);
+            }}
             onMouseLeave={() =>
               setHoveredMessageId((current) =>
                 current === msg.id ? null : current,
               )
             }
+            onClick={() => {
+              // Touch path: no hover exists, so tapping the message toggles
+              // the action pill instead. Desktop hover behavior is unchanged.
+              if (!compactActions) return;
+              setHoveredMessageId((current) =>
+                current === msg.id ? null : msg.id,
+              );
+            }}
           >
             <div
-              className={`flex flex-col gap-1 max-w-[75%] ${
-                isMine ? "items-end" : "items-start"
-              }`}
+              className={`flex flex-col gap-1 ${
+                isEditing ? "w-full max-w-[560px]" : "max-w-[75%]"
+              } ${isMine ? "items-end" : "items-start"}`}
             >
               {isGroupStart && time && (
                 <span className="text-[10px] tabular-nums text-sbi-muted-dark px-1">
@@ -2399,7 +2510,9 @@ export function MessageThread({
               )}
 
               <div
-                className={`relative flex flex-col gap-1 w-fit ${
+                className={`relative flex flex-col gap-1 ${
+                  isEditing ? "w-full" : "w-fit"
+                } ${
                   isMine ? "items-end" : "items-start"
                 } transition-all duration-700 ${
                   isHighlighted
@@ -2414,9 +2527,16 @@ export function MessageThread({
                 {/* Hover pill */}
                 {showHoverPill && (
                   <div
-                    className={`absolute top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 ${
-                      isMine ? "right-full mr-2" : "left-full ml-2"
-                    }`}
+                    className={cn(
+                      "absolute z-10 flex items-center gap-1.5",
+                      compactActions
+                        ? // Narrow panes / touch: beside-the-bubble placement
+                          // would clip off-screen, so overlay above the bubble.
+                          `bottom-full mb-1 ${isMine ? "right-0" : "left-0"}`
+                        : `top-1/2 -translate-y-1/2 ${
+                            isMine ? "right-full mr-2" : "left-full ml-2"
+                          }`,
+                    )}
                   >
                     {!isGroupStart && time && (
                       <span className="text-[10px] tabular-nums text-sbi-muted-dark whitespace-nowrap pointer-events-none">
@@ -2425,7 +2545,12 @@ export function MessageThread({
                       </span>
                     )}
                     {msg.status === "sent" && !readOnly && (
-                      <div className="flex items-center gap-0.5 rounded-md border border-sbi-dark-border/70 bg-sbi-dark-card p-0.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.6)]">
+                      // biome-ignore lint/a11y/noStaticElementInteractions: click handler only stops propagation so taps on the action buttons don't re-trigger the row's tap-to-toggle reveal
+                      // biome-ignore lint/a11y/useKeyWithClickEvents: see above — no action of its own, purely propagation control
+                      <div
+                        className="flex items-center gap-0.5 rounded-md border border-sbi-dark-border/70 bg-sbi-dark-card p-0.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.6)]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {isMine && msg.text && (
                           <button
                             type="button"
@@ -2435,7 +2560,7 @@ export function MessageThread({
                               setEditingMessageId(msg.id);
                               setEditValue(msg.text ?? "");
                             }}
-                            className="flex h-6 w-6 items-center justify-center rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer"
+                            className="flex h-10 w-10 md:h-6 md:w-6 items-center justify-center rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />
                           </button>
@@ -2449,7 +2574,7 @@ export function MessageThread({
                               setDeleteTargetId(msg.id);
                               setHoveredMessageId(null);
                             }}
-                            className="flex h-6 w-6 items-center justify-center rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            className="flex h-10 w-10 md:h-6 md:w-6 items-center justify-center rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
                           </button>
@@ -2462,7 +2587,7 @@ export function MessageThread({
                             setReplyingTo(msg);
                             textareaRef.current?.focus();
                           }}
-                          className="flex h-6 w-6 items-center justify-center rounded text-sbi-muted hover:text-sbi-green transition-colors cursor-pointer"
+                          className="flex h-10 w-10 md:h-6 md:w-6 items-center justify-center rounded text-sbi-muted hover:text-sbi-green transition-colors cursor-pointer"
                         >
                           <Reply className="w-3.5 h-3.5" strokeWidth={1.5} />
                         </button>
@@ -2473,7 +2598,7 @@ export function MessageThread({
                           }
                           title={msg.isPinned ? "Unpin" : "Pin"}
                           onClick={() => togglePin(msg)}
-                          className={`flex h-6 w-6 items-center justify-center rounded transition-colors cursor-pointer ${
+                          className={`flex h-10 w-10 md:h-6 md:w-6 items-center justify-center rounded transition-colors cursor-pointer ${
                             msg.isPinned
                               ? "text-sbi-green hover:text-sbi-muted"
                               : "text-sbi-muted hover:text-sbi-green"
@@ -2518,7 +2643,7 @@ export function MessageThread({
 
                 {/* Text bubble or edit box */}
                 {isEditing ? (
-                  <div className="flex w-[min(560px,70vw)] min-w-[340px] flex-col overflow-hidden rounded-xl border border-sbi-green/40 bg-sbi-dark-card">
+                  <div className="flex w-full max-w-[560px] min-w-0 flex-col overflow-hidden rounded-xl border border-sbi-green/40 bg-sbi-dark-card">
                     <textarea
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
@@ -2633,6 +2758,7 @@ export function MessageThread({
       latestReadMsgId,
       otherLastReadAt,
       editValue,
+      compactActions,
       jumpToMessage,
       openLightbox,
       togglePin,
@@ -2691,7 +2817,7 @@ export function MessageThread({
                 i > 0 ? i - 1 : searchMatches.length - 1,
               )
             }
-            className="flex h-6 w-6 items-center justify-center rounded text-sbi-muted hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+            className="flex h-10 w-10 md:h-6 md:w-6 items-center justify-center rounded text-sbi-muted hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" strokeWidth={1.75} />
           </button>
@@ -2704,7 +2830,7 @@ export function MessageThread({
                 (i) => (i + 1) % Math.max(1, searchMatches.length),
               )
             }
-            className="flex h-6 w-6 items-center justify-center rounded text-sbi-muted hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+            className="flex h-10 w-10 md:h-6 md:w-6 items-center justify-center rounded text-sbi-muted hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
           >
             <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
           </button>
@@ -2716,7 +2842,7 @@ export function MessageThread({
               setSearchQuery("");
               setSearchMatches([]);
             }}
-            className="flex h-6 w-6 items-center justify-center rounded text-sbi-muted hover:text-white transition-colors cursor-pointer"
+            className="flex h-10 w-10 md:h-6 md:w-6 items-center justify-center rounded text-sbi-muted hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" strokeWidth={1.75} />
           </button>
@@ -2767,6 +2893,9 @@ export function MessageThread({
         ) : (
           <Virtuoso
             ref={virtuosoRef}
+            scrollerRef={(el) =>
+              setScrollerEl(el instanceof HTMLElement ? el : null)
+            }
             firstItemIndex={firstItemIndex}
             initialTopMostItemIndex={messages.length - 1}
             data={messages}
@@ -2797,6 +2926,22 @@ export function MessageThread({
                 ) : noMoreOlder.current ? null : null,
             }}
           />
+        )}
+
+        {/* Floating scroll-to-latest — appears once scrolled up ~a viewport
+            from the newest message; the "New messages" pill takes precedence. */}
+        {showJumpToLatest && !hasNew && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
+            <button
+              type="button"
+              onClick={() => scrollToBottom()}
+              aria-label="Scroll to latest message"
+              title="Scroll to bottom"
+              className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-sbi-dark-border/60 bg-sbi-dark/80 text-white/80 backdrop-blur-sm shadow-lg transition-colors hover:text-white hover:bg-sbi-dark-card"
+            >
+              <ArrowDown className="h-4 w-4" strokeWidth={1.5} />
+            </button>
+          </div>
         )}
       </div>
 

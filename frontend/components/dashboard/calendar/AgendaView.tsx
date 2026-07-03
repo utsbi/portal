@@ -94,7 +94,10 @@ export function AgendaView({
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto custom-scrollbar">
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto custom-scrollbar -mr-4 sm:-mr-6 md:-mr-8 pr-4 sm:pr-6 md:pr-8"
+    >
       <div className="flex flex-col gap-8 px-1 py-2">
         {nonEmpty.map((bucket) => {
           if (bucket.id === "past") {
