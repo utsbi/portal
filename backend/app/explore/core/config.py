@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     TITLE_MODEL: Optional[str] = None
     EMBEDDING_MODEL: Optional[str] = None
     EMBEDDING_DIMENSIONS: Optional[int] = None
+    VISION_MODEL: Optional[str] = None
     RERANK_MODEL: Optional[str] = None
     RERANK_CANDIDATES: Optional[int] = None
     RERANK_TOP_N: Optional[int] = None
@@ -67,18 +68,36 @@ class Settings(BaseSettings):
     def embedding_model(self) -> str:
         """Get embedding model name.
 
-        Defaults to qwen3-embedding-8b, which natively emits 4096-dim vectors
-        matching the ``client_knowledge.embedding`` column and the default
-        ``embedding_dimensions`` below. (The previous default,
-        text-embedding-3-small, maxes out at 1536 dims and contradicted the
-        4096 dimension default.)
+        Defaults to qwen3-embedding-8b, requested at 1536 dims via Matryoshka
+        (MRL) truncation — see ``embedding_dimensions`` below.
         """
         return self.EMBEDDING_MODEL or "qwen/qwen3-embedding-8b"
 
     @property
     def embedding_dimensions(self) -> int:
-        """Get embedding vector dimensions (must match the stored vector size)."""
-        return self.EMBEDDING_DIMENSIONS or 4096
+        """Embedding vector dimensions (must match ``client_knowledge.embedding``,
+        typed ``vector(1536)``).
+
+        1536 is qwen3-embedding-8b's native 4096 MRL-truncated + renormalized,
+        which keeps the column under pgvector's 2000-dim HNSW limit so vector
+        search is index-backed instead of a sequential scan. Verified 2026-07-02:
+        OpenRouter honors ``dimensions=1536`` and returns unit-norm vectors
+        identical (cos ≈ 0.9999) to l2_normalize(subvector(4096-dim, 1, 1536)).
+        """
+        return self.EMBEDDING_DIMENSIONS or 1536
+
+    @property
+    def vision_model(self) -> str:
+        """Model used to transcribe image attachments into text.
+
+        The chat models (DeepSeek) are text-only, so images are converted to
+        text ONCE at attach time and then flow through the standard
+        text-attachment pipeline. Set VISION_MODEL="" to disable image
+        attachments entirely.
+        """
+        if self.VISION_MODEL is not None:
+            return self.VISION_MODEL
+        return "google/gemini-2.5-flash-lite"
 
     @property
     def rerank_model(self) -> str:

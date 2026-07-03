@@ -436,12 +436,21 @@ async def run_graph_streaming(
         # Emit tool_result events and append history messages in the same stable order.
         for (name, tc_id, args), (result_text, sources) in zip(parsed_calls, tool_results):
             collected_sources.extend(sources)
+            # create_request's result embeds the PROPOSAL_JSON payload the
+            # frontend confirmation card parses (subject ≤150 + message ≤4000
+            # chars) — truncating it would silently drop the card, so it is
+            # exempt from the display cap applied to other tools' summaries.
+            event_text = (
+                result_text
+                if name == "create_request"
+                else (result_text or "")[:1200]
+            )
             yield {"type": "tool_result", "id": tc_id, "name": name, "output": {
                 "sources": [
                     {"filename": s.get("filename"), "page_number": s.get("page_number")}
                     for s in sources
                 ],
-                "text": (result_text or "")[:1200],
+                "text": event_text,
             }}
             messages.append({
                 "role": "tool",

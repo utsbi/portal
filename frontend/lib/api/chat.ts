@@ -236,9 +236,28 @@ async function storeAttachment(att: AttachmentFile): Promise<AttachmentFile> {
 }
 
 /**
+ * Fetch the full extracted text of one of the caller's own chat attachments by
+ * content hash (RLS: owner-only). Used by "Save to project knowledge". Returns
+ * null when the row is missing or unreadable.
+ */
+export async function getAttachmentContent(
+  hash: string,
+): Promise<{ filename: string; content: string } | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("client_chat_attachments")
+    .select("filename, content")
+    .eq("content_hash", hash)
+    .maybeSingle();
+  if (error || !data?.content) return null;
+  return { filename: data.filename, content: data.content };
+}
+
+/**
  * Extract text from a file for session-only attachment.
- * PDF/DOCX go through the backend (via the /api/chat/extract proxy); plain text
- * is read entirely in the browser.
+ * PDF/DOCX go through the backend (via the /api/chat/extract proxy), and so do
+ * images — the chat models are text-only, so the backend transcribes them with
+ * a vision model at attach time. Plain text is read entirely in the browser.
  * After extraction the content is stored in client_chat_attachments (content-
  * addressed) and subsequent turns reference it by hash rather than resending.
  */
@@ -248,7 +267,9 @@ export async function extractFileText(file: File): Promise<AttachmentFile> {
   if (
     filename.endsWith(".pdf") ||
     filename.endsWith(".doc") ||
-    filename.endsWith(".docx")
+    filename.endsWith(".docx") ||
+    file.type.startsWith("image/") ||
+    /\.(png|jpe?g|webp|gif)$/.test(filename)
   ) {
     const formData = new FormData();
     formData.append("file", file);

@@ -145,13 +145,6 @@ SELECT 'form_public', max(id) FROM public.custom_form_schemas
 ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v;
 
 -- =====================================================================
--- legal_documents (staff-only after D6)
--- =====================================================================
-INSERT INTO public.legal_documents (content, metadata) VALUES
-  ('Confidential NDA template', '{"kind":"nda"}'::jsonb),
-  ('Confidential MSA template', '{"kind":"msa"}'::jsonb);
-
--- =====================================================================
 -- website_forms (public intake; staff-only read after D6)
 -- =====================================================================
 INSERT INTO public.website_forms (name, email, subject, message, ip_address) VALUES

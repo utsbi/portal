@@ -1,4 +1,4 @@
-import { File, FileText } from "lucide-react";
+import { File, FileText, Image as ImageIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 /**
@@ -57,6 +57,20 @@ export function getFileInfo(filename: string): {
           </Chip>
         ),
         label: "TXT",
+        color: "text-sbi-muted",
+      };
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "webp":
+    case "gif":
+      return {
+        icon: (
+          <Chip>
+            <ImageIcon className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </Chip>
+        ),
+        label: "Image",
         color: "text-sbi-muted",
       };
     default:

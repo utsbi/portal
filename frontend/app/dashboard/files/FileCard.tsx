@@ -22,6 +22,7 @@ import { useState } from "react";
 import { Modal } from "@/components/dashboard/common/Modal";
 import { toastError } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/client";
+import { withRoot } from "./storage";
 
 type IndexState = "indexed" | "indexing" | "not-indexable";
 
@@ -113,10 +114,12 @@ export default function FileCard({
   ): Promise<string | null> => {
     const fullPath = folderPath ? `${folderPath}/${name}` : name;
     try {
+      // Storage keys are rooted under the active project prefix — signing the
+      // bare page-relative path returns "Object not found".
       const { data, error } = await supabase.storage
         .from("Files")
         .createSignedUrl(
-          fullPath,
+          withRoot(fullPath),
           expiresIn,
           opts?.download ? { download: opts.download } : undefined,
         );
@@ -176,7 +179,7 @@ export default function FileCard({
       <div
         ref={setDragRef}
         {...(canManage ? listeners : {})}
-        className={`group relative flex min-h-[3.75rem] items-center gap-3 overflow-hidden border border-sbi-dark-border/50 rounded-lg px-4 py-3 hover:border-sbi-green/40 transition-colors bg-sbi-dark-card/40 ${
+        className={`group relative flex min-h-[4.5rem] items-center gap-3.5 overflow-hidden border border-sbi-dark-border/50 rounded-xl px-5 py-4 hover:border-sbi-green/40 transition-colors bg-sbi-dark-card/40 ${
           canManage
             ? isDragging
               ? "opacity-40 cursor-grabbing"
@@ -184,12 +187,14 @@ export default function FileCard({
             : ""
         }`}
       >
-        <Icon className="h-4 w-4 text-sbi-muted shrink-0" />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sbi-dark-border/60 bg-sbi-dark/40">
+          <Icon className="h-4 w-4 text-sbi-muted" />
+        </div>
         <div className="min-w-0 flex-1" {...(canManage ? attributes : {})}>
           <div className="text-sm font-medium text-white truncate" title={name}>
             {name}
           </div>
-          <div className="flex items-center gap-2 text-xs text-sbi-muted">
+          <div className="mt-0.5 flex items-center gap-2 text-xs text-sbi-muted">
             <span>{formattedDate}</span>
             {indexState === "indexing" ? (
               <span

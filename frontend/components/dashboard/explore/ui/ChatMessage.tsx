@@ -1,8 +1,10 @@
 "use client";
 
 import { code } from "@streamdown/code";
+import { createMathPlugin } from "@streamdown/math";
 import gsap from "gsap";
 import {
+  BookmarkPlus,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -23,23 +25,42 @@ import {
 } from "react";
 import { type Components, Streamdown } from "streamdown";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { SourceDocument } from "@/lib/api/chat";
+import { getAttachmentContent, type SourceDocument } from "@/lib/api/chat";
+import { saveTextToKnowledge } from "@/lib/api/knowledge";
 import type { DisplayMessage, TimelineStep } from "@/lib/chat/chat-context";
 import { useChat } from "@/lib/chat/chat-context";
+import { toastError, toastSuccess } from "@/lib/notifications";
+import { useProject } from "@/lib/project/project-context";
+import { createClient } from "@/lib/supabase/client";
 import { getFileInfo } from "./file-info";
 import { ProcessTimeline } from "./ProcessTimeline";
+
+// Single-dollar inline math ON (the default is $$-only): the model is
+// prompted to write inline math as $…$ and to escape currency as \$, and
+// remark-math's whitespace rules reject most accidental currency pairs anyway.
+const math = createMathPlugin({ singleDollarTextMath: true });
 
 interface ChatMessageProps {
   message: DisplayMessage;
   isLatestAssistant?: boolean;
 }
 
-// Inline citation chip: numeric badge with hover-card preview, links to /dashboard/files.
+// Inline citation chip: numeric badge with hover-card preview. Clicking opens
+// the source viewer slide-over with the retrieved passage (the exact text the
+// answer was grounded in — already persisted on the message's sources), so
+// answers are auditable without leaving the chat.
 function CitationChip({
   index,
   source,
@@ -47,34 +68,228 @@ function CitationChip({
   index: number;
   source: SourceDocument;
 }) {
+  const [open, setOpen] = useState(false);
   const filename = source.filename;
   const preview = (source.content || "").slice(0, 220).trim();
   return (
-    <TooltipProvider delayDuration={150}>
-      <Tooltip>
-        <TooltipTrigger asChild>
+    <>
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex items-center justify-center align-middle mx-0.5 h-[1.125rem] min-w-[1.125rem] px-1 rounded-full text-[10px] font-semibold tabular-nums text-sbi-green/90 bg-sbi-green/10 ring-1 ring-inset ring-sbi-green/30 hover:bg-sbi-green/25 hover:ring-sbi-green/60 hover:text-sbi-green transition-all"
+              aria-label={`Source ${index}: ${filename}`}
+            >
+              {index}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            className="max-w-xs text-xs leading-relaxed bg-sbi-dark-card border-sbi-dark-border"
+          >
+            <div className="text-white font-medium mb-1">
+              {filename}
+              {source.page_number ? ` (p. ${source.page_number})` : ""}
+            </div>
+            {preview && (
+              <div className="text-sbi-muted line-clamp-4">{preview}</div>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <SourceViewerSheet
+        open={open}
+        onOpenChange={setOpen}
+        index={index}
+        source={source}
+      />
+    </>
+  );
+}
+
+// Slide-over showing the full retrieved passage behind a citation. Radix
+// mounts the sheet content only while open, so one per chip costs nothing
+// at rest.
+function SourceViewerSheet({
+  open,
+  onOpenChange,
+  index,
+  source,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  index: number;
+  source: SourceDocument;
+}) {
+  const filename = source.filename;
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md bg-sbi-dark border-sbi-dark-border text-white flex flex-col gap-0 p-0"
+      >
+        <SheetHeader className="border-b border-sbi-dark-border px-5 py-4">
+          <SheetTitle className="flex items-center gap-2 text-white text-sm font-medium">
+            <span className="inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-md border border-sbi-green/30 bg-sbi-green/10 px-1 text-[11px] font-medium text-sbi-green/90">
+              {index}
+            </span>
+            <span className="truncate">{filename}</span>
+          </SheetTitle>
+          <SheetDescription className="text-xs text-sbi-muted">
+            {source.page_number ? `Page ${source.page_number} · ` : ""}
+            Passage retrieved from your project documents — the answer's [
+            {index}] citations are grounded in this text.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar px-5 py-4">
+          <p className="whitespace-pre-wrap break-words text-[13px] font-light leading-relaxed text-white/85">
+            {source.content || "The passage text is not available."}
+          </p>
+        </div>
+        <div className="border-t border-sbi-dark-border px-5 py-3">
           <Link
             href={`/dashboard/files?file=${encodeURIComponent(filename)}`}
-            className="inline-flex items-center justify-center align-baseline mx-0.5 px-1.5 h-5 text-[11px] font-medium text-sbi-green/90 bg-sbi-green/10 border border-sbi-green/30 rounded-md no-underline hover:bg-sbi-green/20 hover:text-sbi-green transition-colors"
-            aria-label={`Source ${index}: ${filename}`}
+            className="text-xs font-medium text-sbi-green/90 hover:text-sbi-green transition-colors"
           >
-            {index}
+            Open in Files →
           </Link>
-        </TooltipTrigger>
-        <TooltipContent
-          side="top"
-          className="max-w-xs text-xs leading-relaxed bg-sbi-dark-card border-sbi-dark-border"
-        >
-          <div className="text-white font-medium mb-1">
-            {filename}
-            {source.page_number ? ` (p. ${source.page_number})` : ""}
-          </div>
-          {preview && (
-            <div className="text-sbi-muted line-clamp-4">{preview}</div>
-          )}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// Attachment chip on a sent message. Chat attachments are session-scoped;
+// directors get a one-click bridge into the shared, searchable project
+// knowledge base (the backend indexes it as source='chat').
+function MessageAttachmentChip({
+  attachment,
+}: {
+  attachment: { filename: string; hash?: string; content?: string };
+}) {
+  const { user, activeProject } = useProject();
+  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
+  const fileInfo = getFileInfo(attachment.filename);
+  const projectId = activeProject?.projectId ?? null;
+  const canSave =
+    user?.role === "director" &&
+    projectId !== null &&
+    Boolean(attachment.hash || attachment.content);
+
+  // A saved attachment stays saved across reloads: the corpus stamps the same
+  // SHA-256 (both sides hash the extracted text), so a hash hit in
+  // client_knowledge means this exact content is already indexed. Members can
+  // read their project's rows under RLS, so this is a cheap existence check.
+  useEffect(() => {
+    if (!canSave || !attachment.hash || projectId === null) return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("client_knowledge")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("metadata->>content_hash", attachment.hash)
+      .limit(1)
+      .then(({ data }) => {
+        if (!cancelled && data && data.length > 0) setState("saved");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canSave, attachment.hash, projectId]);
+
+  const handleSave = async () => {
+    if (!canSave || state !== "idle" || projectId === null) return;
+    setState("saving");
+    try {
+      const content =
+        attachment.content ??
+        (attachment.hash
+          ? (await getAttachmentContent(attachment.hash))?.content
+          : undefined);
+      if (!content) {
+        throw new Error("The attachment's text is no longer available.");
+      }
+      const res = await saveTextToKnowledge(
+        projectId,
+        attachment.filename,
+        content,
+      );
+      setState("saved");
+      toastSuccess(
+        res.duplicate
+          ? `"${attachment.filename}" is already in the project knowledge.`
+          : `"${attachment.filename}" saved — the assistant can now search it for the whole team.`,
+        "Project knowledge",
+      );
+    } catch (err) {
+      setState("idle");
+      toastError(
+        err instanceof Error ? err.message : "Couldn't save the attachment.",
+        "Save failed",
+      );
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 bg-sbi-dark-card/80 border border-sbi-dark-border rounded-xl">
+      {fileInfo.icon}
+      <div className="flex flex-col min-w-0">
+        <span className="text-sm text-white font-light truncate max-w-40">
+          {attachment.filename.replace(/\.[^/.]+$/, "")}
+        </span>
+        <span className={`text-xs ${fileInfo.color}`}>{fileInfo.label}</span>
+      </div>
+      {canSave && (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={state !== "idle"}
+                aria-label={
+                  state === "saved"
+                    ? "Saved to project knowledge"
+                    : "Save to project knowledge"
+                }
+                className="ml-1 shrink-0 rounded-md p-1 text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors disabled:hover:bg-transparent"
+              >
+                {state === "saving" ? (
+                  <span className="block size-3.5 animate-spin rounded-full border border-sbi-green/40 border-t-sbi-green/90" />
+                ) : state === "saved" ? (
+                  <Check
+                    className="size-3.5 text-sbi-green"
+                    strokeWidth={1.5}
+                  />
+                ) : (
+                  <BookmarkPlus className="size-3.5" strokeWidth={1.5} />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              className="max-w-56 text-xs leading-relaxed bg-sbi-dark-card border border-sbi-dark-border"
+            >
+              {state === "saved" ? (
+                <div className="text-white">Saved to project knowledge</div>
+              ) : (
+                <>
+                  <div className="text-white font-medium mb-1">
+                    Save to project knowledge
+                  </div>
+                  <div className="text-sbi-muted">
+                    Lets the assistant search this file for the whole team.
+                  </div>
+                </>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
   );
 }
 
@@ -492,30 +707,22 @@ export function ChatMessage({
   if (isUser) {
     return (
       <div ref={containerRef} className="group flex justify-end">
-        {/* Content column, right aligned, set width */}
-        <div className="flex flex-col items-end gap-2 max-w-[80%] overflow-hidden">
+        {/* Content column, right aligned, set width. While editing it takes
+            the full row so the textarea gets real horizontal room. */}
+        <div
+          className={`flex flex-col items-end gap-2 overflow-hidden ${
+            isEditing ? "w-full" : "max-w-[80%]"
+          }`}
+        >
           {/* Attached files, horizontal row, right-aligned */}
           {messageAttachments.length > 0 && !isEditing && (
             <div className="flex flex-row flex-wrap justify-end gap-2">
-              {messageAttachments.map((attachment) => {
-                const fileInfo = getFileInfo(attachment.filename);
-                return (
-                  <div
-                    key={attachment.filename}
-                    className="flex items-center gap-2 px-3 py-2 bg-sbi-dark-card/80 border border-sbi-dark-border rounded-xl"
-                  >
-                    {fileInfo.icon}
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm text-white font-light truncate max-w-40">
-                        {attachment.filename.replace(/\.[^/.]+$/, "")}
-                      </span>
-                      <span className={`text-xs ${fileInfo.color}`}>
-                        {fileInfo.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+              {messageAttachments.map((attachment) => (
+                <MessageAttachmentChip
+                  key={attachment.filename}
+                  attachment={attachment}
+                />
+              ))}
             </div>
           )}
 
@@ -554,7 +761,11 @@ export function ChatMessage({
             </div>
 
             {/* Message bubble */}
-            <div className="min-w-0 bg-sbi-dark-card/80 border border-sbi-green/20 rounded-2xl overflow-hidden relative">
+            <div
+              className={`min-w-0 bg-sbi-dark-card/80 border border-sbi-green/20 rounded-2xl overflow-hidden relative ${
+                isEditing ? "flex-1" : ""
+              }`}
+            >
               {/* Expand/Collapse button */}
               {isOverflowing && !isEditing && (
                 <button
@@ -651,7 +862,7 @@ export function ChatMessage({
     <div ref={containerRef} className="flex items-start gap-4">
       {/* AI Avatar — top-aligned with, and centered to, the first line of text */}
       <div className="relative shrink-0">
-        <div className="w-8 h-8 rounded-full bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-sbi-dark-card border border-sbi-dark-border flex items-center justify-center">
           {message.isCancelled ? (
             <div className="w-2.5 h-2.5 bg-sbi-muted/60 rounded-full" />
           ) : (
@@ -659,12 +870,12 @@ export function ChatMessage({
           )}
         </div>
         <div
-          className={`absolute inset-0 w-8 h-8 rounded-full blur-md -z-10 ${message.isCancelled ? "bg-sbi-muted/10" : "bg-sbi-green/20"}`}
+          className={`absolute inset-0 w-10 h-10 rounded-full blur-md -z-10 ${message.isCancelled ? "bg-sbi-muted/10" : "bg-sbi-green/20"}`}
         />
       </div>
 
       {/* Message content */}
-      <div className="flex-1 min-w-0 pt-1">
+      <div className="flex-1 min-w-0">
         {hasTimeline && (
           <div className="mb-3">
             <ProcessTimeline
@@ -679,7 +890,7 @@ export function ChatMessage({
             {displayContent && (
               <div className="prose-ai dark text-white font-light text-base leading-relaxed">
                 <Streamdown
-                  plugins={{ code }}
+                  plugins={{ code, math }}
                   components={markdownComponents}
                   shikiTheme={["github-dark", "github-dark"]}
                   isAnimating={false}
@@ -702,7 +913,7 @@ export function ChatMessage({
               aria-busy={message.isStreaming}
             >
               <Streamdown
-                plugins={{ code }}
+                plugins={{ code, math }}
                 components={markdownComponents}
                 shikiTheme={["github-dark", "github-dark"]}
                 isAnimating={message.isStreaming && !streamStatusLabel}

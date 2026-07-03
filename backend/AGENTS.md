@@ -20,7 +20,7 @@ check live project status, and get answers about their SBI projects.
 | LLM provider | OpenRouter (OpenAI-compatible API) |
 | LLM SDK | `openai` Python SDK (`base_url=https://openrouter.ai/api/v1`) |
 | Validation | Pydantic V2 |
-| Embeddings | Qwen3-Embedding-8B (4096-dim) via OpenRouter |
+| Embeddings | Qwen3-Embedding-8B via OpenRouter, MRL-truncated to 1536-dim (HNSW-indexed) |
 
 ## 3. Directory Structure
 
@@ -152,7 +152,8 @@ FAST_MODEL=...                               # Fast responses + tool-calling age
 THINK_MODEL=...                              # Final answer when model_preference="thinking"
 TITLE_MODEL=...                              # Optional; conversation-title model. Falls back to FAST_MODEL
 EMBEDDING_MODEL=...                          # Embedding model
-EMBEDDING_DIMENSIONS=4096                    # Optional; omit to use model default
+EMBEDDING_DIMENSIONS=1536                    # Must match client_knowledge.embedding vector(1536)
+VISION_MODEL=google/gemini-2.5-flash-lite    # Transcribes image attachments (empty disables them)
 RERANK_MODEL=...                             # Optional; reranker for hybrid retrieval
 RERANK_CANDIDATES=...                        # Optional; candidate pool size for reranking
 RERANK_TOP_N=...                             # Optional; results kept after reranking

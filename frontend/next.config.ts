@@ -74,7 +74,12 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self'",
       `img-src 'self' data: blob: https://picsum.photos ${supabaseOrigin}`,
-      "frame-src https://challenges.cloudflare.com",
+      // The Files page previews PDFs in an <iframe> and video/audio via
+      // <video>/<audio>, all pointing at Supabase Storage signed URLs — the
+      // storage origin must be allowed or the browser renders "This content
+      // is blocked" in place of the preview.
+      `frame-src https://challenges.cloudflare.com ${supabaseOrigin}`.trim(),
+      `media-src 'self' blob: ${supabaseOrigin}`.trim(),
       "frame-ancestors 'none'",
       "object-src 'none'",
       "base-uri 'self'",

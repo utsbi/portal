@@ -52,7 +52,13 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="bg-foreground fill-foreground z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px]" />
+        {/* bg-inherit keeps the diamond matched to the content's ACTUAL
+            background — dark-themed overrides (bg-sbi-dark-card tooltips in
+            the Explore chat) previously got a floating foreground-colored
+            diamond. fill-transparent mutes the svg polygon so only the
+            rotated square paints (the polygon coincided with the bg before,
+            so default tooltips look unchanged). */}
+        <TooltipPrimitive.Arrow className="bg-inherit fill-transparent z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px]" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );

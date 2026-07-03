@@ -813,12 +813,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const accepted =
       file.type === "application/pdf" ||
       file.type.startsWith("text/") ||
+      file.type.startsWith("image/") ||
       name.endsWith(".pdf") ||
       name.endsWith(".txt") ||
       name.endsWith(".doc") ||
-      name.endsWith(".docx");
+      name.endsWith(".docx") ||
+      /\.(png|jpe?g|webp|gif)$/.test(name);
     if (!accepted) {
-      setError(`"${file.name}" isn't a supported type (PDF, DOC, DOCX, TXT).`);
+      setError(
+        `"${file.name}" isn't a supported type (PDF, DOC, DOCX, TXT, or an image).`,
+      );
       return;
     }
     if (file.size > MAX_ATTACHMENT_BYTES) {

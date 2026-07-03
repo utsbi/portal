@@ -103,6 +103,63 @@ class TestIndexFilePathTraversal:
         assert resp.status_code in (400, 422), resp.text
 
 
+class TestMoveFilePathTraversal:
+    """move-file takes TWO client-controlled paths; each must pass the same
+    guard as index-file or one side of the move could address another
+    project's client_knowledge rows."""
+
+    @pytest.mark.parametrize(
+        "from_path,to_path",
+        [
+            ("../6/secret.pdf", "ok.pdf"),        # escaping source
+            ("ok.pdf", "../6/stolen.pdf"),        # escaping destination
+            ("/etc/passwd.pdf", "ok.pdf"),        # absolute source
+            ("ok.pdf", "a/../../b.pdf"),          # mid-path traversal dest
+            ("ok.pdf", "bad\x00.pdf"),            # null byte dest
+        ],
+    )
+    def test_traversal_rejected_before_rpc(
+        self, director_client, monkeypatch, from_path, to_path
+    ):
+        rpc_spy = MagicMock()
+        monkeypatch.setattr(docs_mod.supabase, "rpc", rpc_spy)
+        resp = director_client.post(
+            "/api/v1/documents/knowledge/move-file",
+            headers={"Authorization": "Bearer t"},
+            json={"project_id": 5, "from_path": from_path, "to_path": to_path},
+        )
+        assert resp.status_code in (400, 422), resp.text
+        rpc_spy.assert_not_called()
+
+    def test_valid_move_calls_rpc_with_expected_params(
+        self, director_client, monkeypatch
+    ):
+        rpc_chain = MagicMock()
+        rpc_chain.execute.return_value = MagicMock(data=3)
+        rpc_spy = MagicMock(return_value=rpc_chain)
+        monkeypatch.setattr(docs_mod.supabase, "rpc", rpc_spy)
+
+        resp = director_client.post(
+            "/api/v1/documents/knowledge/move-file",
+            headers={"Authorization": "Bearer t"},
+            json={
+                "project_id": 5,
+                "from_path": "Media/old.pdf",
+                "to_path": "Archive/new.pdf",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"moved": 3}
+        rpc_spy.assert_called_once_with(
+            "move_client_knowledge_file",
+            {
+                "_project_id": 5,
+                "_from_path": "Media/old.pdf",
+                "_to_path": "Archive/new.pdf",
+            },
+        )
+
+
 class TestScopedProjectIds:
     """Server-side scoping: a client-supplied project_id the caller is NOT a
     member of must yield [] (no data), never widen access."""

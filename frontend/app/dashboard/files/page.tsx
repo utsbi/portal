@@ -30,6 +30,7 @@ import {
   deletePortalFileIndex,
   indexPortalFile,
   listIndexedFiles,
+  movePortalFileIndex,
 } from "@/lib/api/knowledge";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
@@ -54,6 +55,7 @@ import {
   uploadFile,
 } from "./storage";
 import TreeNode, { type FolderNode } from "./TreeNode";
+import { type UploadItem, UploadTray } from "./UploadTray";
 import { useDragMove } from "./useDragMove";
 
 // File types the RAG ingester accepts. Uploading one of these auto-indexes it
@@ -74,8 +76,8 @@ function isIndexable(name: string): boolean {
 
 function SkeletonTile() {
   return (
-    <div className="flex min-h-[3.75rem] items-center gap-3 border border-sbi-dark-border/50 rounded-lg px-4 py-3 bg-sbi-dark-card/30 animate-pulse">
-      <div className="h-4 w-4 bg-white/5 rounded shrink-0" />
+    <div className="flex min-h-[4.5rem] items-center gap-3.5 border border-sbi-dark-border/50 rounded-xl px-5 py-4 bg-sbi-dark-card/30 animate-pulse">
+      <div className="h-9 w-9 bg-white/5 rounded-lg shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="h-4 w-3/5 bg-white/5 rounded mb-1.5" />
         <div className="h-3 w-2/5 bg-white/5 rounded" />
@@ -113,8 +115,14 @@ export default function FilesPage() {
 
   // Write-op UI state
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadCount, setUploadCount] = useState(0);
+  // Google-Drive-style upload tray (bottom right). Uploads never block the
+  // Upload button; each file's storage + indexing progress is a tray row.
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const updateUploadItem = (id: string, patch: Partial<UploadItem>) =>
+    setUploadItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+    );
+  const clearUploadTray = () => setUploadItems([]);
   const [isDragging, setIsDragging] = useState(false);
   const dragDepth = useRef(0);
 
@@ -151,6 +159,41 @@ export default function FilesPage() {
       // Non-critical: the badge just won't show. Don't disrupt the page.
     }
   }, [projectId]);
+
+  // Best-effort cascade of a storage move/rename into the RAG index so chunks
+  // keep pointing at the file's new path (mirrors the delete cascade — never
+  // blocks or fails the storage operation). Reads the indexed list fresh
+  // rather than from `indexedPaths` state: the drag-move Undo closure runs
+  // after the forward move already retargeted the index, so a captured set
+  // would be stale and the reverse cascade would silently no-op.
+  const propagateIndexMove = useCallback(
+    async (srcPath: string, destPath: string, kind: "file" | "folder") => {
+      if (projectId === null) return;
+      try {
+        const indexed = await listIndexedFiles(projectId);
+        const current = new Set(indexed.map((f) => f.storage_path));
+        const prefix = `${srcPath}/`;
+        const moves: Array<[string, string]> =
+          kind === "file"
+            ? current.has(srcPath)
+              ? [[srcPath, destPath]]
+              : []
+            : Array.from(current)
+                .filter((p) => p.startsWith(prefix))
+                .map((p) => [p, `${destPath}${p.slice(srcPath.length)}`]);
+        if (moves.length === 0) return;
+        await Promise.all(
+          moves.map(([from, to]) =>
+            movePortalFileIndex(projectId, from, to).catch(() => {}),
+          ),
+        );
+        await refreshIndexedFiles();
+      } catch {
+        // Non-critical: worst case the badge goes stale until re-index.
+      }
+    },
+    [projectId, refreshIndexedFiles],
+  );
 
   // Load the indexed list on mount and on project switch; clear stale state
   // first so a previous project's badges never bleed across the switch.
@@ -518,6 +561,7 @@ export default function FilesPage() {
     isDirector,
     removeFromGrid,
     refreshAfterMove,
+    onMoved: propagateIndexMove,
   });
 
   const sensors = useSensors(
@@ -530,55 +574,64 @@ export default function FilesPage() {
   const handleUploadFiles = async (fileList: FileList | File[]) => {
     const arr = Array.from(fileList);
     if (arr.length === 0) return;
-    setIsUploading(true);
-    setUploadCount(arr.length);
+
+    // Register every file in the tray up front, then work through them.
+    // Statuses (and errors) are reported per-row in the tray, not as toasts.
+    const batch = arr.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      targetPath: selectedFolderPath
+        ? `${selectedFolderPath}/${file.name}`
+        : file.name,
+    }));
+    setUploadItems((prev) => [
+      ...prev,
+      ...batch.map(({ id, file }) => ({
+        id,
+        name: file.name,
+        status: "uploading" as const,
+      })),
+    ]);
 
     let okCount = 0;
-    const failures: string[] = [];
-    const toIndex: string[] = [];
-    for (const file of arr) {
-      const targetPath = selectedFolderPath
-        ? `${selectedFolderPath}/${file.name}`
-        : file.name;
+    const toIndex: { id: string; path: string }[] = [];
+    for (const { id, file, targetPath } of batch) {
       const { error: upErr } = await uploadFile(targetPath, file);
       if (upErr) {
-        failures.push(
-          `${file.name}: ${humanizeStorageError(upErr.message, "upload")}`,
-        );
+        updateUploadItem(id, {
+          status: "error",
+          error: humanizeStorageError(upErr.message, "upload"),
+        });
       } else {
         okCount += 1;
-        if (isIndexable(file.name)) toIndex.push(targetPath);
+        if (isIndexable(file.name) && projectId !== null) {
+          toIndex.push({ id, path: targetPath });
+          updateUploadItem(id, { status: "indexing" });
+        } else {
+          updateUploadItem(id, { status: "done" });
+        }
       }
     }
 
-    setIsUploading(false);
-    setUploadCount(0);
-
-    if (okCount > 0) {
-      toastSuccess(
-        `${okCount} file${okCount === 1 ? "" : "s"} uploaded.`,
-        "Upload complete",
-      );
-    }
-    if (failures.length > 0) {
-      toastError(failures.join(" • "), "Some uploads failed");
-    }
-    await refreshAfterWrite();
+    if (okCount > 0) await refreshAfterWrite();
 
     // Best-effort auto-index of every newly uploaded indexable file. Each
-    // path shows "Indexing…" while its call is in flight, then the refreshed
-    // indexed-list flips it to "Indexed". A failed index just clears the
-    // in-flight badge — the storage upload already succeeded.
+    // path shows "Indexing…" while its call is in flight (grid badge + tray
+    // row), then the refreshed indexed-list flips it to "Indexed". A failed
+    // index resolves the tray row to done — the storage upload already
+    // succeeded — and reports the indexing failure as a toast.
     if (projectId !== null && toIndex.length > 0) {
       setIndexingPaths((prev) => {
         const next = new Set(prev);
-        for (const p of toIndex) next.add(p);
+        for (const { path } of toIndex) next.add(path);
         return next;
       });
+      let indexedCount = 0;
       await Promise.all(
-        toIndex.map(async (path) => {
+        toIndex.map(async ({ id, path }) => {
           try {
-            await indexPortalFile(projectId, path);
+            const res = await indexPortalFile(projectId, path);
+            if (res.indexed) indexedCount += 1;
           } catch (err) {
             toastError(
               err instanceof Error
@@ -587,6 +640,7 @@ export default function FilesPage() {
               "Indexing failed",
             );
           } finally {
+            updateUploadItem(id, { status: "done" });
             setIndexingPaths((prev) => {
               const next = new Set(prev);
               next.delete(path);
@@ -596,6 +650,14 @@ export default function FilesPage() {
         }),
       );
       await refreshIndexedFiles();
+      // Adoption nudge: uploading isn't the payoff — asking about the files
+      // is. Tell the director the assistant can now search what they added.
+      if (indexedCount > 0) {
+        toastSuccess(
+          `${indexedCount} file${indexedCount === 1 ? "" : "s"} added to project knowledge — ask Explore about ${indexedCount === 1 ? "it" : "them"}.`,
+          "Knowledge updated",
+        );
+      }
     }
   };
 
@@ -709,6 +771,7 @@ export default function FilesPage() {
       );
       setRenameTarget(null);
       await refreshAfterWrite();
+      await propagateIndexMove(renameTarget.path, newPath, renameTarget.kind);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toastError(humanizeStorageError(msg, "rename"));
@@ -882,20 +945,10 @@ export default function FilesPage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
                     className={btnPrimary}
                   >
-                    {isUploading ? (
-                      <>
-                        <span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Uploading {uploadCount}…
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-3.5 w-3.5" />
-                        Upload
-                      </>
-                    )}
+                    <Upload className="h-3.5 w-3.5" />
+                    Upload
                   </button>
                   <button
                     type="button"
@@ -903,7 +956,6 @@ export default function FilesPage() {
                       setNewFolderName("");
                       setNewFolderOpen(true);
                     }}
-                    disabled={isUploading}
                     className={btnGhost}
                   >
                     <FolderPlus className="h-3.5 w-3.5" />
@@ -1150,6 +1202,7 @@ export default function FilesPage() {
           ) : null}
         </DragOverlay>
       </DndContext>
+      <UploadTray items={uploadItems} onClose={clearUploadTray} />
     </DashboardShell>
   );
 }

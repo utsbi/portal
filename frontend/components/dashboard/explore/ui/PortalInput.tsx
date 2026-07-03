@@ -358,7 +358,7 @@ export function PortalInput({
       {error && (
         <div
           role="alert"
-          className="flex items-start justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-2.5"
+          className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-2.5"
         >
           <p className="text-red-400 text-xs font-light leading-relaxed">
             {error}
@@ -403,7 +403,7 @@ export function PortalInput({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.txt,.doc,.docx"
+          accept=".pdf,.txt,.doc,.docx,.png,.jpg,.jpeg,.webp,.gif"
           multiple
           onChange={handleFileChange}
           className="hidden"

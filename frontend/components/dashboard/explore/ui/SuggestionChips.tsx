@@ -1,11 +1,24 @@
 "use client";
 
 import gsap from "gsap";
-import { Clock, DollarSign, TrendingUp } from "lucide-react";
-import { useEffect, useRef } from "react";
+import {
+  Clock,
+  DollarSign,
+  FileText,
+  type LucideIcon,
+  TrendingUp,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { listIndexedFiles } from "@/lib/api/knowledge";
 import { useChat } from "@/lib/chat/chat-context";
+import { useProject } from "@/lib/project/project-context";
 
-const suggestions = [
+interface Suggestion {
+  icon: LucideIcon;
+  text: string;
+}
+
+const defaultSuggestions: Suggestion[] = [
   { icon: TrendingUp, text: "Progress updates" },
   { icon: DollarSign, text: "Budget summary" },
   { icon: Clock, text: "Current Project blockers" },
@@ -20,6 +33,39 @@ export function SuggestionChips({
 }: SuggestionChipsProps) {
   const chipsRef = useRef<HTMLDivElement>(null);
   const { sendMessage, isLoading } = useChat();
+  const { activeProject } = useProject();
+  const projectId = activeProject?.projectId ?? null;
+
+  // Grounded starters: when the project has indexed documents, lead with a
+  // suggestion that names a real file — a concrete question teaches users the
+  // assistant can search THEIR documents, which static chips never convey.
+  const [suggestions, setSuggestions] =
+    useState<Suggestion[]>(defaultSuggestions);
+  const grounded = useRef(false);
+
+  useEffect(() => {
+    grounded.current = false;
+    setSuggestions(defaultSuggestions);
+    if (projectId === null) return;
+    let cancelled = false;
+    listIndexedFiles(projectId)
+      .then((files) => {
+        if (cancelled || files.length === 0) return;
+        const filename = files[0].storage_path.split("/").pop();
+        if (!filename) return;
+        grounded.current = true;
+        setSuggestions([
+          { icon: FileText, text: `Summarize ${filename}` },
+          ...defaultSuggestions.slice(0, 2),
+        ]);
+      })
+      .catch(() => {
+        // Non-critical: static suggestions remain.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   useEffect(() => {
     if (disableAutoAnimation) return;
@@ -43,6 +89,22 @@ export function SuggestionChips({
 
     return () => ctx.revert();
   }, [disableAutoAnimation]);
+
+  // The grounded chip mounts AFTER the entrance animation (async fetch), so it
+  // would keep the pre-animation hidden classes forever. Force it visible;
+  // autoAlpha clears both opacity and the Tailwind `invisible` class.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run when chips re-render
+  useEffect(() => {
+    if (!grounded.current || !chipsRef.current) return;
+    const chips = chipsRef.current.querySelectorAll(".suggestion-chip");
+    gsap.to(chips, {
+      autoAlpha: 1,
+      y: 0,
+      scale: 1,
+      duration: 0.4,
+      ease: "power3.out",
+    });
+  }, [suggestions]);
 
   return (
     <div
