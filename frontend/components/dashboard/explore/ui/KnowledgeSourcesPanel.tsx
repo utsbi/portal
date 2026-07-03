@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, FileText, Loader2 } from "lucide-react";
+import { BookOpenText, ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   type KnowledgeSource,
@@ -9,6 +9,7 @@ import {
 import { toastError } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { cn } from "@/lib/utils";
+import { getFileInfo } from "./file-info";
 
 /**
  * Collapsible, read-only disclosure of the RAG documents the Explore assistant
@@ -58,7 +59,7 @@ export function KnowledgeSourcesPanel({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-sbi-dark-border/50 bg-sbi-dark-card/30",
+        "overflow-hidden rounded-xl border border-sbi-dark-border/50 bg-sbi-dark-card/30",
         className,
       )}
     >
@@ -66,20 +67,23 @@ export function KnowledgeSourcesPanel({ className }: { className?: string }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-4 py-2.5 text-left"
+        className="group flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-white/[0.02]"
       >
-        <FileText className="size-3.5 text-sbi-muted-dark" strokeWidth={1.5} />
-        <span className="text-xs font-light text-sbi-muted">
-          What the assistant can read
+        <BookOpenText
+          className="size-4 shrink-0 text-sbi-green/70"
+          strokeWidth={1.5}
+        />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-light text-white/85">
+          Assistant knowledge
         </span>
-        {loaded && (
-          <span className="text-xs font-light tabular-nums text-sbi-muted-dark">
+        {loaded && sources.length > 0 && (
+          <span className="shrink-0 rounded-md border border-sbi-green/25 bg-sbi-green/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-sbi-green/90">
             {sources.length}
           </span>
         )}
         <ChevronDown
           className={cn(
-            "ml-auto size-4 text-sbi-muted-dark transition-transform duration-300",
+            "size-4 shrink-0 text-sbi-muted-dark transition-transform duration-300 group-hover:text-sbi-muted",
             open && "rotate-180",
           )}
           strokeWidth={1.5}
@@ -87,37 +91,53 @@ export function KnowledgeSourcesPanel({ className }: { className?: string }) {
       </button>
 
       {open && (
-        <div className="border-t border-sbi-dark-border/40 px-2 py-2">
+        <div className="border-t border-sbi-dark-border/40">
           {loading && !loaded ? (
-            <div className="flex items-center gap-2 px-2 py-3 text-xs text-sbi-muted-dark">
-              <Loader2 className="size-3.5 animate-spin" strokeWidth={1.5} />
-              Loading sources...
+            <div className="space-y-1 px-3.5 py-2.5">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-center gap-2.5 py-1">
+                  <div className="size-4 shrink-0 animate-pulse rounded bg-white/5" />
+                  <div
+                    className={cn(
+                      "h-3 animate-pulse rounded bg-white/5",
+                      i === 0 ? "w-3/5" : "w-2/5",
+                    )}
+                  />
+                </div>
+              ))}
             </div>
           ) : sources.length === 0 ? (
-            <p className="px-2 py-3 text-xs font-light leading-relaxed text-sbi-muted-dark">
-              No documents are indexed for this project yet. Upload an indexable
-              file (PDF, Word, text, slides, or a spreadsheet) and it will be
-              added here automatically.
+            <p className="px-3.5 py-3 text-xs font-light leading-relaxed text-sbi-muted-dark">
+              Nothing indexed yet. Upload a PDF, Word, text, slides, or
+              spreadsheet file and it's added automatically — then ask Explore
+              about it.
             </p>
           ) : (
-            <ul className="space-y-0.5">
-              {sources.map((s) => (
-                <li
-                  key={s.filename}
-                  className="flex items-center gap-3 rounded-lg px-2 py-1.5"
-                >
-                  <FileText
-                    className="size-3.5 shrink-0 text-sbi-green/70"
-                    strokeWidth={1.5}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-xs text-white/80">
-                    {s.filename}
-                  </span>
-                  <span className="shrink-0 text-[0.7rem] tabular-nums text-sbi-muted-dark">
-                    {s.chunks} chunk{s.chunks === 1 ? "" : "s"}
-                  </span>
-                </li>
-              ))}
+            <ul className="py-1.5">
+              {sources.map((s) => {
+                const fileInfo = getFileInfo(s.filename);
+                return (
+                  <li
+                    key={s.filename}
+                    title={s.filename}
+                    className="flex items-center gap-2.5 px-3.5 py-1.5"
+                  >
+                    <span className="shrink-0 [&_svg]:size-4">
+                      {fileInfo.icon}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-light text-white/85">
+                      {s.filename}
+                    </span>
+                    <span className="shrink-0 text-[11px] font-light tabular-nums text-sbi-muted-dark">
+                      {s.chunks}
+                      <span className="hidden sm:inline">
+                        {" "}
+                        chunk{s.chunks === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
