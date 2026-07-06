@@ -45,6 +45,9 @@ class TestToolsSchema:
     def test_get_requests_present(self):
         assert "get_requests" in self._tool_names()
 
+    def test_get_upcoming_events_present(self):
+        assert "get_upcoming_events" in self._tool_names()
+
     def test_create_request_present(self):
         assert "create_request" in self._tool_names()
 
@@ -285,6 +288,134 @@ class TestExecuteToolLiveData:
     async def test_requests_uses_scoped_project_ids(self):
         result, sources, captured = await self._run_tool_with_scoped_mock("get_requests")
         assert captured.get("called") is True
+
+
+# ---------------------------------------------------------------------------
+# execute_tool — get_upcoming_events (proxies the frontend calendar route)
+# ---------------------------------------------------------------------------
+
+
+class _FakeResp:
+    def __init__(self, status_code=200, payload=None, text=""):
+        self.status_code = status_code
+        self._payload = payload or {}
+        self.text = text
+
+    def json(self):
+        return self._payload
+
+
+class _FakeAsyncClient:
+    """Minimal async-context-manager stand-in for httpx.AsyncClient."""
+
+    def __init__(self, resp, captured):
+        self._resp = resp
+        self._captured = captured
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, url, params=None, headers=None):
+        self._captured["url"] = url
+        self._captured["params"] = params
+        self._captured["headers"] = headers or {}
+        return self._resp
+
+
+class TestExecuteToolUpcomingEvents:
+    async def _run(self, *, scoped, project_id, resp, captured):
+        with (
+            patch("app.explore.agents.tools.user_client", return_value=MagicMock()),
+            patch(
+                "app.explore.agents.tools._scoped_project_ids",
+                new=AsyncMock(return_value=scoped),
+            ),
+            patch(
+                "app.explore.agents.tools.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(resp, captured),
+            ),
+        ):
+            return await execute_tool(
+                name="get_upcoming_events",
+                args={},
+                client_id="uid-cal",
+                access_token="jwt-abc",
+                project_id=project_id,
+            )
+
+    async def test_no_project_short_circuits_without_http(self):
+        captured = {}
+        text, sources = await self._run(
+            scoped=[], project_id=None, resp=_FakeResp(), captured=captured
+        )
+        assert "no project" in text.lower()
+        assert sources == []
+        assert captured == {}  # never hit the network
+
+    async def test_multiple_projects_no_active_asks_which(self):
+        captured = {}
+        text, _ = await self._run(
+            scoped=[1, 2], project_id=None, resp=_FakeResp(), captured=captured
+        )
+        assert "multiple projects" in text.lower()
+        assert captured == {}
+
+    async def test_happy_path_formats_events_and_forwards_jwt(self):
+        captured = {}
+        payload = {
+            "ok": True,
+            "connected": True,
+            "events": [
+                {
+                    "summary": "Design review",
+                    "start": "2099-01-15T10:00:00Z",
+                    "location": "Room 4",
+                    "myResponse": "accepted",
+                },
+                {  # already-passed event must be filtered out
+                    "summary": "Old kickoff",
+                    "start": "2000-01-01T09:00:00Z",
+                },
+            ],
+        }
+        text, sources = await self._run(
+            scoped=[7],
+            project_id=7,
+            resp=_FakeResp(payload=payload),
+            captured=captured,
+        )
+        assert sources == []
+        assert "Design review" in text
+        assert "Jan 15, 2099" in text
+        assert "Room 4" in text
+        assert "accepted" in text
+        assert "Old kickoff" not in text  # past event dropped
+        # The caller's JWT is forwarded as a bearer token, scoped to their project.
+        assert captured["headers"].get("Authorization") == "Bearer jwt-abc"
+        assert captured["params"] == {"project_id": 7}
+
+    async def test_not_connected_returns_friendly_message(self):
+        captured = {}
+        text, _ = await self._run(
+            scoped=[7],
+            project_id=7,
+            resp=_FakeResp(payload={"ok": True, "connected": False, "events": []}),
+            captured=captured,
+        )
+        assert "no google calendar is connected" in text.lower()
+
+    async def test_forbidden_status_is_access_message(self):
+        captured = {}
+        text, _ = await self._run(
+            scoped=[7],
+            project_id=7,
+            resp=_FakeResp(status_code=403, text="forbidden"),
+            captured=captured,
+        )
+        assert "do not have access" in text.lower()
 
 
 # ---------------------------------------------------------------------------

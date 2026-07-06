@@ -8,6 +8,8 @@ Exposes these tools to the model:
   - ``get_reports`` — live project reports for the caller's project(s).
   - ``get_finance_summary`` — live budget/spend summary for the caller's project(s).
   - ``get_requests`` — live client requests (``tickets`` with ``ticket_type='request'``).
+  - ``get_upcoming_events`` — the caller's upcoming project meetings, proxied
+    from the frontend's Google Calendar route (the backend holds no Google creds).
   - ``create_request`` — draft a request as a PROPOSAL; the write happens
     client-side under the caller's RLS only after an explicit UI confirm.
 
@@ -39,12 +41,15 @@ longer used by these tools.
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import httpx
 from supabase import Client
 
 from app.explore.agents.nodes import rag_service
+from app.explore.core.config import settings
 from app.explore.db.supabase import user_client
 from app.explore.services.membership import scoped_project_ids as _scoped_project_ids
 
@@ -189,6 +194,20 @@ TOOLS: List[Dict[str, Any]] = [
                 "request's subject, status, and date. Use this for 'what requests "
                 "have I made?', 'is my request still open?', or 'what's the status "
                 "of my request?'."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_upcoming_events",
+            "description": (
+                "Get the client's upcoming meetings/events for their project "
+                "from the connected Google Calendar (roughly the next 60 days). "
+                "Use this for 'what meetings do I have coming up?', 'when is my "
+                "next call?', 'what's on my calendar?', or 'do I have anything "
+                "scheduled?'. This reads the live calendar, not documents."
             ),
             "parameters": {"type": "object", "properties": {}},
         },
@@ -686,6 +705,126 @@ async def _get_requests(
     return "\n".join(lines)
 
 
+def _parse_event_dt(start: str) -> Optional[datetime]:
+    """Parse a Google event start (RFC3339 datetime or ``YYYY-MM-DD``) to aware UTC.
+
+    All-day events carry a date-only string (no ``T``); those parse as naive
+    midnight and are pinned to UTC so they compare against ``now`` safely.
+    """
+    if not start:
+        return None
+    try:
+        dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+
+def _format_event_when(start: Optional[str]) -> str:
+    """Render an event start for the summary line (all-day vs timed)."""
+    if not start:
+        return "time TBD"
+    dt = _parse_event_dt(start)
+    if dt is None:
+        return start
+    if "T" not in start:
+        return dt.strftime("%b %d, %Y") + " (all day)"
+    return dt.strftime("%b %d, %Y %I:%M %p")
+
+
+async def _get_upcoming_events(
+    db: Client, client_id: str, access_token: str, project_id: Optional[int],
+    resolved_project_ids: Optional[List[int]] = None,
+) -> str:
+    """Summarize the caller's upcoming project meetings from Google Calendar.
+
+    The backend holds no Google credentials, so it PROXIES the frontend's
+    ``/api/contact/calendar/client-events`` route (which owns the encrypted OAuth
+    tokens and their decryption), forwarding the caller's JWT as a bearer token
+    so that route's own membership/authorization gate applies. Scoped to the
+    caller's active project, or their sole project when none is active.
+    """
+    project_ids = (
+        resolved_project_ids
+        if resolved_project_ids is not None
+        else await _scoped_project_ids(db, client_id, project_id)
+    )
+    if not project_ids:
+        return (
+            "No project is associated with your account, so there are no "
+            "upcoming events to report."
+        )
+
+    # The calendar route takes a single project. Prefer the active project;
+    # fall back to the caller's sole project; otherwise ask which one.
+    if project_id is not None and project_id in project_ids:
+        target = project_id
+    elif len(project_ids) == 1:
+        target = project_ids[0]
+    else:
+        return (
+            "You have multiple projects. Ask the user which project's calendar "
+            "they mean before checking upcoming events."
+        )
+
+    url = f"{settings.portal_base_url.rstrip('/')}/api/contact/calendar/client-events"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as http:
+            resp = await http.get(
+                url,
+                params={"project_id": target},
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+    except httpx.HTTPError:
+        logger.exception("Calendar proxy request failed")
+        return (
+            "The calendar service could not be reached, so upcoming events are "
+            "unavailable right now."
+        )
+
+    if resp.status_code in (401, 403):
+        return "You do not have access to this project's calendar."
+    if resp.status_code != 200:
+        logger.warning(
+            "Calendar proxy returned %s: %s", resp.status_code, resp.text[:200]
+        )
+        return (
+            "The calendar service returned an error, so upcoming events are "
+            "unavailable right now."
+        )
+
+    data = resp.json()
+    if not data.get("connected"):
+        return (
+            "No Google Calendar is connected for your project yet, so there are "
+            "no upcoming events to show."
+        )
+
+    # Drop already-passed events (the route windows from 7 days ago) and sort.
+    today = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    upcoming: List[Tuple[datetime, Dict[str, Any]]] = []
+    for e in data.get("events") or []:
+        dt = _parse_event_dt(e.get("start") or "")
+        if dt is not None and dt >= today:
+            upcoming.append((dt, e))
+    upcoming.sort(key=lambda pair: pair[0])
+
+    if not upcoming:
+        return "You have no upcoming events on your project calendar."
+
+    lines = [f"Upcoming events ({len(upcoming)} scheduled):"]
+    for _dt, e in upcoming[:5]:
+        summary = e.get("summary") or "(no title)"
+        when = _format_event_when(e.get("start"))
+        loc = f" @ {e['location']}" if e.get("location") else ""
+        rsvp = e.get("myResponse")
+        rsvp_s = f" [your RSVP: {rsvp}]" if rsvp and rsvp != "needsAction" else ""
+        lines.append(f"- {summary} — {when}{loc}{rsvp_s}")
+    return "\n".join(lines)
+
+
 def _create_request_proposal(args: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
     """Build a request DRAFT for the user to confirm — performs NO write.
 
@@ -791,6 +930,10 @@ async def execute_tool(
         if name == "get_requests":
             return await _get_requests(
                 _db, client_id, project_id, resolved_project_ids
+            ), []
+        if name == "get_upcoming_events":
+            return await _get_upcoming_events(
+                _db, client_id, access_token, project_id, resolved_project_ids
             ), []
         logger.warning(f"Unknown tool requested: {name}")
         return f"Unknown tool '{name}'. No action taken.", []
