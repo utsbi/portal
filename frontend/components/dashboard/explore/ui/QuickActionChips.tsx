@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { listIndexedFiles } from "@/lib/api/knowledge";
 import { useChat } from "@/lib/chat/chat-context";
 import { useProject } from "@/lib/project/project-context";
+import { useDragScroll } from "./use-drag-scroll";
 
 interface QuickAction {
   icon: typeof FileText;
@@ -82,6 +83,7 @@ export function QuickActionChips() {
   const projectId = activeProject?.projectId ?? null;
   const isBusy = isLoading || messages.some((m) => m.isStreaming);
   const rowRef = useRef<HTMLDivElement>(null);
+  const { ref: scrollRef, dragHandlers } = useDragScroll<HTMLDivElement>();
 
   const [actions, setActions] = useState<QuickAction[]>(quickActions);
   const grounded = useRef(false);
@@ -125,7 +127,11 @@ export function QuickActionChips() {
   }, [actions]);
 
   return (
-    <div className="-mx-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div
+      ref={scrollRef}
+      {...dragHandlers}
+      className="-mx-1 select-none overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       <div
         ref={rowRef}
         className="mx-auto flex w-max items-center gap-2 px-1 py-0.5"
