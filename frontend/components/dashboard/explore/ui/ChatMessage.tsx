@@ -47,6 +47,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getFileInfo } from "./file-info";
 import { ImageAttachmentGallery, isImageAttachment } from "./image-preview";
 import { ProcessTimeline } from "./ProcessTimeline";
+import { getRequestProposal, RequestProposalCard } from "./request-proposal";
 
 // Single-dollar inline math ON (the default is $$-only): the model is
 // prompted to write inline math as $…$ and to escape currency as \$, and
@@ -660,6 +661,11 @@ export function ChatMessage({
   // The timeline is "done" once answer text exists or the turn stops streaming.
   const timelineDone = displayContent.trim().length > 0 || !message.isStreaming;
 
+  // A drafted request (create_request) surfaces as a confirm/deny card in the
+  // MAIN chat — not inside the process timeline — and the turn carries no answer
+  // prose alongside it (the backend ends the turn after drafting).
+  const requestProposal = !isUser ? getRequestProposal(timelineSteps) : null;
+
   // Truncated content for collapsed view
   const getTruncatedContent = () => {
     const lines = displayContent.split("\n");
@@ -938,6 +944,9 @@ export function ChatMessage({
                 {displayContent}
               </Streamdown>
             </div>
+            {requestProposal && (
+              <RequestProposalCard proposal={requestProposal} />
+            )}
             {streamStatusLabel && !hasTimeline && (
               <div className="mt-2 flex items-center gap-2 text-sm font-light text-sbi-muted">
                 <span>{streamStatusLabel}</span>

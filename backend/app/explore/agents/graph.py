@@ -245,6 +245,11 @@ async def run_graph_streaming(
 
     model = settings.think_model if model_preference == "thinking" else settings.fast_model
 
+    # Set when a create_request tool call runs this turn: the draft-confirmation
+    # card in the main chat IS the response, so the loop ends without a
+    # summarizing answer and the "unable to answer" fallback is suppressed.
+    request_drafted = False
+
     answer_parts: List[str] = []
 
     # --- Single streaming tool-calling loop ---------------------------------
@@ -475,6 +480,8 @@ async def run_graph_streaming(
         # Emit tool_result events and append history messages in the same stable order.
         for (name, tc_id, args), (result_text, sources) in zip(parsed_calls, tool_results):
             collected_sources.extend(sources)
+            if name == "create_request":
+                request_drafted = True
             # create_request's result embeds the PROPOSAL_JSON payload the
             # frontend confirmation card parses (subject ≤150 + message ≤4000
             # chars) — truncating it would silently drop the card, so it is
@@ -497,6 +504,12 @@ async def run_graph_streaming(
                 "content": result_text,
             })
 
+        # create_request is terminal: the draft-confirmation card in the main
+        # chat IS the response, so end the turn without another model iteration
+        # (no summarizing prose, per the WRITE ACTIONS prompt rule).
+        if request_drafted:
+            break
+
         # We ran tools; the next iteration produces the (streamed) answer with
         # tool results in context. Flip the UI out of "searching".
         if not generating_emitted:
@@ -512,7 +525,11 @@ async def run_graph_streaming(
     # If we ran tools but never produced an answer (loop exhausted still asking
     # for tools, or a mid-loop stream error), force one final streamed answer
     # WITHOUT tools so a tool-happy model still answers instead of erroring out.
-    if not answer_parts and any(m.get("role") == "tool" for m in messages):
+    if (
+        not request_drafted
+        and not answer_parts
+        and any(m.get("role") == "tool" for m in messages)
+    ):
         if not generating_emitted:
             yield {"type": "phase", "phase": "generating"}
             generating_emitted = True
@@ -561,7 +578,9 @@ async def run_graph_streaming(
             yield {"type": "title", "title": title}
 
     full_answer = "".join(answer_parts).strip()
-    if not full_answer:
+    # A create_request turn intentionally has no answer prose — the confirm/deny
+    # card is the response — so skip the "unable to answer" fallback for it.
+    if not full_answer and not request_drafted:
         full_answer = "I was unable to generate a response. Please try rephrasing your question."
         yield {"type": "delta", "text": full_answer}
 
