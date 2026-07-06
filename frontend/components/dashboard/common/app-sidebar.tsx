@@ -187,8 +187,6 @@ export function AppSidebar() {
     return pathname.startsWith(fullPath);
   };
 
-  const isOnDashboardRoot = pathname === baseUrl;
-
   // The Explore route gets a contextual chat-history list in the sidebar, and the
   // sidebar auto-expands there to surface it.
   const isExplore =
@@ -270,20 +268,19 @@ export function AppSidebar() {
   };
 
   const handleLogoClick = () => {
-    if (isOnDashboardRoot) {
-      return;
+    // Logo = return to Explore as a FRESH chat, matching the New chat / Explore
+    // nav affordance (handleExploreNav). newSession() clears the in-memory
+    // thread; the assistant row was persisted incrementally by the API route,
+    // so the prior conversation is still reachable from history — nothing is
+    // lost. Inside the Explore surface use replaceState so useParams stays
+    // stable and the portal's hydrate effect doesn't re-fire; from any other
+    // page a real navigation mounts the welcome state on /explore/new.
+    newSession();
+    if (pathname === baseUrl || pathname.startsWith(`${baseUrl}/explore`)) {
+      window.history.replaceState(null, "", "/dashboard/explore/new");
+    } else {
+      router.push("/dashboard/explore/new");
     }
-
-    // Don't abort the active chat session or wipe its state: the ChatProvider
-    // lives at the dashboard layout, so the in-memory messages and any in-flight
-    // stream survive a navigation to /dashboard. The API route persists the
-    // assistant row incrementally, so the user can navigate back to the same
-    // thread and see live (or the latest persisted) progress. Wiping here would
-    // force the user to lose their in-progress reasoning/tool timeline on every
-    // logo click — the same bug the persistence layer exists to prevent.
-
-    // Navigate back to dashboard root
-    router.push(baseUrl);
   };
 
   const handleLogout = async () => {

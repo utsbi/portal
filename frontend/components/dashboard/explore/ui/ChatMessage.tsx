@@ -818,7 +818,7 @@ export function ChatMessage({
                       e.target.style.height = `${e.target.scrollHeight}px`;
                     }}
                     onKeyDown={handleKeyDown}
-                    className="w-full bg-sbi-dark border border-sbi-green/30 rounded-xl px-3 py-2 text-white font-light text-sm leading-relaxed resize-none focus:outline-none focus:border-sbi-green/50"
+                    className="w-full bg-sbi-dark border border-sbi-green/30 rounded-xl px-3 py-2 text-white font-light text-base leading-relaxed resize-none focus:outline-none focus:border-sbi-green/50"
                     rows={1}
                   />
                   <div className="flex justify-end gap-2">
@@ -847,7 +847,7 @@ export function ChatMessage({
                 <div className={`p-3 ${isOverflowing ? "pr-8" : ""}`}>
                   <div
                     ref={contentRef}
-                    className="text-white font-light text-sm leading-relaxed whitespace-pre-wrap break-words"
+                    className="text-white font-light text-base leading-relaxed whitespace-pre-wrap break-words"
                   >
                     {isExpanded || !isOverflowing
                       ? displayContent
@@ -910,7 +910,7 @@ export function ChatMessage({
         {message.isCancelled ? (
           <>
             {displayContent && (
-              <div className="prose-ai dark text-white font-light text-base leading-relaxed">
+              <div className="prose-ai dark text-white font-light text-lg leading-relaxed">
                 <Streamdown
                   plugins={{ code, math }}
                   components={markdownComponents}
@@ -930,7 +930,7 @@ export function ChatMessage({
         ) : (
           <>
             <div
-              className="prose-ai dark text-white font-light text-base leading-relaxed"
+              className="prose-ai dark text-white font-light text-lg leading-relaxed"
               aria-live="polite"
               aria-busy={message.isStreaming}
             >

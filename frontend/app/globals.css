@@ -284,6 +284,10 @@ html::-webkit-scrollbar-thumb:hover {
 
   html {
     background-color: #050807;
+    /* Slight global type bump. Root is rem-based, so this scales all
+       rem-sized text + spacing ~6% up — legibility win on large, low-DPI
+       displays (e.g. 32" 1440p ~91 PPI) without reflowing proportions. */
+    font-size: 17px;
   }
 
   body {
