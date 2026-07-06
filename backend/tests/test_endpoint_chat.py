@@ -112,44 +112,35 @@ class TestExtractText:
         assert "Hello from the test file." in body["content"]
         assert body["file_type"] == "txt"
 
-    def test_image_file_is_transcribed_by_vision(self, monkeypatch):
-        """Images route through the vision transcription service."""
-        import app.explore.services.vision as vision_mod
-        from unittest.mock import AsyncMock
-
-        transcribe = AsyncMock(return_value="A bar chart of grades: A 40%, B 35%.")
-        monkeypatch.setattr(vision_mod, "extract_image_text", transcribe)
+    def test_image_file_returns_data_url(self):
+        """Images are returned as a base64 data URL (no transcription) so the
+        multimodal chat models receive them as pixels."""
+        import base64
 
         client = self._client_with_auth()
+        raw = b"\x89PNG\r\n\x1a\n fake png bytes"
         resp = client.post(
             "/api/v1/chat/extract-text",
-            files={"file": ("grades.png", b"\x89PNG fake", "image/png")},
+            files={"file": ("grades.png", raw, "image/png")},
             headers={"Authorization": "Bearer test-token"},
         )
         assert resp.status_code == 200, resp.text
         body = resp.json()
         assert body["file_type"] == "image"
-        assert "bar chart" in body["content"]
-        # MIME type from the upload is forwarded for the data URL.
-        assert transcribe.call_args.args[1] == "image/png"
+        # content is a data URL that round-trips back to the uploaded bytes.
+        assert body["content"].startswith("data:image/png;base64,")
+        assert base64.b64decode(body["content"].split(",", 1)[1]) == raw
 
-    def test_image_with_vision_disabled_returns_400(self, monkeypatch):
-        import app.explore.services.vision as vision_mod
-        from unittest.mock import AsyncMock
-
-        monkeypatch.setattr(
-            vision_mod,
-            "extract_image_text",
-            AsyncMock(side_effect=vision_mod.VisionDisabledError()),
-        )
+    def test_empty_image_returns_400(self):
+        """An empty image upload is rejected rather than yielding an empty URL."""
         client = self._client_with_auth()
         resp = client.post(
             "/api/v1/chat/extract-text",
-            files={"file": ("photo.jpg", b"fake", "image/jpeg")},
+            files={"file": ("photo.jpg", b"", "image/jpeg")},
             headers={"Authorization": "Bearer test-token"},
         )
         assert resp.status_code == 400
-        assert "not enabled" in resp.json()["detail"]
+        assert "content" in resp.json()["detail"].lower()
 
     def test_valid_pdf_file_returns_content(self):
         """A valid PDF must be parsed; parser is mocked."""

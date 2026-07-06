@@ -7,10 +7,19 @@ from datetime import datetime
 # single extracted document or history turn while stopping a single multi-MB
 # field from bypassing the query cap and amplifying token cost / memory.
 _MAX_FIELD_CHARS = 100_000
-# Aggregate cap across the whole request (query + every history/attachment body),
-# so the item-count caps (history<=50, attachments<=10) can't be multiplied into
-# a multi-MB payload. ~2 MB of text is far beyond any legitimate chat request.
+# Image attachments carry a base64 ``data:`` URL, not prompt text — they are sent
+# to the model as pixels and never injected into the text context, so the text
+# amplification risk does not apply. Their ceiling is sized to the 10 MB upload
+# cap (~13.4 MB of base64 plus the data-URL prefix).
+_MAX_IMAGE_CHARS = 14_000_000
+# Aggregate cap across the whole request (query + every history/non-image
+# attachment body), so the item-count caps (history<=50, attachments<=10) can't
+# be multiplied into a multi-MB payload. ~2 MB of text is far beyond any
+# legitimate chat request.
 _MAX_TOTAL_CHARS = 2_000_000
+# Aggregate image budget for a request (sum of base64 chars). Bounds a turn to a
+# couple of full-size images without letting them inflate the text total above.
+_MAX_TOTAL_IMAGE_CHARS = 28_000_000
 
 
 class ChatMessage(BaseModel):
@@ -18,13 +27,49 @@ class ChatMessage(BaseModel):
     role: str = Field(..., description="Role of the message sender: 'user' or 'assistant'")
     content: str = Field(..., max_length=_MAX_FIELD_CHARS, description="Content of the message")
     timestamp: Optional[datetime] = Field(default=None, description="When the message was sent")
+    images: List[str] = Field(
+        default=[],
+        max_length=10,
+        description="Base64 data: URLs for images attached to this user turn, "
+        "re-sent so multimodal models keep visual context across turns",
+    )
+
+    @model_validator(mode="after")
+    def _bound_images(self) -> "ChatMessage":
+        for url in self.images:
+            if not url.startswith("data:image/"):
+                raise ValueError("history image must be a data:image/ URL")
+            if len(url) > _MAX_IMAGE_CHARS:
+                raise ValueError(
+                    f"history image exceeds {_MAX_IMAGE_CHARS} characters"
+                )
+        return self
 
 
 class AttachmentFile(BaseModel):
     """A temporary file attachment for the current chat session."""
     filename: str = Field(..., description="Name of the uploaded file")
-    content: str = Field(..., max_length=_MAX_FIELD_CHARS, description="Extracted text content from the file")
-    file_type: str = Field(default="pdf", description="Type of file: pdf, doc, txt, etc.")
+    content: str = Field(..., description="Attachment body: extracted text, or a base64 data: URL for images")
+    file_type: str = Field(default="pdf", description="Type of file: pdf, doc, txt, image, etc.")
+
+    @model_validator(mode="after")
+    def _bound_content(self) -> "AttachmentFile":
+        """Cap ``content`` by kind: image data URLs get a large (upload-sized)
+        ceiling since they are sent to the model as pixels, not prompt text;
+        everything else keeps the tight text cap that guards prompt-injection
+        amplification."""
+        if self.file_type == "image":
+            if not self.content.startswith("data:image/"):
+                raise ValueError("image attachment content must be a data:image/ URL")
+            if len(self.content) > _MAX_IMAGE_CHARS:
+                raise ValueError(
+                    f"image attachment exceeds {_MAX_IMAGE_CHARS} characters"
+                )
+        elif len(self.content) > _MAX_FIELD_CHARS:
+            raise ValueError(
+                f"attachment content exceeds {_MAX_FIELD_CHARS} characters"
+            )
+        return self
 
 
 class ChatRequest(BaseModel):
@@ -58,14 +103,26 @@ class ChatRequest(BaseModel):
     @model_validator(mode="after")
     def _bound_total_payload(self) -> "ChatRequest":
         """Reject a request whose combined free-text (query + every history and
-        attachment body) exceeds the aggregate cap, so the per-item caps can't be
-        multiplied into a multi-MB prompt."""
-        total = len(self.query)
-        total += sum(len(m.content) for m in self.history)
-        total += sum(len(a.content) for a in self.attachments)
-        if total > _MAX_TOTAL_CHARS:
+        non-image attachment body) exceeds the aggregate text cap, or whose
+        combined image data exceeds the separate image cap, so neither can be
+        multiplied into an oversized payload."""
+        text_total = len(self.query)
+        text_total += sum(len(m.content) for m in self.history)
+        image_total = 0
+        for m in self.history:
+            image_total += sum(len(u) for u in m.images)
+        for a in self.attachments:
+            if a.file_type == "image":
+                image_total += len(a.content)
+            else:
+                text_total += len(a.content)
+        if text_total > _MAX_TOTAL_CHARS:
             raise ValueError(
                 f"total request text exceeds {_MAX_TOTAL_CHARS} characters"
+            )
+        if image_total > _MAX_TOTAL_IMAGE_CHARS:
+            raise ValueError(
+                f"total request image data exceeds {_MAX_TOTAL_IMAGE_CHARS} characters"
             )
         return self
 

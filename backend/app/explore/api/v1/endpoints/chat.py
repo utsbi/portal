@@ -29,7 +29,7 @@ _STREAM_TIMEOUT_S = 290
 async def chat(request: Request, body: ChatRequest, auth: AuthContext = Depends(get_auth_context)):
     """Chat with the Explore AI Agent via SSE streaming."""
     history = [
-        {"role": msg.role, "content": msg.content}
+        {"role": msg.role, "content": msg.content, "images": msg.images}
         for msg in body.history
     ]
     attachments = [
@@ -101,11 +101,11 @@ async def extract_file_text(
     file: UploadFile = File(...),
     user_id: str = Depends(get_current_user_id),
 ):
-    """Extract text from file without adding to database.
+    """Extract content from a file without adding it to the database.
 
-    Supports PDF, DOCX, DOC, TXT, and image files (images are transcribed by
-    the vision model — see ``services.vision``, the chat models are text-only).
-    Returns the extracted text content for session-only use.
+    Supports PDF, DOCX, DOC, TXT, and image files. Documents are text-extracted;
+    images are returned as a base64 ``data:`` URL so the multimodal chat models
+    receive them as pixels (no transcription). Session-only use.
     """
     # Enforce upload size cap via Content-Length header first (fast path),
     # then bound the actual read so an oversize body is never fully buffered.
@@ -129,28 +129,24 @@ async def extract_file_text(
         )
 
         if image_ext or (file.content_type or "").startswith("image/"):
-            from app.explore.services.vision import (
-                VisionDisabledError,
-                extract_image_text,
-            )
+            # Native multimodal path: the chat models see the image as pixels.
+            # Return a base64 data URL as the attachment "content"; graph.py emits
+            # it as an image_url part on the user turn. No server-side transcription.
+            import base64
 
+            if not file_bytes:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Couldn't read any content from the image",
+                )
             mime = (
                 file.content_type
                 if (file.content_type or "").startswith("image/")
                 else image_mimes[image_ext or ".png"]
             )
-            try:
-                content = await extract_image_text(file_bytes, mime)
-            except VisionDisabledError:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Image attachments are not enabled on this server",
-                )
-            if not content:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Couldn't read any content from the image",
-                )
+            content = (
+                f"data:{mime};base64,{base64.b64encode(file_bytes).decode()}"
+            )
             file_type = "image"
 
         elif file_lower.endswith('.pdf'):

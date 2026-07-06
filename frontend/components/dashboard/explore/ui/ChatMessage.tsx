@@ -45,6 +45,7 @@ import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
 import { getFileInfo } from "./file-info";
+import { ImageAttachmentGallery, isImageAttachment } from "./image-preview";
 import { ProcessTimeline } from "./ProcessTimeline";
 
 // Single-dollar inline math ON (the default is $$-only): the model is
@@ -167,15 +168,24 @@ function SourceViewerSheet({
 function MessageAttachmentChip({
   attachment,
 }: {
-  attachment: { filename: string; hash?: string; content?: string };
+  attachment: {
+    filename: string;
+    hash?: string;
+    content?: string;
+    file_type?: string;
+  };
 }) {
   const { user, activeProject } = useProject();
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const fileInfo = getFileInfo(attachment.filename);
   const projectId = activeProject?.projectId ?? null;
+  // Images are stored as a base64 data URL (for the multimodal models), not as
+  // meaningful text — saving one to project knowledge would pollute the RAG
+  // corpus with a base64 blob, so the save action is disabled for images.
   const canSave =
     user?.role === "director" &&
     projectId !== null &&
+    attachment.file_type !== "image" &&
     Boolean(attachment.hash || attachment.content);
 
   // A saved attachment stays saved across reloads: the corpus stamps the same
@@ -717,12 +727,18 @@ export function ChatMessage({
           {/* Attached files, horizontal row, right-aligned */}
           {messageAttachments.length > 0 && !isEditing && (
             <div className="flex flex-row flex-wrap justify-end gap-2">
-              {messageAttachments.map((attachment) => (
-                <MessageAttachmentChip
-                  key={attachment.filename}
-                  attachment={attachment}
-                />
-              ))}
+              <ImageAttachmentGallery
+                attachments={messageAttachments.filter(isImageAttachment)}
+                thumbClassName="h-32 w-32 max-w-[60vw]"
+              />
+              {messageAttachments
+                .filter((a) => !isImageAttachment(a))
+                .map((attachment) => (
+                  <MessageAttachmentChip
+                    key={attachment.filename}
+                    attachment={attachment}
+                  />
+                ))}
             </div>
           )}
 

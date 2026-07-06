@@ -153,7 +153,6 @@ THINK_MODEL=...                              # Final answer when model_preferenc
 TITLE_MODEL=...                              # Optional; conversation-title model. Falls back to FAST_MODEL
 EMBEDDING_MODEL=...                          # Embedding model
 EMBEDDING_DIMENSIONS=1536                    # Must match client_knowledge.embedding vector(1536)
-VISION_MODEL=google/gemini-2.5-flash-lite    # Transcribes image attachments (empty disables them)
 RERANK_MODEL=...                             # Optional; reranker for hybrid retrieval
 RERANK_CANDIDATES=...                        # Optional; candidate pool size for reranking
 RERANK_TOP_N=...                             # Optional; results kept after reranking

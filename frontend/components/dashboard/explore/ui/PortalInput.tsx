@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type ModelPreference, useChat } from "@/lib/chat/chat-context";
 import { getFileInfo } from "./file-info";
+import { ImageAttachmentGallery, isImageAttachment } from "./image-preview";
 
 type ModelType = ModelPreference;
 
@@ -423,33 +424,42 @@ export function PortalInput({
                 );
               })}
 
-              {/* Ready file attachments */}
-              {attachments.map((attachment) => {
-                const fileInfo = getFileInfo(attachment.filename);
-                return (
-                  <div
-                    key={attachment.filename}
-                    className="flex items-center gap-2 px-3 py-2 bg-sbi-dark border border-sbi-dark-border rounded-xl"
-                  >
-                    {fileInfo.icon}
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm text-white font-light truncate max-w-[120px]">
-                        {attachment.filename.replace(/\.[^/.]+$/, "")}
-                      </span>
-                      <span className={`text-xs ${fileInfo.color}`}>
-                        {fileInfo.label}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(attachment.filename)}
-                      className="text-sbi-muted hover:text-white transition-colors ml-1"
+              {/* Ready image attachments — thumbnails sharing one lightbox */}
+              <ImageAttachmentGallery
+                attachments={attachments.filter(isImageAttachment)}
+                thumbClassName="size-20"
+                onRemove={removeAttachment}
+              />
+
+              {/* Ready non-image attachments */}
+              {attachments
+                .filter((a) => !isImageAttachment(a))
+                .map((attachment) => {
+                  const fileInfo = getFileInfo(attachment.filename);
+                  return (
+                    <div
+                      key={attachment.filename}
+                      className="flex items-center gap-2 px-3 py-2 bg-sbi-dark border border-sbi-dark-border rounded-xl"
                     >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
+                      {fileInfo.icon}
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm text-white font-light truncate max-w-[120px]">
+                          {attachment.filename.replace(/\.[^/.]+$/, "")}
+                        </span>
+                        <span className={`text-xs ${fileInfo.color}`}>
+                          {fileInfo.label}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(attachment.filename)}
+                        className="text-sbi-muted hover:text-white transition-colors ml-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
             </div>
           )}
 

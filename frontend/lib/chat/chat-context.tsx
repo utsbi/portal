@@ -13,6 +13,7 @@ import {
   type AttachmentFile,
   type ChatMessage,
   extractFileText,
+  getAttachmentContent,
   type SourceDocument,
   sendChatMessage,
   type ToolEvent,
@@ -117,6 +118,47 @@ type MessageRow = {
 // the active leaf up to the root, then maps to DisplayMessages, tagging each with
 // its sibling-branch position so the UI can render a ‹ i/n › picker. `activeLeafId`
 // selects which branch is active; null falls back to the newest row.
+const HISTORY_IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
+
+function isImageAtt(a: MessageAttachment): boolean {
+  return a.file_type === "image" || HISTORY_IMAGE_EXT.test(a.filename);
+}
+
+/**
+ * Build the history payload. User turns that carried image(s) are re-sent with
+ * their image data URLs (resolved inline, or from client_chat_attachments by
+ * hash) so multimodal models keep visual context across turns — the image sits
+ * in the turn it belongs to, never re-stapled onto the newest question. Only the
+ * most recent turns carry images (matching the backend's history window) so the
+ * payload can't grow without bound.
+ */
+async function buildHistory(msgs: DisplayMessage[]): Promise<ChatMessage[]> {
+  return Promise.all(
+    msgs.map(async (m, i): Promise<ChatMessage> => {
+      const base: ChatMessage = { role: m.role, content: m.content };
+      if (
+        m.role !== "user" ||
+        i < msgs.length - 10 ||
+        !m.attachments?.some(isImageAtt)
+      ) {
+        return base;
+      }
+      const urls = await Promise.all(
+        m.attachments.filter(isImageAtt).map(async (a) => {
+          if (a.content?.startsWith("data:image/")) return a.content;
+          if (a.hash) {
+            const r = await getAttachmentContent(a.hash);
+            if (r?.content?.startsWith("data:image/")) return r.content;
+          }
+          return null;
+        }),
+      );
+      const images = urls.filter((u): u is string => u !== null);
+      return images.length ? { ...base, images } : base;
+    }),
+  );
+}
+
 function buildActiveBranch(
   rows: MessageRow[],
   activeLeafId: number | null,
@@ -341,6 +383,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (msg.role === "user" && msg.attachments) {
           for (const a of msg.attachments) {
             if (seen.has(a.filename)) continue;
+            // Images are PER-TURN: they ride only on the turn they're attached and
+            // are never re-collected from history. Re-sending a base64 image on
+            // every later turn is wasteful and semantically wrong — it would staple
+            // the old image onto each new question. (Text docs still persist across
+            // turns so the model can keep referencing an uploaded document.)
+            if (
+              a.file_type === "image" ||
+              /\.(png|jpe?g|webp|gif)$/i.test(a.filename)
+            ) {
+              continue;
+            }
             seen.add(a.filename);
             if (a.hash) {
               // New reference shape: route resolves content from
@@ -742,7 +795,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // fallback when store failed (hash absent).
       const messageAttachments: MessageAttachment[] = attachments.map((a) =>
         a.hash
-          ? { filename: a.filename, hash: a.hash, file_type: a.file_type }
+          ? {
+              filename: a.filename,
+              hash: a.hash,
+              file_type: a.file_type,
+              // Keep the data URL inline for images so the live message thumbnail
+              // renders instantly (no refetch). Display-only — the persisted row
+              // still stores just the reference shape (see /api/chat route).
+              ...(a.file_type === "image" &&
+              a.content?.startsWith("data:image/")
+                ? { content: a.content }
+                : {}),
+            }
           : { filename: a.filename, content: a.content },
       );
 
@@ -756,10 +820,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       };
       setMessages((prev) => [...prev, userMessage]);
 
-      const history: ChatMessage[] = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const history: ChatMessage[] = await buildHistory(messages);
       const allAttachments = collectSessionAttachments(messages, attachments);
 
       const ok = await runAgent(
@@ -793,9 +854,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     cancelledRef.current = false;
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
-    const history: ChatMessage[] = messages
-      .slice(0, idx)
-      .map((m) => ({ role: m.role, content: m.content }));
+    const history: ChatMessage[] = await buildHistory(messages.slice(0, idx));
     await runAgent(
       userMsg.content,
       history,
@@ -906,10 +965,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const allSessionAttachments =
         collectSessionAttachments(messagesUpToEdited);
       const historyMessages = messages.slice(0, messageIndex);
-      const history: ChatMessage[] = historyMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const history: ChatMessage[] = await buildHistory(historyMessages);
 
       setMessages((prev) => {
         const updated = [...prev];
@@ -953,10 +1009,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const query = messages[userIdx].content;
     const historyMessages = messages.slice(0, userIdx);
-    const history: ChatMessage[] = historyMessages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const history: ChatMessage[] = await buildHistory(historyMessages);
     const lastAssistantId = messages[lastAssistantIdx].id;
     const allSessionAttachments = collectSessionAttachments(
       messages.slice(0, userIdx + 1),

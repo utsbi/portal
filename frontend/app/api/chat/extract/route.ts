@@ -9,12 +9,26 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 // Upload guardrails: cap size and restrict to a small allowlist of document
 // types before forwarding to the backend extractor.
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
-const ALLOWED_EXTENSIONS = ["pdf", "doc", "docx", "txt"] as const;
+const ALLOWED_EXTENSIONS = [
+  "pdf",
+  "doc",
+  "docx",
+  "txt",
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "gif",
+] as const;
 const ALLOWED_MIME_TYPES = new Set<string>([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/plain",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
   "application/octet-stream", // some browsers omit a precise type
 ]);
 
@@ -55,7 +69,7 @@ export async function POST(request: NextRequest) {
   if (!extensionAllowed || !mimeAllowed) {
     return jsonError(
       400,
-      "Unsupported file type. Allowed: pdf, doc, docx, txt",
+      "Unsupported file type. Allowed: pdf, doc, docx, txt, png, jpg, jpeg, webp, gif",
     );
   }
 

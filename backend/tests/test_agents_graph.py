@@ -459,6 +459,108 @@ class TestAttachmentInjection:
         # But the file must still contribute content up to the cap
         assert "A" * 100 in combined
 
+    async def test_image_attachment_becomes_image_url_part(self):
+        """An image attachment must be sent as a native image_url content part on
+        the user message (pixels), NOT injected as text context."""
+        captured_messages: list = []
+
+        async def _capturing_stream(**kwargs):
+            if not captured_messages:
+                captured_messages.extend(kwargs.get("messages", []))
+            async def _inner():
+                yield _make_chunk(content="I see a bar chart.")
+            return _inner()
+
+        data_url = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="
+        attachments = [
+            {"filename": "chart.png", "content": data_url, "file_type": "image"}
+        ]
+
+        with (
+            patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
+            patch(_PATCHES["user_client"], return_value=MagicMock()),
+            patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
+            patch(_PATCHES["openrouter_client"]) as mock_client,
+        ):
+            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+
+            async for _event in run_graph_streaming(
+                query="what does this chart show?",
+                client_id="uid",
+                access_token="tok",
+                history=[],
+                attachments=attachments,
+            ):
+                pass
+
+        # The final user turn carries a multimodal content array with one
+        # image_url part pointing at the data URL.
+        user_msgs = [m for m in captured_messages if m.get("role") == "user"]
+        assert user_msgs, "expected a user message"
+        last_user = user_msgs[-1]
+        assert isinstance(last_user["content"], list)
+        image_parts = [
+            p for p in last_user["content"] if p.get("type") == "image_url"
+        ]
+        assert len(image_parts) == 1
+        assert image_parts[0]["image_url"]["url"] == data_url
+        # The data URL must never be injected as plain-text context.
+        text_blocks = " ".join(
+            m["content"] for m in captured_messages if isinstance(m.get("content"), str)
+        )
+        assert data_url not in text_blocks
+
+    async def test_history_image_becomes_multimodal_message(self):
+        """A prior user turn that carried an image is rebuilt as a multimodal
+        history message (text + image_url) so the model keeps visual context on
+        later turns."""
+        captured_messages: list = []
+
+        async def _capturing_stream(**kwargs):
+            if not captured_messages:
+                captured_messages.extend(kwargs.get("messages", []))
+            async def _inner():
+                yield _make_chunk(content="Still looking at it.")
+            return _inner()
+
+        data_url = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="
+        history = [
+            {"role": "user", "content": "what is this?", "images": [data_url]},
+            {"role": "assistant", "content": "A chart."},
+        ]
+
+        with (
+            patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
+            patch(_PATCHES["user_client"], return_value=MagicMock()),
+            patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
+            patch(_PATCHES["openrouter_client"]) as mock_client,
+        ):
+            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+
+            async for _event in run_graph_streaming(
+                query="and the top-left?",
+                client_id="uid",
+                access_token="tok",
+                history=history,
+                attachments=[],
+            ):
+                pass
+
+        # The historical user turn is a multimodal message carrying the image.
+        multimodal = [
+            m
+            for m in captured_messages
+            if m.get("role") == "user" and isinstance(m.get("content"), list)
+        ]
+        assert multimodal, "expected a multimodal history user message"
+        img_urls = [
+            p["image_url"]["url"]
+            for m in multimodal
+            for p in m["content"]
+            if p.get("type") == "image_url"
+        ]
+        assert data_url in img_urls
+
     async def test_no_attachments_leaves_context_unchanged(self):
         """When no attachments are provided, no attachment system block must appear."""
         captured_messages: list = []

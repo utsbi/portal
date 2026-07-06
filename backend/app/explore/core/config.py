@@ -14,7 +14,6 @@ class Settings(BaseSettings):
     TITLE_MODEL: Optional[str] = None
     EMBEDDING_MODEL: Optional[str] = None
     EMBEDDING_DIMENSIONS: Optional[int] = None
-    VISION_MODEL: Optional[str] = None
     RERANK_MODEL: Optional[str] = None
     RERANK_CANDIDATES: Optional[int] = None
     RERANK_TOP_N: Optional[int] = None
@@ -85,19 +84,6 @@ class Settings(BaseSettings):
         identical (cos ≈ 0.9999) to l2_normalize(subvector(4096-dim, 1, 1536)).
         """
         return self.EMBEDDING_DIMENSIONS or 1536
-
-    @property
-    def vision_model(self) -> str:
-        """Model used to transcribe image attachments into text.
-
-        The chat models (DeepSeek) are text-only, so images are converted to
-        text ONCE at attach time and then flow through the standard
-        text-attachment pipeline. Set VISION_MODEL="" to disable image
-        attachments entirely.
-        """
-        if self.VISION_MODEL is not None:
-            return self.VISION_MODEL
-        return "google/gemini-2.5-flash-lite"
 
     @property
     def rerank_model(self) -> str:

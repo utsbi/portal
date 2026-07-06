@@ -157,16 +157,27 @@ async def run_graph_streaming(
         except Exception:
             logger.exception("Project-context injection failed; continuing without it")
 
-    # Inject attachment content as a system-level context block so the model
-    # can reference user-uploaded documents when answering. Content arrives
-    # pre-extracted (via /chat/extract-text); no parsing is needed here.
-    # Each file is truncated to _ATTACHMENT_CHARS_PER_FILE and the combined
-    # block is capped at _ATTACHMENT_CHARS_TOTAL so a large upload can never
-    # dominate the prompt or blow past token budgets.
-    if attachments:
+    # Attachments split by kind:
+    #  - Images are passed as native ``image_url`` parts on the user message so
+    #    the multimodal chat models see the pixels directly. Their ``content`` is
+    #    a base64 ``data:image/...`` URL produced at attach time by
+    #    /chat/extract-text — there is no server-side transcription.
+    #  - Everything else (pre-extracted document text, via /chat/extract-text) is
+    #    injected as a system-level context block, truncated per-file and in
+    #    aggregate so a large upload can never dominate the prompt or blow past
+    #    token budgets.
+    def _is_image(att: Dict[str, Any]) -> bool:
+        return att.get("file_type") == "image" and (
+            att.get("content") or ""
+        ).startswith("data:image/")
+
+    image_attachments = [att for att in attachments if _is_image(att)]
+    text_attachments = [att for att in attachments if not _is_image(att)]
+
+    if text_attachments:
         attachment_parts: List[str] = []
         total_attachment_chars = 0
-        for att in attachments:
+        for att in text_attachments:
             if total_attachment_chars >= _ATTACHMENT_CHARS_TOTAL:
                 break
             content = (att.get("content") or "").strip()
@@ -194,9 +205,37 @@ async def run_graph_streaming(
     for msg in history[-10:]:
         role = msg.get("role", "user")
         content = msg.get("content", "")
-        if role in ("user", "assistant") and content:
+        msg_images = msg.get("images") or []
+        if role == "user" and msg_images:
+            # A historical user turn that had image(s): rebuild it as a
+            # multimodal message so the model still sees the pixels on later
+            # turns — positioned in the turn they belong to, not re-stapled onto
+            # the newest question.
+            parts: List[Dict[str, Any]] = []
+            if content:
+                parts.append({"type": "text", "text": content})
+            for url in msg_images:
+                if isinstance(url, str) and url.startswith("data:image/"):
+                    parts.append(
+                        {"type": "image_url", "image_url": {"url": url}}
+                    )
+            if parts:
+                messages.append({"role": role, "content": parts})
+        elif role in ("user", "assistant") and content:
             messages.append({"role": role, "content": content})
-    messages.append({"role": "user", "content": query})
+
+    # Final user turn. When images are attached, send a multimodal content array
+    # (a text part plus one image_url part per image) so the model receives the
+    # pixels alongside the question; otherwise a plain string.
+    if image_attachments:
+        user_content: List[Dict[str, Any]] = [{"type": "text", "text": query}]
+        for att in image_attachments:
+            user_content.append(
+                {"type": "image_url", "image_url": {"url": att["content"]}}
+            )
+        messages.append({"role": "user", "content": user_content})
+    else:
+        messages.append({"role": "user", "content": query})
 
     collected_sources: List[Dict[str, Any]] = []
     searched_emitted = False

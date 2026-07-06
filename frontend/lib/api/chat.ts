@@ -8,6 +8,9 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
+  /** Base64 data: URLs for images attached to this user turn — re-sent so
+   *  multimodal models keep visual context across turns. */
+  images?: string[];
 }
 
 export interface AttachmentFile {
@@ -254,10 +257,10 @@ export async function getAttachmentContent(
 }
 
 /**
- * Extract text from a file for session-only attachment.
+ * Extract content from a file for session-only attachment.
  * PDF/DOCX go through the backend (via the /api/chat/extract proxy), and so do
- * images — the chat models are text-only, so the backend transcribes them with
- * a vision model at attach time. Plain text is read entirely in the browser.
+ * images — the backend returns them as a base64 data: URL that the multimodal
+ * chat models read as pixels. Plain text is read entirely in the browser.
  * After extraction the content is stored in client_chat_attachments (content-
  * addressed) and subsequent turns reference it by hash rather than resending.
  */
