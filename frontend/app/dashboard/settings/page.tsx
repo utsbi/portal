@@ -311,7 +311,7 @@ function SettingsNav({
               type="button"
               aria-pressed={isActive}
               onClick={() => onSelect(s.id)}
-              className={`inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-xs font-medium transition-colors ${
+              className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2.5 text-xs font-medium leading-none [text-box-trim:both] [text-box-edge:cap_alphabetic] transition-colors ${
                 isActive
                   ? "border-sbi-green/60 bg-sbi-green/10 text-sbi-green shadow-[inset_0_0_0_1px_currentColor]"
                   : "border-sbi-dark-border/60 bg-transparent text-sbi-muted hover:bg-white/5 hover:text-white"
@@ -781,6 +781,7 @@ const NOTIFICATION_ITEMS: {
   key: keyof NotificationPrefs;
   label: string;
   description: string;
+  comingSoon?: boolean;
 }[] = [
   {
     key: "messages",
@@ -788,24 +789,27 @@ const NOTIFICATION_ITEMS: {
     description: "Email me when I receive a portal message.",
   },
   {
-    key: "calendar",
-    label: "Calendar events",
-    description: "Email me when an event involving me is created or changes.",
-  },
-  {
     key: "requests",
     label: "Request updates",
     description: "Email me when a request I'm involved in changes status.",
   },
   {
+    key: "calendar",
+    label: "Calendar events",
+    description: "Email me when an event involving me is created or changes.",
+    comingSoon: true,
+  },
+  {
     key: "reports",
     label: "New reports",
     description: "Email me when a new report is published to my project.",
+    comingSoon: true,
   },
   {
     key: "weeklyDigest",
     label: "Weekly digest",
     description: "A Monday summary of what changed last week.",
+    comingSoon: true,
   },
 ];
 
@@ -878,18 +882,29 @@ function NotificationsSection() {
           {NOTIFICATION_ITEMS.map((item) => (
             <li
               key={item.key}
-              className="flex items-start justify-between gap-6 py-4 first:pt-0 last:pb-0"
+              className={cn(
+                "flex items-start justify-between gap-6 py-4 first:pt-0 last:pb-0",
+                item.comingSoon && "opacity-50",
+              )}
             >
               <div className="min-w-0">
-                <p className="text-sm text-white">{item.label}</p>
+                <p className="text-sm text-white flex items-center gap-2">
+                  {item.label}
+                  {item.comingSoon && (
+                    <span className="text-[10px] tracking-wider uppercase text-sbi-muted-dark border border-sbi-dark-border/50 rounded px-1.5 py-0.5">
+                      Coming soon
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-sbi-muted-dark mt-0.5">
                   {item.description}
                 </p>
               </div>
               <Toggle
-                checked={prefs[item.key]}
-                onChange={() => toggle(item.key)}
+                checked={!item.comingSoon && prefs[item.key]}
+                onChange={() => !item.comingSoon && toggle(item.key)}
                 label={item.label}
+                disabled={item.comingSoon}
               />
             </li>
           ))}
@@ -917,10 +932,12 @@ function Toggle({
   checked,
   onChange,
   label,
+  disabled,
 }: {
   checked: boolean;
   onChange: () => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -928,9 +945,14 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      onClick={onChange}
-      className={`relative shrink-0 inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
-        checked ? "bg-sbi-green/70" : "bg-sbi-dark-border/60"
+      aria-disabled={disabled}
+      onClick={disabled ? undefined : onChange}
+      className={`relative shrink-0 inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+        disabled
+          ? "bg-sbi-dark-border/40 cursor-not-allowed"
+          : checked
+            ? "bg-sbi-green/70 cursor-pointer"
+            : "bg-sbi-dark-border/60 cursor-pointer"
       }`}
     >
       <span
@@ -1775,7 +1797,7 @@ function TeamSection() {
           </p>
         ) : (
           <div className="border border-sbi-dark-border/30 rounded-md overflow-hidden">
-            <div className="grid grid-cols-[1.2fr_1.8fr_96px_32px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
+            <div className="hidden md:grid grid-cols-[1.2fr_1.8fr_96px_32px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
               <div>Name</div>
               <div>Email</div>
               <div>Role</div>
@@ -1788,10 +1810,44 @@ function TeamSection() {
               return (
                 <div
                   key={pm.id}
-                  className="grid grid-cols-[1.2fr_1.8fr_96px_32px] gap-3 items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
+                  className="flex flex-col gap-1 md:grid md:grid-cols-[1.2fr_1.8fr_96px_32px] md:gap-3 md:items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
                 >
-                  <div className="text-sm text-white truncate">
-                    {pm.profiles.name}
+                  <div className="flex items-center justify-between md:contents">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm text-white font-medium md:font-normal truncate">
+                        {pm.profiles.name}
+                      </span>
+                      <span className="md:hidden">
+                        <span
+                          className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}
+                        >
+                          {pm.role}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="md:hidden flex">
+                      {pm.role === "member" && !pm.synthetic ? (
+                        <button
+                          type="button"
+                          onClick={() => setMemberToRemove(pm)}
+                          aria-label={`Remove ${pm.profiles.name} from project`}
+                          title={`Remove ${pm.profiles.name} from project`}
+                          className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          aria-label="Directors can't be removed from a project"
+                          title="Directors can't be removed from a project"
+                          className="p-1.5 rounded-md text-sbi-muted-dark/40 cursor-not-allowed"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="text-xs text-sbi-muted truncate flex items-center gap-2 min-w-0">
                     <span className="truncate">{pm.profiles.email}</span>
@@ -1804,14 +1860,14 @@ function TeamSection() {
                       </span>
                     )}
                   </div>
-                  <div>
+                  <div className="hidden md:block">
                     <span
                       className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}
                     >
                       {pm.role}
                     </span>
                   </div>
-                  <div className="flex justify-end">
+                  <div className="hidden md:flex justify-end">
                     {pm.role === "member" && !pm.synthetic ? (
                       <button
                         type="button"
@@ -2178,7 +2234,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
             </div>
 
             <div className="border border-sbi-dark-border/30 rounded-md overflow-hidden">
-              <div className="grid grid-cols-[1.3fr_1.7fr_92px_120px_64px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
+              <div className="hidden md:grid grid-cols-[1.3fr_1.7fr_92px_120px_64px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
                 <div>Name</div>
                 <div>Email</div>
                 <div>Role</div>
@@ -2193,27 +2249,77 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 visibleAccounts.map((account) => (
                   <div
                     key={account.id}
-                    className="grid grid-cols-[1.3fr_1.7fr_92px_120px_28px] gap-3 items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
+                    className="flex flex-col gap-1 md:grid md:grid-cols-[1.3fr_1.7fr_92px_120px_28px] md:gap-3 md:items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
                   >
-                    <div className="text-sm text-white truncate">
-                      {account.name}
+                    <div className="flex items-center justify-between md:contents">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm text-white font-medium md:font-normal truncate">
+                          {account.name}
+                        </span>
+                        <span className="md:hidden">
+                          <span
+                            className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}
+                          >
+                            {account.role}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="md:hidden flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setAccountToEdit(account)}
+                          aria-label={`Edit ${account.name}'s account`}
+                          title={`Edit ${account.name}'s account`}
+                          className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer"
+                        >
+                          <Pencil className="size-4" strokeWidth={1.5} />
+                        </button>
+                        {account.id !== currentUserId ? (
+                          <button
+                            type="button"
+                            onClick={() => setAccountToDelete(account)}
+                            aria-label={`Delete ${account.name}'s account`}
+                            title={`Delete ${account.name}'s account`}
+                            className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            aria-label="Cannot delete your own account"
+                            title="Cannot delete your own account"
+                            className="p-1.5 rounded-md text-sbi-muted-dark/40 cursor-not-allowed"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-sbi-muted truncate">
-                      {account.email}
+                    <div className="flex items-center gap-2 md:contents">
+                      <span className="text-xs text-sbi-muted truncate">
+                        {account.email}
+                      </span>
+                      {account.department && (
+                        <span className="md:hidden text-[10px] text-sbi-muted-dark truncate">
+                          · {account.department}
+                        </span>
+                      )}
                     </div>
-                    <div>
+                    <div className="hidden md:block">
                       <span
                         className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}
                       >
                         {account.role}
                       </span>
                     </div>
-                    <div className="text-xs text-sbi-muted-dark truncate">
+                    <div className="hidden md:block text-xs text-sbi-muted-dark truncate">
                       {account.department || (
                         <span className="text-sbi-muted-dark/40">—</span>
                       )}
                     </div>
-                    <div className="flex justify-end items-center gap-3">
+                    <div className="hidden md:flex justify-end items-center gap-3">
                       <button
                         type="button"
                         onClick={() => setAccountToEdit(account)}
@@ -2478,15 +2584,15 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 h-8 rounded-md border transition-colors cursor-pointer ${
+      className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 leading-none [text-box-trim:both] [text-box-edge:cap_alphabetic] rounded-md border transition-colors cursor-pointer ${
         active
           ? "bg-sbi-green/10 text-sbi-green border-sbi-green/40"
           : "bg-transparent text-sbi-muted border-sbi-dark-border/40 hover:text-white hover:border-white/20"
       }`}
     >
-      <span>{label}</span>
+      <span className="leading-none">{label}</span>
       <span
-        className={`tabular-nums text-[10px] px-1.5 py-px rounded-sm ${
+        className={`tabular-nums text-[10px] leading-none px-1.5 py-1 rounded-sm ${
           active
             ? "bg-sbi-green/15 text-sbi-green"
             : "bg-sbi-dark-border/40 text-sbi-muted-dark"

@@ -2951,7 +2951,7 @@ export function MessageThread({
           <button
             type="button"
             onClick={() => scrollToBottom()}
-            className="pointer-events-auto inline-flex items-center gap-2 px-3.5 h-8 text-xs text-sbi-green bg-sbi-dark-card border border-sbi-green/30 rounded-full cursor-pointer hover:bg-sbi-green hover:text-sbi-dark transition-colors"
+            className="pointer-events-auto inline-flex items-center gap-2 px-3.5 h-8 leading-none text-xs text-sbi-green bg-sbi-dark-card border border-sbi-green/30 rounded-full cursor-pointer hover:bg-sbi-green hover:text-sbi-dark transition-colors"
           >
             <ArrowDown className="w-3.5 h-3.5" strokeWidth={2} />
             New messages

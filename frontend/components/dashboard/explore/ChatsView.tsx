@@ -10,6 +10,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -29,7 +30,38 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type SessionSummary, useChat } from "@/lib/chat/chat-context";
+import { toastError, toastSuccess } from "@/lib/notifications";
+import { useProject } from "@/lib/project/project-context";
 import { cn } from "@/lib/utils";
+
+// ── Date bucketing (shared logic with ChatHistoryNav) ───────────────────
+
+const BUCKET_ORDER = [
+  "Today",
+  "Yesterday",
+  "Previous 7 days",
+  "Older",
+] as const;
+type Bucket = (typeof BUCKET_ORDER)[number];
+
+function startOfDay(ms: number): number {
+  const x = new Date(ms);
+  x.setHours(0, 0, 0, 0);
+  return x.getTime();
+}
+
+function bucketFor(iso: string | null): Bucket {
+  if (!iso) return "Older";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "Older";
+  const diffDays = Math.round(
+    (startOfDay(Date.now()) - startOfDay(t)) / 86_400_000,
+  );
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays <= 7) return "Previous 7 days";
+  return "Older";
+}
 
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return "";
@@ -47,6 +79,44 @@ function formatRelativeTime(iso: string | null): string {
   });
 }
 
+// ── Filter types ────────────────────────────────────────────────────────
+
+type FilterKey = "all" | "pinned" | `project-${number}`;
+
+// ── Skeleton ────────────────────────────────────────────────────────────
+
+const SKELETON_GROUPS: { id: string; count: number }[] = [
+  { id: "a", count: 3 },
+  { id: "b", count: 4 },
+  { id: "c", count: 2 },
+];
+
+function ChatsViewSkeleton() {
+  return (
+    <div className="animate-pulse" aria-hidden="true">
+      {SKELETON_GROUPS.map((group) => (
+        <div key={group.id} className="mb-5">
+          <div className="mb-2 h-2.5 w-20 rounded-sm bg-white/5" />
+          <div className="divide-y divide-sbi-dark-border/40">
+            {Array.from({ length: group.count }, (_, i) => (
+              <div
+                key={`${group.id}-${i}`}
+                className="flex items-center gap-3 py-3.5"
+              >
+                <div className="h-4 flex-1 rounded bg-white/5" />
+                <div className="h-3 w-16 shrink-0 rounded bg-white/5" />
+                <div className="h-3 w-10 shrink-0 rounded bg-white/5" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Main component ──────────────────────────────────────────────────────
+
 export function ChatsView() {
   const router = useRouter();
   const {
@@ -57,7 +127,10 @@ export function ChatsView() {
     setPinned,
     deleteSession,
   } = useChat();
+  const { projects } = useProject();
+
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -65,7 +138,6 @@ export function ChatsView() {
 
   const [deleteTarget, setDeleteTarget] = useState<SessionSummary | null>(null);
 
-  // Shares the provider's cached list; fetch once if it hasn't been loaded yet.
   useEffect(() => {
     if (!sessionsLoaded) void refreshSessions();
   }, [sessionsLoaded, refreshSessions]);
@@ -76,19 +148,60 @@ export function ChatsView() {
 
   const loading = !sessionsLoaded;
 
-  const { pinnedSessions, otherSessions, filteredCount } = useMemo(() => {
+  // Build a project_id → companyName lookup from the project context.
+  const projectMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const p of projects) map.set(p.projectId, p.companyName);
+    return map;
+  }, [projects]);
+
+  // Derive which project filters to show (only projects that have chats).
+  const projectFilters = useMemo(() => {
+    const ids = new Set<number>();
+    for (const s of sessionList) {
+      if (s.project_id != null) ids.add(s.project_id);
+    }
+    return projects.filter((p) => ids.has(p.projectId));
+  }, [sessionList, projects]);
+
+  // Filter → search → bucket
+  const { grouped, pinnedInFilter, totalFiltered } = useMemo(() => {
+    // 1. Apply filter chip
+    let base = sessionList;
+    if (filter === "pinned") {
+      base = sessionList.filter((s) => s.pinned);
+    } else if (filter.startsWith("project-")) {
+      const pid = Number(filter.slice(8));
+      base = sessionList.filter((s) => s.project_id === pid);
+    }
+
+    // 2. Apply search
     const q = query.trim().toLowerCase();
     const filtered = q
-      ? sessionList.filter((s) =>
-          (s.title || "Untitled").toLowerCase().includes(q),
-        )
-      : sessionList;
+      ? base.filter((s) => (s.title || "Untitled").toLowerCase().includes(q))
+      : base;
+
+    // 3. Separate pinned from the rest, then bucket the rest
+    const pinned = filtered.filter((s) => s.pinned);
+    const rest = filtered.filter((s) => !s.pinned);
+    const map = new Map<Bucket, SessionSummary[]>();
+    for (const s of rest) {
+      const b = bucketFor(s.updated_at);
+      const arr = map.get(b);
+      if (arr) arr.push(s);
+      else map.set(b, [s]);
+    }
+    const buckets = BUCKET_ORDER.filter((b) => map.has(b)).map((b) => ({
+      label: b,
+      sessions: map.get(b)!,
+    }));
+
     return {
-      pinnedSessions: filtered.filter((s) => s.pinned),
-      otherSessions: filtered.filter((s) => !s.pinned),
-      filteredCount: filtered.length,
+      grouped: buckets,
+      pinnedInFilter: pinned,
+      totalFiltered: filtered.length,
     };
-  }, [sessionList, query]);
+  }, [sessionList, filter, query]);
 
   const openChat = (publicId: string) => {
     router.push(`/dashboard/explore/${publicId}`);
@@ -110,25 +223,47 @@ export function ChatsView() {
     setEditingId(null);
     const current = sessionList.find((s) => s.id === id);
     if (!next || next === (current?.title || "")) return;
-    await renameSession(id, next);
+    try {
+      await renameSession(id, next);
+    } catch {
+      toastError("Failed to rename chat");
+    }
   };
 
   const handleTogglePin = async (s: SessionSummary) => {
-    await setPinned(s.id, !s.pinned);
+    try {
+      await setPinned(s.id, !s.pinned);
+    } catch {
+      toastError(`Failed to ${s.pinned ? "unpin" : "pin"} chat`);
+    }
   };
 
   const confirmDelete = async () => {
     const target = deleteTarget;
     if (!target) return;
-    await deleteSession(target.id);
+    try {
+      await deleteSession(target.id);
+      toastSuccess("Chat deleted");
+    } catch {
+      toastError("Failed to delete chat");
+    }
     setDeleteTarget(null);
   };
 
+  // ── Row renderer ──────────────────────────────────────────────────────
+
   const renderRow = (s: SessionSummary) => {
     const isEditing = editingId === s.id;
+    const projectName =
+      s.project_id != null ? projectMap.get(s.project_id) : null;
+
     return (
-      <div
+      <motion.div
         key={s.id}
+        layout
+        initial={{ opacity: 1, height: "auto" }}
+        exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+        transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="group flex items-center gap-3 px-2 -mx-2 rounded-lg hover:bg-sbi-dark-card/60 transition-colors"
       >
         {isEditing ? (
@@ -168,14 +303,19 @@ export function ChatsView() {
 
         {!isEditing && (
           <>
-            <span className="shrink-0 text-xs text-sbi-muted-dark">
+            {projectName && (
+              <span className="shrink-0 text-[11px] text-sbi-muted-dark bg-sbi-dark-card/60 px-2 py-0.5 rounded-md border border-sbi-dark-border/30 truncate max-w-[10rem]">
+                {projectName}
+              </span>
+            )}
+            <span className="shrink-0 text-xs text-sbi-muted-dark whitespace-nowrap">
               {formatRelativeTime(s.updated_at)}
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label="Conversation options"
+                  aria-label="Chat options"
                   className={cn(
                     "h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-md text-sbi-muted-dark opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 hover:text-white hover:bg-sbi-dark-card transition-opacity max-sm:h-10 max-sm:w-10 max-sm:opacity-100",
                   )}
@@ -217,8 +357,29 @@ export function ChatsView() {
             </DropdownMenu>
           </>
         )}
-      </div>
+      </motion.div>
     );
+  };
+
+  // ── Filter chip helper ────────────────────────────────────────────────
+
+  const chipClass = (key: FilterKey) =>
+    cn(
+      "inline-flex items-center px-3 py-1.5 leading-none [text-box-trim:both] [text-box-edge:cap_alphabetic] rounded-md border text-xs transition-colors whitespace-nowrap",
+      filter === key
+        ? "bg-sbi-green/10 text-sbi-green border-sbi-green/40"
+        : "bg-sbi-dark-card text-sbi-muted border-sbi-dark-border/50 hover:border-white/30 hover:text-white",
+    );
+
+  // ── Empty state label for active filter ───────────────────────────────
+
+  const filterLabel = () => {
+    if (filter === "pinned") return "pinned chats";
+    if (filter.startsWith("project-")) {
+      const pid = Number(filter.slice(8));
+      return projectMap.get(pid) ?? "this project";
+    }
+    return "chats";
   };
 
   return (
@@ -233,7 +394,8 @@ export function ChatsView() {
         }
       />
 
-      <div className="relative mb-4 shrink-0">
+      {/* Search */}
+      <div className="relative mb-3 shrink-0">
         <Search
           className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sbi-muted-dark"
           strokeWidth={1.5}
@@ -242,22 +404,51 @@ export function ChatsView() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search chats…"
-          aria-label="Search chats"
+          placeholder="Filter by title…"
+          aria-label="Filter chats by title"
           className={cn(inputClass, "pl-9")}
         />
       </div>
 
+      {/* Filter chips */}
+      {projectFilters.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4 shrink-0">
+          <button
+            type="button"
+            className={chipClass("all")}
+            onClick={() => setFilter("all")}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={chipClass("pinned")}
+            onClick={() => setFilter("pinned")}
+          >
+            Pinned
+          </button>
+          {projectFilters.map((p) => (
+            <button
+              key={p.projectId}
+              type="button"
+              className={chipClass(`project-${p.projectId}`)}
+              onClick={() => setFilter(`project-${p.projectId}`)}
+            >
+              {p.companyName}
+            </button>
+          ))}
+        </div>
+      )}
+
       <Panel className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar">
-        {loading && (
-          <div className="py-12 text-center text-sm text-sbi-muted-dark">
-            Loading…
-          </div>
-        )}
+        {/* Loading skeleton */}
+        {loading && <ChatsViewSkeleton />}
+
+        {/* Empty: no chats at all */}
         {!loading && sessionList.length === 0 && (
           <EmptyState
             icon={<MessageSquare size={24} />}
-            title="No conversations yet"
+            title="No chats yet"
             description="Start a new chat to explore your project with the AI portal."
             action={
               <button
@@ -271,46 +462,51 @@ export function ChatsView() {
             }
           />
         )}
-        {!loading && sessionList.length > 0 && filteredCount === 0 && (
+
+        {/* Empty: filter/search yields nothing */}
+        {!loading && sessionList.length > 0 && totalFiltered === 0 && (
           <div className="py-12 text-center text-sm text-sbi-muted-dark">
-            No conversations match “{query.trim()}”.
+            {query.trim()
+              ? `No ${filterLabel()} match "${query.trim()}".`
+              : `No ${filterLabel()}.`}
           </div>
         )}
 
-        {!loading && pinnedSessions.length > 0 && (
-          <div className="mb-6">
-            <div className="mb-1 text-[11px] tracking-[0.15em] uppercase text-sbi-muted-dark">
+        {/* Pinned section (within current filter) */}
+        {!loading && pinnedInFilter.length > 0 && (
+          <div className="mb-5">
+            <div className="mb-1.5 text-[11px] tracking-[0.15em] uppercase text-sbi-muted-dark">
               Pinned
             </div>
-            <div className="divide-y divide-sbi-dark-border/40">
-              {pinnedSessions.map(renderRow)}
-            </div>
+            <AnimatePresence initial={false}>
+              {pinnedInFilter.map(renderRow)}
+            </AnimatePresence>
           </div>
         )}
 
-        {!loading && otherSessions.length > 0 && (
-          <div>
-            {pinnedSessions.length > 0 && (
-              <div className="mb-1 text-[11px] tracking-[0.15em] uppercase text-sbi-muted-dark">
-                All chats
+        {/* Date-bucketed groups */}
+        {!loading &&
+          grouped.map((bucket) => (
+            <div key={bucket.label} className="mb-5">
+              <div className="mb-1.5 text-[11px] tracking-[0.15em] uppercase text-sbi-muted-dark">
+                {bucket.label}
               </div>
-            )}
-            <div className="divide-y divide-sbi-dark-border/40">
-              {otherSessions.map(renderRow)}
+              <AnimatePresence initial={false}>
+                {bucket.sessions.map(renderRow)}
+              </AnimatePresence>
             </div>
-          </div>
-        )}
+          ))}
       </Panel>
 
       <ConfirmDialog
         opened={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
-        title="Delete conversation"
+        title="Delete chat"
         description={
           <>
             This permanently deletes{" "}
             <span className="text-white font-medium">
-              {deleteTarget?.title || "this conversation"}
+              {deleteTarget?.title || "this chat"}
             </span>{" "}
             and all of its messages. This cannot be undone.
           </>

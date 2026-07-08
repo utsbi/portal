@@ -119,8 +119,7 @@ export function SectionLabel({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center gap-4 mb-4", className)}>
-      <div className="w-10 h-px bg-sbi-green" />
+    <div className={cn("mb-4", className)}>
       <span className="text-xs tracking-[0.25em] uppercase text-sbi-green">
         {children}
       </span>
@@ -310,23 +309,27 @@ export function SelectField({
 const btnFocus =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-sbi-dark";
 
+/** Trims Urbanist's asymmetric line-box to glyph boundaries (progressive). */
+const btnTrim =
+  "[text-box-trim:both] [text-box-edge:cap_alphabetic]";
+
 /** Primary action. Refined outline, not a loud solid fill. */
 export const btnPrimary =
-  "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
+  `inline-flex items-center justify-center gap-2 px-5 py-3 leading-none text-xs font-medium tracking-[0.04em] uppercase ${btnTrim} ` +
   "bg-sbi-green/10 text-sbi-green border border-sbi-green/30 rounded-md cursor-pointer " +
   "hover:bg-sbi-green hover:text-sbi-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors " +
   `${btnFocus} focus-visible:ring-sbi-green/50`;
 
 /** Secondary / neutral action. */
 export const btnGhost =
-  "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
+  `inline-flex items-center justify-center gap-2 px-5 py-3 leading-none text-xs font-medium tracking-[0.04em] uppercase ${btnTrim} ` +
   "bg-transparent text-sbi-muted border border-sbi-dark-border/60 rounded-md cursor-pointer " +
   "hover:text-white hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors " +
   `${btnFocus} focus-visible:ring-white/30`;
 
 /** Destructive action. Red mirror of btnPrimary for delete/deny confirms. */
 export const btnDanger =
-  "inline-flex items-center justify-center gap-2 px-5 h-10 text-xs font-medium tracking-[0.04em] uppercase " +
+  `inline-flex items-center justify-center gap-2 px-5 py-3 leading-none text-xs font-medium tracking-[0.04em] uppercase ${btnTrim} ` +
   "bg-red-500/10 text-red-300 border border-red-500/40 rounded-md cursor-pointer " +
   "hover:bg-red-500/20 hover:text-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors " +
   `${btnFocus} focus-visible:ring-red-500/50`;

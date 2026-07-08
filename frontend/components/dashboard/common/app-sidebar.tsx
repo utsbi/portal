@@ -187,48 +187,50 @@ export function AppSidebar() {
     return pathname.startsWith(fullPath);
   };
 
-  // The Explore route gets a contextual chat-history list in the sidebar, and the
-  // sidebar auto-expands there to surface it.
+  // The Explore and Chats routes get a contextual chat-history list in the
+  // sidebar, and the sidebar auto-expands there to surface it.
   const isExplore =
     pathname === baseUrl || pathname.startsWith(`${baseUrl}/explore`);
-  const showChatHistory = isExplore && !isCollapsed;
+  const isChats = pathname.startsWith(`${baseUrl}/chats`);
+  const isChatSurface = isExplore || isChats;
+  const showChatHistory = isChatSurface && !isCollapsed;
 
-  // Auto-expand when NAVIGATING into Explore (so the history is visible), but
-  // remember a manual collapse for the rest of the session and stop auto-expanding
-  // once the user opts out. The pre-Explore open state is restored when leaving.
-  // wasExploreRef is seeded with the current route so a fresh load / refresh does
-  // NOT count as "entering Explore" — the persisted cookie already set the correct
-  // initial state, and re-expanding here would cause a collapsed->open shift.
+  // Auto-expand when NAVIGATING into a chat surface (so the history is visible),
+  // but remember a manual collapse for the rest of the session and stop
+  // auto-expanding once the user opts out. The pre-chat open state is restored
+  // when leaving. wasExploreRef is seeded with the current route so a fresh
+  // load / refresh does NOT count as "entering" — the persisted cookie already
+  // set the correct initial state, and re-expanding here would cause a shift.
   const userCollapsedOnExploreRef = useRef(false);
-  const wasExploreRef = useRef(isExplore);
+  const wasExploreRef = useRef(isChatSurface);
   const preExploreOpenRef = useRef(open);
   const lastOpenRef = useRef(open);
 
   useEffect(() => {
-    // Desktop only: auto-expand on Explore and restore the prior state on leave.
-    // On mobile the sidebar is a trigger-driven slide-over (dismissed on navigation
-    // below), so it must never auto-open over the content — Explore is the landing
-    // page, and auto-opening there would cover the screen on every visit.
+    // Desktop only: auto-expand on chat surfaces and restore the prior state on
+    // leave. On mobile the sidebar is a trigger-driven slide-over (dismissed on
+    // navigation below), so it must never auto-open over the content.
     if (isMobile) {
-      wasExploreRef.current = isExplore;
+      wasExploreRef.current = isChatSurface;
       return;
     }
-    const wasExplore = wasExploreRef.current;
-    if (isExplore && !wasExplore) {
+    const was = wasExploreRef.current;
+    if (isChatSurface && !was) {
       preExploreOpenRef.current = open;
       if (!userCollapsedOnExploreRef.current) setOpen(true);
-    } else if (!isExplore && wasExplore) {
+    } else if (!isChatSurface && was) {
       setOpen(preExploreOpenRef.current);
     }
-    wasExploreRef.current = isExplore;
-  }, [isExplore, open, setOpen, isMobile]);
+    wasExploreRef.current = isChatSurface;
+  }, [isChatSurface, open, setOpen, isMobile]);
 
-  // Treat a collapse performed while on Explore as an explicit opt-out.
+  // Treat a collapse performed while on a chat surface as an explicit opt-out.
   useEffect(() => {
     const prev = lastOpenRef.current;
     lastOpenRef.current = open;
-    if (isExplore && prev && !open) userCollapsedOnExploreRef.current = true;
-  }, [open, isExplore]);
+    if (isChatSurface && prev && !open)
+      userCollapsedOnExploreRef.current = true;
+  }, [open, isChatSurface]);
 
   // When the collapsed rail's search icon expands the sidebar, focus the history
   // search box once ChatHistoryNav mounts. A ref (not state) so it survives the
@@ -490,10 +492,10 @@ export function AppSidebar() {
               ))}
             </div>
 
-            {/* Collapsed chat rail (Explore only): the essential chat actions stay
-              reachable on the icon rail. Search expands the sidebar and focuses
-              the history search box. */}
-            {isExplore && isCollapsed && (
+            {/* Collapsed chat rail (Explore + Chats): the essential chat actions
+              stay reachable on the icon rail. Search expands the sidebar and
+              focuses the history search box. */}
+            {isChatSurface && isCollapsed && (
               <>
                 <div className="my-4 mx-3 h-px bg-linear-to-r from-transparent via-sbi-dark-border/50 to-transparent" />
                 <div className="space-y-1">
@@ -540,9 +542,9 @@ export function AppSidebar() {
             )}
           </nav>
 
-          {/* Contextual chat history (Explore only). flex-1 claims the remaining
-            height; the min-height guarantees the recent list a meaningful share
-            on short viewports (the nav above shrinks + scrolls instead). */}
+          {/* Contextual chat history (Explore + Chats). flex-1 claims the
+            remaining height; the min-height guarantees the recent list a
+            meaningful share on short viewports (nav above shrinks + scrolls). */}
           {showChatHistory && (
             <div className="flex-1 min-h-[55%] flex flex-col border-t border-sbi-dark-border/30">
               <ChatHistoryNav focusSearchRef={pendingSearchFocusRef} />

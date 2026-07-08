@@ -76,7 +76,7 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
               key={t.id}
               href={`/dashboard/questionnaire/builder/new?template=${t.id}`}
               title={t.description}
-              className="inline-flex h-8 items-center rounded-md px-2 text-xs text-sbi-muted transition-colors hover:bg-sbi-green/5 hover:text-sbi-green"
+              className="inline-flex h-8 items-center leading-none rounded-md px-2 text-xs text-sbi-muted transition-colors hover:bg-sbi-green/5 hover:text-sbi-green"
             >
               {t.name}
             </Link>
@@ -84,7 +84,7 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
           <span aria-hidden className="mx-1 h-3.5 w-px bg-sbi-dark-border/60" />
           <Link
             href="/dashboard/questionnaire/builder/templates"
-            className="inline-flex h-8 items-center rounded-md px-2 text-xs text-sbi-green/80 transition-colors hover:text-sbi-green"
+            className="inline-flex h-8 items-center leading-none rounded-md px-2 text-xs text-sbi-green/80 transition-colors hover:text-sbi-green"
           >
             Manage templates →
           </Link>
