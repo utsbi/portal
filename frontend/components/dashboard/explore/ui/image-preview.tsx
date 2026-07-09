@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getAttachmentContent } from "@/lib/api/chat";
 import { cn } from "@/lib/utils";
@@ -48,23 +48,39 @@ export function ImageAttachmentGallery({
   // Data URLs resolved from a hash reference (sent messages on reload). Composer
   // and live-message images already carry the URL inline, so they never fetch.
   const [resolved, setResolved] = useState<Record<string, string>>({});
+  // Hashes with an in-flight fetch, so re-runs don't refire the same request.
+  const inFlight = useRef<Set<string>>(new Set());
 
+  // Depend on a STABLE key (the set of hashes still needing resolution), not the
+  // `attachments` array identity — the caller re-creates that array on every
+  // render (e.g. every streaming token), which would otherwise refire a fetch
+  // per token and, with a cancel guard, blank out already-loaded thumbnails.
+  const unresolvedKey = attachments
+    .filter((a) => !a.content?.startsWith("data:image/") && a.hash)
+    .map((a) => a.hash)
+    .join(",");
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: unresolvedKey encodes the only inputs that should retrigger the fetch; `attachments`/`resolved` are read but intentionally not deps.
   useEffect(() => {
-    let cancelled = false;
     for (const a of attachments) {
       const hasInline = a.content?.startsWith("data:image/");
-      if (hasInline || !a.hash || resolved[a.hash]) continue;
+      if (hasInline || !a.hash) continue;
       const hash = a.hash;
-      getAttachmentContent(hash).then((r) => {
-        if (!cancelled && r?.content?.startsWith("data:image/")) {
-          setResolved((prev) => ({ ...prev, [hash]: r.content as string }));
-        }
-      });
+      if (resolved[hash] || inFlight.current.has(hash)) continue;
+      inFlight.current.add(hash);
+      getAttachmentContent(hash)
+        .then((r) => {
+          // Content is immutable by content-hash, so a late commit is safe —
+          // no cancel guard needed even if this fetch outlives its render.
+          if (r?.content?.startsWith("data:image/")) {
+            setResolved((prev) => ({ ...prev, [hash]: r.content as string }));
+          }
+        })
+        .finally(() => {
+          inFlight.current.delete(hash);
+        });
     }
-    return () => {
-      cancelled = true;
-    };
-  }, [attachments, resolved]);
+  }, [unresolvedKey]);
 
   const images: ResolvedImage[] = [];
   for (const a of attachments) {

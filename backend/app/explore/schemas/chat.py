@@ -19,7 +19,7 @@ _MAX_IMAGE_CHARS = 14_000_000
 _MAX_TOTAL_CHARS = 2_000_000
 # Aggregate image budget for a request (sum of base64 chars). Bounds a turn to a
 # couple of full-size images without letting them inflate the text total above.
-_MAX_TOTAL_IMAGE_CHARS = 28_000_000
+MAX_TOTAL_IMAGE_CHARS = 28_000_000
 
 
 class ChatMessage(BaseModel):
@@ -120,9 +120,9 @@ class ChatRequest(BaseModel):
             raise ValueError(
                 f"total request text exceeds {_MAX_TOTAL_CHARS} characters"
             )
-        if image_total > _MAX_TOTAL_IMAGE_CHARS:
+        if image_total > MAX_TOTAL_IMAGE_CHARS:
             raise ValueError(
-                f"total request image data exceeds {_MAX_TOTAL_IMAGE_CHARS} characters"
+                f"total request image data exceeds {MAX_TOTAL_IMAGE_CHARS} characters"
             )
         return self
 

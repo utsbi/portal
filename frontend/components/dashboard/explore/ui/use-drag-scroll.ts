@@ -22,6 +22,10 @@ export function useDragScroll<T extends HTMLElement>() {
   });
 
   const onPointerDown = (e: PointerEvent<T>) => {
+    // A fresh press begins a new gesture: clear any stale `moved` a prior drag
+    // left set (e.g. one that ended via pointerleave with no closing click to
+    // reset it), so it can't swallow this press's eventual click.
+    state.current.moved = false;
     const el = ref.current;
     if (!el || e.pointerType !== "mouse") return;
     // Nothing to pan — leave clicks alone.

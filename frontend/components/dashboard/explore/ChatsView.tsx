@@ -164,6 +164,18 @@ export function ChatsView() {
     return projects.filter((p) => ids.has(p.projectId));
   }, [sessionList, projects]);
 
+  // If the active project filter no longer has any chats (e.g. its last chat
+  // was just deleted), fall back to "all" so the user isn't stranded on an
+  // empty, unresettable view.
+  useEffect(() => {
+    if (
+      filter.startsWith("project-") &&
+      !projectFilters.some((p) => `project-${p.projectId}` === filter)
+    ) {
+      setFilter("all");
+    }
+  }, [filter, projectFilters]);
+
   // Filter → search → bucket
   const { grouped, pinnedInFilter, totalFiltered } = useMemo(() => {
     // 1. Apply filter chip
@@ -411,7 +423,7 @@ export function ChatsView() {
       </div>
 
       {/* Filter chips */}
-      {projectFilters.length > 0 && (
+      {sessionList.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-4 shrink-0">
           <button
             type="button"

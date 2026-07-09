@@ -95,15 +95,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Verify the caller is a member of the requested project. Any role is
-    // allowed: a client sees their own project meetings, a director sees the
-    // client's — both filtered to the owner's email below. Never trust the
-    // project_id query param on its own.
+    // Verify the caller is a member of the requested project AND holds a role
+    // permitted to see the owner's calendar PII. Only the project `owner` (the
+    // client viewing their own meetings) and `director`s qualify — other
+    // project roles must not read the owner's meeting summaries/locations.
+    // Never trust the project_id query param on its own.
     const { data: membership } = await supabaseAdmin
       .from("project_members")
       .select("role")
       .eq("project_id", projectIdNum)
       .eq("profile_id", callerProfile.id)
+      .in("role", ["director", "owner"])
       .maybeSingle();
     if (!membership) {
       return NextResponse.json(
