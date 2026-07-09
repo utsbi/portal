@@ -310,8 +310,7 @@ const btnFocus =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-sbi-dark";
 
 /** Trims Urbanist's asymmetric line-box to glyph boundaries (progressive). */
-const btnTrim =
-  "[text-box-trim:both] [text-box-edge:cap_alphabetic]";
+const btnTrim = "[text-box-trim:both] [text-box-edge:cap_alphabetic]";
 
 /** Primary action. Refined outline, not a loud solid fill. */
 export const btnPrimary =

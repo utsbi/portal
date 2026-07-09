@@ -10,6 +10,11 @@ const FORM_CARD_SKELETONS = Array.from(
   (_, i) => `form-card-skeleton-${i}`,
 );
 
+const STAT_TILE_SKELETONS = Array.from(
+  { length: 3 },
+  (_, i) => `stat-tile-skeleton-${i}`,
+);
+
 export default function BuilderLoading() {
   return (
     <DashboardShell>
@@ -27,8 +32,8 @@ export default function BuilderLoading() {
 
           {/* Stat tiles */}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 mb-8">
-            {Array.from({ length: 3 }, (_, i) => (
-              <Panel key={`stat-${i}`} className="flex flex-col gap-2 py-4">
+            {STAT_TILE_SKELETONS.map((key) => (
+              <Panel key={key} className="flex flex-col gap-2 py-4">
                 <div className="h-2.5 w-20 rounded bg-white/5" />
                 <div className="h-7 w-10 rounded bg-white/5" />
                 <div className="h-2.5 w-28 rounded bg-white/5" />
