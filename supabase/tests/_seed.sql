@@ -330,3 +330,55 @@ UPDATE public.tickets
          'path', (SELECT v FROM public._test_ids WHERE k='project_beta')::text || '/beta-ticket.pdf'))
  WHERE project_id = (SELECT v FROM public._test_ids WHERE k='project_beta')
    AND subject = 'Beta request';
+
+-- =====================================================================
+-- project_events + project_event_attendees (per-project calendar)
+--   event_alpha_director: Director-created event on Alpha, with Client A
+--     as a needsAction attendee (proves RSVP self-service path)
+--   event_beta_director:  Director-created event on Beta, with Client B
+--     as a needsAction attendee (cross-tenant probe target)
+--   event_alpha_client:   Client A-created event on Alpha (proves a
+--     non-director can create + edit their own event)
+-- =====================================================================
+INSERT INTO public.project_events
+  (project_id, title, description, location, start_at, end_at, all_day, created_by)
+VALUES
+  ((SELECT v FROM public._test_ids WHERE k='project_alpha'),
+   'Alpha kickoff', 'Project kickoff meeting', 'Room 101',
+   now() + interval '3 days', now() + interval '3 days' + interval '1 hour',
+   false, (SELECT v FROM public._test_ids WHERE k='profile_director')),
+  ((SELECT v FROM public._test_ids WHERE k='project_beta'),
+   'Beta kickoff', 'Project kickoff meeting', 'Room 202',
+   now() + interval '3 days', now() + interval '3 days' + interval '1 hour',
+   false, (SELECT v FROM public._test_ids WHERE k='profile_director')),
+  ((SELECT v FROM public._test_ids WHERE k='project_alpha'),
+   'Alpha client-created event', 'Made by the client themselves',
+   NULL,
+   now() + interval '5 days', now() + interval '5 days' + interval '30 minutes',
+   false, (SELECT v FROM public._test_ids WHERE k='profile_clienta'));
+
+INSERT INTO public._test_ids (k, v)
+SELECT 'event_alpha_director', id FROM public.project_events
+ WHERE project_id = (SELECT v FROM public._test_ids WHERE k='project_alpha')
+   AND title = 'Alpha kickoff'
+ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v;
+INSERT INTO public._test_ids (k, v)
+SELECT 'event_beta_director', id FROM public.project_events
+ WHERE project_id = (SELECT v FROM public._test_ids WHERE k='project_beta')
+   AND title = 'Beta kickoff'
+ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v;
+INSERT INTO public._test_ids (k, v)
+SELECT 'event_alpha_client', id FROM public.project_events
+ WHERE project_id = (SELECT v FROM public._test_ids WHERE k='project_alpha')
+   AND title = 'Alpha client-created event'
+ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v;
+
+INSERT INTO public.project_event_attendees (event_id, profile_id, response) VALUES
+  ((SELECT v FROM public._test_ids WHERE k='event_alpha_director'),
+   (SELECT v FROM public._test_ids WHERE k='profile_clienta'), 'needsAction'),
+  ((SELECT v FROM public._test_ids WHERE k='event_alpha_director'),
+   (SELECT v FROM public._test_ids WHERE k='profile_director'),  'accepted'),
+  ((SELECT v FROM public._test_ids WHERE k='event_beta_director'),
+   (SELECT v FROM public._test_ids WHERE k='profile_clientb'),  'needsAction'),
+  ((SELECT v FROM public._test_ids WHERE k='event_beta_director'),
+   (SELECT v FROM public._test_ids WHERE k='profile_director'),  'accepted');

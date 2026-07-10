@@ -11,7 +11,7 @@
 -- cross-tenant count below is 0, and every same-tenant control count is >=1.
 -- =====================================================================
 BEGIN;
-SELECT plan(23);
+SELECT plan(25);
 
 -- ---------------------------------------------------------------------
 -- Client A: must NOT see any Beta-tenant row.
@@ -110,6 +110,15 @@ SELECT is((SELECT count(*) FROM public.lifecycle_tasks WHERE title = 'Beta task'
 SELECT is((SELECT count(*) FROM public.profiles WHERE uid = t.uid_clientb())::int, 0,
   'LEAK? profiles: Client A must NOT see Client B''s profile');
 
+-- project_events: Calendar must NOT cross tenants.
+SELECT is((SELECT count(*) FROM public.project_events WHERE id = t.id('event_beta_director'))::int, 0,
+  'LEAK? project_events: Client A must NOT see Beta calendar event');
+
+-- project_event_attendees: same isolation as the parent event row.
+SELECT is((SELECT count(*) FROM public.project_event_attendees
+            WHERE event_id = t.id('event_beta_director'))::int, 0,
+  'LEAK? project_event_attendees: Client A must NOT see Beta attendee list');
+
 SELECT t.reset_auth();
 
 -- ---------------------------------------------------------------------
@@ -121,6 +130,9 @@ SELECT is((SELECT count(*) FROM public.tickets WHERE project_id = t.id('project_
   'CONTROL tickets: Client A sees own Alpha tickets (2 seeded)');
 SELECT is((SELECT count(*) FROM public.lifecycle_projects WHERE title = 'Alpha roadmap')::int, 1,
   'CONTROL lifecycle_projects: Client A sees own Alpha lifecycle project');
+SELECT is((SELECT count(*) FROM public.project_events
+            WHERE id = t.id('event_alpha_director'))::int, 1,
+  'CONTROL project_events: Client A sees own Alpha calendar event');
 SELECT t.reset_auth();
 
 SELECT * FROM finish();

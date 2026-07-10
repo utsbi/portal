@@ -1,7 +1,7 @@
 -- Cross-tenant isolation sanity matrix: RLS is ENABLED on the key tenant tables,
 -- and a representative cross-tenant SELECT returns zero rows.
 BEGIN;
-SELECT plan(13);
+SELECT plan(15);
 
 -- ---- RLS enabled on the key tenant tables ----
 SELECT ok(relrowsecurity, 'RLS enabled: public.projects')
@@ -18,6 +18,10 @@ SELECT ok(relrowsecurity, 'RLS enabled: public.tickets')
   FROM pg_class WHERE oid = 'public.tickets'::regclass;
 SELECT ok(relrowsecurity, 'RLS enabled: public.project_members')
   FROM pg_class WHERE oid = 'public.project_members'::regclass;
+SELECT ok(relrowsecurity, 'RLS enabled: public.project_events')
+  FROM pg_class WHERE oid = 'public.project_events'::regclass;
+SELECT ok(relrowsecurity, 'RLS enabled: public.project_event_attendees')
+  FROM pg_class WHERE oid = 'public.project_event_attendees'::regclass;
 
 -- ---- Client A: sees own tenant, not Client B's ----
 SELECT t.as_user(t.uid_clienta());
