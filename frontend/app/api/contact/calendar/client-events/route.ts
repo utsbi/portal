@@ -1,73 +1,29 @@
-import { google } from "googleapis";
 import { NextResponse } from "next/server";
-import { decryptToken } from "@/lib/crypto/tokens";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
-function must(name: string) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
-}
-
-type AttendeeResponse =
-  | "accepted"
-  | "declined"
-  | "tentative"
-  | "needsAction"
-  | null;
-
-type GoogleEventItem = {
-  id?: string | null;
-  summary?: string | null;
-  start?: { dateTime?: string | null; date?: string | null } | null;
-  end?: { dateTime?: string | null; date?: string | null } | null;
-  location?: string | null;
-  description?: string | null;
-  htmlLink?: string | null;
-  organizer?: { displayName?: string | null; email?: string | null } | null;
-  creator?: { displayName?: string | null; email?: string | null } | null;
-  attendees?: Array<{
-    email?: string | null;
-    responseStatus?: string | null;
-  }> | null;
-};
-
-type DirectorConfig = {
-  refresh_token?: string;
-  calendar_id?: string;
-  [k: string]: unknown;
-};
-
+/**
+ * Read path for the project calendar.
+ *
+ * - Browser: Supabase session cookie.
+ * - Explore backend tool: forwards the caller's JWT as `Authorization: Bearer <token>`.
+ *
+ * Returns all events for the given project within a rolling window
+ * (now-7d → now+60d), the caller's per-event RSVP, and the organizer
+ * profile id (so the UI can decide whether to show edit/delete affordances).
+ */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const projectId = searchParams.get("project_id");
-
-    if (!projectId) {
+    const projectIdRaw = searchParams.get("project_id");
+    const projectId = Number(projectIdRaw);
+    if (!projectIdRaw || !Number.isInteger(projectId) || projectId <= 0) {
       return NextResponse.json(
-        { error: "Missing project_id" },
-        { status: 400 },
-      );
-    }
-    const projectIdNum = Number(projectId);
-    if (!Number.isInteger(projectIdNum) || projectIdNum <= 0) {
-      return NextResponse.json(
-        { error: "Invalid project_id" },
+        { error: "Missing or invalid project_id" },
         { status: 400 },
       );
     }
 
-    // --- Auth + authorization gate -----------------------------------------
-    // This endpoint builds a service-role client below, which bypasses RLS.
-    // Require an authenticated caller and verify they actually belong to the
-    // requested project BEFORE reading any calendar PII.
-    //
-    // Two caller shapes are supported:
-    //   • the browser, via the Supabase session cookie, and
-    //   • the Explore backend tool, which forwards the caller's JWT as
-    //     `Authorization: Bearer <token>` (no cookies server-to-server).
     const supabase = await createClient();
     const authHeader = req.headers.get("authorization");
     const bearer = authHeader?.toLowerCase().startsWith("bearer ")
@@ -84,8 +40,6 @@ export async function GET(req: Request) {
     }
 
     const supabaseAdmin = createAdminClient();
-
-    // Resolve the caller's profile.
     const { data: callerProfile, error: callerErr } = await supabaseAdmin
       .from("profiles")
       .select("id")
@@ -95,17 +49,14 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Verify the caller is a member of the requested project AND holds a role
-    // permitted to see the owner's calendar PII. Only the project `owner` (the
-    // client viewing their own meetings) and `director`s qualify — other
-    // project roles must not read the owner's meeting summaries/locations.
-    // Never trust the project_id query param on its own.
+    // RLS on project_events already enforces project membership for the caller.
+    // We do an explicit pre-check so a non-member gets a clean 403 (with a
+    // helpful message) instead of a generic 0-row response.
     const { data: membership } = await supabaseAdmin
       .from("project_members")
       .select("role")
-      .eq("project_id", projectIdNum)
+      .eq("project_id", projectId)
       .eq("profile_id", callerProfile.id)
-      .in("role", ["director", "owner"])
       .maybeSingle();
     if (!membership) {
       return NextResponse.json(
@@ -114,247 +65,249 @@ export async function GET(req: Request) {
       );
     }
 
-    const { data: project, error: projectErr } = await supabaseAdmin
-      .from("projects")
-      .select("id, url_slug, company_name")
-      .eq("id", projectIdNum)
-      .single();
+    const timeMin = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const timeMax = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
+    const callerId = callerProfile.id;
 
-    if (projectErr || !project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
+    // Two queries in parallel: events + the caller's attendee rows for the
+    // same time window. The attendee query joins through project_events so the
+    // time/project filter happens in one round-trip. Merge in memory by
+    // (event_id, response) lookup.
+    const [{ data: eventRows, error: eventsErr }, { data: myAttendeeRows }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("project_events")
+          .select(
+            `
+            id, project_id, title, description, location,
+            start_at, end_at, all_day, created_by, created_at, updated_at,
+            organizer:profiles!project_events_created_by_fkey ( id, name )
+          `,
+          )
+          .eq("project_id", projectId)
+          .gte("start_at", timeMin)
+          .lte("start_at", timeMax)
+          .order("start_at", { ascending: true }),
+        supabaseAdmin
+          .from("project_event_attendees")
+          .select(
+            `
+            event_id, response,
+            event:project_events!project_event_attendees_event_id_fkey (
+              project_id, start_at
+            )
+          `,
+          )
+          .eq("profile_id", callerId)
+          .eq("event.project_id", projectId)
+          .gte("event.start_at", timeMin)
+          .lte("event.start_at", timeMax),
+      ]);
 
-    const { data: directorMembers, error: membersErr } = await supabaseAdmin
-      .from("project_members")
-      .select("profile_id")
-      .eq("project_id", projectIdNum)
-      .eq("role", "director");
-
-    if (membersErr) {
-      return NextResponse.json({ error: membersErr.message }, { status: 500 });
-    }
-
-    const directorProfileIds = (directorMembers ?? []).map((m) => m.profile_id);
-
-    if (directorProfileIds.length === 0) {
-      return NextResponse.json({ ok: true, connected: false, events: [] });
-    }
-
-    const { data: directors, error: directorsErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, email, name, config")
-      .in("id", directorProfileIds);
-
-    if (directorsErr) {
+    if (eventsErr) {
+      console.error("project_events select failed:", eventsErr);
       return NextResponse.json(
-        { error: directorsErr.message },
+        { error: "Couldn't load events." },
         { status: 500 },
       );
     }
 
-    // Disambiguate the join: project_members has two FKs to profiles
-    // (profile_id and assigned_by); without the explicit constraint name
-    // PostgREST refuses the embed.
-    const { data: ownerMember } = await supabaseAdmin
-      .from("project_members")
-      .select("profile_id, profiles!project_members_profile_id_fkey(email)")
-      .eq("project_id", projectIdNum)
-      .eq("role", "owner")
-      .single();
-
-    const clientEmail =
-      (ownerMember?.profiles as { email?: string } | null)?.email
-        ?.trim()
-        .toLowerCase() ?? "";
-
-    const oauth2 = new google.auth.OAuth2(
-      must("GOOGLE_CLIENT_ID"),
-      must("GOOGLE_CLIENT_SECRET"),
-      must("GOOGLE_REDIRECT_URI"),
-    );
-
-    const timeMin = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-    const timeMax = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
-
-    const allMatchedEvents: Array<{
-      id: string | null;
-      summary: string;
-      start: string | null;
-      end: string | null;
-      location: string | null;
-      description: string | null;
-      htmlLink: string | null;
-      organizerName: string | null;
-      organizerEmail: string | null;
-      creatorName: string | null;
-      creatorEmail: string | null;
-      myResponse: AttendeeResponse;
-      sourceDirectorId: number | null;
-      sourceDirectorEmail: string | null;
-      sourceCalendarId: string | null;
-    }> = [];
-
-    let connectedCount = 0;
-    const syncedAt = new Date().toISOString();
-
-    for (const director of directors ?? []) {
-      const config = (director.config ?? {}) as Record<string, unknown>;
-      const google_ = (config.google ?? {}) as DirectorConfig;
-      const rawRefreshToken = google_.refresh_token;
-      const calendarId = google_.calendar_id;
-
-      if (!rawRefreshToken || !calendarId) continue;
-      connectedCount += 1;
-
-      try {
-        const refreshToken = decryptToken(rawRefreshToken);
-        oauth2.setCredentials({ refresh_token: refreshToken });
-        const cal = google.calendar({ version: "v3", auth: oauth2 });
-
-        const res = await cal.events.list({
-          calendarId,
-          timeMin,
-          timeMax,
-          singleEvents: true,
-          orderBy: "startTime",
-          maxResults: 2500,
-        });
-
-        const items = (res.data.items ?? []) as GoogleEventItem[];
-
-        if (clientEmail) {
-          const matched = items
-            .map((ev) => {
-              const clientAttendee = (ev.attendees ?? []).find(
-                (a) => a.email?.trim().toLowerCase() === clientEmail,
-              );
-              return { ev, clientAttendee };
-            })
-            .filter(
-              (
-                m,
-              ): m is {
-                ev: GoogleEventItem;
-                clientAttendee: NonNullable<typeof m.clientAttendee>;
-              } => m.clientAttendee !== undefined,
-            );
-
-          const normalized = matched.map(({ ev, clientAttendee }) => ({
-            id: ev.id ?? null,
-            summary: ev.summary ?? "(No title)",
-            start: ev.start?.dateTime ?? ev.start?.date ?? null,
-            end: ev.end?.dateTime ?? ev.end?.date ?? null,
-            location: ev.location ?? null,
-            description: ev.description ?? null,
-            htmlLink: ev.htmlLink ?? null,
-            organizerName: ev.organizer?.displayName ?? null,
-            organizerEmail: ev.organizer?.email ?? null,
-            creatorName: ev.creator?.displayName ?? null,
-            creatorEmail: ev.creator?.email ?? null,
-            myResponse: (clientAttendee.responseStatus ??
-              null) as AttendeeResponse,
-            sourceDirectorId: director.id ?? null,
-            sourceDirectorEmail: director.email ?? null,
-            sourceCalendarId: calendarId,
-          }));
-
-          allMatchedEvents.push(...normalized);
-        }
-
-        // Best-effort, fire-and-forget. Awaiting here adds N round-trips of
-        // latency to every calendar pageview for a multi-director project,
-        // and a failed metadata write must not block the user-facing fetch.
-        void supabaseAdmin
-          .from("profiles")
-          .update({
-            config: {
-              ...config,
-              google: { ...google_, last_synced_at: syncedAt },
-            } as unknown as Json,
-          })
-          .eq("id", director.id)
-          .then((res) => {
-            if (res.error) {
-              console.error(
-                `Failed to update last_synced_at for director ${director.id}:`,
-                res.error.message,
-              );
-            }
-          });
-      } catch (err) {
-        console.error(
-          `Google Calendar fetch failed for director ${director.id}:`,
-          err instanceof Error ? err.message : err,
-        );
-      }
+    const myResponseByEvent = new Map<number, string>();
+    for (const a of myAttendeeRows ?? []) {
+      if (a.event) myResponseByEvent.set(a.event_id, a.response);
     }
 
-    const dedupedMap = new Map<string, (typeof allMatchedEvents)[number]>();
-    for (const ev of allMatchedEvents) {
-      const key =
-        ev.id ??
-        `${ev.summary}-${ev.start ?? "no-start"}-${ev.sourceCalendarId ?? "no-calendar"}`;
-      if (!dedupedMap.has(key)) dedupedMap.set(key, ev);
-    }
-
-    let events = Array.from(dedupedMap.values()).sort((a, b) => {
-      const aTime = a.start ? new Date(a.start).getTime() : 0;
-      const bTime = b.start ? new Date(b.start).getTime() : 0;
-      return aTime - bTime;
+    const events = (eventRows ?? []).map((r) => {
+      const organizer = r.organizer as { id: number; name: string } | null;
+      return {
+        id: String(r.id),
+        title: r.title,
+        start: r.start_at,
+        end: r.end_at,
+        allDay: r.all_day,
+        location: r.location,
+        description: r.description,
+        organizer: organizer?.name ?? "Unknown organizer",
+        organizerId: organizer?.id ?? r.created_by,
+        myResponse: (myResponseByEvent.get(r.id) ?? "needsAction") as
+          | "accepted"
+          | "declined"
+          | "tentative"
+          | "needsAction",
+      };
     });
 
-    // Resolve unresolved organizer/creator emails to profile names so the UI
-    // never shows raw email addresses.
-    const emailsToResolve = new Set<string>();
-    for (const ev of events) {
-      if (!ev.creatorName && ev.creatorEmail)
-        emailsToResolve.add(ev.creatorEmail.toLowerCase());
-      if (!ev.organizerName && ev.organizerEmail)
-        emailsToResolve.add(ev.organizerEmail.toLowerCase());
-    }
-
-    if (emailsToResolve.size > 0) {
-      const { data: profilesByEmail } = await supabaseAdmin
-        .from("profiles")
-        .select("email, name")
-        .in("email", Array.from(emailsToResolve));
-
-      const nameByEmail = new Map<string, string>();
-      for (const p of profilesByEmail ?? []) {
-        if (p.email && p.name) nameByEmail.set(p.email.toLowerCase(), p.name);
-      }
-
-      events = events.map((ev) => {
-        const resolveName = (
-          existingName: string | null,
-          email: string | null,
-        ): string | null => {
-          if (existingName) return existingName;
-          if (!email) return null;
-          const matched = nameByEmail.get(email.toLowerCase());
-          if (matched) return matched;
-          const localPart = email.split("@")[0];
-          return localPart || null;
-        };
-
-        return {
-          ...ev,
-          creatorName: resolveName(ev.creatorName, ev.creatorEmail),
-          organizerName: resolveName(ev.organizerName, ev.organizerEmail),
-        };
-      });
-    }
-
-    return NextResponse.json({
-      ok: true,
-      connected: connectedCount > 0,
-      events,
-    });
+    return NextResponse.json({ ok: true, events });
   } catch (e: unknown) {
-    console.error("client-events route error:", e);
+    console.error("client-events GET error:", e);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
     );
   }
+}
+
+interface CreateEventBody {
+  projectId?: number;
+  title?: string;
+  description?: string | null;
+  location?: string | null;
+  startAt?: string;
+  endAt?: string;
+  allDay?: boolean;
+  attendeeIds?: number[];
+}
+
+/**
+ * Create a project event. The caller is recorded as `created_by` (RLS
+ * enforces this — a member of project A cannot insert an event claiming
+ * someone else created it). `attendeeIds` is the list of additional profile
+ * ids to invite; the creator is auto-added as an attendee with
+ * `response='accepted'`.
+ */
+export async function POST(req: Request) {
+  let body: CreateEventBody;
+  try {
+    body = (await req.json()) as CreateEventBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const {
+    projectId,
+    title,
+    description = null,
+    location = null,
+    startAt,
+    endAt,
+    allDay = false,
+    attendeeIds = [],
+  } = body;
+
+  if (
+    typeof projectId !== "number" ||
+    !Number.isInteger(projectId) ||
+    projectId <= 0
+  ) {
+    return NextResponse.json({ error: "Invalid projectId" }, { status: 400 });
+  }
+  if (typeof title !== "string" || title.trim().length === 0) {
+    return NextResponse.json(
+      { error: "Title is required" },
+      { status: 400 },
+    );
+  }
+  if (typeof startAt !== "string" || typeof endAt !== "string") {
+    return NextResponse.json(
+      { error: "startAt and endAt are required ISO strings" },
+      { status: 400 },
+    );
+  }
+  const startDate = new Date(startAt);
+  const endDate = new Date(endAt);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return NextResponse.json(
+      { error: "startAt/endAt are not valid dates" },
+      { status: 400 },
+    );
+  }
+  if (endDate.getTime() <= startDate.getTime()) {
+    return NextResponse.json(
+      { error: "endAt must be after startAt" },
+      { status: 400 },
+    );
+  }
+  if (
+    !Array.isArray(attendeeIds) ||
+    attendeeIds.some((id) => typeof id !== "number" || !Number.isInteger(id))
+  ) {
+    return NextResponse.json(
+      { error: "attendeeIds must be an array of integers" },
+      { status: 400 },
+    );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabaseAdmin = createAdminClient();
+  const { data: callerProfile, error: callerErr } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("uid", user.id)
+    .single();
+  if (callerErr || !callerProfile) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
+
+  // Explicit membership check so a non-member gets a clean 403.
+  const { data: membership } = await supabaseAdmin
+    .from("project_members")
+    .select("role")
+    .eq("project_id", projectId)
+    .eq("profile_id", callerProfile.id)
+    .maybeSingle();
+  if (!membership) {
+    return NextResponse.json(
+      { error: "You do not have access to this project" },
+      { status: 403 },
+    );
+  }
+
+  // Insert the event. RLS (WITH CHECK) forces created_by = caller.
+  const { data: inserted, error: insertErr } = await supabaseAdmin
+    .from("project_events")
+    .insert({
+      project_id: projectId,
+      title: title.trim(),
+      description: description?.trim() || null,
+      location: location?.trim() || null,
+      start_at: startDate.toISOString(),
+      end_at: endDate.toISOString(),
+      all_day: !!allDay,
+      created_by: callerProfile.id,
+    })
+    .select("id, created_at")
+    .single();
+  if (insertErr || !inserted) {
+    console.error("project_events insert failed:", insertErr);
+    return NextResponse.json(
+      { error: "Couldn't create the event." },
+      { status: 500 },
+    );
+  }
+
+  // Build the attendee rows: creator auto-accepted + any explicit invites
+  // (de-duplicated, excluding the creator).
+  const explicitIds = new Set(attendeeIds.filter((id) => id !== callerProfile.id));
+  const attendeeRows = [
+    { event_id: inserted.id, profile_id: callerProfile.id, response: "accepted" },
+    ...Array.from(explicitIds).map((profileId) => ({
+      event_id: inserted.id,
+      profile_id: profileId,
+      response: "needsAction",
+    })),
+  ];
+
+  if (attendeeRows.length > 0) {
+    const { error: attErr } = await supabaseAdmin
+      .from("project_event_attendees")
+      .insert(attendeeRows);
+    if (attErr) {
+      // The event row was already created. Log and continue — the creator
+      // can re-invite from the UI. Don't fail the whole create.
+      console.error("project_event_attendees insert failed:", attErr);
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    event: { id: String(inserted.id), createdAt: inserted.created_at },
+  });
 }

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-// Converts ISO string to ICS UTC format: YYYYMMDDTHHMMSSZ
 function toIcsUtc(dtIso: string) {
   const d = new Date(dtIso);
   return (
@@ -20,7 +21,6 @@ function toIcsUtc(dtIso: string) {
 }
 
 function escapeIcs(text: string) {
-  // basic escaping for ICS: \, ;, , and newlines
   return text
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
@@ -28,25 +28,71 @@ function escapeIcs(text: string) {
     .replace(/\r?\n/g, "\\n");
 }
 
+/**
+ * GET /api/contact/calendar/client-events/ics?eventId=...
+ * Per-event .ics download. Caller must be a project member of the event's
+ * project (RLS via the underlying SELECT will also enforce this).
+ */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-
-  const summary = searchParams.get("summary") ?? "SBI Event";
-  const start = searchParams.get("start"); // ISO string required
-  const end = searchParams.get("end"); // ISO string required
-  const location = searchParams.get("location") ?? "";
-  const description = searchParams.get("description") ?? "";
-
-  if (!start || !end) {
-    return NextResponse.json(
-      { error: "Missing start or end" },
-      { status: 400 },
-    );
+  const eventIdRaw = searchParams.get("eventId");
+  const eventId = Number(eventIdRaw);
+  if (!eventIdRaw || !Number.isInteger(eventId) || eventId <= 0) {
+    return NextResponse.json({ error: "Invalid eventId" }, { status: 400 });
   }
 
-  const uid = `${crypto.randomUUID()}@utsbi.org`;
-  const dtstamp = toIcsUtc(new Date().toISOString());
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
+  const supabaseAdmin = createAdminClient();
+  const { data: callerProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("uid", user.id)
+    .single();
+  if (!callerProfile) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
+
+  const { data: event } = await supabaseAdmin
+    .from("project_events")
+    .select(
+      `
+      id, title, description, location, start_at, end_at, all_day,
+      project:projects!project_events_project_id_fkey ( company_name )
+    `,
+    )
+    .eq("id", eventId)
+    .maybeSingle();
+  if (!event) {
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+
+  // Explicit membership check (RLS also enforces on the SELECT above).
+  const { data: membership } = await supabaseAdmin
+    .from("project_members")
+    .select("role")
+    .eq("project_id", (event as { project_id: number }).project_id)
+    .eq("profile_id", callerProfile.id)
+    .maybeSingle();
+  if (!membership) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const project = (event as { project: { company_name: string } | null }).project;
+  // Prefix the title with the project name so events in the phone's calendar
+  // are self-explanatory when a user is on multiple projects.
+  const summary = project?.company_name
+    ? `${project.company_name} — ${event.title}`
+    : event.title;
+
+  const dtstamp = toIcsUtc(new Date().toISOString());
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -54,13 +100,13 @@ export async function GET(req: Request) {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
-    `UID:${uid}`,
+    `UID:event-${event.id}@utsbi.org`,
     `DTSTAMP:${dtstamp}`,
-    `DTSTART:${toIcsUtc(start)}`,
-    `DTEND:${toIcsUtc(end)}`,
+    `DTSTART:${toIcsUtc(event.start_at)}`,
+    `DTEND:${toIcsUtc(event.end_at)}`,
     `SUMMARY:${escapeIcs(summary)}`,
-    location ? `LOCATION:${escapeIcs(location)}` : null,
-    description ? `DESCRIPTION:${escapeIcs(description)}` : null,
+    event.location ? `LOCATION:${escapeIcs(event.location)}` : null,
+    event.description ? `DESCRIPTION:${escapeIcs(event.description)}` : null,
     "END:VEVENT",
     "END:VCALENDAR",
   ]
@@ -70,7 +116,7 @@ export async function GET(req: Request) {
   return new NextResponse(ics, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": `attachment; filename="sbi-event.ics"`,
+      "Content-Disposition": `attachment; filename="sbi-event-${event.id}.ics"`,
     },
   });
 }
