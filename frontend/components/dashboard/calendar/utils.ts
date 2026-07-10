@@ -2,7 +2,7 @@ import type {
   AgendaBucket,
   AgendaBucketId,
   CalendarEvent,
-  RawCalendarEvent,
+  EventsResponse,
 } from "./types";
 
 export const monthNames = [
@@ -182,17 +182,18 @@ export function buildInternalUrl(
 }
 
 export interface CalendarEventSource {
-  summary?: string | null;
-  start?: string | null;
-  end?: string | null;
-  location?: string | null;
-  description?: string | null;
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  location: string | null;
+  description: string | null;
 }
 
 export function buildGoogleCalendarUrl(event: CalendarEventSource): string {
   const url = new URL(GOOGLE_CALENDAR_RENDER_URL);
   url.searchParams.set("action", "TEMPLATE");
-  url.searchParams.set("text", event.summary ?? "Event");
+  url.searchParams.set("text", event.title);
   url.searchParams.set(
     "dates",
     `${formatGoogleDate(event.start)}/${formatGoogleDate(event.end)}`,
@@ -204,11 +205,7 @@ export function buildGoogleCalendarUrl(event: CalendarEventSource): string {
 
 export function buildIcsUrl(event: CalendarEventSource): string {
   return buildInternalUrl(CALENDAR_ICS_API, {
-    summary: event.summary ?? "Event",
-    start: event.start ?? "",
-    end: event.end ?? "",
-    location: event.location ?? "",
-    description: event.description ?? "",
+    eventId: event.id,
   });
 }
 
@@ -217,11 +214,13 @@ export function buildIcsUrl(event: CalendarEventSource): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Google all-day events return start.date in YYYY-MM-DD form (no timezone).
- * Parsing that with `new Date(str)` makes it UTC midnight, which in a
- * negative-UTC timezone shifts to the previous calendar day locally —
- * which would bucket "today" all-day events into "yesterday". Construct
- * via local-midnight when the value matches a date-only shape.
+ * Google all-day events used to return start.date in YYYY-MM-DD form (no
+ * timezone). Parsing that with `new Date(str)` made it UTC midnight, which
+ * in a negative-UTC timezone shifted to the previous calendar day locally —
+ * which would bucket "today" all-day events into "yesterday". The native
+ * table now stores start_at/end_at as timestamptz, so the all-day case no
+ * longer needs this — but we keep the local-midnight construction for any
+ * legacy or external data that's still date-only.
  */
 function parseEventStart(startStr: string | null): Date | null {
   if (!startStr) return null;
@@ -233,30 +232,28 @@ function parseEventStart(startStr: string | null): Date | null {
   return new Date(startStr);
 }
 
-export function normalizeEvent(raw: RawCalendarEvent): CalendarEvent {
-  const startStr = raw.start ?? null;
+export function normalizeEvent(
+  raw: EventsResponse["events"][number],
+): CalendarEvent {
+  const startStr = raw.start;
+  const endStr = raw.end;
   const startDate = parseEventStart(startStr);
   return {
-    id: raw.id ?? Math.random().toString(36).slice(2),
-    title: raw.summary ?? "Untitled event",
+    id: raw.id,
+    title: raw.title,
     dateKey: startDate ? formatDateKey(startDate) : "",
     prettyDate: prettyDate(startStr),
     startTime: safeTime(startStr),
-    endTime: safeTime(raw.end),
-    organizer:
-      raw.creatorName ??
-      raw.organizerName ??
-      raw.creatorEmail ??
-      raw.organizerEmail ??
-      "Unknown organizer",
-    organizerEmail: raw.creatorEmail ?? raw.organizerEmail ?? null,
-    location: raw.location ?? null,
-    description: raw.description ?? null,
+    endTime: safeTime(endStr),
     start: startStr,
-    end: raw.end ?? null,
-    past: isPastEvent(raw.end),
-    myResponse: raw.myResponse ?? "needsAction",
-    calendarId: raw.sourceCalendarId ?? null,
+    end: endStr,
+    allDay: raw.allDay,
+    organizer: raw.organizer,
+    organizerId: raw.organizerId,
+    location: raw.location,
+    description: raw.description,
+    past: isPastEvent(endStr),
+    myResponse: raw.myResponse,
   };
 }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Database } from "@/lib/supabase/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,7 +35,18 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const update: Record<string, unknown> = {};
+  // Build a typed update payload from the validated body fields. Cast to
+  // Database["public"]["Tables"]["project_events"]["Update"] at the call site
+  // so we keep the property-level checks here but the supabase-js client sees
+  // a strictly-typed value.
+  const update: {
+    title?: string;
+    description?: string | null;
+    location?: string | null;
+    start_at?: string;
+    end_at?: string;
+    all_day?: boolean;
+  } = {};
   if (body.title !== undefined) {
     if (typeof body.title !== "string" || body.title.trim().length === 0) {
       return NextResponse.json(
@@ -82,8 +94,10 @@ export async function PATCH(
 
   // Cross-field validation: if both times are being updated, end must follow start.
   if (update.start_at && update.end_at) {
-    if (new Date(update.end_at as string).getTime() <=
-        new Date(update.start_at as string).getTime()) {
+    if (
+      new Date(update.end_at as string).getTime() <=
+      new Date(update.start_at as string).getTime()
+    ) {
       return NextResponse.json(
         { error: "endAt must be after startAt" },
         { status: 400 },
@@ -135,7 +149,7 @@ export async function PATCH(
 
   const { data: updated, error: updateErr } = await supabaseAdmin
     .from("project_events")
-    .update(update)
+    .update(update as Database["public"]["Tables"]["project_events"]["Update"])
     .eq("id", id)
     .select(
       "id, project_id, title, description, location, start_at, end_at, all_day, created_by, updated_at",

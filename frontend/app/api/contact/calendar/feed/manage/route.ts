@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { generateFeedToken } from "@/lib/calendar/feed-token";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
-import { generateFeedToken, hashFeedToken } from "@/lib/calendar/feed-token";
 
 interface ProfileConfig {
   calendar_feed_token_hash?: string;
@@ -25,7 +25,9 @@ async function loadCallerProfileConfig() {
     error: authError,
   } = await supabase.auth.getUser();
   if (authError || !user) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
   const supabaseAdmin = createAdminClient();
   const { data: profile } = await supabaseAdmin
@@ -34,7 +36,9 @@ async function loadCallerProfileConfig() {
     .eq("uid", user.id)
     .single();
   if (!profile) {
-    return { error: NextResponse.json({ error: "Profile not found" }, { status: 404 }) };
+    return {
+      error: NextResponse.json({ error: "Profile not found" }, { status: 404 }),
+    };
   }
   return { supabaseAdmin, profile };
 }

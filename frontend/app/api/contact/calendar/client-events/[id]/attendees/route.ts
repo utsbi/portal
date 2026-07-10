@@ -6,13 +6,12 @@ interface AddAttendeesBody {
   profileIds?: number[];
 }
 
-async function loadCallerAndEvent(
-  req: Request,
-  eventIdRaw: string,
-) {
+async function loadCallerAndEvent(eventIdRaw: string) {
   const eventId = Number(eventIdRaw);
   if (!Number.isInteger(eventId) || eventId <= 0) {
-    return { error: NextResponse.json({ error: "Invalid event id" }, { status: 400 }) };
+    return {
+      error: NextResponse.json({ error: "Invalid event id" }, { status: 400 }),
+    };
   }
 
   const supabase = await createClient();
@@ -21,7 +20,9 @@ async function loadCallerAndEvent(
     error: authError,
   } = await supabase.auth.getUser();
   if (authError || !user) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
 
   const supabaseAdmin = createAdminClient();
@@ -31,7 +32,9 @@ async function loadCallerAndEvent(
     .eq("uid", user.id)
     .single();
   if (!callerProfile) {
-    return { error: NextResponse.json({ error: "Profile not found" }, { status: 404 }) };
+    return {
+      error: NextResponse.json({ error: "Profile not found" }, { status: 404 }),
+    };
   }
 
   const { data: event } = await supabaseAdmin
@@ -40,7 +43,9 @@ async function loadCallerAndEvent(
     .eq("id", eventId)
     .maybeSingle();
   if (!event) {
-    return { error: NextResponse.json({ error: "Event not found" }, { status: 404 }) };
+    return {
+      error: NextResponse.json({ error: "Event not found" }, { status: 404 }),
+    };
   }
 
   const isCreator = event.created_by === callerProfile.id;
@@ -67,7 +72,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const ctx = await loadCallerAndEvent(req, id);
+  const ctx = await loadCallerAndEvent(id);
   if ("error" in ctx) return ctx.error;
   const { event, supabaseAdmin } = ctx;
 
@@ -141,7 +146,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const ctx = await loadCallerAndEvent(req, id);
+  const ctx = await loadCallerAndEvent(id);
   if ("error" in ctx) return ctx.error;
   const { event, callerProfile, supabaseAdmin } = ctx;
 

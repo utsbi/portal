@@ -27,7 +27,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const { eventId, response } = body;
-  if (typeof eventId !== "number" || !Number.isInteger(eventId) || eventId <= 0) {
+  if (
+    typeof eventId !== "number" ||
+    !Number.isInteger(eventId) ||
+    eventId <= 0
+  ) {
     return NextResponse.json({ error: "Invalid eventId" }, { status: 400 });
   }
   if (!isAllowedResponse(response)) {

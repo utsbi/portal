@@ -192,10 +192,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid projectId" }, { status: 400 });
   }
   if (typeof title !== "string" || title.trim().length === 0) {
-    return NextResponse.json(
-      { error: "Title is required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Title is required" }, { status: 400 });
   }
   if (typeof startAt !== "string" || typeof endAt !== "string") {
     return NextResponse.json(
@@ -285,9 +282,15 @@ export async function POST(req: Request) {
 
   // Build the attendee rows: creator auto-accepted + any explicit invites
   // (de-duplicated, excluding the creator).
-  const explicitIds = new Set(attendeeIds.filter((id) => id !== callerProfile.id));
+  const explicitIds = new Set(
+    attendeeIds.filter((id) => id !== callerProfile.id),
+  );
   const attendeeRows = [
-    { event_id: inserted.id, profile_id: callerProfile.id, response: "accepted" },
+    {
+      event_id: inserted.id,
+      profile_id: callerProfile.id,
+      response: "accepted",
+    },
     ...Array.from(explicitIds).map((profileId) => ({
       event_id: inserted.id,
       profile_id: profileId,

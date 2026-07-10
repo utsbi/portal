@@ -39,9 +39,6 @@ const nextConfig: NextConfig = {
     removeConsole: process.env.NODE_ENV === "production",
   },
 
-  // Keep server-only SDKs out of the bundler's reachability analysis.
-  serverExternalPackages: ["googleapis"],
-
   experimental: {
     optimizePackageImports: [
       "lucide-react",
@@ -63,9 +60,6 @@ const nextConfig: NextConfig = {
       "https://api.assemblyai.com",
       "https://api2.assemblyai.com",
       "wss://api.assemblyai.com",
-      "https://www.googleapis.com",
-      "https://oauth2.googleapis.com",
-      "https://accounts.google.com",
       "https://challenges.cloudflare.com",
     ]
       .filter(Boolean)

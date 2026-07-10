@@ -4,8 +4,6 @@ import {
   AlertCircle,
   Bell,
   Calendar,
-  Check,
-  ExternalLink,
   Loader2,
   Lock,
   type LucideIcon,
@@ -29,7 +27,6 @@ import {
 } from "react";
 import { Modal } from "@/components/dashboard/common/Modal";
 import {
-  btnDanger,
   btnGhost,
   btnPrimary,
   DashboardMain,
@@ -110,13 +107,6 @@ interface UnassignedMember {
   email: string | null;
   role: string;
   department: string | null;
-}
-
-interface GoogleCalendar {
-  id: string;
-  summary: string;
-  primary: boolean;
-  accessRole: string;
 }
 
 interface MyAccount {
@@ -965,112 +955,46 @@ function Toggle({
 }
 
 // ---------------------------------------------------------------------------
-// Calendar section (director only) — richer 3-state UI
+// Calendar section (director only) — per-user .ics feed for phone sync
 // ---------------------------------------------------------------------------
 
-type CalendarConnectionStatus =
-  | "loading"
-  | "not_connected"
-  | "no_calendar"
-  | "connected";
-
-const OAUTH_ERROR_MESSAGES: Record<string, string> = {
-  no_refresh_token:
-    "Google didn't return a refresh token. Remove the SBI Portal from your Google permissions, then try connecting again.",
-  exchange_failed: "Couldn't exchange the Google authorization code.",
-  not_director: "Only directors can connect Google Calendar.",
-  unauthenticated: "Please sign in and try again.",
-  missing_code: "The Google callback didn't include an authorization code.",
-  save_failed: "We couldn't save the connection. Please try again.",
-};
+type CalendarFeedStatus = "loading" | "none" | "active";
 
 function CalendarSection() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const [status, setStatus] = useState<CalendarConnectionStatus>("loading");
-  const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
-  const [selectedCalendarId, setSelectedCalendarId] = useState("");
-  const [connectedEmail, setConnectedEmail] = useState("");
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [disconnectBusy, setDisconnectBusy] = useState(false);
-  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [status, setStatus] = useState<CalendarFeedStatus>("loading");
+  const [feedUrl, setFeedUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  // Load calendar connection state from Supabase + list API
   const load = useCallback(async () => {
     setStatus("loading");
     setError("");
     try {
-      const supabase = createClient();
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-
-      let savedCalendarId: string | null = null;
-      let savedLastSynced: string | null = null;
-
-      if (authUser) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("config, email")
-          .eq("uid", authUser.id)
-          .single();
-        const googleConfig = (profile?.config as Record<string, unknown> | null)
-          ?.google as Record<string, unknown> | undefined;
-        savedCalendarId =
-          (googleConfig?.calendar_id as string | undefined) ?? null;
-        savedLastSynced =
-          (googleConfig?.last_synced_at as string | undefined) ?? null;
-        setConnectedEmail(
-          (profile?.email as string | undefined) ?? authUser.email ?? "",
-        );
-        setLastSyncedAt(savedLastSynced);
-        if (savedCalendarId) setSelectedCalendarId(savedCalendarId);
-      }
-
-      const res = await fetch("/api/contact/calendar/client-events/list");
-      const data: {
-        calendars?: GoogleCalendar[];
-        connected?: boolean;
+      const res = await fetch("/api/contact/calendar/feed/manage");
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        hasToken?: boolean;
+        url?: string;
         error?: string;
-      } = await res.json().catch(() => ({}));
-
-      if (data.connected === false) {
-        setStatus("not_connected");
-        setCalendars([]);
-        return;
-      }
-
+      };
       if (!res.ok) {
-        // We have a refresh token but Google rejected the request — almost
-        // always a stale scope after a scope change. If there's a saved
-        // calendar_id, events may still work; otherwise force reconnect.
-        setCalendars([]);
-        if (savedCalendarId) {
-          setStatus("connected");
-        } else {
-          setStatus("not_connected");
-        }
-        setError(
-          "Couldn't load your calendars. Your Google connection might be using an older scope — try Connect again to refresh permissions.",
-        );
+        setError(data.error ?? "Couldn't load the calendar feed");
+        setStatus("none");
         return;
       }
-
-      const list = data.calendars ?? [];
-      setCalendars(list);
-
-      if (list.length === 0) {
-        setStatus("not_connected");
-      } else if (savedCalendarId) {
-        setStatus("connected");
+      if (data.hasToken) {
+        setStatus("active");
+        setFeedUrl(null);
       } else {
-        setStatus("no_calendar");
+        setStatus("active");
+        setFeedUrl(data.url ?? null);
       }
-    } catch {
-      setStatus("not_connected");
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Couldn't load the calendar feed",
+      );
+      setStatus("none");
     }
   }, []);
 
@@ -1078,351 +1002,235 @@ function CalendarSection() {
     load();
   }, [load]);
 
-  // Process ?google=connected|error callback flags — strip after reading
-  useEffect(() => {
-    const googleParam = searchParams.get("google");
-    if (!googleParam) return;
-
-    if (googleParam === "connected") {
-      toastSuccess(
-        "Google Calendar connected. Pick a calendar below if you haven't yet.",
-      );
-    } else if (googleParam === "error") {
-      const reason = searchParams.get("reason") ?? "";
-      const msg =
-        OAUTH_ERROR_MESSAGES[reason] ??
-        "Couldn't connect Google Calendar. Please try again.";
-      setError(msg);
-    }
-
-    // Clean the URL so reloads don't reapply
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("google");
-    params.delete("reason");
-    const next = params.toString();
-    router.replace(
-      next
-        ? `/dashboard/settings?${next}`
-        : "/dashboard/settings?section=calendar",
-      { scroll: false },
-    );
-  }, [searchParams, router]);
-
-  const handleSelectCalendar = async (calendarId: string) => {
-    setSaving(true);
+  const handleCreate = async () => {
+    setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/contact/calendar/client-events/select", {
+      const res = await fetch("/api/contact/calendar/feed/manage", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ calendarId }),
       });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setSelectedCalendarId(calendarId);
-        setStatus("connected");
-        toastSuccess("Calendar saved.");
-      } else {
-        const msg = data.error || "Couldn't save the selected calendar.";
-        setError(msg);
-        toastError(msg, "Couldn't save calendar");
+      const data = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? "Couldn't create the feed");
       }
-    } catch {
-      const msg = "Couldn't reach the calendar service.";
-      setError(msg);
-      toastError(msg);
+      setFeedUrl(data.url);
+      setStatus("active");
+      setCopied(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't create the feed");
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   };
 
-  const confirmDisconnect = async () => {
-    setDisconnectBusy(true);
+  const handleRotate = async () => {
+    if (
+      !window.confirm(
+        "Rotate the calendar feed link? Your old link will stop working immediately.",
+      )
+    )
+      return;
+    setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/contact/auth/google/disconnect", {
+      const res = await fetch("/api/contact/calendar/feed/manage", {
         method: "POST",
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        setSelectedCalendarId("");
-        setCalendars([]);
-        setLastSyncedAt(null);
-        setStatus("not_connected");
-        toastSuccess("Google Calendar disconnected.");
-      } else {
-        const msg = data.error || "Couldn't disconnect.";
-        setError(msg);
-        toastError(msg, "Couldn't disconnect");
+      const data = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? "Couldn't rotate the feed");
       }
-    } catch {
-      const msg = "Couldn't reach the disconnect endpoint.";
-      setError(msg);
-      toastError(msg);
+      setFeedUrl(data.url);
+      setStatus("active");
+      setCopied(false);
+      toastSuccess("Calendar feed rotated");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't rotate the feed");
     } finally {
-      setDisconnectBusy(false);
+      setBusy(false);
     }
   };
 
-  const selectedCalendar = calendars.find((c) => c.id === selectedCalendarId);
+  const handleDisable = async () => {
+    if (
+      !window.confirm(
+        "Disable the calendar feed? The current link will stop working.",
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/contact/calendar/feed/manage", {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? "Couldn't disable the feed");
+      }
+      setStatus("none");
+      setFeedUrl(null);
+      toastSuccess("Calendar feed disabled");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't disable the feed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!feedUrl) return;
+    // iOS/Android calendar apps use webcal:// for live subscription. The
+    // server returns https://; rewrite the scheme here so the pasted link
+    // is a one-tap add in the user's phone calendar.
+    const webcalUrl = feedUrl.replace(/^https?:/, "webcal:");
+    try {
+      await navigator.clipboard.writeText(webcalUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Couldn't copy. Long-press the link to copy manually.");
+    }
+  };
+
+  // The webcal:// form is what the user's phone calendar app needs to
+  // subscribe. Only show it once (right after creation or rotation).
+  const displayUrl = feedUrl ? feedUrl.replace(/^https?:/, "webcal:") : null;
 
   return (
     <div className="max-w-2xl space-y-4">
       <Panel>
-        <SectionLabel>Google Calendar</SectionLabel>
+        <SectionLabel>Calendar sync</SectionLabel>
         <p className="text-sbi-muted text-sm mb-5">
-          Connect your Google Calendar so clients can see your availability and
-          scheduled events.
+          Subscribe in your phone's calendar to see every project event
+          automatically. Once you add the link, the calendar app keeps itself up
+          to date — you don't need to come back here.
         </p>
 
-        {status === "loading" && (
+        {status === "loading" ? (
           <div className="flex items-center gap-2 text-sbi-muted text-sm">
-            <Loader2 className="size-4 animate-spin" /> Checking your
-            connection…
+            <Loader2 className="size-4 animate-spin" /> Loading…
           </div>
-        )}
+        ) : null}
 
-        {status === "not_connected" && <CalendarIntroPanel />}
+        {status === "active" && !displayUrl ? (
+          <div className="space-y-4">
+            <p className="text-sm text-sbi-muted">
+              Your calendar feed is active. The link was shown only once when it
+              was created — for security, generate a new one if you need to
+              re-add it on a device.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRotate}
+                disabled={busy}
+                className={cn(btnPrimary, "h-9 px-4 text-xs")}
+              >
+                {busy ? "Working…" : "Generate new link"}
+              </button>
+              <button
+                type="button"
+                onClick={handleDisable}
+                disabled={busy}
+                className={cn(btnGhost, "h-9 px-4 text-xs")}
+              >
+                Disable feed
+              </button>
+            </div>
+          </div>
+        ) : null}
 
-        {status === "no_calendar" && (
-          <CalendarPickPanel
-            email={connectedEmail}
-            calendars={calendars}
-            selectedCalendarId={selectedCalendarId}
-            onSelect={handleSelectCalendar}
-            saving={saving}
-          />
-        )}
+        {status === "active" && displayUrl ? (
+          <div className="space-y-4">
+            <div className="rounded-md border border-sbi-dark-border/40 bg-sbi-dark/40 p-3 space-y-2">
+              <div className="text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark">
+                Your calendar link
+              </div>
+              <code className="block break-all font-mono text-[12px] text-sbi-green">
+                {displayUrl}
+              </code>
+            </div>
 
-        {status === "connected" && (
-          <CalendarConnectedPanel
-            email={connectedEmail}
-            calendar={selectedCalendar}
-            lastSyncedAt={lastSyncedAt}
-            onChangeCalendar={() => setStatus("no_calendar")}
-            onDisconnect={() => setShowDisconnectConfirm(true)}
-            disconnectBusy={disconnectBusy}
-          />
-        )}
+            <ol className="text-sm text-sbi-muted space-y-1.5 list-decimal list-inside">
+              <li>Copy the link above (or use the button).</li>
+              <li>
+                On iPhone: open Calendar → Calendars tab → Add → Add Subscribed
+                Calendar → paste.
+              </li>
+              <li>
+                On Android: open Google Calendar → Settings → Add calendar →
+                From URL → paste.
+              </li>
+              <li>
+                Events appear within a few minutes and stay in sync
+                automatically.
+              </li>
+            </ol>
 
-        {error && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className={cn(btnPrimary, "h-9 px-4 text-xs")}
+              >
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+              <button
+                type="button"
+                onClick={handleRotate}
+                disabled={busy}
+                className={cn(btnGhost, "h-9 px-4 text-xs")}
+              >
+                {busy ? "Working…" : "Rotate link"}
+              </button>
+              <button
+                type="button"
+                onClick={handleDisable}
+                disabled={busy}
+                className={cn(btnGhost, "h-9 px-4 text-xs")}
+              >
+                Disable
+              </button>
+            </div>
+            <p className="text-[11px] text-sbi-muted-dark pt-1">
+              Treat this link like a password — anyone with the URL can see your
+              project events. Rotating immediately invalidates the old one.
+            </p>
+          </div>
+        ) : null}
+
+        {status === "none" ? (
+          <div className="space-y-4">
+            <p className="text-sm text-sbi-muted">
+              You don't have a calendar feed yet. Create one to get a link you
+              can paste into your phone's calendar app.
+            </p>
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={busy}
+              className={cn(btnPrimary, "h-9 px-4 text-xs")}
+            >
+              {busy ? "Working…" : "Create calendar link"}
+            </button>
+          </div>
+        ) : null}
+
+        {error ? (
           <div className="mt-4 flex items-start gap-2 text-red-400 text-sm">
             <AlertCircle className="size-4 shrink-0 mt-px" />
             <span>{error}</span>
           </div>
-        )}
+        ) : null}
       </Panel>
-
-      <ConfirmDialog
-        opened={showDisconnectConfirm}
-        onClose={() => setShowDisconnectConfirm(false)}
-        title="Disconnect Google Calendar?"
-        description="Your clients won't see events from your calendar until you reconnect. Stored tokens will be cleared."
-        confirmLabel="Disconnect"
-        danger
-        onConfirm={async () => {
-          await confirmDisconnect();
-          setShowDisconnectConfirm(false);
-        }}
-      />
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// CalendarSection sub-components
-// ---------------------------------------------------------------------------
-
-function CalendarIntroPanel() {
-  return (
-    <div className="space-y-5">
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div className="rounded-md border border-sbi-dark-border/40 bg-sbi-dark/40 p-3">
-          <div className={`${labelClass} mb-1.5`}>What we do</div>
-          <ul className="text-xs text-sbi-muted leading-relaxed list-disc list-outside ml-4 space-y-0.5">
-            <li>Read events from one calendar you choose</li>
-            <li>Filter to events where the client is an attendee</li>
-            <li>Show them on the client's calendar page</li>
-            <li>Save the client's RSVP back to your calendar</li>
-          </ul>
-        </div>
-        <div className="rounded-md border border-sbi-dark-border/40 bg-sbi-dark/40 p-3">
-          <div className={`${labelClass} mb-1.5`}>What we don't do</div>
-          <ul className="text-xs text-sbi-muted leading-relaxed list-disc list-outside ml-4 space-y-0.5">
-            <li>Create new events or delete existing ones</li>
-            <li>Touch any calendar besides the one you select</li>
-            <li>Read events without the client invited</li>
-            <li>Access Gmail or any other Google data</li>
-          </ul>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4">
-        <a href="/api/contact/auth/google" className={btnPrimary}>
-          Connect Google Calendar
-        </a>
-        <a
-          href="/docs/google-calendar-setup"
-          className="inline-flex items-center gap-1 text-xs text-sbi-muted-dark hover:text-sbi-green transition-colors"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Setup guide
-          <ExternalLink className="size-3" />
-        </a>
-      </div>
-    </div>
-  );
-}
-
-interface CalendarPickPanelProps {
-  email: string;
-  calendars: GoogleCalendar[];
-  selectedCalendarId: string;
-  onSelect: (id: string) => void;
-  saving: boolean;
-}
-
-function CalendarPickPanel({
-  email,
-  calendars,
-  selectedCalendarId,
-  onSelect,
-  saving,
-}: CalendarPickPanelProps) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <span className="size-1.5 rounded-full bg-sbi-green" />
-        <span className="text-sm text-white">
-          Connected
-          {email ? (
-            <>
-              {" "}
-              as <span className="text-sbi-green">{email}</span>
-            </>
-          ) : null}
-        </span>
-      </div>
-      <p className="text-sbi-muted text-sm">
-        Pick which calendar the portal should read from. We'll only show events
-        where your client is invited.
-      </p>
-
-      <div className="space-y-1.5">
-        {calendars.map((cal) => {
-          const active = cal.id === selectedCalendarId;
-          return (
-            <button
-              key={cal.id}
-              type="button"
-              onClick={() => onSelect(cal.id)}
-              disabled={saving}
-              className={[
-                "w-full text-left px-3 py-2.5 rounded border transition-colors flex items-center justify-between gap-3 disabled:opacity-50",
-                active
-                  ? "border-sbi-green/40 bg-sbi-green/[0.06]"
-                  : "border-sbi-dark-border/40 bg-sbi-dark/40 hover:border-sbi-dark-border",
-              ].join(" ")}
-            >
-              <div className="min-w-0">
-                <div className="text-sm text-white truncate">{cal.summary}</div>
-                <div className="text-[11px] text-sbi-muted truncate">
-                  {cal.primary ? "Primary calendar" : cal.accessRole}
-                </div>
-              </div>
-              {active ? (
-                <span className="inline-flex items-center gap-1 text-[11px] text-sbi-green">
-                  <Check className="size-3.5" />
-                  Selected
-                </span>
-              ) : (
-                <span className="text-[11px] text-sbi-muted-dark">Select</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      <p className="text-xs text-sbi-muted-dark">
-        Most directors pick a dedicated "Client meetings" calendar so studio
-        standups don't leak through.
-      </p>
-    </div>
-  );
-}
-
-interface CalendarConnectedPanelProps {
-  email: string;
-  calendar: GoogleCalendar | undefined;
-  lastSyncedAt: string | null;
-  onChangeCalendar: () => void;
-  onDisconnect: () => void;
-  disconnectBusy: boolean;
-}
-
-function CalendarConnectedPanel({
-  email,
-  calendar,
-  lastSyncedAt,
-  onChangeCalendar,
-  onDisconnect,
-  disconnectBusy,
-}: CalendarConnectedPanelProps) {
-  const lastSyncLabel = formatRelative(lastSyncedAt);
-
-  return (
-    <div className="flex items-start justify-between gap-4 flex-wrap">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="size-1.5 rounded-full bg-sbi-green" />
-          <span className="text-sm text-white">
-            Connected · reading from{" "}
-            <span className="text-white">
-              {calendar?.summary ?? "selected calendar"}
-            </span>
-          </span>
-        </div>
-        <div className="text-xs text-sbi-muted ml-3.5">
-          {email}
-          {lastSyncLabel ? <> · last refreshed {lastSyncLabel}</> : null}
-        </div>
-      </div>
-      <div className="flex gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={onChangeCalendar}
-          className={cn(btnGhost, "h-auto py-1.5 px-3")}
-        >
-          Change calendar
-        </button>
-        <button
-          type="button"
-          onClick={onDisconnect}
-          disabled={disconnectBusy}
-          className={cn(btnDanger, "h-auto py-1.5 px-3")}
-        >
-          {disconnectBusy ? "Disconnecting…" : "Disconnect"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function formatRelative(iso: string | null): string | null {
-  if (!iso) return null;
-  const then = new Date(iso).getTime();
-  if (!Number.isFinite(then)) return null;
-  const diffMs = Date.now() - then;
-  if (diffMs < 0) return null;
-  const minutes = Math.round(diffMs / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60)
-    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
-  const days = Math.round(hours / 24);
-  return `${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
 // ---------------------------------------------------------------------------

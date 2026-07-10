@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { feedTokenMatches } from "@/lib/calendar/feed-token";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -78,10 +78,7 @@ export async function GET(
     .select("id, name, email, config")
     .not("config", "is", null);
   if (lookupErr) {
-    return NextResponse.json(
-      { error: "Feed lookup failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Feed lookup failed" }, { status: 500 });
   }
 
   const matched = (candidates ?? []).find((p) => {
@@ -101,9 +98,7 @@ export async function GET(
   // RLS does not help here (we're using the service role); replicate the
   // membership check by joining project_members.
   const timeMin = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-  const timeMax = new Date(
-    Date.now() + 365 * 24 * 3600 * 1000,
-  ).toISOString();
+  const timeMax = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
 
   const { data: memberRows } = await supabaseAdmin
     .from("project_members")
@@ -127,20 +122,20 @@ export async function GET(
     .lte("start_at", timeMax)
     .order("start_at", { ascending: true });
   if (eventsErr) {
-    return NextResponse.json(
-      { error: "Feed query failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Feed query failed" }, { status: 500 });
   }
 
-  return new NextResponse(buildIcs(matched.name, (events ?? []) as FeedEventRow[]), {
-    headers: {
-      "Content-Type": "text/calendar; charset=utf-8",
-      // NO Content-Disposition — calendar apps need the body to be a live
-      // feed, not an attachment download.
-      "Cache-Control": "private, max-age=300",
+  return new NextResponse(
+    buildIcs(matched.name, (events ?? []) as FeedEventRow[]),
+    {
+      headers: {
+        "Content-Type": "text/calendar; charset=utf-8",
+        // NO Content-Disposition — calendar apps need the body to be a live
+        // feed, not an attachment download.
+        "Cache-Control": "private, max-age=300",
+      },
     },
-  });
+  );
 }
 
 function buildIcs(calendarName: string, events: FeedEventRow[]): string {

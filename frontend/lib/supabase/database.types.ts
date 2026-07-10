@@ -1245,6 +1245,99 @@ export type Database = {
         };
         Relationships: [];
       };
+      project_events: {
+        Row: {
+          id: number;
+          project_id: number;
+          title: string;
+          description: string | null;
+          location: string | null;
+          start_at: string;
+          end_at: string;
+          all_day: boolean;
+          created_by: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          project_id: number;
+          title: string;
+          description?: string | null;
+          location?: string | null;
+          start_at: string;
+          end_at: string;
+          all_day?: boolean;
+          created_by: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          project_id?: number;
+          title?: string;
+          description?: string | null;
+          location?: string | null;
+          start_at?: string;
+          end_at?: string;
+          all_day?: boolean;
+          created_by?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "project_events_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "project_events_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      project_event_attendees: {
+        Row: {
+          event_id: number;
+          profile_id: number;
+          response: string;
+          responded_at: string | null;
+        };
+        Insert: {
+          event_id: number;
+          profile_id: number;
+          response?: string;
+          responded_at?: string | null;
+        };
+        Update: {
+          event_id?: number;
+          profile_id?: number;
+          response?: string;
+          responded_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "project_event_attendees_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "project_events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "project_event_attendees_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;

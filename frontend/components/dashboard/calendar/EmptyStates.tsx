@@ -1,30 +1,15 @@
 "use client";
 
-import {
-  AlertTriangle,
-  CalendarClock,
-  CalendarOff,
-  RefreshCw,
-} from "lucide-react";
+import { AlertTriangle, CalendarClock, RefreshCw } from "lucide-react";
 import { btnPrimary, EmptyState } from "@/components/dashboard/common/ui";
 import { cn } from "@/lib/utils";
-
-export function NoDirectorConnectedState() {
-  return (
-    <EmptyState
-      icon={<CalendarOff className="size-6" />}
-      title="No calendar connected yet"
-      description="Your director hasn't connected their calendar yet. Once they do, your meetings will appear here."
-    />
-  );
-}
 
 export function NoEventsState() {
   return (
     <EmptyState
-      icon={<CalendarClock className="size-6" />}
+      icon={<CalendarClock className="h-6 w-6" />}
       title="No events scheduled"
-      description="Meetings your director adds you to will appear here."
+      description="Project meetings will appear here once your team schedules them."
     />
   );
 }
@@ -36,7 +21,7 @@ interface FetchErrorProps {
 export function FetchErrorState({ onRetry }: FetchErrorProps) {
   return (
     <EmptyState
-      icon={<AlertTriangle className="size-6" />}
+      icon={<AlertTriangle className="h-6 w-6" />}
       title="Couldn't load events"
       description="The calendar service didn't respond. Check your connection and try again."
       action={

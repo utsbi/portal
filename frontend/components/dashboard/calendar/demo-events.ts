@@ -1,4 +1,4 @@
-import type { RawCalendarEvent } from "./types";
+import type { EventsResponse } from "./types";
 
 function atTime(baseDate: Date, hour: number, minute = 0): Date {
   const d = new Date(baseDate);
@@ -16,119 +16,110 @@ function iso(date: Date): string {
   return date.toISOString();
 }
 
-export function generateDemoEvents(): RawCalendarEvent[] {
+export function generateDemoEvents(): EventsResponse["events"] {
   const today = new Date();
+  // Use a fixed fake organizer id so the UI can still gate edit/delete
+  // affordances on organizerId.
+  const directorId = 0;
 
   const seeds: Array<{
     offsetDays: number;
     startHour: number;
     durationMinutes: number;
-    summary: string;
+    title: string;
     location: string | null;
     description?: string;
-    organizer: { name: string; email: string };
+    organizer: { name: string };
   }> = [
     {
       offsetDays: -9,
       startHour: 10,
       durationMinutes: 45,
-      summary: "Kickoff with Architecture team",
+      title: "Kickoff with Architecture team",
       location: "ECJ 1.314, UT Austin",
-      organizer: { name: "Pedro Guzman", email: "pedro.guzman@sbi-texas.edu" },
+      organizer: { name: "Pedro Guzman" },
     },
     {
       offsetDays: -4,
       startHour: 14,
       durationMinutes: 60,
-      summary: "Schematic design review",
+      title: "Schematic design review",
       location: "Zoom",
-      organizer: {
-        name: "Christian Butler",
-        email: "christian.butler@sbi-texas.edu",
-      },
+      organizer: { name: "Christian Butler" },
     },
     {
       offsetDays: 0,
       startHour: 11,
       durationMinutes: 30,
-      summary: "Weekly progress check-in",
+      title: "Weekly progress check-in",
       location: "Zoom",
       description: "Standing 30-minute sync on milestones and blockers.",
-      organizer: { name: "Brendan Lyon", email: "brendan.lyon@sbi-texas.edu" },
+      organizer: { name: "Brendan Lyon" },
     },
     {
       offsetDays: 1,
       startHour: 9,
       durationMinutes: 90,
-      summary: "Site walkthrough, north lot",
+      title: "Site walkthrough, north lot",
       location: "Mueller redevelopment, Austin TX",
-      organizer: {
-        name: "Kabir Muzumdar",
-        email: "kabir.muzumdar@sbi-texas.edu",
-      },
+      organizer: { name: "Kabir Muzumdar" },
     },
     {
       offsetDays: 1,
       startHour: 13,
       durationMinutes: 60,
-      summary: "Material selection workshop",
+      title: "Material selection workshop",
       location: "ECJ 1.314, UT Austin",
-      organizer: {
-        name: "Preston Vajdos",
-        email: "preston.vajdos@sbi-texas.edu",
-      },
+      organizer: { name: "Preston Vajdos" },
     },
     {
       offsetDays: 1,
       startHour: 15,
       durationMinutes: 30,
-      summary: "Energy modeling sync",
+      title: "Energy modeling sync",
       location: "Zoom",
-      organizer: { name: "Daniel Lam", email: "daniel.wingchi.lam@gmail.com" },
+      organizer: { name: "Daniel Lam" },
     },
     {
       offsetDays: 1,
       startHour: 16,
       durationMinutes: 45,
-      summary: "Sponsorship briefing",
+      title: "Sponsorship briefing",
       location: null,
-      organizer: { name: "Dev Shroff", email: "dev.shroff@sbi-texas.edu" },
+      organizer: { name: "Dev Shroff" },
     },
     {
       offsetDays: 4,
       startHour: 10,
       durationMinutes: 60,
-      summary: "Structural engineering review",
+      title: "Structural engineering review",
       location: "Conference room B",
-      organizer: {
-        name: "Kabir Muzumdar",
-        email: "kabir.muzumdar@sbi-texas.edu",
-      },
+      organizer: { name: "Kabir Muzumdar" },
     },
     {
       offsetDays: 8,
       startHour: 14,
       durationMinutes: 90,
-      summary: "Mid-project review with client",
+      title: "Mid-project review with client",
       location: "Client HQ, downtown Austin",
       description: "Walk through deliverables to date and align on next phase.",
-      organizer: { name: "Sam Moran", email: "sam.moran@sbi-texas.edu" },
+      organizer: { name: "Sam Moran" },
     },
     {
       offsetDays: 14,
       startHour: 11,
       durationMinutes: 60,
-      summary: "Sustainability targets retrospective",
+      title: "Sustainability targets retrospective",
       location: "Zoom",
-      organizer: { name: "Arianne Yude", email: "arianne.yude@sbi-texas.edu" },
+      organizer: { name: "Arianne Yude" },
     },
     {
       offsetDays: 21,
       startHour: 13,
       durationMinutes: 120,
-      summary: "Pre-construction handoff",
+      title: "Pre-construction handoff",
       location: "ECJ 1.314, UT Austin",
-      organizer: { name: "Pedro Guzman", email: "pedro.guzman@sbi-texas.edu" },
+      organizer: { name: "Pedro Guzman" },
     },
   ];
 
@@ -139,16 +130,15 @@ export function generateDemoEvents(): RawCalendarEvent[] {
 
     return {
       id: `demo-${i}`,
-      summary: seed.summary,
+      title: seed.title,
       start: iso(start),
       end: iso(end),
+      allDay: false,
       location: seed.location,
       description: seed.description ?? null,
-      htmlLink: null,
-      organizerName: seed.organizer.name,
-      organizerEmail: seed.organizer.email,
-      creatorName: seed.organizer.name,
-      creatorEmail: seed.organizer.email,
+      organizer: seed.organizer.name,
+      organizerId: directorId,
+      myResponse: i % 3 === 0 ? "accepted" : "needsAction",
     };
   });
 }

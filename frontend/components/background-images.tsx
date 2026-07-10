@@ -167,7 +167,6 @@ const gridImages = [
 ];
 
 export {
-  gridImages,
   austinNightWide,
   betweenBuildings,
   blanton,
@@ -188,6 +187,7 @@ export {
   gdcBackDusk,
   gdcBalconyDusk,
   gdcFrontDusk,
+  gridImages,
   rlmCourtyard,
   rlmHallway,
   rlpBridgeCenter,

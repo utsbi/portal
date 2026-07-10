@@ -37,7 +37,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.4.11",
-    "googleapis": "^171.4.0",
     "gsap": "^3.13.0",
     "linkify-it": "^5.0.1",
     "lucide-react": "^0.555.0",

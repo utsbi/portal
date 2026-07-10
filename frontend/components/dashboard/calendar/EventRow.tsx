@@ -3,16 +3,11 @@
 import { ChevronDown } from "lucide-react";
 import { EventDetails } from "./EventDetails";
 import type { RsvpChoice } from "./hooks/useCalendarEvents";
-import type {
-  AttendeeResponse,
-  CalendarEvent,
-  RawCalendarEvent,
-} from "./types";
+import type { AttendeeResponse, CalendarEvent } from "./types";
 import { relativeUntil } from "./utils";
 
 interface Props {
   event: CalendarEvent;
-  raw: RawCalendarEvent | undefined;
   expanded: boolean;
   onToggle: () => void;
   /** Highlights the next-up event in Today with an accent rule + relative pill. */
@@ -21,7 +16,11 @@ interface Props {
   dimmed?: boolean;
   /** When true, the accordion shows RSVP buttons. */
   canRsvp?: boolean;
+  /** The signed-in profile id — used to gate edit/delete in EventDetails. */
+  currentProfileId: number | null;
   onRsvp?: (eventId: string, response: RsvpChoice) => void;
+  onEdit?: (event: CalendarEvent) => void;
+  onDelete?: (event: CalendarEvent) => void;
 }
 
 const RESPONSE_INDICATOR: Record<
@@ -36,13 +35,15 @@ const RESPONSE_INDICATOR: Record<
 
 export function EventRow({
   event,
-  raw,
   expanded,
   onToggle,
   isNextUp = false,
   dimmed = false,
   canRsvp,
+  currentProfileId,
   onRsvp,
+  onEdit,
+  onDelete,
 }: Props) {
   const meta = [event.startTime + (event.endTime ? ` – ${event.endTime}` : "")]
     .concat(event.location ? [event.location] : [])
@@ -116,9 +117,11 @@ export function EventRow({
       <EventDetails
         open={expanded}
         event={event}
-        raw={raw}
-        canRsvp={canRsvp}
+        currentProfileId={currentProfileId}
+        canRsvp={!!canRsvp}
         onRsvp={onRsvp}
+        onEdit={onEdit}
+        onDelete={onDelete}
       />
     </div>
   );

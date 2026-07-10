@@ -18,11 +18,6 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    // Deterministic 32-byte key so lib/crypto/tokens.ts can encrypt/decrypt in
-    // tests (the real key is injected via env in deployed environments).
-    env: {
-      TOKEN_ENCRYPTION_KEY: "2ArvvaMCXIWQ//uz0uuXFFpKejr0Lu8BsHgLfYBwT1E=",
-    },
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
     exclude: ["node_modules", ".next", "e2e/**"],

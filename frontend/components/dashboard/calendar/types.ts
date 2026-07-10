@@ -6,22 +6,11 @@ export type AttendeeResponse =
   | "tentative"
   | "needsAction";
 
-export interface RawCalendarEvent {
-  id: string | null;
-  summary?: string | null;
-  start?: string | null;
-  end?: string | null;
-  location?: string | null;
-  description?: string | null;
-  htmlLink?: string | null;
-  organizerName?: string | null;
-  organizerEmail?: string | null;
-  creatorName?: string | null;
-  creatorEmail?: string | null;
-  myResponse?: AttendeeResponse | null;
-  sourceCalendarId?: string | null;
-}
-
+/**
+ * Calendar event as the UI consumes it. The shape matches the GET response
+ * from /api/contact/calendar/client-events — we don't need the raw Google
+ * fields anymore, so there's no separate `RawCalendarEvent` type.
+ */
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -30,22 +19,31 @@ export interface CalendarEvent {
   prettyDate: string;
   startTime: string;
   endTime: string;
-  organizer: string;
-  organizerEmail: string | null;
-  location: string | null;
-  description: string | null;
   start: string | null;
   end: string | null;
+  allDay: boolean;
+  organizer: string;
+  organizerId: number;
+  location: string | null;
+  description: string | null;
   past: boolean;
   myResponse: AttendeeResponse;
-  /** Needed for write-back endpoints like RSVP */
-  calendarId: string | null;
 }
 
 export interface EventsResponse {
   ok: true;
-  connected: boolean;
-  events: RawCalendarEvent[];
+  events: Array<{
+    id: string;
+    title: string;
+    start: string;
+    end: string;
+    allDay: boolean;
+    location: string | null;
+    description: string | null;
+    organizer: string;
+    organizerId: number;
+    myResponse: AttendeeResponse;
+  }>;
 }
 
 export type AgendaBucketId =

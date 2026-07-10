@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { generateDemoEvents } from "../demo-events";
-import type {
-  AttendeeResponse,
-  CalendarEvent,
-  EventsResponse,
-  RawCalendarEvent,
-} from "../types";
+import type { AttendeeResponse, CalendarEvent, EventsResponse } from "../types";
 import {
   buildInternalUrl,
   CALENDAR_EVENTS_API,
@@ -18,12 +13,9 @@ export type RsvpChoice = "accepted" | "declined" | "tentative";
 
 interface UseCalendarEventsState {
   events: CalendarEvent[];
-  /** Raw events kept around for "Add to Google" / .ics actions which need the original fields. */
-  rawById: Record<string, RawCalendarEvent>;
   loading: boolean;
   refetching: boolean;
   error: string | null;
-  connected: boolean | null;
   refetch: () => Promise<void>;
   rsvp: (eventId: string, response: RsvpChoice) => Promise<void>;
 }
@@ -38,25 +30,16 @@ export function useCalendarEvents({
   demoMode,
 }: Options): UseCalendarEventsState {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [rawById, setRawById] = useState<Record<string, RawCalendarEvent>>({});
   const [loading, setLoading] = useState(true);
   const [refetching, setRefetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [connected, setConnected] = useState<boolean | null>(null);
   const hasLoadedOnceRef = useRef(false);
 
   const load = useCallback(async () => {
     if (demoMode) {
       const raw = generateDemoEvents();
       const normalized = raw.map(normalizeEvent);
-      const map: Record<string, RawCalendarEvent> = {};
-      raw.forEach((r, i) => {
-        const id = normalized[i].id;
-        map[id] = r;
-      });
       setEvents(normalized);
-      setRawById(map);
-      setConnected(true);
       setError(null);
       setLoading(false);
       setRefetching(false);
@@ -66,8 +49,6 @@ export function useCalendarEvents({
 
     if (!projectId) {
       setEvents([]);
-      setRawById({});
-      setConnected(null);
       setError(null);
       setLoading(false);
       return;
@@ -87,31 +68,18 @@ export function useCalendarEvents({
       const res = await fetch(url);
 
       if (!res.ok) {
-        if (!hasLoadedOnceRef.current) {
-          setEvents([]);
-          setRawById({});
-        }
+        if (!hasLoadedOnceRef.current) setEvents([]);
         setError("Couldn't load events. The calendar service didn't respond.");
         return;
       }
 
       const json: EventsResponse = await res.json();
       const raw = json.events ?? [];
-      const normalized = raw.map(normalizeEvent);
-      const map: Record<string, RawCalendarEvent> = {};
-      raw.forEach((r, i) => {
-        map[normalized[i].id] = r;
-      });
-      setEvents(normalized);
-      setRawById(map);
-      setConnected(json.connected ?? null);
+      setEvents(raw.map(normalizeEvent));
       hasLoadedOnceRef.current = true;
     } catch (e) {
       console.error("Failed to load calendar events:", e);
-      if (!hasLoadedOnceRef.current) {
-        setEvents([]);
-        setRawById({});
-      }
+      if (!hasLoadedOnceRef.current) setEvents([]);
       setError("Couldn't load events. The calendar service didn't respond.");
     } finally {
       setLoading(false);
@@ -125,9 +93,17 @@ export function useCalendarEvents({
 
   const rsvp = useCallback(
     async (eventId: string, response: RsvpChoice) => {
-      if (!projectId && !demoMode) return;
+      if (demoMode) {
+        // Optimistic update only in demo mode.
+        setEvents((curr) =>
+          curr.map((e) =>
+            e.id === eventId ? { ...e, myResponse: response } : e,
+          ),
+        );
+        return;
+      }
 
-      // Optimistically update local state — revert on failure.
+      // Optimistic update — revert on failure.
       let previousResponse: AttendeeResponse | undefined;
       setEvents((curr) =>
         curr.map((e) => {
@@ -137,34 +113,23 @@ export function useCalendarEvents({
         }),
       );
 
-      if (demoMode) return;
-
-      const target = events.find((e) => e.id === eventId);
-      if (!target?.calendarId) return;
-
       try {
         const res = await fetch("/api/contact/calendar/client-events/rsvp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            eventId,
-            calendarId: target.calendarId,
-            projectId,
-            response,
-          }),
+          body: JSON.stringify({ eventId: Number(eventId), response }),
         });
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          console.error("RSVP failed:", res.status, body);
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           throw new Error(
-            body?.error ?? `RSVP request failed with ${res.status}`,
+            body.error ?? `RSVP request failed with ${res.status}`,
           );
         }
       } catch (e) {
         console.error("Failed to RSVP:", e);
         // Only revert if the local state STILL holds the value this call set.
-        // Without this check, a second click ("Maybe") that succeeds could be
-        // clobbered by the revert of a still-in-flight first call ("Going").
         setEvents((curr) =>
           curr.map((evt) =>
             evt.id === eventId &&
@@ -176,16 +141,14 @@ export function useCalendarEvents({
         );
       }
     },
-    [events, projectId, demoMode],
+    [demoMode],
   );
 
   return {
     events,
-    rawById,
     loading,
     refetching,
     error,
-    connected,
     refetch: load,
     rsvp,
   };

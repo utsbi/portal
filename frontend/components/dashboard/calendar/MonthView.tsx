@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { EventRow } from "./EventRow";
 import type { RsvpChoice } from "./hooks/useCalendarEvents";
 import { MonthPicker } from "./MonthPicker";
-import type { CalendarEvent, RawCalendarEvent } from "./types";
+import type { CalendarEvent } from "./types";
 import {
   buildMonthDays,
   dayNames,
@@ -15,24 +15,28 @@ import {
 
 interface Props {
   events: CalendarEvent[];
-  rawById: Record<string, RawCalendarEvent>;
   currentMonth: Date;
   onChangeMonth: (next: Date) => void;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
   canRsvp?: boolean;
+  currentProfileId: number | null;
   onRsvp?: (eventId: string, response: RsvpChoice) => void;
+  onEdit?: (event: CalendarEvent) => void;
+  onDelete?: (event: CalendarEvent) => void;
 }
 
 export function MonthView({
   events,
-  rawById,
   currentMonth,
   onChangeMonth,
   selectedDate,
   onSelectDate,
   canRsvp,
+  currentProfileId,
   onRsvp,
+  onEdit,
+  onDelete,
 }: Props) {
   const [openEventId, setOpenEventId] = useState<string | null>(null);
 
@@ -238,13 +242,15 @@ export function MonthView({
                 <EventRow
                   key={ev.id}
                   event={ev}
-                  raw={rawById[ev.id]}
                   expanded={openEventId === ev.id}
                   onToggle={() =>
                     setOpenEventId((p) => (p === ev.id ? null : ev.id))
                   }
                   canRsvp={canRsvp}
+                  currentProfileId={currentProfileId}
                   onRsvp={onRsvp}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
                 />
               ))}
             </div>

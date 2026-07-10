@@ -5,28 +5,32 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/dashboard/common/ui";
 import { EventRow } from "./EventRow";
 import type { RsvpChoice } from "./hooks/useCalendarEvents";
-import type { CalendarEvent, RawCalendarEvent } from "./types";
+import type { CalendarEvent } from "./types";
 import { bucketEvents, eventMatchesSearch } from "./utils";
 
 interface Props {
   events: CalendarEvent[];
-  rawById: Record<string, RawCalendarEvent>;
   search: string;
   /** YYYY-MM-DD to scroll to (the bucket containing this date). */
   scrollToDate?: string | null;
   canRsvp?: boolean;
+  currentProfileId: number | null;
   onRsvp?: (eventId: string, response: RsvpChoice) => void;
+  onEdit?: (event: CalendarEvent) => void;
+  onDelete?: (event: CalendarEvent) => void;
 }
 
 const BUCKET_ID_PREFIX = "calendar-bucket-";
 
 export function AgendaView({
   events,
-  rawById,
   search,
   scrollToDate,
   canRsvp,
+  currentProfileId,
   onRsvp,
+  onEdit,
+  onDelete,
 }: Props) {
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [pastExpanded, setPastExpanded] = useState(false);
@@ -127,10 +131,12 @@ export function AgendaView({
                       <EventRow
                         key={ev.id}
                         event={ev}
-                        raw={rawById[ev.id]}
                         expanded={openEventId === ev.id}
                         onToggle={() => toggle(ev.id)}
                         dimmed
+                        currentProfileId={currentProfileId}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
                       />
                     ))}
                   </div>
@@ -157,11 +163,13 @@ export function AgendaView({
                   <EventRow
                     key={ev.id}
                     event={ev}
-                    raw={rawById[ev.id]}
                     expanded={openEventId === ev.id}
                     onToggle={() => toggle(ev.id)}
                     canRsvp={canRsvp}
+                    currentProfileId={currentProfileId}
                     onRsvp={onRsvp}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
                     isNextUp={ev.id === nextUpId}
                   />
                 ))}

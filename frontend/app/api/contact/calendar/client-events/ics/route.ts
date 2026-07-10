@@ -64,7 +64,7 @@ export async function GET(req: Request) {
     .from("project_events")
     .select(
       `
-      id, title, description, location, start_at, end_at, all_day,
+      id, title, description, location, start_at, end_at, all_day, project_id,
       project:projects!project_events_project_id_fkey ( company_name )
     `,
     )
@@ -78,14 +78,14 @@ export async function GET(req: Request) {
   const { data: membership } = await supabaseAdmin
     .from("project_members")
     .select("role")
-    .eq("project_id", (event as { project_id: number }).project_id)
+    .eq("project_id", event.project_id)
     .eq("profile_id", callerProfile.id)
     .maybeSingle();
   if (!membership) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const project = (event as { project: { company_name: string } | null }).project;
+  const project = event.project;
   // Prefix the title with the project name so events in the phone's calendar
   // are self-explanatory when a user is on multiple projects.
   const summary = project?.company_name

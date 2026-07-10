@@ -4,10 +4,10 @@ export { generateDemoEvents } from "./demo-events";
 export {
   FetchErrorState,
   LoadingState,
-  NoDirectorConnectedState,
   NoEventsState,
 } from "./EmptyStates";
 export { EventDetails } from "./EventDetails";
+export { EventFormModal, type EventFormValue } from "./EventFormModal";
 export { EventRow } from "./EventRow";
 export type { RsvpChoice } from "./hooks/useCalendarEvents";
 export { useCalendarEvents } from "./hooks/useCalendarEvents";
@@ -21,6 +21,5 @@ export type {
   CalendarEvent,
   CalendarView,
   EventsResponse,
-  RawCalendarEvent,
 } from "./types";
 export * from "./utils";
