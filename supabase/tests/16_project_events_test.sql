@@ -16,7 +16,7 @@
 --   event_beta_director   (Director-created, Beta)
 -- =====================================================================
 BEGIN;
-SELECT plan(24);
+SELECT plan(25);
 
 -- ---------------------------------------------------------------------
 -- 1. Cross-tenant SELECT (Client A must NOT see Beta events).
@@ -145,6 +145,9 @@ SELECT t.reset_auth();
 -- A second member on the same project, who is NOT the creator and NOT a
 -- director, must NOT be able to update. We have no second Alpha member in
 -- the seed, so add one inline (auto-rolls-back with the test transaction).
+INSERT INTO auth.users (id, email) VALUES
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'eve@example.com')
+  ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.profiles (uid, name, email, role)
   VALUES ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
           'Eve ExtraMember', 'eve@example.com', 'member')
@@ -156,17 +159,92 @@ INSERT INTO public.project_members (project_id, profile_id, role)
   ON CONFLICT DO NOTHING;
 
 SELECT t.as_user('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee');
-SELECT throws_ok(
+-- RLS filters out the row — 0 rows affected, no exception. We assert the
+-- row's title is unchanged after the attempt.
+SELECT lives_ok(
   $$ UPDATE public.project_events
        SET title = 'Eve renamed it'
-     WHERE id = t.id('event_alpha_client') $$,
-  '42501', NULL,
-  'project_events: non-creator non-director member UPDATE is denied'
+     WHERE id = t.id('event_alpha_client') $$
+);
+SELECT is(
+  (SELECT title FROM public.project_events
+    WHERE id = t.id('event_alpha_client')),
+  'Client A renamed it',
+  'project_events: non-creator non-director member UPDATE is blocked by RLS (row unchanged)'
 );
 SELECT t.reset_auth();
 
 -- ---------------------------------------------------------------------
--- 6. DELETE: same rule as UPDATE — creator or director only.
+-- 6. Attendee RSVP: the attendee updates their own response; nobody else can.
+-- (Runs BEFORE the DELETE section below because the DELETE test removes
+-- event_alpha_director; the RSVP test needs that event intact.)
+-- ---------------------------------------------------------------------
+SELECT t.as_user(t.uid_clienta());
+SELECT lives_ok(
+  $$ UPDATE public.project_event_attendees
+       SET response = 'accepted'
+     WHERE event_id = t.id('event_alpha_director')
+       AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta()) $$,
+  'project_event_attendees: attendee can UPDATE their own response (RSVP self-service)'
+);
+
+-- A non-attendee UPDATE on another attendee is filtered out by RLS — 0 rows
+-- affected, no exception thrown. Assert the director's row is unchanged.
+SELECT lives_ok(
+  $$ UPDATE public.project_event_attendees
+       SET response = 'declined'
+     WHERE event_id = t.id('event_alpha_director')
+       AND profile_id = t.id('profile_director') $$
+);
+SELECT is(
+  (SELECT response FROM public.project_event_attendees
+    WHERE event_id = t.id('event_alpha_director')
+      AND profile_id = t.id('profile_director')),
+  'accepted',
+  'project_event_attendees: non-attendee UPDATE on another attendee is blocked by RLS (row unchanged)'
+);
+
+-- Cross-tenant probe: Client A tries to read Beta attendees — must be 0.
+SELECT is(
+  (SELECT count(*) FROM public.project_event_attendees
+    WHERE event_id = t.id('event_beta_director'))::int,
+  0,
+  'CONTROL project_event_attendees: Client A still cannot see Beta attendees after RSVP'
+);
+SELECT t.reset_auth();
+
+-- ---------------------------------------------------------------------
+-- 7. responded_at trigger stamps automatically on RSVP.
+-- ---------------------------------------------------------------------
+SELECT t.as_user(t.uid_clienta());
+SELECT is(
+  (SELECT responded_at IS NOT NULL
+     FROM public.project_event_attendees
+    WHERE event_id = t.id('event_alpha_director')
+      AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta())),
+  true,
+  'project_event_attendees: responded_at is set after moving off needsAction'
+);
+
+-- Flip back to needsAction — responded_at should clear.
+SELECT lives_ok(
+  $$ UPDATE public.project_event_attendees
+       SET response = 'needsAction'
+     WHERE event_id = t.id('event_alpha_director')
+       AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta()) $$
+);
+SELECT is(
+  (SELECT responded_at
+     FROM public.project_event_attendees
+    WHERE event_id = t.id('event_alpha_director')
+      AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta())),
+  NULL,
+  'project_event_attendees: responded_at clears when response reverts to needsAction'
+);
+SELECT t.reset_auth();
+
+-- ---------------------------------------------------------------------
+-- 8. DELETE: same rule as UPDATE — creator or director only.
 -- ---------------------------------------------------------------------
 SELECT t.as_user('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee');
 SELECT is(
@@ -201,69 +279,6 @@ SELECT is(
     WHERE id = t.id('event_alpha_director'))::int,
   0,
   'project_events: event actually removed after director DELETE'
-);
-SELECT t.reset_auth();
-
--- ---------------------------------------------------------------------
--- 7. Attendee RSVP: the attendee updates their own response; nobody else can.
--- ---------------------------------------------------------------------
--- Client A accepts their invite on event_alpha_client (which they themselves
--- created, but the RSVP path is still the attendee-side policy).
-SELECT t.as_user(t.uid_clienta());
-SELECT lives_ok(
-  $$ UPDATE public.project_event_attendees
-       SET response = 'accepted'
-     WHERE event_id = t.id('event_alpha_director')
-       AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta()) $$,
-  'project_event_attendees: attendee can UPDATE their own response (RSVP self-service)'
-);
-
--- A non-attendee member tries to flip someone else's RSVP — must be denied.
-SELECT throws_ok(
-  $$ UPDATE public.project_event_attendees
-       SET response = 'declined'
-     WHERE event_id = t.id('event_alpha_director')
-       AND profile_id = t.id('profile_director') $$,
-  '42501', NULL,
-  'project_event_attendees: non-attendee UPDATE on another attendee is denied'
-);
-
--- Cross-tenant probe: Client A tries to read Beta attendees — must be 0.
-SELECT is(
-  (SELECT count(*) FROM public.project_event_attendees
-    WHERE event_id = t.id('event_beta_director'))::int,
-  0,
-  'CONTROL project_event_attendees: Client A still cannot see Beta attendees after RSVP'
-);
-SELECT t.reset_auth();
-
--- ---------------------------------------------------------------------
--- 8. responded_at trigger stamps automatically on RSVP.
--- ---------------------------------------------------------------------
-SELECT t.as_user(t.uid_clienta());
-SELECT is(
-  (SELECT responded_at IS NOT NULL
-     FROM public.project_event_attendees
-    WHERE event_id = t.id('event_alpha_director')
-      AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta())),
-  true,
-  'project_event_attendees: responded_at is set after moving off needsAction'
-);
-
--- Flip back to needsAction — responded_at should clear.
-SELECT lives_ok(
-  $$ UPDATE public.project_event_attendees
-       SET response = 'needsAction'
-     WHERE event_id = t.id('event_alpha_director')
-       AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta()) $$
-);
-SELECT is(
-  (SELECT responded_at
-     FROM public.project_event_attendees
-    WHERE event_id = t.id('event_alpha_director')
-      AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta())),
-  NULL,
-  'project_event_attendees: responded_at clears when response reverts to needsAction'
 );
 SELECT t.reset_auth();
 
