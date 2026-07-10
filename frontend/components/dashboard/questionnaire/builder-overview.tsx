@@ -34,7 +34,6 @@ import {
 } from "@/components/dashboard/common/ui";
 import type { DirectorFormView } from "@/lib/data/questionnaire";
 import { toastError, toastSuccess } from "@/lib/notifications";
-import { FORM_TEMPLATES } from "@/lib/questionnaire/templates";
 import { cn } from "@/lib/utils";
 
 interface BuilderOverviewProps {
@@ -67,26 +66,12 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
       />
 
       <DashboardMain>
-        <div className="mb-6 flex flex-wrap items-center gap-x-1 gap-y-1">
-          <span className="mr-2 text-[11px] uppercase tracking-[0.15em] text-sbi-muted-dark">
-            Start from a template:
-          </span>
-          {FORM_TEMPLATES.map((t) => (
-            <Link
-              key={t.id}
-              href={`/dashboard/questionnaire/builder/new?template=${t.id}`}
-              title={t.description}
-              className="inline-flex h-8 items-center leading-none rounded-md px-2 text-xs text-sbi-muted transition-colors hover:bg-sbi-green/5 hover:text-sbi-green"
-            >
-              {t.name}
-            </Link>
-          ))}
-          <span aria-hidden className="mx-1 h-3.5 w-px bg-sbi-dark-border/60" />
+        <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1">
           <Link
             href="/dashboard/questionnaire/builder/templates"
-            className="inline-flex h-8 items-center leading-none rounded-md px-2 text-xs text-sbi-green/80 transition-colors hover:text-sbi-green"
+            className="inline-flex items-center text-xs text-sbi-green/80 transition-colors hover:text-sbi-green"
           >
-            Manage templates →
+            Use a template →
           </Link>
         </div>
 

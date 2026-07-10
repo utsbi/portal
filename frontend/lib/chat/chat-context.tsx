@@ -20,6 +20,7 @@ import {
 } from "@/lib/api/chat";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
+import { uuid } from "@/lib/uuid";
 
 export type ModelPreference = "fast" | "thinking";
 
@@ -520,7 +521,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // with it). syncPublicId reconciles from the DB afterwards as a safety net.
         let newPublicId: string | null = null;
         if (sessionIdRef.current === null) {
-          newPublicId = crypto.randomUUID();
+          newPublicId = uuid();
           setSessionPublicId(newPublicId);
         }
 

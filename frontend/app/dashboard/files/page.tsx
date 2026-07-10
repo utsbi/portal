@@ -34,6 +34,7 @@ import {
 } from "@/lib/api/knowledge";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
+import { uuid } from "@/lib/uuid";
 import DragOverlayCard from "./DragOverlay";
 import FileCard from "./FileCard";
 import FolderCard from "./FolderCard";
@@ -578,7 +579,7 @@ export default function FilesPage() {
     // Register every file in the tray up front, then work through them.
     // Statuses (and errors) are reported per-row in the tray, not as toasts.
     const batch = arr.map((file) => ({
-      id: crypto.randomUUID(),
+      id: uuid(),
       file,
       targetPath: selectedFolderPath
         ? `${selectedFolderPath}/${file.name}`

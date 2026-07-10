@@ -101,6 +101,22 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${urbanist.variable} ${jetbrainsMono.variable}`}
     >
+      <head>
+        {/*
+          crypto.randomUUID polyfill. The Web Crypto API's randomUUID() is only
+          exposed in secure contexts (HTTPS or localhost), so phones hitting
+          the dev server over http://<lan-ip> throw "crypto.randomUUID is not a
+          function". getRandomValues() has no such restriction — patch the
+          missing method with it so every caller (this app and its deps) works.
+        */}
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted inline polyfill, must run before hydration
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var c=window.crypto;if(c&&typeof c.randomUUID!=='function'&&typeof c.getRandomValues==='function'){c.randomUUID=function(){var b=new Uint8Array(16);c.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h='';for(var i=0;i<16;i++){h+=(b[i]<16?'0':'')+b[i].toString(16);}return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20,32);};}}catch(e){}})();",
+          }}
+        />
+      </head>
       <body className="scrollbar font-urbanist">
         <ThemeProvider
           attribute="class"

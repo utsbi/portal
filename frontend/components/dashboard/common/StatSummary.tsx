@@ -13,9 +13,9 @@ export interface StatSummaryItem {
 /**
  * One consistent stat treatment for every dashboard overview.
  *
- * - Below `sm`: a single compact divided card (2-col grid, small uppercase
- *   label + text-xl value, no icons) — roughly a third the height of the tile
- *   grid, so phones lead with content instead of chrome.
+ * - Below `sm`: a single compact divided card. Layout adapts to the item count
+ *   so 3 stats land in a single row (the common case), while 4 wraps to 2×2
+ *   and 1–2 stay at their natural width.
  * - From `sm` up: the familiar StatTile grid (icons + sublabels intact).
  *
  * `desktopGridClassName` controls the sm+ grid shape, e.g.
@@ -30,26 +30,32 @@ export function StatSummary({
   desktopGridClassName?: string;
   className?: string;
 }) {
+  // 3 items get a single row on phones; everything else collapses to 2 cols.
+  const mobileCols = items.length === 3 ? 3 : Math.min(items.length, 2);
+
   return (
     <div className={className}>
       {/* Phones: one compact divided summary card */}
-      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-sbi-dark-border/50 bg-sbi-dark-card/40 sm:hidden">
+      <div
+        className={cn(
+          "grid overflow-hidden rounded-xl border border-sbi-dark-border/50 bg-sbi-dark-card/40 sm:hidden",
+          mobileCols === 3 ? "grid-cols-3" : "grid-cols-2",
+        )}
+      >
         {items.map((item, i) => {
           const tone = item.tone ?? "default";
-          const isLastOdd = items.length % 2 === 1 && i === items.length - 1;
+          const isLastInRow =
+            i === items.length - 1 || (i + 1) % mobileCols === 0;
           return (
             <div
               key={item.label}
               className={cn(
-                "flex min-w-0 flex-col gap-0.5 px-4 py-2.5",
-                i >= 2 && "border-t border-sbi-dark-border/40",
-                !isLastOdd &&
-                  i % 2 === 1 &&
-                  "border-l border-sbi-dark-border/40",
-                isLastOdd && "col-span-2 border-t border-sbi-dark-border/40",
+                "flex min-w-0 flex-col gap-0.5 px-2.5 py-2.5",
+                i >= mobileCols && "border-t border-sbi-dark-border/40",
+                !isLastInRow && "border-r border-sbi-dark-border/40",
               )}
             >
-              <span className="truncate text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark">
+              <span className="truncate text-[10px] uppercase tracking-[0.1em] text-sbi-muted-dark">
                 {item.label}
               </span>
               <span

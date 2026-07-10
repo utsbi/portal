@@ -11,9 +11,15 @@ const nextConfig: NextConfig = {
   // (consumed by frontend/Dockerfile). No-op for `next dev`.
   output: "standalone",
 
-  // Cross-origin hosts allowed to hit the dev server (Tailscale, etc.).
-  // No-op in production.
-  allowedDevOrigins: ["galileo", "galileo.bear-ling.ts.net", "100.68.183.80"],
+  // Cross-origin hosts allowed to hit the dev server (Tailscale, LAN phones,
+  // etc.). No-op in production. Add the dev machine's LAN IP here so a phone
+  // on the same network can reach the server.
+  allowedDevOrigins: [
+    "galileo",
+    "galileo.bear-ling.ts.net",
+    "100.68.183.80",
+    "192.168.0.145",
+  ],
 
   images: {
     remotePatterns: [
