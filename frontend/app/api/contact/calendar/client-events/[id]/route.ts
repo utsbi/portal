@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import type { Database } from "@/lib/supabase/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 interface UpdateEventBody {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sendEventInvites } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -298,6 +299,8 @@ export async function POST(req: Request) {
     })),
   ];
 
+  const invitedProfileIds = Array.from(explicitIds);
+
   if (attendeeRows.length > 0) {
     const { error: attErr } = await supabaseAdmin
       .from("project_event_attendees")
@@ -307,6 +310,34 @@ export async function POST(req: Request) {
       // can re-invite from the UI. Don't fail the whole create.
       console.error("project_event_attendees insert failed:", attErr);
     }
+  }
+
+  // Fire-and-forget invite emails to the new attendees.
+  if (invitedProfileIds.length > 0) {
+    const [{ data: project }, { data: organizerProfile }] = await Promise.all([
+      supabaseAdmin
+        .from("projects")
+        .select("company_name")
+        .eq("id", projectId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("profiles")
+        .select("name")
+        .eq("id", callerProfile.id)
+        .maybeSingle(),
+    ]);
+
+    sendEventInvites({
+      eventId: inserted.id,
+      projectName: project?.company_name ?? "SBI",
+      eventTitle: title.trim(),
+      eventStart: startDate.toISOString(),
+      eventEnd: endDate.toISOString(),
+      eventLocation: location?.trim() || null,
+      eventDescription: description?.trim() || null,
+      organizerName: organizerProfile?.name ?? "A team member",
+      attendeeProfileIds: invitedProfileIds,
+    });
   }
 
   return NextResponse.json({

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sendEventInvites } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -74,7 +75,7 @@ export async function POST(
   const { id } = await params;
   const ctx = await loadCallerAndEvent(id);
   if ("error" in ctx) return ctx.error;
-  const { event, supabaseAdmin } = ctx;
+  const { event, callerProfile, supabaseAdmin } = ctx;
 
   let body: AddAttendeesBody;
   try {
@@ -131,6 +132,43 @@ export async function POST(
       { error: "Couldn't add attendees" },
       { status: 500 },
     );
+  }
+
+  // Fire-and-forget invite emails to the new attendees.
+  const [
+    { data: project },
+    { data: eventDetail },
+    { data: callerProfileDetail },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("projects")
+        .select("company_name")
+        .eq("id", event.project_id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("project_events")
+        .select("title, start_at, end_at, location, description")
+        .eq("id", event.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("profiles")
+        .select("name")
+      .eq("id", callerProfile.id)
+      .maybeSingle(),
+  ]);
+
+  if (eventDetail) {
+    sendEventInvites({
+      eventId: event.id,
+      projectName: project?.company_name ?? "SBI",
+      eventTitle: eventDetail.title,
+      eventStart: eventDetail.start_at,
+      eventEnd: eventDetail.end_at,
+      eventLocation: eventDetail.location,
+      eventDescription: eventDetail.description,
+      organizerName: callerProfileDetail?.name ?? "A team member",
+      attendeeProfileIds: validIds,
+    });
   }
 
   return NextResponse.json({ ok: true, invited: validIds });

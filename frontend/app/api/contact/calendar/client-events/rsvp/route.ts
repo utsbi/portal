@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sendRsvpNotification } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -103,6 +104,61 @@ export async function POST(req: Request) {
       { error: "Couldn't save your response." },
       { status: 500 },
     );
+  }
+
+  // Fire-and-forget RSVP notification to the event organizer (best-effort).
+  const [{ data: fullEvent }, { data: attendeeProfile }, { data: project }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("project_events")
+        .select("title, start_at, created_by, project_id")
+        .eq("id", eventId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("profiles")
+        .select("name")
+        .eq("id", callerProfile.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("projects")
+        .select("company_name")
+        .eq("id", event.project_id)
+        .maybeSingle(),
+    ]);
+
+  if (
+    fullEvent &&
+    attendeeProfile &&
+    callerProfile.id !== fullEvent.created_by
+  ) {
+    const { data: organizer } = await supabaseAdmin
+      .from("profiles")
+      .select("name, email")
+      .eq("id", fullEvent.created_by)
+      .maybeSingle();
+
+    if (organizer?.email) {
+      const eventDate = new Date(fullEvent.start_at).toLocaleDateString(
+        "en-US",
+        {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        },
+      );
+
+      sendRsvpNotification({
+        organizerEmail: organizer.email,
+        organizerName: organizer.name,
+        attendeeName: attendeeProfile.name,
+        eventTitle: fullEvent.title,
+        eventDate,
+        response,
+        projectName: project?.company_name ?? "SBI",
+        eventId,
+      });
+    }
   }
 
   return NextResponse.json({ ok: true, response });
