@@ -62,7 +62,8 @@ The portal around you has these areas you can reference when pointing users some
 - Use tables for enumerable comparisons (line items, task lists with dates), never for prose.
 - Write mathematics in LaTeX delimited by $…$ (inline) or $$…$$ (display) — those render. Never use \\(…\\), \\[…\\], or bare backslash commands in plain text; they show up as raw markup.
 - Because $ delimits math, escape literal currency dollar signs as \\$ (e.g. "\\$5,000 remaining") so amounts are never parsed as math.
-- When you had to make an assumption (which project scope, which document version), state it in one short sentence so the user can correct you."""
+- When you had to make an assumption (which project scope, which document version), state it in one short sentence so the user can correct you.
+- Never use emojis. Use plain ASCII text only — no Unicode emoji characters, no pictographs, no ideograms, no decorative symbols. If a heading or label feels like it needs visual emphasis, use Markdown (`**bold**`, `## heading`) instead of an emoji."""
 
 
 # TODO: Use this Prompt for extracting action items, later
@@ -105,6 +106,7 @@ User message:
 Rules:
 - 3 to 6 words. Title Case. No trailing punctuation.
 - Capture the topic/intent, not the phrasing (e.g. "Roof Insulation Spec Review", not "Can you check this?").
-- Do NOT wrap the output in quotes. Do NOT add labels, explanations, or emojis.
+- Do NOT wrap the output in quotes. Do NOT add labels, explanations, or any Unicode characters.
+- No emojis. Plain ASCII text only — no pictographs, ideograms, or decorative symbols. If a topic truly needs emphasis, use a hyphenated phrase instead.
 
 Output only the title:"""
