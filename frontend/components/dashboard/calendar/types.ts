@@ -8,8 +8,7 @@ export type AttendeeResponse =
 
 /**
  * Calendar event as the UI consumes it. The shape matches the GET response
- * from /api/contact/calendar/client-events — we don't need the raw Google
- * fields anymore, so there's no separate `RawCalendarEvent` type.
+ * from /api/contact/calendar/client-events.
  */
 export interface CalendarEvent {
   id: string;

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     ALLOWED_HOSTS: str = "*"
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024  # 10 MB
 
-    # Base URL of the Next.js frontend (used to proxy Google Calendar lookups).
+    # Base URL of the Next.js frontend (used to proxy project calendar lookups).
     PORTAL_BASE_URL: Optional[str] = None
 
     class Config:
@@ -108,8 +108,9 @@ class Settings(BaseSettings):
         """Base URL of the Next.js frontend for proxied calendar lookups.
 
         The Explore ``get_upcoming_events`` tool forwards the caller's JWT to the
-        frontend's ``/api/contact/calendar/client-events`` route, which owns the
-        encrypted Google OAuth tokens and their decryption. Defaults to local dev.
+        frontend's ``/api/contact/calendar/client-events`` route, which reads
+        from the native ``project_events`` table under the caller's RLS. Defaults
+        to local dev.
         """
         return self.PORTAL_BASE_URL or "http://localhost:3000"
 

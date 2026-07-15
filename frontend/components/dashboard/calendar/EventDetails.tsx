@@ -3,7 +3,6 @@
 import {
   Check,
   Download,
-  ExternalLink,
   HelpCircle,
   MapPin,
   Pencil,
@@ -14,11 +13,7 @@ import {
 import { useState } from "react";
 import type { RsvpChoice } from "./hooks/useCalendarEvents";
 import type { AttendeeResponse, CalendarEvent } from "./types";
-import {
-  buildGoogleCalendarUrl,
-  buildIcsUrl,
-  type CalendarEventSource,
-} from "./utils";
+import { buildIcsUrl, type CalendarEventSource } from "./utils";
 
 interface Props {
   open: boolean;
@@ -82,7 +77,6 @@ export function EventDetails({
     description: event.description,
   };
 
-  const googleUrl = buildGoogleCalendarUrl(source);
   const icsUrl = buildIcsUrl(source);
 
   const description = event.description?.trim();
@@ -151,19 +145,6 @@ export function EventDetails({
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={googleUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={
-                event.past
-                  ? "inline-flex items-center gap-1.5 rounded-md border border-sbi-dark-border/60 bg-transparent px-3 py-1.5 text-[11px] font-medium text-sbi-muted transition-colors hover:text-white"
-                  : "inline-flex items-center gap-1.5 rounded-md border border-sbi-green/30 bg-sbi-green/10 px-3 py-1.5 text-[11px] font-medium text-sbi-green transition-colors hover:bg-sbi-green/15"
-              }
-            >
-              <ExternalLink className="size-3.5" />
-              Add to Google Calendar
-            </a>
             <a
               href={icsUrl}
               target="_blank"

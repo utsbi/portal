@@ -8,8 +8,8 @@ Exposes these tools to the model:
   - ``get_reports`` — live project reports for the caller's project(s).
   - ``get_finance_summary`` — live budget/spend summary for the caller's project(s).
   - ``get_requests`` — live client requests (``tickets`` with ``ticket_type='request'``).
-  - ``get_upcoming_events`` — the caller's upcoming project meetings, proxied
-    from the frontend's Google Calendar route (the backend holds no Google creds).
+  - ``get_upcoming_events`` — the caller's upcoming project meetings, sourced
+    from the frontend's native ``project_events`` table.
   - ``create_request`` — draft a request as a PROPOSAL; the write happens
     client-side under the caller's RLS only after an explicit UI confirm.
 
@@ -204,10 +204,11 @@ TOOLS: List[Dict[str, Any]] = [
             "name": "get_upcoming_events",
             "description": (
                 "Get the client's upcoming meetings/events for their project "
-                "from the connected Google Calendar (roughly the next 60 days). "
-                "Use this for 'what meetings do I have coming up?', 'when is my "
-                "next call?', 'what's on my calendar?', or 'do I have anything "
-                "scheduled?'. This reads the live calendar, not documents."
+                "from the portal's native project calendar (roughly the next "
+                "60 days). Use this for 'what meetings do I have coming up?', "
+                "'when is my next call?', 'what's on my calendar?', or 'do I "
+                "have anything scheduled?'. This reads the live project_events "
+                "table, not documents."
             ),
             "parameters": {"type": "object", "properties": {}},
         },
@@ -736,13 +737,13 @@ async def _get_upcoming_events(
     db: Client, client_id: str, access_token: str, project_id: Optional[int],
     resolved_project_ids: Optional[List[int]] = None,
 ) -> str:
-    """Summarize the caller's upcoming project meetings from Google Calendar.
+    """Summarize the caller's upcoming project meetings.
 
-    The backend holds no Google credentials, so it PROXIES the frontend's
-    ``/api/contact/calendar/client-events`` route (which owns the encrypted OAuth
-    tokens and their decryption), forwarding the caller's JWT as a bearer token
-    so that route's own membership/authorization gate applies. Scoped to the
-    caller's active project, or their sole project when none is active.
+    The backend has no direct Supabase access for live data tools, so it
+    PROXIES the frontend's ``/api/contact/calendar/client-events`` route,
+    forwarding the caller's JWT as a bearer token so that route's own
+    RLS-based membership/authorization gate applies. Scoped to the caller's
+    active project, or their sole project when none is active.
     """
     project_ids = (
         resolved_project_ids
@@ -794,10 +795,9 @@ async def _get_upcoming_events(
         )
 
     data = resp.json()
-    if not data.get("connected"):
-        return (
-            "No Google Calendar is connected for your project yet, so there are "
-            "no upcoming events to show."
+    if not data.get("ok"):
+        logger.warning(
+            "Calendar route returned non-ok payload: %s", str(data)[:200]
         )
 
     # Drop already-passed events (the route windows from 7 days ago) and sort.
@@ -816,7 +816,7 @@ async def _get_upcoming_events(
 
     lines = [f"Upcoming events ({len(upcoming)} scheduled):"]
     for _dt, e in upcoming[:5]:
-        summary = e.get("summary") or "(no title)"
+        summary = e.get("title") or "(no title)"
         when = _format_event_when(e.get("start"))
         loc = f" @ {e['location']}" if e.get("location") else ""
         rsvp = e.get("myResponse")

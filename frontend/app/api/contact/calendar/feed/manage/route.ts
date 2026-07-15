@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 
 interface ProfileConfig {
   calendar_feed_token_hash?: string;
-  google?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

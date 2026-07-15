@@ -367,16 +367,15 @@ class TestExecuteToolUpcomingEvents:
         captured = {}
         payload = {
             "ok": True,
-            "connected": True,
             "events": [
                 {
-                    "summary": "Design review",
+                    "title": "Design review",
                     "start": "2099-01-15T10:00:00Z",
                     "location": "Room 4",
                     "myResponse": "accepted",
                 },
                 {  # already-passed event must be filtered out
-                    "summary": "Old kickoff",
+                    "title": "Old kickoff",
                     "start": "2000-01-01T09:00:00Z",
                 },
             ],
@@ -397,15 +396,15 @@ class TestExecuteToolUpcomingEvents:
         assert captured["headers"].get("Authorization") == "Bearer jwt-abc"
         assert captured["params"] == {"project_id": 7}
 
-    async def test_not_connected_returns_friendly_message(self):
+    async def test_empty_calendar_returns_friendly_message(self):
         captured = {}
         text, _ = await self._run(
             scoped=[7],
             project_id=7,
-            resp=_FakeResp(payload={"ok": True, "connected": False, "events": []}),
+            resp=_FakeResp(payload={"ok": True, "events": []}),
             captured=captured,
         )
-        assert "no google calendar is connected" in text.lower()
+        assert "no upcoming events" in text.lower()
 
     async def test_forbidden_status_is_access_message(self):
         captured = {}

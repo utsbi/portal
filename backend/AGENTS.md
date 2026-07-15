@@ -97,12 +97,13 @@ to the model. `execute_tool()` dispatches a tool call and returns `(result_text,
 | `get_reports` | Live list of project reports | PostgREST (RLS-scoped) |
 | `get_finance_summary` | Live budget/spend summary | PostgREST (RLS-scoped) |
 | `get_requests` | Live client support requests | PostgREST (RLS-scoped) |
-| `get_upcoming_events` | Upcoming project meetings | Proxies the frontend Google Calendar route (forwards caller JWT) |
+| `get_upcoming_events` | Upcoming project meetings | Proxies the frontend native events route (forwards caller JWT) |
 
-The Google Calendar OAuth tokens and API calls live in the frontend's
-`app/api/contact/calendar/` routes. The backend holds no Google credentials;
-`get_upcoming_events` proxies that route with the caller's JWT so the frontend's
-own membership/authorization gate applies (`PORTAL_BASE_URL` points at it).
+The `get_upcoming_events` tool proxies the frontend's
+`/api/contact/calendar/client-events` route, which reads from the native
+`project_events` table under the caller's RLS. The backend forwards the
+caller's JWT as a bearer token so the frontend's own authorization gate
+applies (`PORTAL_BASE_URL` points at it).
 
 **Security:** All live-data tools run queries under the **caller's RLS context** via
 `user_client(access_token)`, plus manual `project_id`/`client_id` scoping. No service-role
@@ -169,7 +170,7 @@ ENV=development                              # "production" disables docs + enab
 CORS_ORIGINS=http://localhost:3000           # Comma-separated allowed browser origins
 ALLOWED_HOSTS=*                              # Comma-separated Host-header allowlist
 MAX_UPLOAD_BYTES=10485760                    # Max upload / extract size (10 MB)
-PORTAL_BASE_URL=http://localhost:3000        # Frontend base URL; get_upcoming_events proxies its calendar route
+PORTAL_BASE_URL=http://localhost:3000        # Frontend base URL; get_upcoming_events proxies its native events route
 ```
 
 Title generation uses `TITLE_MODEL` (see `nodes.generate_title`), which falls back
