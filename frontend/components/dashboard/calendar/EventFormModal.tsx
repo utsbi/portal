@@ -25,6 +25,8 @@ export interface EventFormModalProps {
   mode: "create" | "edit";
   /** When editing, the existing event's id. */
   eventId?: string;
+  /** Project the new event belongs to (create mode only). */
+  projectId?: number;
   initialValue?: Partial<EventFormValue>;
   /** Member ids to invite as attendees (create mode only). */
   attendeeIds?: number[];
@@ -41,6 +43,7 @@ export function EventFormModal({
   open,
   mode,
   eventId,
+  projectId,
   initialValue,
   attendeeIds = [],
   onClose,
@@ -100,7 +103,8 @@ export function EventFormModal({
           ? "/api/contact/calendar/client-events"
           : `/api/contact/calendar/client-events/${eventId}`;
       const method = mode === "create" ? "POST" : "PATCH";
-      const finalBody = mode === "create" ? { ...body, attendeeIds } : body;
+      const finalBody =
+        mode === "create" ? { ...body, projectId, attendeeIds } : body;
 
       const res = await fetch(url, {
         method,

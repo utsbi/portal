@@ -259,6 +259,9 @@ function CalendarPageInner() {
           open={formState.open}
           mode={formState.mode}
           eventId={formState.mode === "edit" ? formState.event.id : undefined}
+          projectId={
+            activeProject ? Number(activeProject.projectId) : undefined
+          }
           initialValue={formState.initial}
           attendeeIds={activeProject && user ? [user.id] : []}
           onClose={() => setFormState({ open: false })}
