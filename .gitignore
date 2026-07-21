@@ -50,9 +50,9 @@ coverage.xml
 # AI custom response prompt
 system_prompt.md
 
-# AI context
-# claude.md
-# IMPLEMENTATION_SUMMARY.md
+# Local agent context files — intentionally never published
+AGENTS.md
+CLAUDE.md
 
 # Database
 *.db
