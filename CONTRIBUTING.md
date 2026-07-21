@@ -73,7 +73,7 @@ from `vitest.config.ts`.
 
 ## Before opening a PR
 
-- Frontend: `bun run lint`, `bunx tsc --noEmit`, `bun run test:coverage`,
+- Frontend: `bun run lint`, `bun run typecheck`, `bun run test:coverage`,
   `bun run build`, and `bun run test:e2e` pass.
 - Backend: `uv run pytest --cov=app`, `uv run ruff check .`,
   `uv run ruff format --check .`, and `uv run pyright` pass.

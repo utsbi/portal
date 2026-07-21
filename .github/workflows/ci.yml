@@ -62,7 +62,7 @@ jobs:
         run: bun run lint
 
       - name: Typecheck (TypeScript)
-        run: bunx tsc --noEmit
+        run: bun run typecheck
 
       - name: Unit and integration tests with coverage
         run: bun run test:coverage

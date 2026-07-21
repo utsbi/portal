@@ -9,6 +9,7 @@ bun install           # Install dependencies (prefer bun over npm/yarn)
 bun dev               # Dev server with Turbopack on localhost:3000
 bun build             # Production build
 bun lint              # Run Biome (biome check)
+bun run typecheck     # Generate Next route types, then run strict TypeScript
 bun run test          # Vitest unit/workflow suites (blocking in CI)
 bun run test:coverage # Vitest with enforced whole-module coverage floors
 bun run test:watch    # Vitest watch mode
