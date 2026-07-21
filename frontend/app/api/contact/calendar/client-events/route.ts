@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
+import { scheduleEmailTask } from "@/lib/email/schedule";
 import { sendEventInvites } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+
+const MAX_EVENT_TITLE = 200;
+const MAX_EVENT_DESCRIPTION = 10_000;
+const MAX_EVENT_LOCATION = 500;
+const MAX_EVENT_ATTENDEES = 50;
 
 /**
  * Read path for the project calendar.
@@ -192,8 +198,37 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "Invalid projectId" }, { status: 400 });
   }
-  if (typeof title !== "string" || title.trim().length === 0) {
-    return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  if (
+    typeof title !== "string" ||
+    title.trim().length === 0 ||
+    title.trim().length > MAX_EVENT_TITLE
+  ) {
+    const message =
+      typeof title === "string" && title.trim().length > MAX_EVENT_TITLE
+        ? `Title must be ${MAX_EVENT_TITLE} characters or fewer`
+        : "Title is required";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+  if (
+    description !== null &&
+    (typeof description !== "string" ||
+      description.length > MAX_EVENT_DESCRIPTION)
+  ) {
+    return NextResponse.json(
+      {
+        error: `Description must be ${MAX_EVENT_DESCRIPTION} characters or fewer`,
+      },
+      { status: 400 },
+    );
+  }
+  if (
+    location !== null &&
+    (typeof location !== "string" || location.length > MAX_EVENT_LOCATION)
+  ) {
+    return NextResponse.json(
+      { error: `Location must be ${MAX_EVENT_LOCATION} characters or fewer` },
+      { status: 400 },
+    );
   }
   if (typeof startAt !== "string" || typeof endAt !== "string") {
     return NextResponse.json(
@@ -217,10 +252,15 @@ export async function POST(req: Request) {
   }
   if (
     !Array.isArray(attendeeIds) ||
-    attendeeIds.some((id) => typeof id !== "number" || !Number.isInteger(id))
+    attendeeIds.length > MAX_EVENT_ATTENDEES ||
+    attendeeIds.some(
+      (id) => typeof id !== "number" || !Number.isInteger(id) || id <= 0,
+    )
   ) {
     return NextResponse.json(
-      { error: "attendeeIds must be an array of integers" },
+      {
+        error: `attendeeIds must contain at most ${MAX_EVENT_ATTENDEES} positive integers`,
+      },
       { status: 400 },
     );
   }
@@ -258,6 +298,34 @@ export async function POST(req: Request) {
     );
   }
 
+  // The service-role client bypasses RLS, so validate every requested profile
+  // against this project before inserting rows or disclosing event details by
+  // email. Reject the entire request instead of silently inviting a subset.
+  const requestedAttendeeIds = Array.from(
+    new Set(attendeeIds.filter((id) => id !== callerProfile.id)),
+  );
+  if (requestedAttendeeIds.length > 0) {
+    const { data: validMembers, error: attendeeValidationError } =
+      await supabaseAdmin
+        .from("project_members")
+        .select("profile_id")
+        .eq("project_id", projectId)
+        .in("profile_id", requestedAttendeeIds);
+    if (attendeeValidationError) {
+      return NextResponse.json(
+        { error: "Couldn't validate attendees" },
+        { status: 500 },
+      );
+    }
+    const validIds = new Set((validMembers ?? []).map((row) => row.profile_id));
+    if (requestedAttendeeIds.some((id) => !validIds.has(id))) {
+      return NextResponse.json(
+        { error: "Every attendee must be a member of this project" },
+        { status: 400 },
+      );
+    }
+  }
+
   // Insert the event. RLS (WITH CHECK) forces created_by = caller.
   const { data: inserted, error: insertErr } = await supabaseAdmin
     .from("project_events")
@@ -271,7 +339,7 @@ export async function POST(req: Request) {
       all_day: !!allDay,
       created_by: callerProfile.id,
     })
-    .select("id, created_at")
+    .select("id, created_at, updated_at")
     .single();
   if (insertErr || !inserted) {
     console.error("project_events insert failed:", insertErr);
@@ -283,9 +351,7 @@ export async function POST(req: Request) {
 
   // Build the attendee rows: creator auto-accepted + any explicit invites
   // (de-duplicated, excluding the creator).
-  const explicitIds = new Set(
-    attendeeIds.filter((id) => id !== callerProfile.id),
-  );
+  const explicitIds = new Set(requestedAttendeeIds);
   const attendeeRows = [
     {
       event_id: inserted.id,
@@ -306,13 +372,17 @@ export async function POST(req: Request) {
       .from("project_event_attendees")
       .insert(attendeeRows);
     if (attErr) {
-      // The event row was already created. Log and continue — the creator
-      // can re-invite from the UI. Don't fail the whole create.
       console.error("project_event_attendees insert failed:", attErr);
+      await supabaseAdmin.from("project_events").delete().eq("id", inserted.id);
+      return NextResponse.json(
+        { error: "Couldn't create the event attendees." },
+        { status: 500 },
+      );
     }
   }
 
-  // Fire-and-forget invite emails to the new attendees.
+  // Register delivery with Next's request lifecycle so Vercel keeps the
+  // invocation alive after the JSON response has been sent.
   if (invitedProfileIds.length > 0) {
     const [{ data: project }, { data: organizerProfile }] = await Promise.all([
       supabaseAdmin
@@ -327,17 +397,21 @@ export async function POST(req: Request) {
         .maybeSingle(),
     ]);
 
-    sendEventInvites({
-      eventId: inserted.id,
-      projectName: project?.company_name ?? "SBI",
-      eventTitle: title.trim(),
-      eventStart: startDate.toISOString(),
-      eventEnd: endDate.toISOString(),
-      eventLocation: location?.trim() || null,
-      eventDescription: description?.trim() || null,
-      organizerName: organizerProfile?.name ?? "A team member",
-      attendeeProfileIds: invitedProfileIds,
-    });
+    scheduleEmailTask("event invitation delivery", () =>
+      sendEventInvites({
+        eventId: inserted.id,
+        projectName: project?.company_name ?? "SBI",
+        eventTitle: title.trim(),
+        eventStart: startDate.toISOString(),
+        eventEnd: endDate.toISOString(),
+        eventLocation: location?.trim() || null,
+        eventDescription: description?.trim() || null,
+        eventAllDay: !!allDay,
+        eventVersionAt: inserted.updated_at,
+        organizerName: organizerProfile?.name ?? "A team member",
+        attendeeProfileIds: invitedProfileIds,
+      }),
+    );
   }
 
   return NextResponse.json({

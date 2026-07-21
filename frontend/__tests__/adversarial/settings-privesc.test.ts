@@ -2,7 +2,7 @@
  * ADVERSARIAL (red-team) tests for app/dashboard/settings/actions.ts.
  *
  * Privilege-escalation threat model derived FIRST:
- *   S1. Director-only actions (createAccount, updateAccount, deleteAccount,
+ *   S1. Director-only actions (inviteAccount, updateAccount, deleteAccount,
  *       listAccounts, assign/remove members) MUST reject a caller whose profile
  *       role is NOT "director" — including an authenticated "member"/"client".
  *   S2. A director MUST NOT be able to change their OWN role (lockout / silent
@@ -11,19 +11,19 @@
  *   S3. A director MUST NOT be able to delete their OWN account.
  *   S4. updateMyProfile / updateMyPassword operate ONLY on the caller's own
  *       profile — there is no id parameter to target another user.
- *   S5. Input validation: password min length boundary (7 reject, 8 accept),
- *       empty / whitespace-only names rejected.
- *
- * Bug hunting note: createAccount validates password length BEFORE the
- * requireDirector() authz check. We assert the FINAL outcome (an unauthorised
- * caller never creates an account) regardless of error-message ordering, and
- * separately document the ordering as an info-disclosure smell.
+ *   S5. Input validation: malformed invitation emails and empty /
+ *       whitespace-only names are rejected.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "anon-key";
 process.env.SUPABASE_SECRET_KEY = "service-role-secret";
+
+vi.mock("@/lib/email/send", () => ({
+  getPortalOrigin: () => "https://portal.example.com",
+  sendAccountInvite: vi.fn(async () => undefined),
+}));
 
 const state = {
   user: null as unknown,
@@ -165,9 +165,15 @@ vi.mock("@supabase/supabase-js", () => {
     createClient: vi.fn(() => ({
       auth: {
         admin: {
-          createUser: vi.fn(async () => {
+          generateLink: vi.fn(async () => {
             state.createUserCalls++;
-            return { data: { user: { id: "new-uid" } }, error: null };
+            return {
+              data: {
+                user: { id: "new-uid" },
+                properties: { hashed_token: "invite-token" },
+              },
+              error: null,
+            };
           }),
           deleteUser: vi.fn(async () => {
             state.deleteUserCalls++;
@@ -194,7 +200,7 @@ vi.mock("@supabase/supabase-js", () => {
 });
 
 const {
-  createAccount,
+  inviteAccount,
   updateAccount,
   deleteAccount,
   listAccounts,
@@ -221,12 +227,11 @@ describe("ADVERSARIAL settings — director-only authz (S1)", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("a MEMBER cannot createAccount and NO auth user is created", async () => {
+  it("a MEMBER cannot inviteAccount and NO auth user is created", async () => {
     state.user = { id: "uid-member" };
     state.callerProfile = { id: 2, role: "member" };
-    const res = await createAccount({
+    const res = await inviteAccount({
       email: "x@y.com",
-      password: "longenough",
       name: "Mallory",
       role: "director", // tries to mint a director
     });
@@ -234,12 +239,11 @@ describe("ADVERSARIAL settings — director-only authz (S1)", () => {
     expect(state.createUserCalls).toBe(0);
   });
 
-  it("a CLIENT cannot createAccount", async () => {
+  it("a CLIENT cannot inviteAccount", async () => {
     state.user = { id: "uid-client" };
     state.callerProfile = { id: 3, role: "client" };
-    const res = await createAccount({
+    const res = await inviteAccount({
       email: "x@y.com",
-      password: "longenough",
       name: "Mallory",
       role: "member",
     });
@@ -276,11 +280,10 @@ describe("ADVERSARIAL settings — director-only authz (S1)", () => {
     expect(res.accounts).toEqual([]);
   });
 
-  it("an UNAUTHENTICATED caller cannot createAccount even with a valid password", async () => {
+  it("an UNAUTHENTICATED caller cannot inviteAccount", async () => {
     state.user = null;
-    const res = await createAccount({
+    const res = await inviteAccount({
       email: "x@y.com",
-      password: "longenough",
       name: "Mallory",
       role: "director",
     });
@@ -288,14 +291,11 @@ describe("ADVERSARIAL settings — director-only authz (S1)", () => {
     expect(state.createUserCalls).toBe(0);
   });
 
-  // Authz runs BEFORE input validation: an unauthenticated caller with a short
-  // password gets "Not authenticated", not a password hint. No account is created.
-  it("createAccount authz gate runs before password validation — unauthenticated caller gets auth error", async () => {
+  it("inviteAccount authz gate runs before validation", async () => {
     state.user = null; // unauthenticated
-    const res = await createAccount({
-      email: "x@y.com",
-      password: "short", // < 8
-      name: "Mallory",
+    const res = await inviteAccount({
+      email: "invalid",
+      name: "N",
       role: "director",
     });
     expect(res.error).toMatch(/not authenticated/i);
@@ -362,14 +362,13 @@ describe("ADVERSARIAL settings — input validation boundaries (S5)", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("createAccount rejects a 7-char password (boundary)", async () => {
-    const res = await createAccount({
-      email: "a@b.com",
-      password: "1234567",
+  it("inviteAccount rejects malformed email before generating a link", async () => {
+    const res = await inviteAccount({
+      email: "not-an-email",
       name: "Valid Name",
       role: "member",
     });
-    expect(res.error).toMatch(/at least 8/i);
+    expect(res.error).toMatch(/valid email/i);
     expect(state.createUserCalls).toBe(0);
   });
 

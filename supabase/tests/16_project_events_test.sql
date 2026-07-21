@@ -16,7 +16,7 @@
 --   event_beta_director   (Director-created, Beta)
 -- =====================================================================
 BEGIN;
-SELECT plan(25);
+SELECT plan(30);
 
 -- ---------------------------------------------------------------------
 -- 1. Cross-tenant SELECT (Client A must NOT see Beta events).
@@ -116,6 +116,33 @@ SELECT throws_ok(
              t.id('profile_director')) $$,
   '42501', NULL,
   'project_events: WITH CHECK forces created_by = caller (spoof blocked)'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.project_events
+       (project_id, title, start_at, end_at, created_by)
+     VALUES (t.id('project_alpha'), '   ', now(), now() + interval '1 hour',
+             t.id('profile_clienta')) $$,
+  '23514', NULL,
+  'project_events: whitespace-only titles are rejected by the database'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.project_events
+       (project_id, title, start_at, end_at, created_by)
+     VALUES (t.id('project_alpha'), repeat('x', 201),
+             now(), now() + interval '1 hour', t.id('profile_clienta')) $$,
+  '23514', NULL,
+  'project_events: titles longer than 200 characters are rejected'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.project_events
+       (project_id, title, location, start_at, end_at, created_by)
+     VALUES (t.id('project_alpha'), 'Bounded event', repeat('x', 501),
+             now(), now() + interval '1 hour', t.id('profile_clienta')) $$,
+  '23514', NULL,
+  'project_events: locations longer than 500 characters are rejected'
 );
 SELECT t.reset_auth();
 
@@ -240,6 +267,24 @@ SELECT is(
       AND profile_id = (SELECT id FROM public.profiles WHERE uid = t.uid_clienta())),
   NULL,
   'project_event_attendees: responded_at clears when response reverts to needsAction'
+);
+
+SELECT lives_ok(
+  $$ INSERT INTO public.project_event_attendees (event_id, profile_id, response)
+     VALUES (
+       t.id('event_alpha_client'),
+       t.id('profile_clienta'),
+       'accepted'
+     ) $$,
+  'project_event_attendees: an initial accepted RSVP can be inserted'
+);
+SELECT is(
+  (SELECT responded_at IS NOT NULL
+     FROM public.project_event_attendees
+    WHERE event_id = t.id('event_alpha_client')
+      AND profile_id = t.id('profile_clienta')),
+  true,
+  'project_event_attendees: responded_at is stamped on initial accepted INSERT'
 );
 SELECT t.reset_auth();
 

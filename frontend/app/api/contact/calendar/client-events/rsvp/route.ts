@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { scheduleEmailTask } from "@/lib/email/schedule";
 import { sendRsvpNotification } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -88,7 +89,7 @@ export async function POST(req: Request) {
 
   // Upsert the caller's attendee row. RLS permits INSERT for any project
   // member (scoped to events they can see) and UPDATE for self.
-  const { error: upsertErr } = await supabaseAdmin
+  const { data: savedResponse, error: upsertErr } = await supabaseAdmin
     .from("project_event_attendees")
     .upsert(
       {
@@ -97,8 +98,10 @@ export async function POST(req: Request) {
         response,
       },
       { onConflict: "event_id,profile_id" },
-    );
-  if (upsertErr) {
+    )
+    .select("responded_at")
+    .single();
+  if (upsertErr || !savedResponse) {
     console.error("project_event_attendees upsert failed:", upsertErr);
     return NextResponse.json(
       { error: "Couldn't save your response." },
@@ -106,7 +109,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // Fire-and-forget RSVP notification to the event organizer (best-effort).
+  // Notify the organizer after the response, while keeping the work attached
+  // to the serverless request lifecycle.
   const [{ data: fullEvent }, { data: attendeeProfile }, { data: project }] =
     await Promise.all([
       supabaseAdmin
@@ -133,31 +137,27 @@ export async function POST(req: Request) {
   ) {
     const { data: organizer } = await supabaseAdmin
       .from("profiles")
-      .select("name, email")
+      .select("name, email, config")
       .eq("id", fullEvent.created_by)
       .maybeSingle();
 
     if (organizer?.email) {
-      const eventDate = new Date(fullEvent.start_at).toLocaleDateString(
-        "en-US",
-        {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        },
+      scheduleEmailTask("RSVP notification delivery", () =>
+        sendRsvpNotification({
+          organizerEmail: organizer.email as string,
+          organizerName: organizer.name,
+          attendeeName: attendeeProfile.name,
+          attendeeProfileId: callerProfile.id,
+          eventTitle: fullEvent.title,
+          eventStart: fullEvent.start_at,
+          response,
+          projectName: project?.company_name ?? "SBI",
+          eventId,
+          responseVersionAt:
+            savedResponse.responded_at ?? `${eventId}-${response}`,
+          organizerConfig: organizer.config,
+        }),
       );
-
-      sendRsvpNotification({
-        organizerEmail: organizer.email,
-        organizerName: organizer.name,
-        attendeeName: attendeeProfile.name,
-        eventTitle: fullEvent.title,
-        eventDate,
-        response,
-        projectName: project?.company_name ?? "SBI",
-        eventId,
-      });
     }
   }
 

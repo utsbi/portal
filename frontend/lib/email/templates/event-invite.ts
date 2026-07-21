@@ -1,4 +1,6 @@
-interface EventInviteProps {
+import { compactText, escapeHtml } from "./shared";
+
+export interface EventInviteProps {
   recipientName: string;
   eventTitle: string;
   eventDate: string;
@@ -67,11 +69,18 @@ export function eventInviteHtml(props: EventInviteProps): string {
 </body></html>`;
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+export function eventInviteText(props: EventInviteProps): string {
+  return compactText([
+    `Hi ${props.recipientName},`,
+    "",
+    `${props.organizerName} has invited you to an event for ${props.projectName}.`,
+    "",
+    props.eventTitle,
+    `Date: ${props.eventDate}`,
+    `Time: ${props.eventTime}`,
+    props.eventLocation ? `Location: ${props.eventLocation}` : null,
+    props.eventDescription ? `Details: ${props.eventDescription}` : null,
+    "",
+    `View and RSVP in the SBI Portal: ${props.portalUrl}`,
+  ]);
 }

@@ -1,4 +1,6 @@
-interface RsvpNotificationProps {
+import { compactText, escapeHtml } from "./shared";
+
+export interface RsvpNotificationProps {
   organizerName: string;
   attendeeName: string;
   eventTitle: string;
@@ -57,11 +59,13 @@ export function rsvpNotificationHtml(props: RsvpNotificationProps): string {
 </body></html>`;
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+export function rsvpNotificationText(props: RsvpNotificationProps): string {
+  return compactText([
+    `Hi ${props.organizerName},`,
+    "",
+    `${props.attendeeName} has ${responseLabels[props.response]} your invitation to ${props.eventTitle} on ${props.eventDate}.`,
+    "",
+    `Project: ${props.projectName}`,
+    `View the event in the SBI Portal: ${props.portalUrl}`,
+  ]);
 }

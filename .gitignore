@@ -100,6 +100,9 @@ lancedb/
 .impeccable/
 .superpowers/
 
+# Local MCP configuration may contain bearer tokens.
+.mcp.json
+
 # Playwright MCP scratch output (screenshots, snapshots, console logs)
 .playwright-mcp/
 

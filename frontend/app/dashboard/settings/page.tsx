@@ -52,9 +52,9 @@ import { cn } from "@/lib/utils";
 import {
   assignMemberToProject,
   assignOwnerToProject,
-  createAccount,
   deleteAccount,
   getMyAccount,
+  inviteAccount,
   listAccounts,
   listAvailableOwners,
   listProjectMembers,
@@ -1741,7 +1741,6 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState({
     email: "",
-    password: "",
     name: "",
     role: "member" as "client" | "director" | "member",
     companyName: "",
@@ -1790,7 +1789,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     e.preventDefault();
     setCreateLoading(true);
     setCreateError("");
-    const res = await createAccount(createForm);
+    const res = await inviteAccount(createForm);
     if (res.error) {
       setCreateError(res.error);
       toastError(res.error, "Couldn't create account");
@@ -1799,21 +1798,13 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
       setShowCreateForm(false);
       setCreateForm({
         email: "",
-        password: "",
         name: "",
         role: "member",
         companyName: "",
         department: "",
       });
       loadAccounts();
-      if (res.warning) {
-        toastError(
-          res.warning,
-          `Account created for ${createdName}, with a warning`,
-        );
-      } else {
-        toastSuccess(`Account created for ${createdName}.`);
-      }
+      toastSuccess(`Invitation sent to ${createdName}.`);
     }
     setCreateLoading(false);
   };
@@ -1841,7 +1832,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
             className={btnPrimary}
           >
             <Plus className="size-4" />
-            Create account
+            Invite account
           </button>
         </div>
 
@@ -1850,6 +1841,11 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
             onSubmit={handleCreate}
             className="mb-6 p-4 bg-sbi-dark/50 border border-sbi-dark-border/20 rounded-lg space-y-3"
           >
+            <p className="max-w-[65ch] text-sm text-sbi-muted">
+              The recipient will get a private link to create their own
+              password. Directors never need to handle another user's
+              credentials.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="create-name" className={labelClass}>
@@ -1859,6 +1855,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   id="create-name"
                   type="text"
                   required
+                  minLength={2}
+                  maxLength={100}
+                  autoComplete="name"
                   value={createForm.name}
                   onChange={(e) =>
                     setCreateForm((f) => ({ ...f, name: e.target.value }))
@@ -1874,24 +1873,11 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   id="create-email"
                   type="email"
                   required
+                  maxLength={254}
+                  autoComplete="email"
                   value={createForm.email}
                   onChange={(e) =>
                     setCreateForm((f) => ({ ...f, email: e.target.value }))
-                  }
-                  className={cn(inputClass, "mt-1")}
-                />
-              </div>
-              <div>
-                <label htmlFor="create-password" className={labelClass}>
-                  Password
-                </label>
-                <input
-                  id="create-password"
-                  type="password"
-                  required
-                  value={createForm.password}
-                  onChange={(e) =>
-                    setCreateForm((f) => ({ ...f, password: e.target.value }))
                   }
                   className={cn(inputClass, "mt-1")}
                 />
@@ -1928,6 +1914,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                     id="create-company-name"
                     type="text"
                     required
+                    minLength={2}
+                    maxLength={150}
+                    autoComplete="organization"
                     value={createForm.companyName}
                     onChange={(e) =>
                       setCreateForm((f) => ({
@@ -1965,7 +1954,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
               )}
             </div>
             {createError && (
-              <p className="text-red-400 text-sm">{createError}</p>
+              <p role="alert" className="text-red-400 text-sm">
+                {createError}
+              </p>
             )}
             <div className="flex gap-2">
               <button
@@ -1973,7 +1964,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 disabled={createLoading}
                 className={btnPrimary}
               >
-                {createLoading ? "Creating…" : "Create"}
+                {createLoading ? "Sending invitation…" : "Send invitation"}
               </button>
               <button
                 type="button"
@@ -1994,7 +1985,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           <EmptyState
             icon={<Shield className="size-6" />}
             title="No accounts yet"
-            description="Create the first portal account using Create account above."
+            description="Invite the first person to create their portal account."
             className="py-10"
           />
         ) : (

@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
-import { sendEventInvites } from "@/lib/email/send";
+import { scheduleEmailTask } from "@/lib/email/schedule";
+import {
+  sendEventChangeNotifications,
+  sendEventInvites,
+} from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 interface AddAttendeesBody {
   profileIds?: number[];
 }
+
+const MAX_EVENT_ATTENDEES = 50;
 
 async function loadCallerAndEvent(eventIdRaw: string) {
   const eventId = Number(eventIdRaw);
@@ -40,7 +46,9 @@ async function loadCallerAndEvent(eventIdRaw: string) {
 
   const { data: event } = await supabaseAdmin
     .from("project_events")
-    .select("id, project_id, created_by")
+    .select(
+      "id, project_id, created_by, title, description, location, start_at, end_at, all_day, updated_at",
+    )
     .eq("id", eventId)
     .maybeSingle();
   if (!event) {
@@ -87,10 +95,15 @@ export async function POST(
   if (
     !Array.isArray(profileIds) ||
     profileIds.length === 0 ||
-    profileIds.some((id) => typeof id !== "number" || !Number.isInteger(id))
+    profileIds.length > MAX_EVENT_ATTENDEES ||
+    profileIds.some(
+      (id) => typeof id !== "number" || !Number.isInteger(id) || id <= 0,
+    )
   ) {
     return NextResponse.json(
-      { error: "profileIds must be a non-empty array of integers" },
+      {
+        error: `profileIds must contain 1–${MAX_EVENT_ATTENDEES} positive integers`,
+      },
       { status: 400 },
     );
   }
@@ -109,7 +122,9 @@ export async function POST(
       { status: 500 },
     );
   }
-  const validIds = (validMembers ?? []).map((m) => m.profile_id);
+  const validIds = Array.from(
+    new Set((validMembers ?? []).map((member) => member.profile_id)),
+  );
   if (validIds.length === 0) {
     return NextResponse.json(
       { error: "None of the requested profiles are members of this project" },
@@ -117,10 +132,29 @@ export async function POST(
     );
   }
 
+  const { data: existingAttendees, error: existingError } = await supabaseAdmin
+    .from("project_event_attendees")
+    .select("profile_id")
+    .eq("event_id", event.id)
+    .in("profile_id", validIds);
+  if (existingError) {
+    return NextResponse.json(
+      { error: "Couldn't check existing attendees" },
+      { status: 500 },
+    );
+  }
+  const existingIds = new Set(
+    (existingAttendees ?? []).map((attendee) => attendee.profile_id),
+  );
+  const newIds = validIds.filter((profileId) => !existingIds.has(profileId));
+  if (newIds.length === 0) {
+    return NextResponse.json({ ok: true, invited: [] });
+  }
+
   const { error: insertErr } = await supabaseAdmin
     .from("project_event_attendees")
     .insert(
-      validIds.map((profileId) => ({
+      newIds.map((profileId) => ({
         event_id: event.id,
         profile_id: profileId,
         response: "needsAction",
@@ -134,7 +168,7 @@ export async function POST(
     );
   }
 
-  // Fire-and-forget invite emails to the new attendees.
+  // Register notification delivery with the serverless request lifecycle.
   const [
     { data: project },
     { data: eventDetail },
@@ -142,36 +176,42 @@ export async function POST(
   ] = await Promise.all([
     supabaseAdmin
       .from("projects")
-        .select("company_name")
-        .eq("id", event.project_id)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("project_events")
-        .select("title, start_at, end_at, location, description")
-        .eq("id", event.id)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("profiles")
-        .select("name")
+      .select("company_name")
+      .eq("id", event.project_id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("project_events")
+      .select(
+        "title, start_at, end_at, location, description, all_day, updated_at",
+      )
+      .eq("id", event.id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("profiles")
+      .select("name")
       .eq("id", callerProfile.id)
       .maybeSingle(),
   ]);
 
   if (eventDetail) {
-    sendEventInvites({
-      eventId: event.id,
-      projectName: project?.company_name ?? "SBI",
-      eventTitle: eventDetail.title,
-      eventStart: eventDetail.start_at,
-      eventEnd: eventDetail.end_at,
-      eventLocation: eventDetail.location,
-      eventDescription: eventDetail.description,
-      organizerName: callerProfileDetail?.name ?? "A team member",
-      attendeeProfileIds: validIds,
-    });
+    scheduleEmailTask("event invitation delivery", () =>
+      sendEventInvites({
+        eventId: event.id,
+        projectName: project?.company_name ?? "SBI",
+        eventTitle: eventDetail.title,
+        eventStart: eventDetail.start_at,
+        eventEnd: eventDetail.end_at,
+        eventLocation: eventDetail.location,
+        eventDescription: eventDetail.description,
+        eventAllDay: eventDetail.all_day,
+        eventVersionAt: eventDetail.updated_at,
+        organizerName: callerProfileDetail?.name ?? "A team member",
+        attendeeProfileIds: newIds,
+      }),
+    );
   }
 
-  return NextResponse.json({ ok: true, invited: validIds });
+  return NextResponse.json({ ok: true, invited: newIds });
 }
 
 /**
@@ -227,6 +267,29 @@ export async function DELETE(
     return NextResponse.json(
       { error: "Couldn't remove the attendee" },
       { status: 500 },
+    );
+  }
+
+  if (!isSelf) {
+    const { data: project } = await supabaseAdmin
+      .from("projects")
+      .select("company_name")
+      .eq("id", event.project_id)
+      .maybeSingle();
+    scheduleEmailTask("attendee removal notification", () =>
+      sendEventChangeNotifications({
+        eventId: event.id,
+        projectName: project?.company_name ?? "SBI",
+        eventTitle: event.title,
+        eventStart: event.start_at,
+        eventEnd: event.end_at,
+        eventLocation: event.location,
+        eventDescription: event.description,
+        eventAllDay: event.all_day,
+        eventVersionAt: event.updated_at,
+        attendeeProfileIds: [profileId],
+        kind: "removed",
+      }),
     );
   }
 

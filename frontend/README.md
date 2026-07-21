@@ -16,6 +16,8 @@ bun dev       # http://localhost:3000
 
 Copy `.env.example` to `.env.local` and fill in the values before running.
 `.env.example` is the authoritative list of required environment variables.
+Production email configuration and verification are documented in
+[`docs/EMAIL.md`](docs/EMAIL.md).
 
 ## Tech stack
 

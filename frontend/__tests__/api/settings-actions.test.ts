@@ -13,6 +13,12 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "anon-key";
 process.env.SUPABASE_SECRET_KEY = "service-role-secret";
 
+const sendAccountInviteMock = vi.fn(async () => undefined);
+vi.mock("@/lib/email/send", () => ({
+  getPortalOrigin: () => "https://portal.example.com",
+  sendAccountInvite: sendAccountInviteMock,
+}));
+
 // ─── Mutable per-test state ───────────────────────────────────────────────────
 // The admin client is constructed once per module (via getAdminClient()), but
 // the `from` calls happen on every action invocation. We keep a single truth
@@ -21,7 +27,13 @@ const state = {
   user: null as unknown,
   callerProfile: null as unknown, // result of the requireUser/requireDirector profile lookup
   callerProfileError: null as unknown,
-  insertAuthResult: { data: { user: { id: "new-uid" } }, error: null } as {
+  insertAuthResult: {
+    data: {
+      user: { id: "new-uid" },
+      properties: { hashed_token: "invite-token" },
+    },
+    error: null,
+  } as {
     data: unknown;
     error: unknown;
   },
@@ -30,6 +42,7 @@ const state = {
     error: unknown;
   },
   deleteUserResult: { error: null } as { error: unknown },
+  deleteUserCalls: 0,
   updateResult: { error: null } as { error: unknown },
   accountsResult: { data: [] as unknown, error: null } as {
     data: unknown;
@@ -208,8 +221,11 @@ vi.mock("@supabase/supabase-js", () => {
     createClient: vi.fn(() => ({
       auth: {
         admin: {
-          createUser: vi.fn(async () => state.insertAuthResult),
-          deleteUser: vi.fn(async () => state.deleteUserResult),
+          generateLink: vi.fn(async () => state.insertAuthResult),
+          deleteUser: vi.fn(async () => {
+            state.deleteUserCalls++;
+            return state.deleteUserResult;
+          }),
         },
       },
       from: vi.fn((table: string) => {
@@ -233,7 +249,7 @@ vi.mock("@supabase/supabase-js", () => {
 
 // Import AFTER mocks are registered.
 const {
-  createAccount,
+  inviteAccount,
   listAccounts,
   updateAccount,
   deleteAccount,
@@ -246,9 +262,16 @@ function resetState() {
   state.user = null;
   state.callerProfile = null;
   state.callerProfileError = null;
-  state.insertAuthResult = { data: { user: { id: "new-uid" } }, error: null };
+  state.insertAuthResult = {
+    data: {
+      user: { id: "new-uid" },
+      properties: { hashed_token: "invite-token" },
+    },
+    error: null,
+  };
   state.insertProfileResult = { data: { id: 99 }, error: null };
   state.deleteUserResult = { error: null };
+  state.deleteUserCalls = 0;
   state.updateResult = { error: null };
   state.accountsResult = { data: [], error: null };
   state.targetProfile = { data: null, error: null };
@@ -267,13 +290,12 @@ describe("settings/actions — auth gates", () => {
     vi.restoreAllMocks();
   });
 
-  // ── createAccount ─────────────────────────────────────────────────────────
-  describe("createAccount", () => {
+  // ── inviteAccount ─────────────────────────────────────────────────────────
+  describe("inviteAccount", () => {
     it("returns 'Not authenticated' error when no user is logged in", async () => {
       state.user = null;
-      const result = await createAccount({
+      const result = await inviteAccount({
         email: "new@example.com",
-        password: "password123",
         name: "New User",
         role: "member",
       });
@@ -283,9 +305,8 @@ describe("settings/actions — auth gates", () => {
     it("returns 'Not authorized' when caller is not a director", async () => {
       state.user = { id: "uid-member" };
       state.callerProfile = { id: 10, role: "member" };
-      const result = await createAccount({
+      const result = await inviteAccount({
         email: "new@example.com",
-        password: "password123",
         name: "New User",
         role: "member",
       });
@@ -295,13 +316,10 @@ describe("settings/actions — auth gates", () => {
       expect(result.error).toMatch(/director role required/i);
     });
 
-    it("returns auth error for unauthenticated caller even with a short password (authz runs first)", async () => {
-      // requireDirector() now runs before input validation: an unauthenticated
-      // caller with a short password gets the auth error, not the validation hint.
-      const result = await createAccount({
-        email: "new@example.com",
-        password: "short",
-        name: "New User",
+    it("runs authorization before invitation input validation", async () => {
+      const result = await inviteAccount({
+        email: "invalid",
+        name: "N",
         role: "member",
       });
       expect(result.error).toMatch(/not authenticated/i);
@@ -311,24 +329,41 @@ describe("settings/actions — auth gates", () => {
       state.user = { id: "uid-director" };
       state.callerProfile = { id: 1, role: "director" };
       state.insertAuthResult = {
-        data: { user: { id: "new-uid" } },
+        data: {
+          user: { id: "new-uid" },
+          properties: { hashed_token: "invite-token" },
+        },
         error: null,
       };
       state.insertProfileResult = { data: { id: 99 }, error: null };
 
-      const result = await createAccount({
+      const result = await inviteAccount({
         email: "member@example.com",
-        password: "password123",
         name: "New Member",
         role: "member",
       });
-      // Either success or a non-auth error (e.g. duplicate) — not "Not authorized"
-      if (result.error) {
-        expect(result.error).not.toMatch(/not authorized/i);
-        expect(result.error).not.toMatch(/not authenticated/i);
-      } else {
-        expect(result.success).toBe(true);
-      }
+      expect(result.success).toBe(true);
+      expect(sendAccountInviteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "member@example.com",
+          confirmationUrl: expect.stringContaining("token_hash=invite-token"),
+        }),
+      );
+    });
+
+    it("rolls the account back when invitation delivery fails", async () => {
+      state.user = { id: "uid-director" };
+      state.callerProfile = { id: 1, role: "director", name: "Director" };
+      sendAccountInviteMock.mockRejectedValueOnce(new Error("provider down"));
+
+      const result = await inviteAccount({
+        email: "member@example.com",
+        name: "New Member",
+        role: "member",
+      });
+
+      expect(result.error).toMatch(/no account was created/i);
+      expect(state.deleteUserCalls).toBe(1);
     });
   });
 

@@ -11,7 +11,7 @@
 -- cross-tenant count below is 0, and every same-tenant control count is >=1.
 -- =====================================================================
 BEGIN;
-SELECT plan(25);
+SELECT plan(26);
 
 -- ---------------------------------------------------------------------
 -- Client A: must NOT see any Beta-tenant row.

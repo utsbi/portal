@@ -225,9 +225,11 @@ main() {
               -f "/tmp/${base}" 2>&1 || true)"
       echo "${out}"
       # A pgTAP failure prints lines beginning with "not ok". A hard SQL error
-      # (e.g. ERROR:) also counts as failure.
+      # (e.g. ERROR:) and TAP plan mismatch diagnostics also count as failures.
+      # The plan check matters because psql itself exits zero when finish()
+      # reports that a file ran more or fewer assertions than it declared.
       local file_fail
-      file_fail="$(printf '%s\n' "${out}" | grep -c -E '^not ok|^ERROR:|psql:.*ERROR' || true)"
+      file_fail="$(printf '%s\n' "${out}" | grep -c -E '^not ok|^ERROR:|psql:.*ERROR|^# Looks like you planned [0-9]+ tests? but ran [0-9]+' || true)"
       if [[ "${file_fail}" -gt 0 ]]; then
         echo "## ${base}: ${file_fail} failing line(s)"
         total_fail=$((total_fail + file_fail))

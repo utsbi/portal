@@ -1,32 +1,7 @@
 import { NextResponse } from "next/server";
+import { buildEventIcs } from "@/lib/calendar/ics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function toIcsUtc(dtIso: string) {
-  const d = new Date(dtIso);
-  return (
-    d.getUTCFullYear().toString() +
-    pad(d.getUTCMonth() + 1) +
-    pad(d.getUTCDate()) +
-    "T" +
-    pad(d.getUTCHours()) +
-    pad(d.getUTCMinutes()) +
-    pad(d.getUTCSeconds()) +
-    "Z"
-  );
-}
-
-function escapeIcs(text: string) {
-  return text
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
-}
 
 /**
  * GET /api/contact/calendar/client-events/ics?eventId=...
@@ -65,6 +40,7 @@ export async function GET(req: Request) {
     .select(
       `
       id, title, description, location, start_at, end_at, all_day, project_id,
+      updated_at,
       project:projects!project_events_project_id_fkey ( company_name )
     `,
     )
@@ -85,33 +61,17 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const project = event.project;
-  // Prefix the title with the project name so events in the phone's calendar
-  // are self-explanatory when a user is on multiple projects.
-  const summary = project?.company_name
-    ? `${project.company_name} — ${event.title}`
-    : event.title;
-
-  const dtstamp = toIcsUtc(new Date().toISOString());
-  const ics = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//SBI Portal//EN",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    `UID:event-${event.id}@utsbi.org`,
-    `DTSTAMP:${dtstamp}`,
-    `DTSTART:${toIcsUtc(event.start_at)}`,
-    `DTEND:${toIcsUtc(event.end_at)}`,
-    `SUMMARY:${escapeIcs(summary)}`,
-    event.location ? `LOCATION:${escapeIcs(event.location)}` : null,
-    event.description ? `DESCRIPTION:${escapeIcs(event.description)}` : null,
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ]
-    .filter(Boolean)
-    .join("\r\n");
+  const ics = buildEventIcs({
+    id: event.id,
+    title: event.title,
+    projectName: event.project?.company_name,
+    description: event.description,
+    location: event.location,
+    startAt: event.start_at,
+    endAt: event.end_at,
+    allDay: event.all_day,
+    versionAt: event.updated_at,
+  });
 
   return new NextResponse(ics, {
     headers: {

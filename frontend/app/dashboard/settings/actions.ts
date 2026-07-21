@@ -1,6 +1,8 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { requireDirector } from "@/lib/auth/guards";
+import { getPortalOrigin, sendAccountInvite } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from "./types";
@@ -40,11 +42,14 @@ async function requireUser() {
 // Account Management
 // ============================================================
 
-export async function createAccount(data: {
+const ACCOUNT_ROLES = ["client", "director", "member"] as const;
+type AccountRole = (typeof ACCOUNT_ROLES)[number];
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function inviteAccount(data: {
   email: string;
-  password: string;
   name: string;
-  role: "client" | "director" | "member";
+  role: AccountRole;
   companyName?: string;
   department?: string;
 }) {
@@ -53,60 +58,89 @@ export async function createAccount(data: {
   const admin = createAdminClient();
   const callerProfileId = gate.profileId;
 
-  if (data.password.length < 8) {
-    return { error: "Password must be at least 8 characters" };
+  const email = data.email.trim().toLowerCase();
+  const name = data.name.trim();
+  const companyName = data.companyName?.trim() || null;
+  const department = data.department?.trim() || null;
+  if (!EMAIL_PATTERN.test(email) || email.length > 254) {
+    return { error: "Enter a valid email address" };
+  }
+  if (name.length < 2 || name.length > 100) {
+    return { error: "Name must be between 2 and 100 characters" };
+  }
+  if (!ACCOUNT_ROLES.includes(data.role)) {
+    return { error: "Select a valid account role" };
+  }
+  if (
+    data.role === "client" &&
+    (!companyName || companyName.length < 2 || companyName.length > 150)
+  ) {
+    return { error: "Company name must be between 2 and 150 characters" };
+  }
+  if (department && department.length > 100) {
+    return { error: "Department must be 100 characters or fewer" };
   }
 
-  // Create auth user
+  // Generate a one-time Supabase invite token for our custom Resend template.
+  // The director never creates, sees, or communicates the recipient's password.
   const { data: authData, error: authError } =
-    await admin.auth.admin.createUser({
-      email: data.email,
-      password: data.password,
-      email_confirm: true,
+    await admin.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: { data: { name, role: data.role } },
     });
 
-  if (authError) {
-    return { error: authError.message };
+  if (authError || !authData.user || !authData.properties.hashed_token) {
+    return {
+      error: authError?.message || "Couldn't create an invitation link",
+    };
   }
 
   const uid = authData.user.id;
+  let createdProjectId: number | null = null;
+
+  const rollbackInvite = async () => {
+    if (createdProjectId !== null) {
+      await admin.from("projects").delete().eq("id", createdProjectId);
+    }
+    await admin.auth.admin.deleteUser(uid);
+  };
 
   // Create profile
   const { data: profile, error: profileError } = await admin
     .from("profiles")
     .insert({
       uid,
-      name: data.name,
-      email: data.email,
+      name,
+      email,
       role: data.role,
-      department: data.department || null,
+      department: data.role === "member" ? department : null,
     })
     .select("id")
     .single();
 
-  if (profileError) {
+  if (profileError || !profile) {
     await admin.auth.admin.deleteUser(uid);
-    return { error: profileError.message };
+    return { error: profileError?.message || "Couldn't create the profile" };
   }
 
   // If client, create a project AND link the client as its owner. Without
   // the project_members(owner) row the project is orphaned — no member sees
   // the client in the team list, and downstream queries that look up the
   // owner (calendar attendees, etc.) miss them entirely.
-  if (data.role === "client" && data.companyName) {
+  if (data.role === "client" && companyName) {
     const slug =
-      data.companyName
+      companyName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") +
-      "-" +
-      Math.random().toString(36).slice(2, 6);
+        .replace(/^-|-$/g, "") || "project";
+    const uniqueSlug = `${slug}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
 
     const { data: project, error: projectError } = await admin
       .from("projects")
       .insert({
-        url_slug: slug,
-        company_name: data.companyName,
+        url_slug: uniqueSlug,
+        company_name: companyName,
         created_by: profile.id,
       })
       .select("id")
@@ -116,9 +150,10 @@ export async function createAccount(data: {
       // Roll back: auth user → profile cascades via FK. Without this the
       // email is permanently burned and re-running the form fails with a
       // duplicate-email error.
-      await admin.auth.admin.deleteUser(uid);
+      await rollbackInvite();
       return { error: projectError?.message || "Couldn't create project" };
     }
+    createdProjectId = project.id;
 
     const { error: ownerError } = await admin.from("project_members").insert({
       profile_id: profile.id,
@@ -128,20 +163,43 @@ export async function createAccount(data: {
     });
 
     if (ownerError) {
-      // Project exists but ownership link failed. Surface a non-fatal
-      // warning — the director can recover from the Team panel.
+      await rollbackInvite();
       return {
-        success: true,
-        profileId: profile.id,
-        warning: `Project created, but couldn't link the owner: ${ownerError.message}. Use the Team panel to assign the owner manually.`,
+        error: `Couldn't create the client project: ${ownerError.message}`,
       };
     }
   }
 
-  // If director, auto-link triggers will add them to all projects
-  // If member, they need to be explicitly assigned via team management
+  const { data: inviter } = await gate.supabase
+    .from("profiles")
+    .select("name")
+    .eq("id", callerProfileId)
+    .maybeSingle();
+  const confirmationParams = new URLSearchParams({
+    token_hash: authData.properties.hashed_token,
+    type: "invite",
+    next: "/auth/update-password",
+  });
 
-  return { success: true, profileId: profile.id };
+  try {
+    await sendAccountInvite({
+      email,
+      recipientName: name,
+      invitedByName: inviter?.name ?? "An SBI director",
+      role: data.role,
+      confirmationUrl: `${getPortalOrigin()}/auth/confirm?${confirmationParams.toString()}`,
+      userId: uid,
+    });
+  } catch (error) {
+    console.error("Account invitation delivery failed:", error);
+    await rollbackInvite();
+    return {
+      error:
+        "The invitation email could not be delivered, so no account was created. Try again.",
+    };
+  }
+
+  return { success: true, profileId: profile.id, invitedEmail: email };
 }
 
 export async function listAccounts() {

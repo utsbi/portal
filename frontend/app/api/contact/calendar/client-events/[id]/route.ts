@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
+import { scheduleEmailTask } from "@/lib/email/schedule";
+import { sendEventChangeNotifications } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
+
+const MAX_EVENT_TITLE = 200;
+const MAX_EVENT_DESCRIPTION = 10_000;
+const MAX_EVENT_LOCATION = 500;
 
 interface UpdateEventBody {
   title?: string;
@@ -48,19 +54,47 @@ export async function PATCH(
     all_day?: boolean;
   } = {};
   if (body.title !== undefined) {
-    if (typeof body.title !== "string" || body.title.trim().length === 0) {
+    if (
+      typeof body.title !== "string" ||
+      body.title.trim().length === 0 ||
+      body.title.trim().length > MAX_EVENT_TITLE
+    ) {
       return NextResponse.json(
-        { error: "Title must be a non-empty string" },
+        {
+          error: `Title must be a non-empty string no longer than ${MAX_EVENT_TITLE} characters`,
+        },
         { status: 400 },
       );
     }
     update.title = body.title.trim();
   }
   if (body.description !== undefined) {
+    if (
+      body.description !== null &&
+      (typeof body.description !== "string" ||
+        body.description.length > MAX_EVENT_DESCRIPTION)
+    ) {
+      return NextResponse.json(
+        {
+          error: `Description must be ${MAX_EVENT_DESCRIPTION} characters or fewer`,
+        },
+        { status: 400 },
+      );
+    }
     update.description =
       body.description === null ? null : body.description?.trim() || null;
   }
   if (body.location !== undefined) {
+    if (
+      body.location !== null &&
+      (typeof body.location !== "string" ||
+        body.location.length > MAX_EVENT_LOCATION)
+    ) {
+      return NextResponse.json(
+        { error: `Location must be ${MAX_EVENT_LOCATION} characters or fewer` },
+        { status: 400 },
+      );
+    }
     update.location =
       body.location === null ? null : body.location?.trim() || null;
   }
@@ -126,7 +160,7 @@ export async function PATCH(
 
   const { data: event, error: fetchErr } = await supabaseAdmin
     .from("project_events")
-    .select("id, project_id, created_by")
+    .select("id, project_id, created_by, start_at, end_at")
     .eq("id", id)
     .maybeSingle();
   if (fetchErr) {
@@ -147,6 +181,15 @@ export async function PATCH(
     );
   }
 
+  const finalStart = update.start_at ?? event.start_at;
+  const finalEnd = update.end_at ?? event.end_at;
+  if (new Date(finalEnd).getTime() <= new Date(finalStart).getTime()) {
+    return NextResponse.json(
+      { error: "endAt must be after startAt" },
+      { status: 400 },
+    );
+  }
+
   const { data: updated, error: updateErr } = await supabaseAdmin
     .from("project_events")
     .update(update as Database["public"]["Tables"]["project_events"]["Update"])
@@ -162,6 +205,34 @@ export async function PATCH(
       { status: 500 },
     );
   }
+
+  const [{ data: attendees }, { data: project }] = await Promise.all([
+    supabaseAdmin
+      .from("project_event_attendees")
+      .select("profile_id")
+      .eq("event_id", id),
+    supabaseAdmin
+      .from("projects")
+      .select("company_name")
+      .eq("id", updated.project_id)
+      .maybeSingle(),
+  ]);
+  scheduleEmailTask("event update notification", () =>
+    sendEventChangeNotifications({
+      eventId: updated.id,
+      projectName: project?.company_name ?? "SBI",
+      eventTitle: updated.title,
+      eventStart: updated.start_at,
+      eventEnd: updated.end_at,
+      eventLocation: updated.location,
+      eventDescription: updated.description,
+      eventAllDay: updated.all_day,
+      eventVersionAt: updated.updated_at,
+      attendeeProfileIds: (attendees ?? []).map((row) => row.profile_id),
+      excludeProfileId: callerProfile.id,
+      kind: "updated",
+    }),
+  );
 
   return NextResponse.json({ ok: true, event: updated });
 }
@@ -201,7 +272,9 @@ export async function DELETE(
 
   const { data: event } = await supabaseAdmin
     .from("project_events")
-    .select("id, project_id, created_by")
+    .select(
+      "id, project_id, created_by, title, description, location, start_at, end_at, all_day, updated_at",
+    )
     .eq("id", id)
     .maybeSingle();
   if (!event) {
@@ -217,6 +290,18 @@ export async function DELETE(
     );
   }
 
+  const [{ data: attendees }, { data: project }] = await Promise.all([
+    supabaseAdmin
+      .from("project_event_attendees")
+      .select("profile_id")
+      .eq("event_id", id),
+    supabaseAdmin
+      .from("projects")
+      .select("company_name")
+      .eq("id", event.project_id)
+      .maybeSingle(),
+  ]);
+
   const { error: delErr } = await supabaseAdmin
     .from("project_events")
     .delete()
@@ -228,6 +313,23 @@ export async function DELETE(
       { status: 500 },
     );
   }
+
+  scheduleEmailTask("event cancellation notification", () =>
+    sendEventChangeNotifications({
+      eventId: event.id,
+      projectName: project?.company_name ?? "SBI",
+      eventTitle: event.title,
+      eventStart: event.start_at,
+      eventEnd: event.end_at,
+      eventLocation: event.location,
+      eventDescription: event.description,
+      eventAllDay: event.all_day,
+      eventVersionAt: event.updated_at,
+      attendeeProfileIds: (attendees ?? []).map((row) => row.profile_id),
+      excludeProfileId: callerProfile.id,
+      kind: "cancelled",
+    }),
+  );
 
   return NextResponse.json({ ok: true });
 }

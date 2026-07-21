@@ -190,31 +190,37 @@ Copy `.env.example` to `.env.local` for local development. All keys below are re
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+NEXT_PUBLIC_SITE_URL=
+BACKEND_URL=
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 SUPABASE_SECRET_KEY=
 TURNSTILE_SECRET_KEY=
 N8N_CONTACT_WEBHOOK_URL=
+DISCORD_CONTACT_WEBHOOK_URL=
+DISCORD_FORM_WEBHOOK_URL=
 DISCORD_FORM_WEBHOOK_URL=
 BASIC_AUTH_USER=
 BASIC_AUTH_PASSWORD=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=
-TOKEN_ENCRYPTION_KEY=
 ASSEMBLYAI_API_KEY=
+RESEND_API_KEY=
+EMAIL_FROM=
+EMAIL_TIME_ZONE=
 ```
 
 | Variable | Scope | Purpose |
 |----------|-------|---------|
 | `NEXT_PUBLIC_SUPABASE_*` | Client + server | Supabase project URL and anon/publishable key |
+| `NEXT_PUBLIC_SITE_URL` | Client + server | Canonical portal origin used in secure account and calendar email links |
+| `BACKEND_URL` | Server only | FastAPI Explore backend origin |
 | `SUPABASE_SECRET_KEY` | Server only | Service role key for admin APIs, Google OAuth token storage, seed scripts |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | Client / server | Cloudflare Turnstile (contact form) |
 | `N8N_CONTACT_WEBHOOK_URL` | Server only | n8n webhook for contact form submissions |
+| `DISCORD_CONTACT_WEBHOOK_URL` | Server only | Optional contact-form notification webhook |
 | `DISCORD_FORM_WEBHOOK_URL` | Server only | Optional. Discord webhook notified on each questionnaire submission (no-op if unset) |
 | `BASIC_AUTH_*` | Server only | HTTP basic auth for protected routes |
-| `GOOGLE_*` | Server only | Google Calendar OAuth for dashboard contact/calendar APIs |
-| `TOKEN_ENCRYPTION_KEY` | Server only | AES-256-GCM key (32 bytes, base64-encoded) for encrypting Google OAuth tokens at rest. Generate with: `openssl rand -base64 32` |
 | `ASSEMBLYAI_API_KEY` | Server only | AssemblyAI speech-to-text for the Explore composer; optional, mic disabled if unset |
+| `RESEND_API_KEY` / `EMAIL_FROM` | Server only | Resend transactional delivery and verified sender identity |
+| `EMAIL_TIME_ZONE` | Server only | IANA timezone used for human-readable event email dates (default `America/Chicago`) |
 
 ## Adding New Features
 
