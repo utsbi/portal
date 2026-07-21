@@ -1,4 +1,5 @@
 import logging
+from typing import Any, cast
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -30,7 +31,10 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(
+    RateLimitExceeded,
+    cast(Any, _rate_limit_exceeded_handler),
+)
 
 app.add_middleware(
     TrustedHostMiddleware,
@@ -54,13 +58,9 @@ async def limit_body_size(request: Request, call_next):
         try:
             declared = int(content_length)
         except ValueError:
-            return JSONResponse(
-                {"detail": "Invalid Content-Length"}, status_code=400
-            )
+            return JSONResponse({"detail": "Invalid Content-Length"}, status_code=400)
         if declared > _MAX_BODY_BYTES:
-            return JSONResponse(
-                {"detail": "Request body too large"}, status_code=413
-            )
+            return JSONResponse({"detail": "Request body too large"}, status_code=413)
     return await call_next(request)
 
 

@@ -23,13 +23,28 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "httpx2>=2.7.0",
+    "pyright>=1.1.411",
     "pytest>=9.1.0",
     "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.22",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = ["--strict-config", "--strict-markers"]
+filterwarnings = ["error"]
 # Dump tracebacks if any test hangs past this many seconds so a stuck stream /
 # to_thread mock surfaces in CI instead of silently blocking the run.
 faulthandler_timeout = 60
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 65
+show_missing = true
+skip_covered = true

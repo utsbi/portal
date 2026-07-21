@@ -205,7 +205,7 @@ export function ChatsView() {
     }
     const buckets = BUCKET_ORDER.filter((b) => map.has(b)).map((b) => ({
       label: b,
-      sessions: map.get(b)!,
+      sessions: map.get(b) ?? [],
     }));
 
     return {

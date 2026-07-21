@@ -14,6 +14,7 @@ from app.explore.api.deps import AuthContext, get_auth_context, get_current_user
 from app.explore.core.limiter import limiter
 from app.explore.core.uploads import parse_content_length, read_capped
 from app.explore.db.supabase import user_client, supabase
+from app.explore.db.rows import json_rows
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,9 @@ class IndexTextRequest(BaseModel):
 
     project_id: int = Field(..., description="Project to file the knowledge under")
     filename: str = Field(
-        ..., min_length=1, max_length=255,
+        ...,
+        min_length=1,
+        max_length=255,
         description="Display filename for citations (no path)",
     )
     content: str = Field(..., min_length=1, description="Extracted plain text")
@@ -123,13 +126,7 @@ async def _is_director(db, user_id: str) -> bool:
     """
 
     def _query() -> bool:
-        prof = (
-            db.table("profiles")
-            .select("role")
-            .eq("uid", user_id)
-            .limit(1)
-            .execute()
-        )
+        prof = db.table("profiles").select("role").eq("uid", user_id).limit(1).execute()
         return bool(prof.data) and prof.data[0].get("role") == "director"
 
     return await asyncio.to_thread(_query)
@@ -157,10 +154,9 @@ async def upload_document(
 
     user_id = auth.user_id
 
-    if not file.filename or not file.filename.endswith('.pdf'):
+    if not file.filename or not file.filename.endswith(".pdf"):
         raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are supported at this time"
+            status_code=400, detail="Only PDF files are supported at this time"
         )
 
     # Authorization, under the caller's RLS context (a client built from the
@@ -171,13 +167,11 @@ async def upload_document(
     db = user_client(auth.access_token)
     if not await is_project_member(db, user_id, project_id):
         raise HTTPException(
-            status_code=403,
-            detail="You are not a member of the specified project."
+            status_code=403, detail="You are not a member of the specified project."
         )
     if not await _is_director(db, user_id):
         raise HTTPException(
-            status_code=403,
-            detail="Only directors can upload knowledge documents."
+            status_code=403, detail="Only directors can upload knowledge documents."
         )
 
     try:
@@ -185,14 +179,12 @@ async def upload_document(
 
         pdf_parser = PDFParser()
         pages_data = pdf_parser.extract_text_with_metadata(
-            file_bytes=file_bytes,
-            filename=file.filename
+            file_bytes=file_bytes, filename=file.filename
         )
 
         if not pages_data:
             raise HTTPException(
-                status_code=400,
-                detail="No text could be extracted from the PDF"
+                status_code=400, detail="No text could be extracted from the PDF"
             )
 
         rag_service = RAGService()
@@ -205,7 +197,7 @@ async def upload_document(
                 content=page_data["content"],
                 metadata=page_data["metadata"],
                 client_id=user_id,
-                project_id=project_id
+                project_id=project_id,
             )
             all_document_ids.extend(doc_ids)
 
@@ -213,17 +205,14 @@ async def upload_document(
             success=True,
             message=f"Successfully uploaded {file.filename}",
             document_ids=[str(id) for id in all_document_ids],
-            chunks_created=len(all_document_ids)
+            chunks_created=len(all_document_ids),
         )
 
     except HTTPException:
         raise
     except Exception:
         logger.error("Error processing document upload", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Error processing document"
-        )
+        raise HTTPException(status_code=500, detail="Error processing document")
 
 
 @router.get("/list")
@@ -232,30 +221,26 @@ async def list_documents(user_id: str = Depends(get_current_user_id), limit: int
     try:
         from app.explore.db.supabase import supabase
 
-        result = supabase.table("client_knowledge") \
-            .select("metadata") \
-            .eq("uid", user_id) \
-            .limit(limit) \
+        result = (
+            supabase.table("client_knowledge")
+            .select("metadata")
+            .eq("uid", user_id)
+            .limit(limit)
             .execute()
+        )
 
         documents = {}
-        for doc in result.data:
+        for doc in json_rows(result.data):
             metadata = doc.get("metadata", {})
             filename = metadata.get("filename")
             if filename and filename not in documents:
                 documents[filename] = metadata
 
-        return {
-            "documents": list(documents.values()),
-            "count": len(documents)
-        }
+        return {"documents": list(documents.values()), "count": len(documents)}
 
     except Exception:
         logger.error("Error listing documents", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Error listing documents"
-        )
+        raise HTTPException(status_code=500, detail="Error listing documents")
 
 
 @router.post("/knowledge/index-file")
@@ -287,7 +272,9 @@ async def index_file(
             supabase.storage.from_(_FILES_BUCKET).download, absolute_path
         )
     except Exception:
-        logger.error("Could not download file from storage: %s", absolute_path, exc_info=True)
+        logger.error(
+            "Could not download file from storage: %s", absolute_path, exc_info=True
+        )
         raise HTTPException(
             status_code=404,
             detail="Could not download file from storage",
@@ -306,27 +293,31 @@ async def index_file(
         # identical chunks. (Hash is over the EXTRACTED text, so a re-saved
         # file with identical content still dedupes.)
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        existing = supabase.table("client_knowledge") \
-            .select("id, metadata") \
-            .eq("project_id", body.project_id) \
-            .eq("storage_path", body.storage_path) \
+        existing = (
+            supabase.table("client_knowledge")
+            .select("id, metadata")
+            .eq("project_id", body.project_id)
+            .eq("storage_path", body.storage_path)
             .execute()
-        if existing.data:
-            prior_hash = (existing.data[0].get("metadata") or {}).get("content_hash")
+        )
+        existing_rows = json_rows(existing.data)
+        if existing_rows:
+            metadata = existing_rows[0].get("metadata")
+            prior_hash = (
+                metadata.get("content_hash") if isinstance(metadata, dict) else None
+            )
             if prior_hash == content_hash:
                 return {
                     "indexed": True,
-                    "chunks": len(existing.data),
+                    "chunks": len(existing_rows),
                     "unchanged": True,
                 }
 
         # Drop any existing chunks for this file so a re-index of a replaced
         # file doesn't leave stale/duplicate chunks behind.
-        supabase.table("client_knowledge") \
-            .delete() \
-            .eq("project_id", body.project_id) \
-            .eq("storage_path", body.storage_path) \
-            .execute()
+        supabase.table("client_knowledge").delete().eq(
+            "project_id", body.project_id
+        ).eq("storage_path", body.storage_path).execute()
 
         filename = body.storage_path.rsplit("/", 1)[-1]
         rag_service = RAGService()
@@ -373,11 +364,13 @@ async def delete_by_file(
     _safe_storage_key(body.project_id, body.storage_path)
 
     try:
-        result = supabase.table("client_knowledge") \
-            .delete() \
-            .eq("project_id", body.project_id) \
-            .eq("storage_path", body.storage_path) \
+        result = (
+            supabase.table("client_knowledge")
+            .delete()
+            .eq("project_id", body.project_id)
+            .eq("storage_path", body.storage_path)
             .execute()
+        )
 
         deleted = len(result.data) if result.data else 0
         return {"deleted": deleted}
@@ -424,12 +417,14 @@ async def index_text(
 
     try:
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        existing = supabase.table("client_knowledge") \
-            .select("id") \
-            .eq("project_id", body.project_id) \
-            .eq("metadata->>content_hash", content_hash) \
-            .limit(1) \
+        existing = (
+            supabase.table("client_knowledge")
+            .select("id")
+            .eq("project_id", body.project_id)
+            .eq("metadata->>content_hash", content_hash)
+            .limit(1)
             .execute()
+        )
         if existing.data:
             return {"indexed": True, "chunks": 0, "duplicate": True}
 
@@ -521,14 +516,16 @@ async def list_indexed_files(
         )
 
     try:
-        result = supabase.table("client_knowledge") \
-            .select("storage_path") \
-            .eq("project_id", project_id) \
-            .eq("source", "portal") \
+        result = (
+            supabase.table("client_knowledge")
+            .select("storage_path")
+            .eq("project_id", project_id)
+            .eq("source", "portal")
             .execute()
+        )
 
         counts: dict[str, int] = {}
-        for row in result.data or []:
+        for row in json_rows(result.data):
             path = row.get("storage_path")
             if path:
                 counts[path] = counts.get(path, 0) + 1
@@ -541,7 +538,9 @@ async def list_indexed_files(
     except HTTPException:
         raise
     except Exception:
-        logger.error("Error listing indexed files for project %s", project_id, exc_info=True)
+        logger.error(
+            "Error listing indexed files for project %s", project_id, exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail="Error listing indexed files",

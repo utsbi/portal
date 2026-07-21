@@ -15,10 +15,7 @@ if not settings.supabase_secret or not settings.supabase_secret.strip():
     )
 
 # Initialize client with secret key (service role — bypasses RLS).
-supabase: Client = create_client(
-    settings.SUPABASE_URL,
-    settings.supabase_secret
-)
+supabase: Client = create_client(settings.SUPABASE_URL, settings.supabase_secret)
 
 
 def user_client(access_token: str) -> Client:

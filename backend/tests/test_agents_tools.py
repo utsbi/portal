@@ -8,6 +8,7 @@ Covers:
   - execute_tool: tool exception returns generic error string (never raises)
   - TOOLS schema: all expected tool names are present
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -19,6 +20,7 @@ from app.explore.agents.tools import TOOLS, execute_tool
 # ---------------------------------------------------------------------------
 # TOOLS schema — all expected tool names present
 # ---------------------------------------------------------------------------
+
 
 class TestToolsSchema:
     def _tool_names(self):
@@ -64,6 +66,7 @@ class TestToolsSchema:
 # ---------------------------------------------------------------------------
 # create_request — draft-only proposal, never a write
 # ---------------------------------------------------------------------------
+
 
 class TestCreateRequestProposal:
     async def _run(self, args):
@@ -125,6 +128,7 @@ class TestCreateRequestProposal:
 # execute_tool — unknown tool
 # ---------------------------------------------------------------------------
 
+
 class TestExecuteToolUnknown:
     async def test_unknown_tool_returns_error_string_not_raise(self):
         result_text, sources = await execute_tool(
@@ -150,6 +154,7 @@ class TestExecuteToolUnknown:
 # ---------------------------------------------------------------------------
 # execute_tool — search_sbi_knowledge
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteToolSBIKnowledge:
     async def test_returns_sbi_knowledge_text(self):
@@ -179,6 +184,7 @@ class TestExecuteToolSBIKnowledge:
 # execute_tool — search_documents server-side scoping
 # ---------------------------------------------------------------------------
 
+
 class TestExecuteToolSearchDocuments:
     async def test_project_id_is_scoped_server_side(self):
         """The model cannot inject its own project_id; scoping is server-side."""
@@ -190,12 +196,25 @@ class TestExecuteToolSearchDocuments:
             return [project_id] if project_id else []
 
         async def _fake_search_docs(query, project_ids, client_id, strict=False):
-            return "context text", [{"filename": "doc.pdf", "page_number": 1, "content": "x", "relevance_score": 0.9}]
+            return "context text", [
+                {
+                    "filename": "doc.pdf",
+                    "page_number": 1,
+                    "content": "x",
+                    "relevance_score": 0.9,
+                }
+            ]
 
         with (
             patch("app.explore.agents.tools.user_client", return_value=MagicMock()),
-            patch("app.explore.agents.tools._scoped_project_ids", new=AsyncMock(side_effect=_fake_scoped_ids)),
-            patch("app.explore.agents.tools._search_documents", new=AsyncMock(side_effect=_fake_search_docs)),
+            patch(
+                "app.explore.agents.tools._scoped_project_ids",
+                new=AsyncMock(side_effect=_fake_scoped_ids),
+            ),
+            patch(
+                "app.explore.agents.tools._search_documents",
+                new=AsyncMock(side_effect=_fake_search_docs),
+            ),
         ):
             result_text, sources = await execute_tool(
                 name="search_documents",
@@ -223,8 +242,14 @@ class TestExecuteToolSearchDocuments:
 
         with (
             patch("app.explore.agents.tools.user_client", return_value=MagicMock()),
-            patch("app.explore.agents.tools._scoped_project_ids", new=AsyncMock(side_effect=_fake_scoped_ids)),
-            patch("app.explore.agents.tools._search_documents", new=AsyncMock(side_effect=_fake_search_docs)),
+            patch(
+                "app.explore.agents.tools._scoped_project_ids",
+                new=AsyncMock(side_effect=_fake_scoped_ids),
+            ),
+            patch(
+                "app.explore.agents.tools._search_documents",
+                new=AsyncMock(side_effect=_fake_search_docs),
+            ),
         ):
             await execute_tool(
                 name="search_documents",
@@ -242,6 +267,7 @@ class TestExecuteToolSearchDocuments:
 # execute_tool — live-data tools use _scoped_project_ids
 # ---------------------------------------------------------------------------
 
+
 class TestExecuteToolLiveData:
     """Verify that live-data tools resolve project scope server-side."""
 
@@ -255,7 +281,10 @@ class TestExecuteToolLiveData:
 
         with (
             patch("app.explore.agents.tools.user_client", return_value=MagicMock()),
-            patch("app.explore.agents.tools._scoped_project_ids", new=AsyncMock(side_effect=_fake_scoped_ids)),
+            patch(
+                "app.explore.agents.tools._scoped_project_ids",
+                new=AsyncMock(side_effect=_fake_scoped_ids),
+            ),
         ):
             result_text, sources = await execute_tool(
                 name=tool_name,
@@ -268,13 +297,17 @@ class TestExecuteToolLiveData:
         return result_text, sources, captured
 
     async def test_lifecycle_uses_scoped_project_ids(self):
-        result, sources, captured = await self._run_tool_with_scoped_mock("get_lifecycle_status")
+        result, sources, captured = await self._run_tool_with_scoped_mock(
+            "get_lifecycle_status"
+        )
         assert captured.get("called") is True
         assert captured["client_id"] == "uid-live"
         assert "no project" in result.lower() or "no" in result.lower()
 
     async def test_questionnaire_uses_scoped_project_ids(self):
-        result, sources, captured = await self._run_tool_with_scoped_mock("get_questionnaire_status")
+        result, sources, captured = await self._run_tool_with_scoped_mock(
+            "get_questionnaire_status"
+        )
         assert captured.get("called") is True
 
     async def test_reports_uses_scoped_project_ids(self):
@@ -282,11 +315,15 @@ class TestExecuteToolLiveData:
         assert captured.get("called") is True
 
     async def test_finance_uses_scoped_project_ids(self):
-        result, sources, captured = await self._run_tool_with_scoped_mock("get_finance_summary")
+        result, sources, captured = await self._run_tool_with_scoped_mock(
+            "get_finance_summary"
+        )
         assert captured.get("called") is True
 
     async def test_requests_uses_scoped_project_ids(self):
-        result, sources, captured = await self._run_tool_with_scoped_mock("get_requests")
+        result, sources, captured = await self._run_tool_with_scoped_mock(
+            "get_requests"
+        )
         assert captured.get("called") is True
 
 
@@ -421,6 +458,7 @@ class TestExecuteToolUpcomingEvents:
 # execute_tool — exception handling
 # ---------------------------------------------------------------------------
 
+
 class TestExecuteToolExceptionHandling:
     async def test_tool_exception_returns_error_string_not_raise(self):
         """If a tool's internal function raises, execute_tool must return an error
@@ -472,5 +510,3 @@ class TestExecuteToolExceptionHandling:
             )
 
         assert "SECRET_DB_CREDENTIALS_HERE" not in result_text
-
-

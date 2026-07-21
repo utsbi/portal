@@ -50,6 +50,7 @@ from supabase import Client
 
 from app.explore.agents.nodes import rag_service
 from app.explore.core.config import settings
+from app.explore.db.rows import json_rows
 from app.explore.db.supabase import user_client
 from app.explore.services.membership import scoped_project_ids as _scoped_project_ids
 
@@ -57,6 +58,7 @@ logger = logging.getLogger(__name__)
 
 
 # --- Curated SBI knowledge (loaded once at import) ---------------------------
+
 
 def _load_sbi_knowledge() -> str:
     """Load the curated SBI knowledge markdown bundled with the package."""
@@ -256,6 +258,7 @@ TOOLS: List[Dict[str, Any]] = [
 
 # --- Tool implementations ----------------------------------------------------
 
+
 async def _search_documents(
     query: str, project_ids: List[int], client_id: str, strict: bool = False
 ) -> Tuple[str, List[Dict[str, Any]]]:
@@ -297,14 +300,18 @@ async def _search_documents(
         seen.add(key)
         rerank_score = doc.get("rerank_score")
         relevance = (
-            rerank_score if rerank_score is not None else doc.get("similarity_score", 0.0)
+            rerank_score
+            if rerank_score is not None
+            else doc.get("similarity_score", 0.0)
         )
-        sources.append({
-            "content": (doc.get("content", "") or "")[:500],
-            "filename": filename,
-            "page_number": page,
-            "relevance_score": relevance,
-        })
+        sources.append(
+            {
+                "content": (doc.get("content", "") or "")[:500],
+                "filename": filename,
+                "page_number": page,
+                "relevance_score": relevance,
+            }
+        )
 
     return context_text, sources
 
@@ -347,7 +354,9 @@ def _summarize_counts(label: str, counts: Dict[str, int]) -> str:
 
 
 async def _get_lifecycle_status(
-    db: Client, client_id: str, project_id: Optional[int],
+    db: Client,
+    client_id: str,
+    project_id: Optional[int],
     resolved_project_ids: Optional[List[int]] = None,
 ) -> str:
     """Summarize the caller's lifecycle tasks, scoped to the active project."""
@@ -369,7 +378,7 @@ async def _get_lifecycle_status(
             .in_("project_id", project_ids)
             .execute()
         )
-        lifecycle_rows = lifecycle.data or []
+        lifecycle_rows = json_rows(lifecycle.data)
         lifecycle_ids = [row["id"] for row in lifecycle_rows]
         if not lifecycle_ids:
             return lifecycle_rows, []
@@ -380,7 +389,7 @@ async def _get_lifecycle_status(
             .order("due_date")
             .execute()
         )
-        return lifecycle_rows, tasks.data or []
+        return lifecycle_rows, json_rows(tasks.data)
 
     lifecycle_rows, tasks = await asyncio.to_thread(_query)
 
@@ -403,7 +412,9 @@ async def _get_lifecycle_status(
     total = len(tasks)
     done = counts.get("completed", 0)
     lines = [
-        _summarize_counts(f"Lifecycle progress ({done}/{total} tasks completed)", counts)
+        _summarize_counts(
+            f"Lifecycle progress ({done}/{total} tasks completed)", counts
+        )
     ]
 
     blocked = [t for t in tasks if t.get("status") == "blocked"]
@@ -429,7 +440,9 @@ async def _get_lifecycle_status(
 
 
 async def _get_questionnaire_status(
-    db: Client, client_id: str, project_id: Optional[int],
+    db: Client,
+    client_id: str,
+    project_id: Optional[int],
     resolved_project_ids: Optional[List[int]] = None,
 ) -> str:
     """Summarize the caller's questionnaire/form status, scoped to them.
@@ -463,7 +476,7 @@ async def _get_questionnaire_status(
             .eq("user_id", client_id)
             .execute()
         )
-        return assignments.data or [], submissions.data or []
+        return json_rows(assignments.data), json_rows(submissions.data)
 
     assignments, submissions = await asyncio.to_thread(_query)
 
@@ -515,7 +528,9 @@ async def _get_questionnaire_status(
 
 
 async def _get_reports(
-    db: Client, client_id: str, project_id: Optional[int],
+    db: Client,
+    client_id: str,
+    project_id: Optional[int],
     resolved_project_ids: Optional[List[int]] = None,
 ) -> str:
     """Summarize reports filed for the active project.
@@ -544,7 +559,7 @@ async def _get_reports(
             .order("created_at", desc=True)
             .execute()
         )
-        return result.data or []
+        return json_rows(result.data)
 
     reports = await asyncio.to_thread(_query)
     if not reports:
@@ -571,7 +586,9 @@ def _fmt_money(amount: float, currency: str = "USD") -> str:
 
 
 async def _get_finance_summary(
-    db: Client, client_id: str, project_id: Optional[int],
+    db: Client,
+    client_id: str,
+    project_id: Optional[int],
     resolved_project_ids: Optional[List[int]] = None,
 ) -> str:
     """Summarize the active project's budget, scoped to that project.
@@ -602,7 +619,7 @@ async def _get_finance_summary(
             .in_("project_id", project_ids)
             .execute()
         )
-        budget_rows = budgets.data or []
+        budget_rows = json_rows(budgets.data)
         budget_ids = [row["id"] for row in budget_rows]
         if not budget_ids:
             return budget_rows, [], []
@@ -619,7 +636,11 @@ async def _get_finance_summary(
             .order("occurred_on", desc=True)
             .execute()
         )
-        return budget_rows, categories.data or [], transactions.data or []
+        return (
+            budget_rows,
+            json_rows(categories.data),
+            json_rows(transactions.data),
+        )
 
     budgets, categories, transactions = await asyncio.to_thread(_query)
 
@@ -655,7 +676,9 @@ async def _get_finance_summary(
 
 
 async def _get_requests(
-    db: Client, client_id: str, project_id: Optional[int],
+    db: Client,
+    client_id: str,
+    project_id: Optional[int],
     resolved_project_ids: Optional[List[int]] = None,
 ) -> str:
     """Summarize the caller's submitted requests, scoped to the active project.
@@ -685,7 +708,7 @@ async def _get_requests(
             .order("created_at", desc=True)
             .execute()
         )
-        return result.data or []
+        return json_rows(result.data)
 
     requests = await asyncio.to_thread(_query)
     if not requests:
@@ -734,7 +757,10 @@ def _format_event_when(start: Optional[str]) -> str:
 
 
 async def _get_upcoming_events(
-    db: Client, client_id: str, access_token: str, project_id: Optional[int],
+    db: Client,
+    client_id: str,
+    access_token: str,
+    project_id: Optional[int],
     resolved_project_ids: Optional[List[int]] = None,
 ) -> str:
     """Summarize the caller's upcoming project meetings.
@@ -796,9 +822,7 @@ async def _get_upcoming_events(
 
     data = resp.json()
     if not data.get("ok"):
-        logger.warning(
-            "Calendar route returned non-ok payload: %s", str(data)[:200]
-        )
+        logger.warning("Calendar route returned non-ok payload: %s", str(data)[:200])
 
     # Drop already-passed events (the route windows from 7 days ago) and sort.
     today = datetime.now(timezone.utc).replace(

@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional
 
 
@@ -27,9 +27,7 @@ class Settings(BaseSettings):
     # Base URL of the Next.js frontend (used to proxy project calendar lookups).
     PORTAL_BASE_URL: Optional[str] = None
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
     def cors_origins_list(self) -> List[str]:
@@ -119,4 +117,7 @@ class Settings(BaseSettings):
         """Get the Supabase secret key."""
         return self.SUPABASE_SECRET_KEY or ""
 
-settings = Settings()
+
+# BaseSettings supplies required fields from environment/settings sources at
+# runtime; its generated static signature cannot express that dynamic input.
+settings = Settings()  # pyright: ignore[reportCallIssue]

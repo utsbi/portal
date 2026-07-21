@@ -10,8 +10,9 @@ bun dev               # Dev server with Turbopack on localhost:3000
 bun build             # Production build
 bun lint              # Run Biome (biome check)
 bun run test          # Vitest unit/workflow suites (blocking in CI)
+bun run test:coverage # Vitest with enforced whole-module coverage floors
 bun run test:watch    # Vitest watch mode
-bun run test:e2e      # Playwright smoke suite (not run in CI)
+bun run test:e2e      # Playwright suite (blocking in CI against a prod build)
 ```
 
 ## Project Structure

@@ -18,16 +18,16 @@ Title: use a conventional-commit style summary, e.g.
 ## Deploy checklist
 <!-- Tick what applies. The frontend auto-deploys via Vercel; backend and DB do NOT. -->
 - [ ] **Backend redeploy required** — this PR changes `backend/**` (FastAPI does not auto-deploy)
-- [ ] **Migration to apply** — this PR adds files under `supabase/migrations/`; apply with `supabase db push` (or via MCP) after merge
+- [ ] **Migration to apply** — this PR adds files under `supabase/migrations/`; apply each migration individually via Supabase MCP after merge
 - [ ] **New env var(s)** — added to `.env.example` and the deployment environment
 - [ ] **New dependency** — `bun.lock` / `backend/pyproject.toml` updated and committed
 - [ ] None of the above — frontend-only, ships with the Vercel deploy
 
 ## Verification
 <!-- Evidence, not assertions. What did you actually run / click? -->
-- [ ] `bun run test` + `bun run build` pass (frontend tests, typecheck, build)
-- [ ] `uv run pytest` passes (backend)
-- [ ] pgTAP suite passes if this PR touches `supabase/` (`bash supabase/tests/run.sh`)
+- [ ] Frontend lint, standalone typecheck, coverage, production build, and Playwright pass
+- [ ] Backend pytest coverage, Ruff lint/format, and Pyright pass
+- [ ] pgTAP RLS suite passes (`bash supabase/tests/run.sh`)
 - [ ] Manually tested the change locally — describe the flow:
 
 ## Screenshots / recordings

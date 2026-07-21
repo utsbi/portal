@@ -8,6 +8,7 @@ Covers:
   - is_project_member: True/False cases
   - get_project_context: non-member returns None; member returns context string
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -24,6 +25,7 @@ from app.explore.services.membership import (
 # ---------------------------------------------------------------------------
 # Helper: build a mock Supabase client that simulates DB responses
 # ---------------------------------------------------------------------------
+
 
 def _make_db(profile_id=None, project_ids=None, role=None, company_name=None):
     """Build a mock ``db`` (supabase.Client) with configurable query results.
@@ -78,6 +80,7 @@ def _make_db(profile_id=None, project_ids=None, role=None, company_name=None):
 # caller_project_ids
 # ---------------------------------------------------------------------------
 
+
 class TestCallerProjectIds:
     async def test_blank_client_id_returns_empty(self):
         db = _make_db()
@@ -126,6 +129,7 @@ class TestCallerProjectIds:
 # is_project_member
 # ---------------------------------------------------------------------------
 
+
 class TestIsProjectMember:
     async def test_member_returns_true(self):
         db = MagicMock()
@@ -138,9 +142,7 @@ class TestIsProjectMember:
             if name == "profiles":
                 chain.execute.return_value = MagicMock(data=[{"id": 10}])
             elif name == "project_members":
-                chain.execute.return_value = MagicMock(
-                    data=[{"project_id": 5}]
-                )
+                chain.execute.return_value = MagicMock(data=[{"project_id": 5}])
             else:
                 chain.execute.return_value = MagicMock(data=[])
             return chain
@@ -173,6 +175,7 @@ class TestIsProjectMember:
 # ---------------------------------------------------------------------------
 # scoped_project_ids
 # ---------------------------------------------------------------------------
+
 
 class TestScopedProjectIds:
     async def _db_with_projects(self, project_ids):
@@ -223,6 +226,7 @@ class TestScopedProjectIds:
 # get_project_context
 # ---------------------------------------------------------------------------
 
+
 class TestGetProjectContext:
     async def test_blank_client_id_returns_none(self):
         db = MagicMock()
@@ -264,9 +268,7 @@ class TestGetProjectContext:
             if name == "profiles":
                 chain.execute.return_value = MagicMock(data=[{"id": 10}])
             elif name == "project_members":
-                chain.execute.return_value = MagicMock(
-                    data=[{"role": "client"}]
-                )
+                chain.execute.return_value = MagicMock(data=[{"role": "client"}])
             elif name == "projects":
                 chain.execute.return_value = MagicMock(
                     data=[{"company_name": "Acme Corp"}]

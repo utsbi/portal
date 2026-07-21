@@ -12,6 +12,7 @@ memory amplification DoS.
 These tests assert the *bound that should exist*. Where the implementation has no
 such bound (a real gap), the test is xfail(strict=False) with a BUG reason.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -27,31 +28,41 @@ class TestUnboundedAttachmentContent:
     def test_single_attachment_content_should_be_bounded(self):
         # If a per-field cap existed, constructing this would raise.
         with pytest.raises(Exception):
-            ChatRequest(
-                query="hi",
-                attachments=[
-                    {"filename": "f.txt", "content": _BIG, "file_type": "txt"}
-                ],
+            ChatRequest.model_validate(
+                {
+                    "query": "hi",
+                    "attachments": [
+                        {"filename": "f.txt", "content": _BIG, "file_type": "txt"}
+                    ],
+                }
             )
 
     def test_total_attachment_payload_should_be_bounded(self):
         chunk = "B" * 2_000_000  # ~2 MB each x 10 = ~20 MB total
         with pytest.raises(Exception):
-            ChatRequest(
-                query="hi",
-                attachments=[
-                    {"filename": f"f{i}.txt", "content": chunk, "file_type": "txt"}
-                    for i in range(10)
-                ],
+            ChatRequest.model_validate(
+                {
+                    "query": "hi",
+                    "attachments": [
+                        {
+                            "filename": f"f{i}.txt",
+                            "content": chunk,
+                            "file_type": "txt",
+                        }
+                        for i in range(10)
+                    ],
+                }
             )
 
 
 class TestUnboundedHistoryContent:
     def test_history_entry_content_should_be_bounded(self):
         with pytest.raises(Exception):
-            ChatRequest(
-                query="hi",
-                history=[{"role": "user", "content": _BIG}],
+            ChatRequest.model_validate(
+                {
+                    "query": "hi",
+                    "history": [{"role": "user", "content": _BIG}],
+                }
             )
 
 
@@ -72,7 +83,7 @@ class TestQueryCapHoldsAtBoundary:
         astral-plane emoji is ~16 KB of UTF-8 yet under the 8000-char cap — a
         byte-budget the char cap does not constrain. Documents that the cap is a
         char cap, not a byte cap (relevant for downstream memory/token sizing)."""
-        emoji = "\U0001F600"  # 1 code point, 4 UTF-8 bytes
+        emoji = "\U0001f600"  # 1 code point, 4 UTF-8 bytes
         s = emoji * 4001
         req = ChatRequest(query=s)
         assert len(req.query) == 4001
@@ -82,25 +93,33 @@ class TestQueryCapHoldsAtBoundary:
 class TestListItemCaps:
     def test_attachments_over_10_items_rejected(self):
         with pytest.raises(Exception):
-            ChatRequest(
-                query="hi",
-                attachments=[
-                    {"filename": f"f{i}", "content": "x", "file_type": "txt"}
-                    for i in range(11)
-                ],
+            ChatRequest.model_validate(
+                {
+                    "query": "hi",
+                    "attachments": [
+                        {"filename": f"f{i}", "content": "x", "file_type": "txt"}
+                        for i in range(11)
+                    ],
+                }
             )
 
     def test_history_over_50_items_rejected(self):
         with pytest.raises(Exception):
-            ChatRequest(
-                query="hi",
-                history=[
-                    {"role": "user", "content": "x"} for _ in range(51)
-                ],
+            ChatRequest.model_validate(
+                {
+                    "query": "hi",
+                    "history": [{"role": "user", "content": "x"} for _ in range(51)],
+                }
             )
 
 
 class TestExtraFieldsSilentlyIgnored:
     def test_unknown_field_is_rejected(self):
         with pytest.raises(Exception):
-            ChatRequest(query="hi", include_source=False, totally_unknown="x")
+            ChatRequest.model_validate(
+                {
+                    "query": "hi",
+                    "include_source": False,
+                    "totally_unknown": "x",
+                }
+            )

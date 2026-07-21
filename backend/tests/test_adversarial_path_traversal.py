@@ -11,6 +11,7 @@ project A can read/index/delete objects under project B's prefix. The handler
 MUST reject any ``storage_path`` containing traversal sequences, leading slashes,
 or null bytes BEFORE touching storage.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -63,9 +64,9 @@ class TestIndexFilePathTraversal:
     @pytest.mark.parametrize(
         "evil_path",
         [
-            "../6/secret.pdf",       # climb into another project's prefix
+            "../6/secret.pdf",  # climb into another project's prefix
             "../../etc/passwd.pdf",  # climb out entirely
-            "a/../../b.pdf",         # mid-path traversal
+            "a/../../b.pdf",  # mid-path traversal
         ],
     )
     def test_traversal_path_rejected_before_download(
@@ -111,11 +112,11 @@ class TestMoveFilePathTraversal:
     @pytest.mark.parametrize(
         "from_path,to_path",
         [
-            ("../6/secret.pdf", "ok.pdf"),        # escaping source
-            ("ok.pdf", "../6/stolen.pdf"),        # escaping destination
-            ("/etc/passwd.pdf", "ok.pdf"),        # absolute source
-            ("ok.pdf", "a/../../b.pdf"),          # mid-path traversal dest
-            ("ok.pdf", "bad\x00.pdf"),            # null byte dest
+            ("../6/secret.pdf", "ok.pdf"),  # escaping source
+            ("ok.pdf", "../6/stolen.pdf"),  # escaping destination
+            ("/etc/passwd.pdf", "ok.pdf"),  # absolute source
+            ("ok.pdf", "a/../../b.pdf"),  # mid-path traversal dest
+            ("ok.pdf", "bad\x00.pdf"),  # null byte dest
         ],
     )
     def test_traversal_rejected_before_rpc(

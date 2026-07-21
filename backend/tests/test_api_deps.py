@@ -1,4 +1,5 @@
 """Tests for app.explore.api.deps — authentication dependencies."""
+
 from __future__ import annotations
 
 import logging
@@ -17,6 +18,7 @@ from app.explore.api.deps import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _mock_good_user(monkeypatch, user_id: str = "user-uuid-abc") -> MagicMock:
     """Patch supabase.auth.get_user to return a valid user.
@@ -64,27 +66,32 @@ def _mock_null_user(monkeypatch) -> MagicMock:
 # _validate_bearer — missing / malformed header
 # ---------------------------------------------------------------------------
 
+
 class TestValidateBearer:
     async def test_none_authorization_raises_401(self):
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             await _validate_bearer(None)
         assert exc_info.value.status_code == 401
 
     async def test_empty_string_raises_401(self):
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             await _validate_bearer("")
         assert exc_info.value.status_code == 401
 
     async def test_missing_bearer_prefix_raises_401(self):
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             await _validate_bearer("Token some-value")
         assert exc_info.value.status_code == 401
 
     async def test_bearer_with_empty_token_raises_401(self):
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             await _validate_bearer("Bearer ")
         assert exc_info.value.status_code == 401
@@ -100,9 +107,11 @@ class TestValidateBearer:
 # _validate_bearer — token validation failures → 401 + security log warning
 # ---------------------------------------------------------------------------
 
+
 class TestValidateBearerTokenFailures:
     async def test_invalid_token_raises_401(self, monkeypatch):
         from fastapi import HTTPException
+
         _mock_bad_user_exception(monkeypatch)
         with pytest.raises(HTTPException) as exc_info:
             await _validate_bearer("Bearer bad-token")
@@ -111,6 +120,7 @@ class TestValidateBearerTokenFailures:
 
     async def test_invalid_token_logs_security_warning(self, monkeypatch, caplog):
         from fastapi import HTTPException
+
         _mock_bad_user_exception(monkeypatch)
         with caplog.at_level(logging.WARNING, logger="security"):
             with pytest.raises(HTTPException):
@@ -119,6 +129,7 @@ class TestValidateBearerTokenFailures:
 
     async def test_null_user_raises_401(self, monkeypatch):
         from fastapi import HTTPException
+
         _mock_null_user(monkeypatch)
         with pytest.raises(HTTPException) as exc_info:
             await _validate_bearer("Bearer valid-but-no-user")
@@ -126,6 +137,7 @@ class TestValidateBearerTokenFailures:
 
     async def test_null_user_logs_security_warning(self, monkeypatch, caplog):
         from fastapi import HTTPException
+
         _mock_null_user(monkeypatch)
         with caplog.at_level(logging.WARNING, logger="security"):
             with pytest.raises(HTTPException):
@@ -135,6 +147,7 @@ class TestValidateBearerTokenFailures:
     async def test_detail_does_not_leak_internal_error(self, monkeypatch):
         """The 401 detail must be generic, not the GoTrue exception message."""
         from fastapi import HTTPException
+
         _mock_bad_user_exception(monkeypatch)
         with pytest.raises(HTTPException) as exc_info:
             await _validate_bearer("Bearer bad-token")
@@ -146,6 +159,7 @@ class TestValidateBearerTokenFailures:
 # get_auth_context dependency
 # ---------------------------------------------------------------------------
 
+
 class TestGetAuthContext:
     async def test_valid_token_returns_auth_context(self, monkeypatch):
         _mock_good_user(monkeypatch, user_id="uid-ctx")
@@ -156,6 +170,7 @@ class TestGetAuthContext:
 
     async def test_invalid_token_raises_401(self, monkeypatch):
         from fastapi import HTTPException
+
         _mock_bad_user_exception(monkeypatch)
         with pytest.raises(HTTPException) as exc_info:
             await get_auth_context(authorization="Bearer bad")
@@ -163,6 +178,7 @@ class TestGetAuthContext:
 
     async def test_missing_header_raises_401(self, monkeypatch):
         from fastapi import HTTPException
+
         _mock_good_user(monkeypatch)
         with pytest.raises(HTTPException) as exc_info:
             await get_auth_context(authorization=None)
@@ -173,6 +189,7 @@ class TestGetAuthContext:
 # get_current_user_id dependency
 # ---------------------------------------------------------------------------
 
+
 class TestGetCurrentUserId:
     async def test_returns_user_id_string(self, monkeypatch):
         _mock_good_user(monkeypatch, user_id="uid-simple")
@@ -181,8 +198,7 @@ class TestGetCurrentUserId:
 
     async def test_missing_header_raises_401(self, monkeypatch):
         from fastapi import HTTPException
+
         _mock_good_user(monkeypatch)
         with pytest.raises(HTTPException):
             await get_current_user_id(authorization=None)
-
-

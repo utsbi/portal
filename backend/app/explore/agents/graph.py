@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ async def run_graph_streaming(
     # client concurrently (asyncio's cooperative scheduling makes this a real
     # risk whenever the resolution path contains an ``await``).
     _turn_lock = asyncio.Lock()
-    _turn_db: list = [None]   # mutable single-element container (closure target)
+    _turn_db: list = [None]  # mutable single-element container (closure target)
     _turn_pids: list = [None]  # same — holds Optional[List[int]]
 
     async def _resolve_turn_ctx():
@@ -106,6 +106,7 @@ async def run_graph_streaming(
                 from app.explore.services.membership import (
                     scoped_project_ids as _spi,
                 )
+
                 _turn_db[0] = _uc(access_token)
                 _turn_pids[0] = await _spi(_turn_db[0], client_id, project_id)
         return _turn_db[0], _turn_pids[0]
@@ -192,15 +193,17 @@ async def run_graph_streaming(
             type_suffix = f" ({file_type})" if file_type else ""
             attachment_parts.append(f"--- {filename}{type_suffix} ---\n{truncated}")
         if attachment_parts:
-            messages.append({
-                "role": "system",
-                "content": (
-                    "User-attached documents (reference these when answering "
-                    "document-specific questions; they take precedence over "
-                    "general knowledge for their content):\n\n"
-                    + "\n\n".join(attachment_parts)
-                ),
-            })
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "User-attached documents (reference these when answering "
+                        "document-specific questions; they take precedence over "
+                        "general knowledge for their content):\n\n"
+                        + "\n\n".join(attachment_parts)
+                    ),
+                }
+            )
 
     for msg in history[-10:]:
         role = msg.get("role", "user")
@@ -216,9 +219,7 @@ async def run_graph_streaming(
                 parts.append({"type": "text", "text": content})
             for url in msg_images:
                 if isinstance(url, str) and url.startswith("data:image/"):
-                    parts.append(
-                        {"type": "image_url", "image_url": {"url": url}}
-                    )
+                    parts.append({"type": "image_url", "image_url": {"url": url}})
             if parts:
                 messages.append({"role": role, "content": parts})
         elif role in ("user", "assistant") and content:
@@ -243,7 +244,9 @@ async def run_graph_streaming(
     sources_msg_index: Optional[int] = None
     title_emitted = title_task is None
 
-    model = settings.think_model if model_preference == "thinking" else settings.fast_model
+    model = (
+        settings.think_model if model_preference == "thinking" else settings.fast_model
+    )
 
     # Set when a create_request tool call runs this turn: the draft-confirmation
     # card in the main chat IS the response, so the loop ends without a
@@ -305,9 +308,9 @@ async def run_graph_streaming(
         try:
             stream = await openrouter_client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=cast(Any, messages),
                 stream=True,
-                tools=TOOLS,
+                tools=cast(Any, TOOLS),
                 tool_choice="auto",
                 extra_body={"reasoning": {"effort": "medium"}},
             )
@@ -417,21 +420,23 @@ async def run_graph_streaming(
         # never part of the persisted result unless it was already flushed to
         # the client (in which case it stays in ``answer_parts`` so the shown
         # and persisted answers always match).
-        messages.append({
-            "role": "assistant",
-            "content": "".join(iteration_parts),
-            "tool_calls": [
-                {
-                    "id": tc["id"] or f"call_{i}",
-                    "type": "function",
-                    "function": {
-                        "name": tc["name"] or "",
-                        "arguments": tc["arguments"] or "{}",
-                    },
-                }
-                for i, tc in enumerate(tool_calls)
-            ],
-        })
+        messages.append(
+            {
+                "role": "assistant",
+                "content": "".join(iteration_parts),
+                "tool_calls": [
+                    {
+                        "id": tc["id"] or f"call_{i}",
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"] or "",
+                            "arguments": tc["arguments"] or "{}",
+                        },
+                    }
+                    for i, tc in enumerate(tool_calls)
+                ],
+            }
+        )
 
         if not searched_emitted:
             yield {"type": "phase", "phase": "searching"}
@@ -469,7 +474,11 @@ async def run_graph_streaming(
         tool_results = await asyncio.gather(
             *(
                 execute_tool(
-                    name, args, client_id, access_token, project_id,
+                    name,
+                    args,
+                    client_id,
+                    access_token,
+                    project_id,
                     db=_turn_context_db,
                     resolved_project_ids=_turn_context_pids,
                 )
@@ -478,7 +487,9 @@ async def run_graph_streaming(
         )
 
         # Emit tool_result events and append history messages in the same stable order.
-        for (name, tc_id, args), (result_text, sources) in zip(parsed_calls, tool_results):
+        for (name, tc_id, args), (result_text, sources) in zip(
+            parsed_calls, tool_results
+        ):
             collected_sources.extend(sources)
             if name == "create_request":
                 request_drafted = True
@@ -487,22 +498,30 @@ async def run_graph_streaming(
             # chars) — truncating it would silently drop the card, so it is
             # exempt from the display cap applied to other tools' summaries.
             event_text = (
-                result_text
-                if name == "create_request"
-                else (result_text or "")[:1200]
+                result_text if name == "create_request" else (result_text or "")[:1200]
             )
-            yield {"type": "tool_result", "id": tc_id, "name": name, "output": {
-                "sources": [
-                    {"filename": s.get("filename"), "page_number": s.get("page_number")}
-                    for s in sources
-                ],
-                "text": event_text,
-            }}
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc_id,
-                "content": result_text,
-            })
+            yield {
+                "type": "tool_result",
+                "id": tc_id,
+                "name": name,
+                "output": {
+                    "sources": [
+                        {
+                            "filename": s.get("filename"),
+                            "page_number": s.get("page_number"),
+                        }
+                        for s in sources
+                    ],
+                    "text": event_text,
+                },
+            }
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc_id,
+                    "content": result_text,
+                }
+            )
 
         # create_request is terminal: the draft-confirmation card in the main
         # chat IS the response, so end the turn without another model iteration
@@ -536,7 +555,7 @@ async def run_graph_streaming(
         try:
             stream = await openrouter_client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=cast(Any, messages),
                 stream=True,
                 extra_body={"reasoning": {"effort": "medium"}},
             )
@@ -581,7 +600,9 @@ async def run_graph_streaming(
     # A create_request turn intentionally has no answer prose — the confirm/deny
     # card is the response — so skip the "unable to answer" fallback for it.
     if not full_answer and not request_drafted:
-        full_answer = "I was unable to generate a response. Please try rephrasing your question."
+        full_answer = (
+            "I was unable to generate a response. Please try rephrasing your question."
+        )
         yield {"type": "delta", "text": full_answer}
 
     yield {

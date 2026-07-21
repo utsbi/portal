@@ -45,15 +45,16 @@ and [`frontend/AGENTS.md`](frontend/AGENTS.md) for frontend details.
 
 ## E2E browser tests (Playwright)
 
-The frontend has a Playwright smoke suite under `frontend/e2e/`.  It is **not**
-wired into CI — run it manually before touching public-facing pages.
+The frontend has a Playwright suite under `frontend/e2e/`. CI runs it against
+the standalone production build with mocked external boundaries; it must pass
+before merge. Local runs use the development server on port 3100.
 
 ```bash
 # One-time: download Chromium (and optionally other browsers)
 cd frontend
 bunx playwright install --with-deps chromium
 
-# Run the full smoke suite (starts bun dev automatically)
+# Run the full suite (starts bun dev automatically)
 bun test:e2e
 
 # Interactive UI mode
@@ -72,6 +73,10 @@ from `vitest.config.ts`.
 
 ## Before opening a PR
 
-- Frontend: `bun lint` (Biome) and `bun build` pass.
+- Frontend: `bun run lint`, `bunx tsc --noEmit`, `bun run test:coverage`,
+  `bun run build`, and `bun run test:e2e` pass.
+- Backend: `uv run pytest --cov=app`, `uv run ruff check .`,
+  `uv run ruff format --check .`, and `uv run pyright` pass.
+- Database: `bash supabase/tests/run.sh` passes.
 - Fill in the PR template (Summary / Changes / Test plan).
 - Keep PRs focused; one logical change per PR.

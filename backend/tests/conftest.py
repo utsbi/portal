@@ -9,6 +9,7 @@ All external I/O is mocked here:
 Environment variables are injected via os.environ before any app module is
 imported so pydantic-settings picks them up without reading a .env file.
 """
+
 from __future__ import annotations
 
 import os
@@ -82,9 +83,7 @@ def _make_mock_supabase() -> MagicMock:
 # Patch create_client at the supabase package level so every call returns our
 # mock regardless of which key is passed.
 _mock_supabase_instance = _make_mock_supabase()
-_supabase_patch = patch(
-    "supabase.create_client", return_value=_mock_supabase_instance
-)
+_supabase_patch = patch("supabase.create_client", return_value=_mock_supabase_instance)
 _supabase_patch.start()
 
 
@@ -95,6 +94,7 @@ from app.explore.main import app  # noqa: E402  (import after env/patch setup)
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def mock_supabase() -> MagicMock:
@@ -149,9 +149,7 @@ def mock_auth_user(mock_supabase: MagicMock):
 @pytest.fixture()
 def mock_auth_failure(mock_supabase: MagicMock):
     """Configure supabase mock so auth.get_user raises (simulates bad token)."""
-    mock_supabase.auth.get_user = MagicMock(
-        side_effect=Exception("invalid_jwt")
-    )
+    mock_supabase.auth.get_user = MagicMock(side_effect=Exception("invalid_jwt"))
     yield
     # Restore success behaviour after the test
     user = MagicMock()

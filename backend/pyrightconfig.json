@@ -1,5 +1,4 @@
 {
   "venvPath": ".",
-  "venv": ".venv",
-  "reportArgumentType": false
+  "venv": ".venv"
 }

@@ -19,7 +19,7 @@ test.describe("Login page", () => {
   });
 
   test("renders the sign-in heading", async ({ page }) => {
-    await expect(page.getByText("Sign In", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
   });
 
   test("has email and password fields", async ({ page }) => {

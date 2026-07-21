@@ -10,18 +10,60 @@ Covers:
   - generate_title: empty/blank query returns fallback without calling LLM
   - title_model: falls back to fast_model when TITLE_MODEL env var is unset
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
 import app.explore.agents.nodes as nodes_module
-from app.explore.agents.nodes import _fallback_title, generate_title
+from app.explore.agents.nodes import (
+    _fallback_title,
+    _format_sources_list,
+    format_history,
+    generate_title,
+)
+
+
+class TestPromptFormatting:
+    def test_empty_history_has_explicit_placeholder(self):
+        assert format_history([]) == "No previous conversation."
+
+    def test_history_uses_last_five_messages_and_safe_defaults(self):
+        history = [
+            {"role": "system", "content": "discarded"},
+            {"role": "assistant", "content": "one"},
+            {"role": "user", "content": "two"},
+            {"content": "three"},
+            {"role": "assistant"},
+            {"role": "user", "content": "five"},
+        ]
+        assert format_history(history) == (
+            "Assistant: one\nUser: two\nUser: three\nAssistant: \nUser: five"
+        )
+
+    def test_source_formatter_handles_empty_and_numbered_sources(self):
+        assert _format_sources_list([]) == (
+            "(no sources available - do not emit citation markers)"
+        )
+        assert _format_sources_list(
+            [
+                {
+                    "filename": "report.pdf",
+                    "page_number": 3,
+                    "content": "line one\nline two",
+                },
+                {"content": "excerpt"},
+            ]
+        ) == (
+            '[1] report.pdf (p. 3): "line one line two..."\n[2] unknown: "excerpt..."'
+        )
 
 
 # ---------------------------------------------------------------------------
 # _fallback_title
 # ---------------------------------------------------------------------------
+
 
 class TestFallbackTitle:
     def test_returns_first_line(self):
@@ -62,6 +104,7 @@ class TestFallbackTitle:
 # ---------------------------------------------------------------------------
 # generate_title — LLM success path
 # ---------------------------------------------------------------------------
+
 
 class TestGenerateTitle:
     def _mock_llm_response(self, content: str) -> MagicMock:
@@ -146,6 +189,7 @@ class TestGenerateTitle:
 # generate_title — fallback paths
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateTitleFallback:
     async def test_llm_exception_returns_fallback(self):
         """When the LLM call raises, _fallback_title must be returned."""
@@ -157,7 +201,10 @@ class TestGenerateTitleFallback:
             result = await generate_title("What is my project status?")
 
         # Should return first line of the query as fallback
-        assert "What is my project status?" in result or result == "What is my project status?"
+        assert (
+            "What is my project status?" in result
+            or result == "What is my project status?"
+        )
 
     async def test_llm_returns_empty_string_uses_fallback(self):
         choice = MagicMock()
@@ -217,6 +264,7 @@ class TestGenerateTitleFallback:
 # ---------------------------------------------------------------------------
 # title_model setting — falls back to fast_model when TITLE_MODEL is unset
 # ---------------------------------------------------------------------------
+
 
 class TestTitleModelSetting:
     def test_title_model_equals_fast_model_when_title_model_env_unset(self):

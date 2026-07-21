@@ -111,3 +111,7 @@ supabase/.temp/
 
 # Local planning / spec notes — kept untracked, never committed
 docs/superpowers/
+
+# Local architecture/audit working documents — intentionally not published
+AUDIT_REPORT.md
+RAG_ARCHITECTURE.md

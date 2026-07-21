@@ -26,7 +26,9 @@ _STREAM_TIMEOUT_S = 290
 
 @router.post("/")
 @limiter.limit("20/minute")
-async def chat(request: Request, body: ChatRequest, auth: AuthContext = Depends(get_auth_context)):
+async def chat(
+    request: Request, body: ChatRequest, auth: AuthContext = Depends(get_auth_context)
+):
     """Chat with the Explore AI Agent via SSE streaming."""
     history = [
         {"role": msg.role, "content": msg.content, "images": msg.images}
@@ -80,7 +82,7 @@ async def chat(request: Request, body: ChatRequest, auth: AuthContext = Depends(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
 
 
@@ -90,7 +92,7 @@ async def chat_health():
     return {
         "status": "healthy",
         "service": "chat",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
 
@@ -124,9 +126,7 @@ async def extract_file_text(
             ".webp": "image/webp",
             ".gif": "image/gif",
         }
-        image_ext = next(
-            (ext for ext in image_mimes if file_lower.endswith(ext)), None
-        )
+        image_ext = next((ext for ext in image_mimes if file_lower.endswith(ext)), None)
 
         if image_ext or (file.content_type or "").startswith("image/"):
             # Native multimodal path: the chat models see the image as pixels.
@@ -144,43 +144,37 @@ async def extract_file_text(
                 if (file.content_type or "").startswith("image/")
                 else image_mimes[image_ext or ".png"]
             )
-            content = (
-                f"data:{mime};base64,{base64.b64encode(file_bytes).decode()}"
-            )
+            content = f"data:{mime};base64,{base64.b64encode(file_bytes).decode()}"
             file_type = "image"
 
-        elif file_lower.endswith('.pdf'):
+        elif file_lower.endswith(".pdf"):
             # Use PDF parser for PDF files
             pdf_parser = PDFParser()
             pages = pdf_parser.extract_text_with_metadata(file_bytes, filename)
             content = "\n\n".join([p["content"] for p in pages])
             file_type = "pdf"
 
-        elif file_lower.endswith(('.doc', '.docx')):
+        elif file_lower.endswith((".doc", ".docx")):
             # Use python-docx for DOCX files
             import docx
             import io
+
             doc = docx.Document(io.BytesIO(file_bytes))
-            content = "\n\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+            content = "\n\n".join(
+                [para.text for para in doc.paragraphs if para.text.strip()]
+            )
             file_type = "docx"
 
         else:
             # Plain text files
-            content = file_bytes.decode('utf-8', errors='ignore')
+            content = file_bytes.decode("utf-8", errors="ignore")
             file_type = "txt"
 
-        return {
-            "filename": filename,
-            "content": content,
-            "file_type": file_type
-        }
+        return {"filename": filename, "content": content, "file_type": file_type}
 
     except HTTPException:
         raise
     except Exception:
         # Log the full exception server-side; return a generic client message.
         logger.error("Failed to extract text from file", exc_info=True)
-        raise HTTPException(
-            status_code=400,
-            detail="Failed to extract text from file"
-        )
+        raise HTTPException(status_code=400, detail="Failed to extract text from file")

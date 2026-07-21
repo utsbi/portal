@@ -11,6 +11,7 @@ Covers:
   - build_context_string: pure function with known input
   - search_documents: empty project_ids AND no client_id returns [] without calling embedding
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -23,6 +24,7 @@ from app.explore.services.rag_service import RAGService, _UUID_RE
 # ---------------------------------------------------------------------------
 # _UUID_RE regex guard
 # ---------------------------------------------------------------------------
+
 
 class TestUUIDRegex:
     def test_valid_uuid_matches(self):
@@ -56,6 +58,7 @@ class TestUUIDRegex:
 # ---------------------------------------------------------------------------
 # RAGService._scope_or_filter
 # ---------------------------------------------------------------------------
+
 
 class TestScopeOrFilter:
     def test_no_project_ids_no_client_id_returns_none(self):
@@ -98,6 +101,7 @@ class TestScopeOrFilter:
 # ---------------------------------------------------------------------------
 # RAGService.rerank — fallback behaviour
 # ---------------------------------------------------------------------------
+
 
 class TestRerank:
     def _service(self) -> RAGService:
@@ -150,6 +154,7 @@ class TestRerank:
 # ---------------------------------------------------------------------------
 # RAGService.search_documents — empty scope short-circuits
 # ---------------------------------------------------------------------------
+
 
 class TestSearchDocuments:
     def _service(self) -> RAGService:
@@ -224,6 +229,7 @@ class TestSearchDocuments:
 # RAGService.build_context_string — pure function
 # ---------------------------------------------------------------------------
 
+
 class TestBuildContextString:
     def test_no_docs_no_attachments_returns_no_relevant(self):
         result = RAGService.build_context_string([], None)
@@ -262,6 +268,7 @@ class TestBuildContextString:
 # ---------------------------------------------------------------------------
 # store_document — batched inserts (statement-timeout regression)
 # ---------------------------------------------------------------------------
+
 
 class TestStoreDocumentBatching:
     """A whole-document insert must be split into INSERT_BATCH_SIZE batches:

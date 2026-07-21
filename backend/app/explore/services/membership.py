@@ -17,6 +17,8 @@ from typing import List, Optional
 
 from supabase import Client
 
+from app.explore.db.rows import json_rows
+
 
 async def get_project_context(
     db: Client, client_id: str, project_id: int
@@ -34,15 +36,12 @@ async def get_project_context(
 
     def _query() -> Optional[str]:
         profile = (
-            db.table("profiles")
-            .select("id")
-            .eq("uid", client_id)
-            .limit(1)
-            .execute()
+            db.table("profiles").select("id").eq("uid", client_id).limit(1).execute()
         )
-        if not profile.data:
+        profile_rows = json_rows(profile.data)
+        if not profile_rows:
             return None
-        profile_id = profile.data[0]["id"]
+        profile_id = profile_rows[0]["id"]
 
         member = (
             db.table("project_members")
@@ -52,9 +51,10 @@ async def get_project_context(
             .limit(1)
             .execute()
         )
-        if not member.data:
+        member_rows = json_rows(member.data)
+        if not member_rows:
             return None
-        role = member.data[0].get("role") or "member"
+        role = member_rows[0].get("role") or "member"
 
         project = (
             db.table("projects")
@@ -63,9 +63,10 @@ async def get_project_context(
             .limit(1)
             .execute()
         )
-        if not project.data:
+        project_rows = json_rows(project.data)
+        if not project_rows:
             return None
-        company_name = project.data[0].get("company_name") or f"Project {project_id}"
+        company_name = project_rows[0].get("company_name") or f"Project {project_id}"
 
         return (
             "Current project context (authoritative — the project the user is "
@@ -91,15 +92,12 @@ async def caller_project_ids(db: Client, client_id: str) -> List[int]:
 
     def _query() -> List[int]:
         profile = (
-            db.table("profiles")
-            .select("id")
-            .eq("uid", client_id)
-            .limit(1)
-            .execute()
+            db.table("profiles").select("id").eq("uid", client_id).limit(1).execute()
         )
-        if not profile.data:
+        profile_rows = json_rows(profile.data)
+        if not profile_rows:
             return []
-        profile_id = profile.data[0]["id"]
+        profile_id = profile_rows[0]["id"]
 
         members = (
             db.table("project_members")
@@ -108,7 +106,7 @@ async def caller_project_ids(db: Client, client_id: str) -> List[int]:
             .execute()
         )
         ids: List[int] = []
-        for row in members.data or []:
+        for row in json_rows(members.data):
             pid = row.get("project_id")
             if pid is not None:
                 ids.append(pid)

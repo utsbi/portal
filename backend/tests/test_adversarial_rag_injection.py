@@ -9,6 +9,7 @@ with ``_UUID_RE.fullmatch`` — these tests verify that defense actually rejects
 almost-UUIDs and metacharacter payloads, and that project_ids (ints) can't carry
 injection either.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -32,12 +33,12 @@ class TestScopeOrFilterUuidValidation:
             "x,project_id.gte.0",
             "1234) or (1=1",
             # Almost-a-UUID (wrong shape) must also be rejected:
-            "12345678-1234-1234-1234-123456789ab",   # too short
+            "12345678-1234-1234-1234-123456789ab",  # too short
             "12345678-1234-1234-1234-123456789abcd",  # too long
-            "1234567812341234123412345678abcd",       # no dashes
-            "gggggggg-1234-1234-1234-123456789abc",   # non-hex
-            "",                                        # empty -> falsy, but if forced...
-            "   ",                                     # whitespace
+            "1234567812341234123412345678abcd",  # no dashes
+            "gggggggg-1234-1234-1234-123456789abc",  # non-hex
+            "",  # empty -> falsy, but if forced...
+            "   ",  # whitespace
             "12345678-1234-1234-1234-123456789abc\n",  # trailing newline
         ],
     )
@@ -89,5 +90,6 @@ class TestScopeOrFilterProjectIds:
         so, confirm they are rendered as bare ints with no room for free-text —
         a regression here would reintroduce an injection vector."""
         f = RAGService._scope_or_filter([42], _GOOD_UUID)
+        assert f is not None
         assert f.startswith("project_id.in.(42),")
         assert _GOOD_UUID in f

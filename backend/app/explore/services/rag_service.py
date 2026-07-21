@@ -6,6 +6,7 @@ import httpx
 from openai import AsyncOpenAI
 from app.explore.core.config import settings
 from app.explore.db.supabase import supabase
+from app.explore.db.rows import json_rows
 from app.explore.services.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
@@ -49,8 +50,7 @@ class RAGService:
 
     def __init__(self):
         self.client = AsyncOpenAI(
-            api_key=settings.api_key,
-            base_url="https://openrouter.ai/api/v1"
+            api_key=settings.api_key, base_url="https://openrouter.ai/api/v1"
         )
         self.pdf_parser = PDFParser()
 
@@ -67,16 +67,24 @@ class RAGService:
             result = await self.client.embeddings.create(**params)
             if result.data:
                 embedding = list(result.data[0].embedding)
-                logger.info(f"Generated embedding: model={settings.embedding_model}, dims={len(embedding)}")
+                logger.info(
+                    f"Generated embedding: model={settings.embedding_model}, dims={len(embedding)}"
+                )
                 return embedding
             raise ValueError("No embeddings returned from API")
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")
             raise ValueError(f"Failed to generate embedding: {str(e)}")
 
-    async def store_document(self, content: str, metadata: Dict[str, Any],
-        client_id: str, project_id: Optional[int] = None,
-        storage_path: Optional[str] = None, source: str = "manual") -> List[int]:
+    async def store_document(
+        self,
+        content: str,
+        metadata: Dict[str, Any],
+        client_id: str,
+        project_id: Optional[int] = None,
+        storage_path: Optional[str] = None,
+        source: str = "manual",
+    ) -> List[int]:
         """Chunk, embed, and store a document in Supabase.
 
         ``project_id`` tags the document with the project it belongs to so the
@@ -140,17 +148,23 @@ class RAGService:
         # so a retry self-heals rather than duplicating.
         document_ids: List[int] = []
         for start in range(0, len(rows), INSERT_BATCH_SIZE):
-            batch = rows[start:start + INSERT_BATCH_SIZE]
+            batch = rows[start : start + INSERT_BATCH_SIZE]
             insert_result = supabase.table("client_knowledge").insert(batch).execute()
-            if insert_result.data and isinstance(insert_result.data, list):
+            insert_rows = json_rows(insert_result.data)
+            if insert_rows:
                 document_ids.extend(
-                    row["id"] for row in insert_result.data if row.get("id") is not None
+                    int(row["id"]) for row in insert_rows if row.get("id") is not None
                 )
         return document_ids
 
-    async def search_documents(self, query: str, project_ids: List[int],
-        client_id: Optional[str] = None, limit: int = 5,
-        similarity_threshold: float = 0.0) -> List[Dict[str, Any]]:
+    async def search_documents(
+        self,
+        query: str,
+        project_ids: List[int],
+        client_id: Optional[str] = None,
+        limit: int = 5,
+        similarity_threshold: float = 0.0,
+    ) -> List[Dict[str, Any]]:
         """Search for relevant documents using vector similarity, scoped to the
         caller's (membership-verified) project(s).
 
@@ -174,8 +188,8 @@ class RAGService:
                     "_match_count": limit,
                     "_filter_uid": client_id,
                     "_filter_project_ids": project_ids or None,
-                    "_similarity_threshold": similarity_threshold
-                }
+                    "_similarity_threshold": similarity_threshold,
+                },
             ).execute()
 
             if result.data and isinstance(result.data, list) and len(result.data) > 0:
@@ -183,24 +197,35 @@ class RAGService:
                 for item in result.data:
                     doc = dict(item) if isinstance(item, dict) else {}
                     sim = doc.get("similarity", 0.0)
-                    documents.append({
-                        "id": doc.get("id"),
-                        "content": doc.get("content", ""),
-                        "metadata": doc.get("metadata", {}),
-                        "similarity_score": sim
-                    })
-                logger.info(f"Vector search returned {len(documents)} results (top similarity: {documents[0]['similarity_score']:.4f})")
+                    documents.append(
+                        {
+                            "id": doc.get("id"),
+                            "content": doc.get("content", ""),
+                            "metadata": doc.get("metadata", {}),
+                            "similarity_score": sim,
+                        }
+                    )
+                logger.info(
+                    f"Vector search returned {len(documents)} results (top similarity: {documents[0]['similarity_score']:.4f})"
+                )
                 return documents
             else:
-                logger.info(f"Vector search returned no results for projects {project_ids} uid={client_id} (threshold={similarity_threshold})")
+                logger.info(
+                    f"Vector search returned no results for projects {project_ids} uid={client_id} (threshold={similarity_threshold})"
+                )
         except Exception as e:
             logger.error(f"RPC match_client_knowledge failed: {e}")
 
         return []
 
-    async def hybrid_search(self, query: str, project_ids: List[int],
-        client_id: Optional[str] = None, limit: int = 5,
-        vector_weight: float = 0.7) -> List[Dict[str, Any]]:
+    async def hybrid_search(
+        self,
+        query: str,
+        project_ids: List[int],
+        client_id: Optional[str] = None,
+        limit: int = 5,
+        vector_weight: float = 0.7,
+    ) -> List[Dict[str, Any]]:
         """Perform hybrid search combining vector similarity and keyword matching."""
         # Run vector and keyword searches concurrently.
         vector_results, keyword_results = await asyncio.gather(
@@ -231,10 +256,7 @@ class RAGService:
             if doc_id is None:
                 continue
             rrf_score = vector_weight / (k + rank + 1)
-            combined_scores[doc_id] = {
-                **doc,
-                "combined_score": rrf_score
-            }
+            combined_scores[doc_id] = {**doc, "combined_score": rrf_score}
 
         # Add keyword results
         keyword_weight = 1 - vector_weight
@@ -247,22 +269,18 @@ class RAGService:
             if doc_id in combined_scores:
                 combined_scores[doc_id]["combined_score"] += rrf_score
             else:
-                combined_scores[doc_id] = {
-                    **doc,
-                    "combined_score": rrf_score
-                }
+                combined_scores[doc_id] = {**doc, "combined_score": rrf_score}
 
         # Sort by combined score and return top results
         sorted_results = sorted(
-            combined_scores.values(),
-            key=lambda x: x["combined_score"],
-            reverse=True
+            combined_scores.values(), key=lambda x: x["combined_score"], reverse=True
         )
 
         return sorted_results[:limit]
 
-    async def rerank(self, query: str, documents: List[Dict[str, Any]],
-        top_n: int) -> List[Dict[str, Any]]:
+    async def rerank(
+        self, query: str, documents: List[Dict[str, Any]], top_n: int
+    ) -> List[Dict[str, Any]]:
         """Re-score candidate documents against the query with a cross-encoder.
 
         Uses OpenRouter's hosted rerank endpoint (Cohere Rerank), which scores
@@ -314,10 +332,14 @@ class RAGService:
 
         return documents[:top_n]
 
-    async def retrieve_relevant(self, query: str, project_ids: List[int],
+    async def retrieve_relevant(
+        self,
+        query: str,
+        project_ids: List[int],
         client_id: Optional[str] = None,
         top_n: Optional[int] = None,
-        strict: bool = False) -> List[Dict[str, Any]]:
+        strict: bool = False,
+    ) -> List[Dict[str, Any]]:
         """Retrieve the most relevant documents for a query (two-stage).
 
         Scoped to ``project_ids`` (the caller's membership-verified active
@@ -373,9 +395,13 @@ class RAGService:
             clauses.append(f"and(uid.eq.{client_id},project_id.is.null)")
         return ",".join(clauses) if clauses else None
 
-    async def _keyword_search(self, query: str, project_ids: List[int],
+    async def _keyword_search(
+        self,
+        query: str,
+        project_ids: List[int],
         client_id: Optional[str] = None,
-        limit: int = 10) -> List[Dict[str, Any]]:
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
         """Perform keyword-based full-text search via the
         ``keyword_search_client_knowledge`` RPC, which returns real
         ``ts_rank`` scores instead of a fabricated constant.
@@ -398,14 +424,15 @@ class RAGService:
                 },
             ).execute()
 
-            if not result.data:
+            result_rows = json_rows(result.data)
+            if not result_rows:
                 return []
 
             # Normalize ts_rank so the top result has similarity_score=1.0.
             # ts_rank values are typically small floats (e.g. 0.06); normalizing
             # keeps them on the same scale as the vector similarity scores used
             # in the RRF combiner without distorting relative ordering.
-            ranks = [float(row.get("rank") or 0.0) for row in result.data]
+            ranks = [float(row.get("rank") or 0.0) for row in result_rows]
             max_rank = max(ranks) if ranks else 1.0
             normalizer = max_rank if max_rank > 0.0 else 1.0
 
@@ -416,7 +443,7 @@ class RAGService:
                     "metadata": doc.get("metadata", {}),
                     "similarity_score": float(doc.get("rank") or 0.0) / normalizer,
                 }
-                for doc in result.data[:limit]
+                for doc in result_rows[:limit]
             ]
         except Exception as e:
             logger.warning(f"Full-text search RPC failed, falling back to ILIKE: {e}")
@@ -424,23 +451,30 @@ class RAGService:
                 query, project_ids, client_id, limit
             )
 
-    async def _fallback_keyword_search(self, query: str, project_ids: List[int],
+    async def _fallback_keyword_search(
+        self,
+        query: str,
+        project_ids: List[int],
         client_id: Optional[str] = None,
-        limit: int = 10) -> List[Dict[str, Any]]:
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
         """Fallback keyword search using ILIKE for simple pattern matching."""
         words = query.lower().split()[:3]
         scope = self._scope_or_filter(project_ids, client_id)
         if not words or scope is None:
             return []
 
-        result = supabase.table("client_knowledge") \
-            .select("id, content, metadata") \
-            .or_(scope) \
-            .ilike("content", f"%{words[0]}%") \
-            .limit(limit) \
+        result = (
+            supabase.table("client_knowledge")
+            .select("id, content, metadata")
+            .or_(scope)
+            .ilike("content", f"%{words[0]}%")
+            .limit(limit)
             .execute()
+        )
 
-        if not result.data:
+        result_rows = json_rows(result.data)
+        if not result_rows:
             return []
 
         return [
@@ -448,9 +482,9 @@ class RAGService:
                 "id": doc["id"],
                 "content": doc["content"],
                 "metadata": doc.get("metadata", {}),
-                "similarity_score": 0.3
+                "similarity_score": 0.3,
             }
-            for doc in result.data
+            for doc in result_rows
         ]
 
     @staticmethod
@@ -482,7 +516,9 @@ class RAGService:
                 page = metadata.get("page_number", "")
                 page_str = f" (Page {page})" if page else ""
 
-                doc_text = f"\n[Source: {filename}{page_str}]\n{doc.get('content', '')}\n"
+                doc_text = (
+                    f"\n[Source: {filename}{page_str}]\n{doc.get('content', '')}\n"
+                )
 
                 if current_length + len(doc_text) < max_context_length:
                     context_parts.append(doc_text)
@@ -490,4 +526,6 @@ class RAGService:
                 else:
                     break
 
-        return "".join(context_parts) if context_parts else "No relevant documents found."
+        return (
+            "".join(context_parts) if context_parts else "No relevant documents found."
+        )

@@ -215,7 +215,7 @@ describe("moveFolder", () => {
    * Seed the list mock with a one-page listing so collectAllObjectPaths
    * returns exactly one path per name in <prefix>/<name> form.
    */
-  function seedListing(prefix: string, names: string[]): void {
+  function seedListing(_prefix: string, names: string[]): void {
     listMock.mockResolvedValueOnce({
       data: names.map((name, i) => ({ id: `id-${i}`, name })),
       error: null,

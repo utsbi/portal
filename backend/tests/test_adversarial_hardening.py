@@ -1,6 +1,7 @@
 """Adversarial tests for app-level hardening: docs gating in production, CORS
 reflection, the rate-limiter key function, and error leakage on list endpoints.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -19,6 +20,7 @@ import app.explore.api.deps as deps_mod
 # so we build a SEPARATE app instance with ENV=production by reloading the module
 # under a patched env. This exercises the real production code path.
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def prod_app(monkeypatch):
@@ -61,6 +63,7 @@ class TestProductionDocsGating:
 # allowed (reflecting an arbitrary origin + allow_credentials is a serious
 # cross-origin credential-theft hole).
 # ---------------------------------------------------------------------------
+
 
 class TestCorsReflection:
     def test_disallowed_origin_not_reflected(self):
@@ -105,6 +108,7 @@ class TestCorsReflection:
 # the remote address only for unauthenticated requests.
 # ---------------------------------------------------------------------------
 
+
 def _make_jwt(sub: str) -> str:
     """Build a minimal unsigned JWT string with the given ``sub`` claim.
 
@@ -116,9 +120,7 @@ def _make_jwt(sub: str) -> str:
     import json
 
     header = (
-        base64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}')
-        .rstrip(b"=")
-        .decode()
+        base64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b"=").decode()
     )
     payload_bytes = json.dumps({"sub": sub, "role": "authenticated"}).encode()
     payload = base64.urlsafe_b64encode(payload_bytes).rstrip(b"=").decode()
@@ -200,6 +202,7 @@ class TestRateLimiterKeying:
 # message, never the raw exception text.
 # ---------------------------------------------------------------------------
 
+
 class TestListEndpointErrorLeakage:
     def test_list_documents_does_not_leak_exception_text(self, monkeypatch):
         from app.explore.main import app
@@ -221,8 +224,6 @@ class TestListEndpointErrorLeakage:
         monkeypatch.setattr(db_mod, "supabase", boom)
 
         c = TestClient(app, raise_server_exceptions=False)
-        resp = c.get(
-            "/api/v1/documents/list", headers={"Authorization": "Bearer t"}
-        )
+        resp = c.get("/api/v1/documents/list", headers={"Authorization": "Bearer t"})
         assert resp.status_code == 500
         assert secret not in resp.text, "raw exception text leaked to client"

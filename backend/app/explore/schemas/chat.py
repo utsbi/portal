@@ -24,9 +24,16 @@ MAX_TOTAL_IMAGE_CHARS = 28_000_000
 
 class ChatMessage(BaseModel):
     """A single message in the chat history."""
-    role: str = Field(..., description="Role of the message sender: 'user' or 'assistant'")
-    content: str = Field(..., max_length=_MAX_FIELD_CHARS, description="Content of the message")
-    timestamp: Optional[datetime] = Field(default=None, description="When the message was sent")
+
+    role: str = Field(
+        ..., description="Role of the message sender: 'user' or 'assistant'"
+    )
+    content: str = Field(
+        ..., max_length=_MAX_FIELD_CHARS, description="Content of the message"
+    )
+    timestamp: Optional[datetime] = Field(
+        default=None, description="When the message was sent"
+    )
     images: List[str] = Field(
         default=[],
         max_length=10,
@@ -40,17 +47,21 @@ class ChatMessage(BaseModel):
             if not url.startswith("data:image/"):
                 raise ValueError("history image must be a data:image/ URL")
             if len(url) > _MAX_IMAGE_CHARS:
-                raise ValueError(
-                    f"history image exceeds {_MAX_IMAGE_CHARS} characters"
-                )
+                raise ValueError(f"history image exceeds {_MAX_IMAGE_CHARS} characters")
         return self
 
 
 class AttachmentFile(BaseModel):
     """A temporary file attachment for the current chat session."""
+
     filename: str = Field(..., description="Name of the uploaded file")
-    content: str = Field(..., description="Attachment body: extracted text, or a base64 data: URL for images")
-    file_type: str = Field(default="pdf", description="Type of file: pdf, doc, txt, image, etc.")
+    content: str = Field(
+        ...,
+        description="Attachment body: extracted text, or a base64 data: URL for images",
+    )
+    file_type: str = Field(
+        default="pdf", description="Type of file: pdf, doc, txt, image, etc."
+    )
 
     @model_validator(mode="after")
     def _bound_content(self) -> "AttachmentFile":
@@ -82,13 +93,23 @@ class ChatRequest(BaseModel):
     # route.ts), so this is non-breaking for legitimate payloads.
     model_config = ConfigDict(extra="forbid")
 
-    query: str = Field(..., max_length=8000, description="The user's question or request")
-    history: List[ChatMessage] = Field(default=[], max_length=50, description="Previous messages in the conversation")
-    attachments: List[AttachmentFile] = Field(default=[], max_length=10, description="Temporary file attachments for this session")
-    include_sources: bool = Field(default=True, description="Whether to include source documents in response")
+    query: str = Field(
+        ..., max_length=8000, description="The user's question or request"
+    )
+    history: List[ChatMessage] = Field(
+        default=[], max_length=50, description="Previous messages in the conversation"
+    )
+    attachments: List[AttachmentFile] = Field(
+        default=[],
+        max_length=10,
+        description="Temporary file attachments for this session",
+    )
+    include_sources: bool = Field(
+        default=True, description="Whether to include source documents in response"
+    )
     model_preference: Optional[str] = Field(
         default=None,
-        description="LLM model preference: 'fast' for speed, 'thinking' for complex reasoning"
+        description="LLM model preference: 'fast' for speed, 'thinking' for complex reasoning",
     )
     project_id: Optional[int] = Field(
         default=None,
@@ -129,14 +150,24 @@ class ChatRequest(BaseModel):
 
 class SourceDocument(BaseModel):
     """A source document used to generate the response."""
+
     content: str = Field(..., description="Relevant excerpt from the source")
     filename: str = Field(..., description="Name of the source file")
-    page_number: Optional[int] = Field(default=None, description="Page number if applicable")
-    relevance_score: Optional[float] = Field(default=None, description="Similarity score 0-1")
+    page_number: Optional[int] = Field(
+        default=None, description="Page number if applicable"
+    )
+    relevance_score: Optional[float] = Field(
+        default=None, description="Similarity score 0-1"
+    )
 
 
 class ChatResponse(BaseModel):
     """Response from the chat endpoint."""
+
     answer: str = Field(..., description="The AI-generated response")
-    sources: List[SourceDocument] = Field(default=[], description="Source documents used")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Response timestamp")
+    sources: List[SourceDocument] = Field(
+        default=[], description="Source documents used"
+    )
+    timestamp: datetime = Field(
+        default_factory=datetime.now, description="Response timestamp"
+    )

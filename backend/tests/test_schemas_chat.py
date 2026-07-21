@@ -1,4 +1,5 @@
 """Tests for app.explore.schemas.chat — ChatRequest validation."""
+
 from __future__ import annotations
 
 import pytest
@@ -10,6 +11,7 @@ from app.explore.schemas.chat import AttachmentFile, ChatMessage, ChatRequest
 # ---------------------------------------------------------------------------
 # ChatRequest — query field
 # ---------------------------------------------------------------------------
+
 
 class TestChatRequestQuery:
     def test_valid_query_accepted(self):
@@ -35,22 +37,19 @@ class TestChatRequestQuery:
 # ChatRequest — history field
 # ---------------------------------------------------------------------------
 
+
 class TestChatRequestHistory:
     def test_history_defaults_to_empty(self):
         req = ChatRequest(query="hello")
         assert req.history == []
 
     def test_history_at_max_length_accepted(self):
-        msgs = [
-            ChatMessage(role="user", content=f"msg {i}") for i in range(50)
-        ]
+        msgs = [ChatMessage(role="user", content=f"msg {i}") for i in range(50)]
         req = ChatRequest(query="hello", history=msgs)
         assert len(req.history) == 50
 
     def test_history_over_max_length_rejected(self):
-        msgs = [
-            ChatMessage(role="user", content=f"msg {i}") for i in range(51)
-        ]
+        msgs = [ChatMessage(role="user", content=f"msg {i}") for i in range(51)]
         with pytest.raises(ValidationError) as exc_info:
             ChatRequest(query="hello", history=msgs)
         errors = exc_info.value.errors()
@@ -69,6 +68,7 @@ class TestChatRequestHistory:
 # ---------------------------------------------------------------------------
 # ChatRequest — attachments field
 # ---------------------------------------------------------------------------
+
 
 class TestChatRequestAttachments:
     def test_attachments_defaults_to_empty(self):
@@ -102,6 +102,7 @@ class TestChatRequestAttachments:
 # ChatRequest — optional fields
 # ---------------------------------------------------------------------------
 
+
 class TestChatRequestOptionals:
     def test_include_sources_defaults_true(self):
         req = ChatRequest(query="hello")
@@ -131,8 +132,13 @@ class TestChatRequestOptionals:
         """A fully-populated valid ChatRequest must not raise."""
         req = ChatRequest(
             query="What is the roof R-value?",
-            history=[ChatMessage(role="user", content="Hi"), ChatMessage(role="assistant", content="Hello")],
-            attachments=[AttachmentFile(filename="spec.pdf", content="R-30", file_type="pdf")],
+            history=[
+                ChatMessage(role="user", content="Hi"),
+                ChatMessage(role="assistant", content="Hello"),
+            ],
+            attachments=[
+                AttachmentFile(filename="spec.pdf", content="R-30", file_type="pdf")
+            ],
             include_sources=True,
             model_preference="thinking",
             project_id=7,

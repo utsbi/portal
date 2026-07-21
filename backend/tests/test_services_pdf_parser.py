@@ -12,6 +12,7 @@ archives that exceed three limits:
 The limits are patched to small values in these tests so we never need to
 build 200 MB files in memory.
 """
+
 from __future__ import annotations
 
 import io
@@ -27,6 +28,7 @@ from app.explore.services.pdf_parser import _check_zip_bomb, extract_text
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_zip(
     members: list[tuple[str, bytes]],
@@ -45,6 +47,7 @@ def _make_zip(
 # ---------------------------------------------------------------------------
 # _check_zip_bomb unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestZipBombGuardDirect:
     """Unit tests for _check_zip_bomb() in isolation."""
@@ -87,11 +90,13 @@ class TestZipBombGuardDirect:
     def test_normal_small_zip_passes_all_guards(self):
         """A legitimate small archive passes every guard without raising."""
         # Deliberately within default caps — no monkeypatching needed.
-        small = _make_zip([
-            ("word/document.xml", b"<w:document/>"),
-            ("[Content_Types].xml", b"<Types/>"),
-            ("_rels/.rels", b""),
-        ])
+        small = _make_zip(
+            [
+                ("word/document.xml", b"<w:document/>"),
+                ("[Content_Types].xml", b"<Types/>"),
+                ("_rels/.rels", b""),
+            ]
+        )
         # Must not raise.
         _check_zip_bomb(small)
 
@@ -107,6 +112,7 @@ class TestZipBombGuardDirect:
 # ---------------------------------------------------------------------------
 # Integration: extract_text() raises 400 for zip-bomb office files
 # ---------------------------------------------------------------------------
+
 
 class TestExtractTextZipBombRejection:
     """Verify the guard fires through the public extract_text() dispatcher."""

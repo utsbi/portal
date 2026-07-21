@@ -334,18 +334,19 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
 
   // ── P1: chat_begin_turn RPC called with expected args; assistant id used ───
   it("P1: calls chat_begin_turn with session_id, query, model_preference, history_len, regenerate=false; assistant id used in update", async () => {
-    fetchMock.mockImplementationOnce(async (url: string, init: RequestInit) => {
-      state.calls.backendFetchBody = JSON.parse(init.body as string) as Record<
-        string,
-        unknown
-      >;
-      return backendOk(
-        makeSseStream([
-          { type: "result", answer: "The answer", sources: [] },
-          "[DONE]",
-        ]),
-      );
-    });
+    fetchMock.mockImplementationOnce(
+      async (_url: string, init: RequestInit) => {
+        state.calls.backendFetchBody = JSON.parse(
+          init.body as string,
+        ) as Record<string, unknown>;
+        return backendOk(
+          makeSseStream([
+            { type: "result", answer: "The answer", sources: [] },
+            "[DONE]",
+          ]),
+        );
+      },
+    );
 
     const req = makeRequest({
       query: "test question",
@@ -370,7 +371,7 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
       (e) => "sources" in e.payload,
     );
     expect(updateWithSources).toBeDefined();
-    expect(updateWithSources!.eqId).toBe(101);
+    expect(updateWithSources?.eqId).toBe(101);
   });
 
   // ── P2: Upstream fetch failure AFTER pre-create ────────────────────────────
@@ -431,10 +432,10 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
       (e) => "sources" in e.payload,
     );
     expect(finalUpdate).toBeDefined();
-    expect(finalUpdate!.payload.content).toBe("Hello world");
-    expect(finalUpdate!.payload.sources).toEqual(sources);
+    expect(finalUpdate?.payload.content).toBe("Hello world");
+    expect(finalUpdate?.payload.sources).toEqual(sources);
     // Must target the pre-created assistant row id.
-    expect(finalUpdate!.eqId).toBe(101);
+    expect(finalUpdate?.eqId).toBe(101);
 
     // No fallback insert: update path was used throughout.
     expect(state.calls.messagesInsert).toHaveLength(0);
@@ -464,9 +465,9 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
     );
     expect(cancelUpdate).toBeDefined();
     // Partial content accumulated before the abort must be persisted.
-    expect(cancelUpdate!.payload.content).toBe("partial answer");
+    expect(cancelUpdate?.payload.content).toBe("partial answer");
     // Must target the pre-created assistant row.
-    expect(cancelUpdate!.eqId).toBe(101);
+    expect(cancelUpdate?.eqId).toBe(101);
 
     // No successful finalization insert.
     expect(state.calls.messagesInsert).toHaveLength(0);
@@ -553,8 +554,8 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
     expect(res.status).toBe(200);
     // The backend must receive the STORED project_id = 7, not the client's 999.
     expect(state.calls.backendFetchBody).not.toBeNull();
-    expect(state.calls.backendFetchBody!.project_id).toBe(7);
-    expect(state.calls.backendFetchBody!.project_id).not.toBe(999);
+    expect(state.calls.backendFetchBody?.project_id).toBe(7);
+    expect(state.calls.backendFetchBody?.project_id).not.toBe(999);
   });
 
   // ── P7: Client disconnect mid-stream — final persistence still happens ─────
@@ -579,7 +580,8 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
     expect(res.status).toBe(200);
 
     // Read the session event + the first delta, then DISCONNECT the client.
-    const reader = res.body!.getReader();
+    if (!res.body) throw new Error("Expected streaming response body");
+    const reader = res.body.getReader();
     await reader.read(); // session event
     backendCtl.enqueue(sse({ type: "delta", text: "Hel" }));
     await reader.read(); // forwarded delta
@@ -600,9 +602,9 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
       (e) => "sources" in e.payload,
     );
     expect(finalUpdate).toBeDefined();
-    expect(finalUpdate!.payload.content).toBe("Hello");
-    expect(finalUpdate!.payload.sources).toEqual(sources);
-    expect(finalUpdate!.eqId).toBe(101);
+    expect(finalUpdate?.payload.content).toBe("Hello");
+    expect(finalUpdate?.payload.sources).toEqual(sources);
+    expect(finalUpdate?.eqId).toBe(101);
 
     // The turn completed normally — it must NOT be marked cancelled.
     expect(
@@ -654,7 +656,7 @@ describe("POST /api/chat — persistence and streaming (P1–P6)", () => {
       (e) => e.payload.is_cancelled === true,
     );
     expect(cancelUpdate).toBeDefined();
-    expect(cancelUpdate!.eqId).toBe(101);
+    expect(cancelUpdate?.eqId).toBe(101);
     // No content/sources write — the turn never streamed anything.
     expect(
       state.calls.messagesUpdate.filter((e) => "sources" in e.payload),

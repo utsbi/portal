@@ -48,6 +48,13 @@ async function mockTurnstile(page: Page): Promise<void> {
 test.describe("Contact page", () => {
   test.beforeEach(async ({ page }) => {
     await mockTurnstile(page);
+    await page.route("**/api/contact", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true }),
+      }),
+    );
     await page.goto("/contact");
   });
 

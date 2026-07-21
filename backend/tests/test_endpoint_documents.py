@@ -11,6 +11,7 @@ Covers:
   - list: requires auth
   - index-text: director-gated save-to-knowledge (happy path, dedup, caps)
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -37,6 +38,7 @@ class TestDocumentUpload:
 
     def test_oversized_via_content_length_returns_413(self):
         from app.explore.api.deps import get_auth_context
+
         app.dependency_overrides[get_auth_context] = _auth_override
 
         client = TestClient(app, raise_server_exceptions=False)
@@ -54,6 +56,7 @@ class TestDocumentUpload:
 
     def test_oversized_actual_body_returns_413(self):
         from app.explore.api.deps import get_auth_context
+
         app.dependency_overrides[get_auth_context] = _auth_override
 
         with (
@@ -78,6 +81,7 @@ class TestDocumentUpload:
 
     def test_non_pdf_file_returns_400(self):
         from app.explore.api.deps import get_auth_context
+
         app.dependency_overrides[get_auth_context] = _auth_override
 
         with (
@@ -93,7 +97,13 @@ class TestDocumentUpload:
             client = TestClient(app, raise_server_exceptions=False)
             resp = client.post(
                 "/api/v1/documents/upload",
-                files={"file": ("report.docx", b"fake docx bytes", "application/vnd.openxmlformats")},
+                files={
+                    "file": (
+                        "report.docx",
+                        b"fake docx bytes",
+                        "application/vnd.openxmlformats",
+                    )
+                },
                 data={"project_id": "1"},
                 headers={"Authorization": "Bearer test-token"},
             )
@@ -112,6 +122,7 @@ class TestDocumentUpload:
 
     def test_non_member_returns_403(self):
         from app.explore.api.deps import get_auth_context
+
         app.dependency_overrides[get_auth_context] = _auth_override
 
         with patch(
@@ -130,6 +141,7 @@ class TestDocumentUpload:
 
     def test_non_director_returns_403(self):
         from app.explore.api.deps import get_auth_context
+
         app.dependency_overrides[get_auth_context] = _auth_override
 
         with (
@@ -155,6 +167,7 @@ class TestDocumentUpload:
     def test_processing_error_returns_generic_detail(self):
         """An unexpected exception during processing must not leak raw error text."""
         from app.explore.api.deps import get_auth_context
+
         app.dependency_overrides[get_auth_context] = _auth_override
 
         secret_error_msg = "raw_db_connection_string: postgres://user:secret@host"
@@ -190,6 +203,7 @@ class TestDocumentUpload:
     def test_successful_upload(self):
         """A valid PDF upload with proper auth should return 200 with success."""
         from app.explore.api.deps import get_auth_context
+
         app.dependency_overrides[get_auth_context] = _auth_override
 
         fake_pages = [
@@ -216,9 +230,7 @@ class TestDocumentUpload:
                 "app.explore.api.v1.endpoints.documents._is_director",
                 new=AsyncMock(return_value=True),
             ),
-            patch(
-                "app.explore.api.v1.endpoints.documents.PDFParser"
-            ) as MockParser,
+            patch("app.explore.api.v1.endpoints.documents.PDFParser") as MockParser,
             patch(
                 "app.explore.api.v1.endpoints.documents.RAGService",
                 return_value=mock_rag,
@@ -253,6 +265,7 @@ class TestDocumentList:
 
     def test_authenticated_returns_documents(self, mock_supabase):
         from app.explore.api.deps import get_current_user_id
+
         app.dependency_overrides[get_current_user_id] = _user_id_override
 
         # Patch the supabase chain for this specific query
@@ -351,9 +364,7 @@ class TestIndexText:
         self._mock_no_duplicate(monkeypatch)
 
         store = AsyncMock(return_value=[1, 2, 3])
-        monkeypatch.setattr(
-            docs_mod.RAGService, "store_document", store, raising=True
-        )
+        monkeypatch.setattr(docs_mod.RAGService, "store_document", store, raising=True)
         resp = client.post(
             "/api/v1/documents/knowledge/index-text",
             headers={"Authorization": "Bearer test-token"},
@@ -380,9 +391,7 @@ class TestIndexText:
         chain.execute.return_value = MagicMock(data=[{"id": 42}])
 
         store = AsyncMock()
-        monkeypatch.setattr(
-            docs_mod.RAGService, "store_document", store, raising=True
-        )
+        monkeypatch.setattr(docs_mod.RAGService, "store_document", store, raising=True)
         resp = client.post(
             "/api/v1/documents/knowledge/index-text",
             headers={"Authorization": "Bearer test-token"},

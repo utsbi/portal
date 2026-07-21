@@ -10,6 +10,7 @@ Covers:
   - SSE endpoint: requires auth
   - include_sources=False strips sources from result event
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,6 +28,7 @@ from app.explore.api.deps import AuthContext
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def _auth_override():
     """Dependency override that returns a fixed AuthContext."""
     return AuthContext(user_id="test-uid-1234", access_token="test-token")
@@ -39,6 +41,7 @@ def _user_id_override():
 # ---------------------------------------------------------------------------
 # extract-text endpoint
 # ---------------------------------------------------------------------------
+
 
 class TestExtractText:
     """POST /api/v1/chat/extract-text"""
@@ -66,6 +69,7 @@ class TestExtractText:
     def test_oversized_via_content_length_header_returns_413(self):
         """Content-Length over MAX_UPLOAD_BYTES triggers a fast 413."""
         from app.explore.api.deps import get_current_user_id
+
         app.dependency_overrides[get_current_user_id] = _user_id_override
 
         client = TestClient(app, raise_server_exceptions=False)
@@ -83,6 +87,7 @@ class TestExtractText:
     def test_oversized_actual_body_returns_413(self):
         """A file body exceeding MAX_UPLOAD_BYTES at read-time triggers 413."""
         from app.explore.api.deps import get_current_user_id
+
         app.dependency_overrides[get_current_user_id] = _user_id_override
 
         client = TestClient(app, raise_server_exceptions=False)
@@ -97,6 +102,7 @@ class TestExtractText:
     def test_valid_txt_file_returns_content(self):
         """A small plain-text file must be extracted and returned."""
         from app.explore.api.deps import get_current_user_id
+
         app.dependency_overrides[get_current_user_id] = _user_id_override
 
         client = TestClient(app, raise_server_exceptions=False)
@@ -145,12 +151,11 @@ class TestExtractText:
     def test_valid_pdf_file_returns_content(self):
         """A valid PDF must be parsed; parser is mocked."""
         from app.explore.api.deps import get_current_user_id
+
         app.dependency_overrides[get_current_user_id] = _user_id_override
 
         fake_pages = [{"content": "PDF page text"}]
-        with patch(
-            "app.explore.api.v1.endpoints.chat.PDFParser"
-        ) as MockParser:
+        with patch("app.explore.api.v1.endpoints.chat.PDFParser") as MockParser:
             MockParser.return_value.extract_text_with_metadata.return_value = fake_pages
             client = TestClient(app, raise_server_exceptions=False)
             resp = client.post(
@@ -192,10 +197,12 @@ class TestExtractText:
             for r in route_list:
                 if isinstance(r, APIRoute):
                     found.append(r)
-                if hasattr(r, "original_router") and hasattr(r.original_router, "routes"):
-                    found.extend(collect_api_routes(r.original_router.routes))
-                elif hasattr(r, "routes"):
-                    found.extend(collect_api_routes(r.routes))
+                original_router = getattr(r, "original_router", None)
+                nested_routes = getattr(original_router, "routes", None)
+                if nested_routes is None:
+                    nested_routes = getattr(r, "routes", None)
+                if nested_routes is not None:
+                    found.extend(collect_api_routes(nested_routes))
             return found
 
         routes = collect_api_routes(app.routes)
@@ -209,6 +216,7 @@ class TestExtractText:
 # SSE chat endpoint
 # ---------------------------------------------------------------------------
 
+
 class TestChatSSE:
     """POST /api/v1/chat/ — SSE streaming."""
 
@@ -221,7 +229,7 @@ class TestChatSSE:
         for line in response_text.splitlines():
             line = line.strip()
             if line.startswith("data:") and line != "data: [DONE]":
-                payload = line[len("data:"):].strip()
+                payload = line[len("data:") :].strip()
                 try:
                     events.append(json.loads(payload))
                 except json.JSONDecodeError:

@@ -13,6 +13,7 @@ Covers:
 
 These tests use heavy mocking of the OpenAI streaming client.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -29,6 +30,7 @@ from app.explore.agents.graph import (
 # Constants
 # ---------------------------------------------------------------------------
 
+
 def test_max_tool_iterations_is_4():
     assert MAX_TOOL_ITERATIONS == 4
 
@@ -36,6 +38,7 @@ def test_max_tool_iterations_is_4():
 # ---------------------------------------------------------------------------
 # Helpers to build fake streaming chunks
 # ---------------------------------------------------------------------------
+
 
 def _make_delta(content=None, tool_calls=None, reasoning=None):
     delta = MagicMock()
@@ -72,7 +75,9 @@ class _FakeStream:
         return self._chunks.pop(0)
 
 
-def _make_tool_call(tc_id="call_1", name="search_sbi_knowledge", arguments='{"query": "x"}'):
+def _make_tool_call(
+    tc_id="call_1", name="search_sbi_knowledge", arguments='{"query": "x"}'
+):
     """Build a streamed tool_call fragment as the OpenAI SDK delivers it."""
     tc = MagicMock()
     tc.index = 0
@@ -88,12 +93,12 @@ def _make_tool_call(tc_id="call_1", name="search_sbi_knowledge", arguments='{"qu
 # Title task creation
 # ---------------------------------------------------------------------------
 
-    # graph.py uses lazy imports inside run_graph_streaming:
-    #   from app.explore.agents.nodes import openrouter_client, generate_title, ...
-    #   from app.explore.agents.tools import TOOLS, execute_tool
-    #   from app.explore.db.supabase import user_client
-    #   from app.explore.services.membership import get_project_context
-    # So patch the names at their source modules.
+# graph.py uses lazy imports inside run_graph_streaming:
+#   from app.explore.agents.nodes import openrouter_client, generate_title, ...
+#   from app.explore.agents.tools import TOOLS, execute_tool
+#   from app.explore.db.supabase import user_client
+#   from app.explore.services.membership import get_project_context
+# So patch the names at their source modules.
 
 _PATCHES = dict(
     get_project_context="app.explore.services.membership.get_project_context",
@@ -111,6 +116,7 @@ class TestTitleTaskCreation:
         async def _no_tool_stream(**kwargs):
             async def _inner():
                 yield _make_chunk(content="Hello!")
+
             return _inner()
 
         mock_title = AsyncMock(return_value="Test Title")
@@ -139,6 +145,7 @@ class TestTitleTaskCreation:
         async def _no_tool_stream(**kwargs):
             async def _inner():
                 yield _make_chunk(content="Follow-up answer.")
+
             return _inner()
 
         mock_title = AsyncMock(return_value="Should Not Be Called")
@@ -169,6 +176,7 @@ class TestTitleTaskCreation:
 # Streaming event contract
 # ---------------------------------------------------------------------------
 
+
 class TestStreamingEventContract:
     async def test_no_tool_query_emits_phase_delta_result(self):
         """A simple query with no tool calls must emit phase, delta, result events."""
@@ -176,6 +184,7 @@ class TestStreamingEventContract:
         async def _stream(**kwargs):
             async def _inner():
                 yield _make_chunk(content="The answer is 42.")
+
             return _inner()
 
         with (
@@ -204,6 +213,7 @@ class TestStreamingEventContract:
         async def _stream(**kwargs):
             async def _inner():
                 yield _make_chunk(content="Forty-two.")
+
             return _inner()
 
         with (
@@ -228,19 +238,26 @@ class TestStreamingEventContract:
         async def _stream(**kwargs):
             async def _inner():
                 yield _make_chunk(content="Here is info.")
+
             return _inner()
 
         with (
             patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
             patch(_PATCHES["user_client"], return_value=MagicMock()),
-            patch(_PATCHES["generate_title"], new=AsyncMock(return_value="My Generated Title")),
+            patch(
+                _PATCHES["generate_title"],
+                new=AsyncMock(return_value="My Generated Title"),
+            ),
             patch(_PATCHES["openrouter_client"]) as mock_client,
         ):
             mock_client.chat.completions.create = AsyncMock(side_effect=_stream)
 
             events = []
             async for event in run_graph_streaming(
-                query="tell me about SBI", client_id="uid", access_token="tok", history=[]
+                query="tell me about SBI",
+                client_id="uid",
+                access_token="tok",
+                history=[],
             ):
                 events.append(event)
 
@@ -252,6 +269,7 @@ class TestStreamingEventContract:
 # ---------------------------------------------------------------------------
 # MAX_TOOL_ITERATIONS cap
 # ---------------------------------------------------------------------------
+
 
 class TestMaxToolIterations:
     async def test_tool_loop_is_capped_at_max_iterations(self):
@@ -270,6 +288,7 @@ class TestMaxToolIterations:
 
         async def _tool_stream(**kwargs):
             call_count[0] += 1
+
             async def _inner():
                 chunk = MagicMock()
                 choice = MagicMock()
@@ -280,16 +299,21 @@ class TestMaxToolIterations:
                 choice.delta = delta
                 chunk.choices = [choice]
                 yield chunk
+
             return _inner()
 
-        async def _fake_execute_tool(name, args, client_id, access_token, project_id=None, **kwargs):
+        async def _fake_execute_tool(
+            name, args, client_id, access_token, project_id=None, **kwargs
+        ):
             return "tool result text", []
 
         with (
             patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
             patch(_PATCHES["user_client"], return_value=MagicMock()),
             patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
-            patch(_PATCHES["execute_tool"], new=AsyncMock(side_effect=_fake_execute_tool)),
+            patch(
+                _PATCHES["execute_tool"], new=AsyncMock(side_effect=_fake_execute_tool)
+            ),
             patch(_PATCHES["openrouter_client"]) as mock_client,
         ):
             mock_client.chat.completions.create = AsyncMock(side_effect=_tool_stream)
@@ -314,6 +338,7 @@ class TestMaxToolIterations:
         async def _first_call_tools_then_answer(**kwargs):
             if not tool_called[0]:
                 tool_called[0] = True
+
                 async def _inner():
                     chunk = MagicMock()
                     choice = MagicMock()
@@ -331,20 +356,27 @@ class TestMaxToolIterations:
                     choice.delta = delta
                     chunk.choices = [choice]
                     yield chunk
+
                 return _inner()
             else:
+
                 async def _answer():
                     yield _make_chunk(content="SBI is a sustainable building org.")
+
                 return _answer()
 
-        async def _fake_execute_tool(name, args, client_id, access_token, project_id=None, **kwargs):
+        async def _fake_execute_tool(
+            name, args, client_id, access_token, project_id=None, **kwargs
+        ):
             return "SBI knowledge text", []
 
         with (
             patch(_PATCHES["get_project_context"], new=AsyncMock(return_value=None)),
             patch(_PATCHES["user_client"], return_value=MagicMock()),
             patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
-            patch(_PATCHES["execute_tool"], new=AsyncMock(side_effect=_fake_execute_tool)),
+            patch(
+                _PATCHES["execute_tool"], new=AsyncMock(side_effect=_fake_execute_tool)
+            ),
             patch(_PATCHES["openrouter_client"]) as mock_client,
         ):
             mock_client.chat.completions.create = AsyncMock(
@@ -369,6 +401,7 @@ class TestMaxToolIterations:
 # Attachment injection into model context
 # ---------------------------------------------------------------------------
 
+
 class TestAttachmentInjection:
     """Attachment content must be injected into the messages sent to the model."""
 
@@ -379,8 +412,10 @@ class TestAttachmentInjection:
         async def _capturing_stream(**kwargs):
             if not captured_messages:
                 captured_messages.extend(kwargs.get("messages", []))
+
             async def _inner():
                 yield _make_chunk(content="Based on the document, the budget is $1.5M.")
+
             return _inner()
 
         attachments = [
@@ -397,7 +432,9 @@ class TestAttachmentInjection:
             patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
             patch(_PATCHES["openrouter_client"]) as mock_client,
         ):
-            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=_capturing_stream
+            )
 
             events = []
             async for event in run_graph_streaming(
@@ -424,8 +461,10 @@ class TestAttachmentInjection:
         async def _capturing_stream(**kwargs):
             if not captured_messages:
                 captured_messages.extend(kwargs.get("messages", []))
+
             async def _inner():
                 yield _make_chunk(content="Answer.")
+
             return _inner()
 
         oversized_content = "A" * (_ATTACHMENT_CHARS_PER_FILE + 5_000)
@@ -439,7 +478,9 @@ class TestAttachmentInjection:
             patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
             patch(_PATCHES["openrouter_client"]) as mock_client,
         ):
-            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=_capturing_stream
+            )
 
             events = []
             async for event in run_graph_streaming(
@@ -467,8 +508,10 @@ class TestAttachmentInjection:
         async def _capturing_stream(**kwargs):
             if not captured_messages:
                 captured_messages.extend(kwargs.get("messages", []))
+
             async def _inner():
                 yield _make_chunk(content="I see a bar chart.")
+
             return _inner()
 
         data_url = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="
@@ -482,7 +525,9 @@ class TestAttachmentInjection:
             patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
             patch(_PATCHES["openrouter_client"]) as mock_client,
         ):
-            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=_capturing_stream
+            )
 
             async for _event in run_graph_streaming(
                 query="what does this chart show?",
@@ -499,9 +544,7 @@ class TestAttachmentInjection:
         assert user_msgs, "expected a user message"
         last_user = user_msgs[-1]
         assert isinstance(last_user["content"], list)
-        image_parts = [
-            p for p in last_user["content"] if p.get("type") == "image_url"
-        ]
+        image_parts = [p for p in last_user["content"] if p.get("type") == "image_url"]
         assert len(image_parts) == 1
         assert image_parts[0]["image_url"]["url"] == data_url
         # The data URL must never be injected as plain-text context.
@@ -519,8 +562,10 @@ class TestAttachmentInjection:
         async def _capturing_stream(**kwargs):
             if not captured_messages:
                 captured_messages.extend(kwargs.get("messages", []))
+
             async def _inner():
                 yield _make_chunk(content="Still looking at it.")
+
             return _inner()
 
         data_url = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="
@@ -535,7 +580,9 @@ class TestAttachmentInjection:
             patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
             patch(_PATCHES["openrouter_client"]) as mock_client,
         ):
-            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=_capturing_stream
+            )
 
             async for _event in run_graph_streaming(
                 query="and the top-left?",
@@ -568,8 +615,10 @@ class TestAttachmentInjection:
         async def _capturing_stream(**kwargs):
             if not captured_messages:
                 captured_messages.extend(kwargs.get("messages", []))
+
             async def _inner():
                 yield _make_chunk(content="No attachments here.")
+
             return _inner()
 
         with (
@@ -578,7 +627,9 @@ class TestAttachmentInjection:
             patch(_PATCHES["generate_title"], new=AsyncMock(return_value="T")),
             patch(_PATCHES["openrouter_client"]) as mock_client,
         ):
-            mock_client.chat.completions.create = AsyncMock(side_effect=_capturing_stream)
+            mock_client.chat.completions.create = AsyncMock(
+                side_effect=_capturing_stream
+            )
 
             events = []
             async for event in run_graph_streaming(
@@ -615,6 +666,7 @@ def _tool_then_answer_client(call_streams):
         async def _inner():
             for chunk in chunks:
                 yield chunk
+
         return _inner()
 
     return AsyncMock(side_effect=_create), captured_calls
@@ -715,6 +767,7 @@ class TestPrefaceBuffering:
                 yield _make_chunk(content=part1)
                 timeline.append("chunk:2")
                 yield _make_chunk(content=part2)
+
             return _inner()
 
         mock_client = MagicMock()
@@ -731,7 +784,8 @@ class TestPrefaceBuffering:
                 timeline.append(event)
 
         delta_positions = [
-            i for i, item in enumerate(timeline)
+            i
+            for i, item in enumerate(timeline)
             if isinstance(item, dict) and item.get("type") == "delta"
         ]
         chunk2_pos = timeline.index("chunk:2")
@@ -740,11 +794,13 @@ class TestPrefaceBuffering:
         assert delta_positions and delta_positions[0] < chunk2_pos
 
         deltas = "".join(
-            item["text"] for item in timeline
+            item["text"]
+            for item in timeline
             if isinstance(item, dict) and item.get("type") == "delta"
         )
         result = next(
-            item for item in timeline
+            item
+            for item in timeline
             if isinstance(item, dict) and item.get("type") == "result"
         )
         assert deltas == part1 + part2
@@ -776,9 +832,11 @@ class TestPrefaceBuffering:
             ],
             [
                 _make_chunk(content=preface_2),
-                _make_chunk(tool_calls=[
-                    _make_tool_call(tc_id="call_b", name="get_lifecycle_status")
-                ]),
+                _make_chunk(
+                    tool_calls=[
+                        _make_tool_call(tc_id="call_b", name="get_lifecycle_status")
+                    ]
+                ),
             ],
             [_make_chunk(content=_FINAL_ANSWER)],
         ]
@@ -814,7 +872,8 @@ class TestPrefaceBuffering:
         # The second model call sees the assistant tool-call message.
         second_call_messages = captured_calls[1]["messages"]
         assistant_tool_msgs = [
-            m for m in second_call_messages
+            m
+            for m in second_call_messages
             if m.get("role") == "assistant" and m.get("tool_calls")
         ]
         assert assistant_tool_msgs

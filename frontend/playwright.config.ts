@@ -11,7 +11,7 @@ import { defineConfig, devices } from "@playwright/test";
  *   bun test:e2e              # run the suite (starts bun dev automatically)
  *   bun test:e2e:ui           # interactive Playwright UI
  *
- * These tests are NOT wired into CI.  See CONTRIBUTING.md for details.
+ * CI runs the suite against a production build. Local runs use the dev server.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -19,13 +19,13 @@ export default defineConfig({
   fullyParallel: true,
   /* Fail the build on CI if a test was left with test.only */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
+  /* Deterministic suite: surface flakes instead of masking them with retries. */
+  retries: 0,
   /* Single worker on CI to avoid port conflicts */
   workers: process.env.CI ? 1 : undefined,
-  reporter: "html",
+  reporter: process.env.CI ? [["line"], ["html", { open: "never" }]] : "html",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: "http://localhost:3100",
     trace: "on-first-retry",
   },
   projects: [
@@ -35,8 +35,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bun dev",
-    url: "http://localhost:3000",
+    command: process.env.CI
+      ? "PORT=3100 HOSTNAME=127.0.0.1 bun .next/standalone/server.js"
+      : "bun dev -p 3100",
+    url: "http://localhost:3100",
     /* Reuse an already-running dev server in local development */
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

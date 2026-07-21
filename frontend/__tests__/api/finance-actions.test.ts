@@ -303,7 +303,8 @@ describe("finance/actions — upsertCategories payload", () => {
     const res = await upsertCategories(1, drafts);
     expect(res.error).toBeUndefined();
 
-    const upsert = state.lastUpsert!;
+    const upsert = state.lastUpsert;
+    if (!upsert) throw new Error("Expected a budget category upsert");
     expect(upsert.table).toBe("budget_categories");
     // Name is trimmed; no id key for new drafts
     expect(upsert.rows[0]).toMatchObject({
@@ -455,7 +456,8 @@ describe("finance/actions — updateTransaction payload", () => {
       amount: 200,
     });
     expect(res.error).toBeUndefined();
-    const upd = state.lastUpdate!;
+    const upd = state.lastUpdate;
+    if (!upd) throw new Error("Expected a budget transaction update");
     expect(upd.table).toBe("budget_transactions");
     expect(upd.patch).toMatchObject({ title: "New Title", amount: 200 });
     // Unsupplied fields must not appear in the patch

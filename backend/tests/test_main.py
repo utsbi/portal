@@ -6,10 +6,11 @@ Covers:
   - CORS configured origins
   - Health endpoints: / and /health — correct shape, no version field
 """
+
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -19,6 +20,7 @@ from app.explore.main import app
 # ---------------------------------------------------------------------------
 # Docs gating
 # ---------------------------------------------------------------------------
+
 
 class TestDocsGating:
     """The app conditionally exposes API docs based on ENV."""
@@ -90,6 +92,7 @@ class TestDocsGating:
 # Security headers
 # ---------------------------------------------------------------------------
 
+
 class TestSecurityHeaders:
     """Every response must carry the hardening headers."""
 
@@ -126,6 +129,7 @@ class TestSecurityHeaders:
 # CORS
 # ---------------------------------------------------------------------------
 
+
 class TestCORS:
     """CORS middleware uses the configured origins list."""
 
@@ -137,7 +141,9 @@ class TestCORS:
             headers={"Origin": "http://localhost:3000"},
         )
         # The middleware should set allow-origin for the configured origin.
-        assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+        assert (
+            resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+        )
 
     def test_cors_origins_list_property(self):
         """Settings.cors_origins_list must split the comma-separated string."""
@@ -168,7 +174,25 @@ class TestCORS:
 # Health endpoints — shape and absence of version field
 # ---------------------------------------------------------------------------
 
+
 class TestHealthEndpoints:
+    async def test_request_declaring_oversized_body_is_rejected(self):
+        from starlette.requests import Request
+
+        from app.explore.main import _MAX_BODY_BYTES, limit_body_size
+
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/health",
+                "headers": [(b"content-length", str(_MAX_BODY_BYTES + 1).encode())],
+            }
+        )
+        resp = await limit_body_size(request, AsyncMock())
+        assert resp.status_code == 413
+        assert resp.body == b'{"detail":"Request body too large"}'
+
     def test_root_returns_200(self):
         client = TestClient(app)
         resp = client.get("/")
@@ -209,7 +233,20 @@ class TestHealthEndpoints:
 # Settings properties
 # ---------------------------------------------------------------------------
 
+
 class TestSettings:
+    def test_optional_model_properties_have_safe_defaults(self):
+        from app.explore.core.config import Settings
+
+        s = Settings(
+            SUPABASE_URL="https://x.supabase.co",
+            SUPABASE_PUBLIC_KEY="k",
+            THINK_MODEL=None,
+            RERANK_MODEL=None,
+        )
+        assert s.think_model == ""
+        assert s.rerank_model == "cohere/rerank-4-pro"
+
     def test_title_model_uses_title_model_when_set(self):
         from app.explore.core.config import Settings
 

@@ -8,6 +8,7 @@ Confirmed real defects are marked xfail(strict=False) with a BUG: reason so the
 suite stays green/committable while the failure is preserved. Every xfail is
 listed in the agent report.
 """
+
 from __future__ import annotations
 
 import logging
@@ -39,6 +40,7 @@ def _patch_user(monkeypatch, user) -> None:
 # id silently widens scope to "rows with an empty/blank owner" and is an auth
 # bypass to a phantom identity. The validator MUST reject it with 401.
 # ---------------------------------------------------------------------------
+
 
 class TestEmptyIdentityIsRejected:
     async def test_empty_string_id_must_be_401(self, monkeypatch):
@@ -72,13 +74,14 @@ class TestEmptyIdentityIsRejected:
 # accepted"; they should already pass — included to prove the boundary holds.
 # ---------------------------------------------------------------------------
 
+
 class TestMalformedHeaders:
     @pytest.mark.parametrize(
         "header",
         [
-            "Bearer",            # no space, no token
-            "Bearer    ",        # only whitespace after scheme
-            "  ",                # blank
+            "Bearer",  # no space, no token
+            "Bearer    ",  # only whitespace after scheme
+            "  ",  # blank
             "Bearer\ttab-token",  # tab instead of space after scheme
         ],
     )
@@ -93,9 +96,7 @@ class TestMalformedHeaders:
         user = MagicMock()
         user.id = "real"
         mock_supa = MagicMock()
-        mock_supa.auth.get_user = MagicMock(
-            return_value=MagicMock(user=user)
-        )
+        mock_supa.auth.get_user = MagicMock(return_value=MagicMock(user=user))
         monkeypatch.setattr(deps_mod, "supabase", mock_supa)
         with pytest.raises(HTTPException):
             await _validate_bearer("Bearer ")
@@ -105,6 +106,7 @@ class TestMalformedHeaders:
 # ---------------------------------------------------------------------------
 # No internal detail leakage on the error path + a security warning is logged.
 # ---------------------------------------------------------------------------
+
 
 class TestNoLeakAndLogging:
     async def test_exception_text_never_in_detail(self, monkeypatch, caplog):
