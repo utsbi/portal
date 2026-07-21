@@ -1,30 +1,24 @@
-import {
-  ColorSchemeScript,
-  createTheme,
-  MantineProvider,
-  mantineHtmlProps,
-} from "@mantine/core";
 import "@/app/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-import { Old_Standard_TT, Urbanist } from "next/font/google";
+import { JetBrains_Mono, Urbanist } from "next/font/google";
+import { Toaster } from "sonner";
 import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
 import { ThemeProvider } from "@/components/theme-provider";
-
-const oldStandardTT = Old_Standard_TT({
-  weight: ["400", "700"],
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-old-standard",
-});
 
 const urbanist = Urbanist({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-urbanist",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
 });
 
 export const metadata: Metadata = {
@@ -96,14 +90,6 @@ export const metadata: Metadata = {
   },
 };
 
-const theme = createTheme({
-  primaryColor: "green",
-});
-
-// Temporary fix for something trying to access localStorage during SSR
-// if (!globalThis.localStorage.getItem)
-// 	globalThis.localStorage = undefined as never;
-
 export default function RootLayout({
   children,
 }: {
@@ -112,24 +98,44 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      {...mantineHtmlProps}
       suppressHydrationWarning
-      className={`${urbanist.variable} ${oldStandardTT.variable}`}
+      className={`${urbanist.variable} ${jetbrainsMono.variable}`}
     >
       <head>
-        <ColorSchemeScript />
+        {/*
+          crypto.randomUUID polyfill. The Web Crypto API's randomUUID() is only
+          exposed in secure contexts (HTTPS or localhost), so phones hitting
+          the dev server over http://<lan-ip> throw "crypto.randomUUID is not a
+          function". getRandomValues() has no such restriction — patch the
+          missing method with it so every caller (this app and its deps) works.
+        */}
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted inline polyfill, must run before hydration
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var c=window.crypto;if(c&&typeof c.randomUUID!=='function'&&typeof c.getRandomValues==='function'){c.randomUUID=function(){var b=new Uint8Array(16);c.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h='';for(var i=0;i<16;i++){h+=(b[i]<16?'0':'')+b[i].toString(16);}return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20,32);};}}catch(e){}})();",
+          }}
+        />
       </head>
       <body className="scrollbar font-urbanist">
-        <MantineProvider theme={theme}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
-        </MantineProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          forcedTheme="dark"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+        <Toaster
+          position="bottom-right"
+          expand
+          gap={10}
+          offset={20}
+          visibleToasts={4}
+          className="font-urbanist"
+          toastOptions={{ unstyled: true, className: "font-urbanist" }}
+        />
         <SpeedInsights />
         <Analytics />
       </body>

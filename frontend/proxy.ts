@@ -2,21 +2,16 @@ import type { NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
-  const response = await updateSession(request);
-
-  // Add security headers
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("X-XSS-Protection", "1; mode=block");
-
-  return response;
+  return updateSession(request);
 }
 
 export const config = {
   matcher: [
-    // Match /{url_slug}/dashboard routes (new format)
-    "/:slug/dashboard/:path*",
+    // Match dashboard routes (session-based, no slug)
+    "/dashboard/:path*",
     // Match auth routes
     "/auth/:path*",
+    // Match login so authed users are redirected at the edge (no layout flash)
+    "/login",
   ],
 };

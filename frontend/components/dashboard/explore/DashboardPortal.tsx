@@ -1,215 +1,353 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import gsap from 'gsap';
-import { PortalHero } from './ui/PortalHero';
-import { PortalInput } from './ui/PortalInput';
-import { SuggestionChips } from './ui/SuggestionChips';
-import { AmbientGrid } from './ui/AmbientGrid';
-import { FloatingNodes } from './ui/FloatingNodes';
-import { ChatMessages } from './ui/ChatMessages';
-import { useChat } from '@/lib/chat/chat-context';
-
-interface ExploreProps {
-  urlSlug?: string;
-}
+import gsap from "gsap";
+import { motion } from "motion/react";
+import { useParams, usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useChat } from "@/lib/chat/chat-context";
+import { cn } from "@/lib/utils";
+import { AmbientGrid } from "./ui/AmbientGrid";
+import { ChatMessages } from "./ui/ChatMessages";
+import { FloatingNodes } from "./ui/FloatingNodes";
+import { PortalHero } from "./ui/PortalHero";
+import { PortalInput } from "./ui/PortalInput";
+import { QuickActionChips } from "./ui/QuickActionChips";
+import { SourcesPanel } from "./ui/SourcesPanel";
 
 /**
- * Welcome state rendered on the dashboard (/{slug}/dashboard).
- * Shows hero, input, and suggestion chips.
- * When the user sends a message, routes to /dashboard/explore.
+ * The single Explore surface for both the new-chat welcome and an active thread.
+ * It is mounted at /dashboard/explore/[[...chatId]] and reads the chat id from
+ * the route via useParams (not async params), so switching ids re-renders without
+ * remounting — which would otherwise wipe an in-flight stream.
+ *
+ * Hydration:
+ *   - path is a uuid        -> load that conversation (unless it's already open)
+ *   - path is new/undefined -> reset to a fresh chat
+ * When the backend assigns a session for the first message, its uuid is written
+ * into the URL with history.replaceState (no navigation, no remount), mirroring
+ * Vercel's ai-chatbot.
  */
-export function ExploreWelcome({ urlSlug }: ExploreProps) {
+export function ExplorePortal() {
+  const params = useParams<{ chatId?: string[] }>();
+  const chatId = Array.isArray(params.chatId)
+    ? params.chatId[0]
+    : params.chatId;
+  // Derive "new route" from the pathname, NOT useParams: the New-chat / chat-
+  // select actions use history.replaceState (to avoid a remount), which updates
+  // the pathname but leaves useParams' route segments stale. So after "New chat"
+  // (replaceState -> /explore/new) useParams.chatId would still be the previous
+  // uuid; pathname is correct, so the welcome screen shows instead of a stuck
+  // history skeleton.
+  const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
-  const router = useRouter();
-  const { messages } = useChat();
+  const {
+    messages,
+    sessionPublicId,
+    sessionTitle,
+    loadSession,
+    newSession,
+    isLoading,
+    loadFailed,
+  } = useChat();
 
+  const isNewRoute =
+    !pathname ||
+    pathname === "/dashboard/explore" ||
+    pathname === "/dashboard/explore/new" ||
+    pathname === "/dashboard";
+  // A revisited/loaded thread that ended up empty (failed load, or no messages
+  // while nothing is in flight) gets a small explicit state instead of the
+  // new-chat welcome hero or a blank scroll region.
+  const showEmptyState =
+    messages.length === 0 && !isNewRoute && !isLoading && loadFailed;
+  // The centered welcome hero is ONLY for a genuinely new chat. On a uuid route
+  // we keep the thread layout (composer pinned at the bottom) even before
+  // loadSession() resolves, so reloading an existing chat doesn't flash the
+  // centered composer and animate it down once messages arrive.
+  const showWelcome = messages.length === 0 && isNewRoute;
+  // True from the first render of a uuid route until its history arrives (a real
+  // session always has ≥1 message, so this never sticks on a successful load).
+  // Drives the skeleton for both the title and the messages so a reload shows a
+  // loading state immediately — no blank frame, no "Untitled" flash.
+  const loadingHistory = !isNewRoute && !loadFailed && messages.length === 0;
+  // Announce the active conversation / generating state to screen readers.
+  const liveAnnouncement = loadFailed
+    ? "Could not load this conversation."
+    : isLoading
+      ? `Generating a response in ${sessionTitle || "this conversation"}.`
+      : showWelcome
+        ? "New conversation."
+        : `Viewing conversation: ${sessionTitle || "Untitled"}.`;
+
+  // Mirror the open session id into a ref so the hydrate effect always compares
+  // against the *current* value, not a stale closure (the effect deliberately
+  // depends only on chatId).
+  const openSessionRef = useRef<string | null>(sessionPublicId);
+  useEffect(() => {
+    openSessionRef.current = sessionPublicId;
+  }, [sessionPublicId]);
+
+  // Same ref-mirror trick for the chat actions, so the hydrate effect below can
+  // stay dependent on ONLY `chatId` (loading on a chatId change, never on
+  // action identity). Without this, adding `loadSession`/`newSession` to the
+  // deps would re-fire hydration every time those callbacks re-render, which
+  // would reload the conversation that's already open.
+  const loadSessionRef = useRef(loadSession);
+  useEffect(() => {
+    loadSessionRef.current = loadSession;
+  }, [loadSession]);
+  const newSessionRef = useRef(newSession);
+  useEffect(() => {
+    newSessionRef.current = newSession;
+  }, [newSession]);
+
+  // Hydrate from the path. Depends on `chatId` ONLY — deliberately NOT on
+  // `isNewRoute`/pathname. The chat-switch UX (sidebar select, New chat, and the
+  // first-message URL pin) all navigate with history.replaceState, which keeps
+  // `usePathname()` in sync (so isNewRoute reacts to it) but does NOT update
+  // `useParams()` (chatId stays put). If this effect re-ran on isNewRoute, the
+  // replaceState that pins a brand-new chat's uuid would flip isNewRoute, re-fire
+  // this effect while chatId is still stale, and fall into the newSession()
+  // branch below — wiping the live conversation and bouncing the URL between
+  // /explore/new and /explore/<uuid>. chatId changes ONLY on a real navigation,
+  // which is exactly when re-hydration is wanted. isNewRoute is read for the
+  // route check but must never be a trigger. The chat actions (loadSession,
+  // newSession) are read through refs above so this effect also doesn't re-fire
+  // when those callbacks re-render.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: chatId is the only valid trigger; see comment above
+  useEffect(() => {
+    if (!isNewRoute && chatId) {
+      if (chatId !== openSessionRef.current) {
+        void loadSessionRef.current(chatId).then((ok) => {
+          // Unknown / inaccessible conversation -> drop to a fresh chat.
+          if (!ok) {
+            newSessionRef.current();
+            window.history.replaceState(null, "", "/dashboard/explore/new");
+          }
+        });
+      }
+    } else if (openSessionRef.current !== null) {
+      newSessionRef.current();
+    }
+  }, [chatId]);
+
+  // Once a session exists, reflect its uuid in the URL WITHOUT a Next navigation.
+  // router.push/replace here would re-run the route and remount this surface
+  // (wiping the in-flight stream); history.replaceState just updates the address
+  // bar. This is the pattern Vercel's ai-chatbot uses for new chat ids.
+  useEffect(() => {
+    if (sessionPublicId && sessionPublicId !== chatId) {
+      window.history.replaceState(
+        null,
+        "",
+        `/dashboard/explore/${sessionPublicId}`,
+      );
+    }
+  }, [sessionPublicId, chatId]);
+
+  // Entrance-animation gate.
   useEffect(() => {
     const timer = setTimeout(() => setIsReady(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
-  // When user submits message, route to the explore page
-  useEffect(() => {
-    if (messages.length > 0) {
-      router.push(`/${urlSlug}/dashboard/explore`);
-    }
-  }, [messages.length, router, urlSlug]);
+  // The ChatProvider lives at the dashboard layout (above this surface), so the
+  // in-memory `messages` state and any in-flight assistant stream survive
+  // cross-surface navigation (e.g. /explore -> /files -> /explore). We do NOT
+  // abort on unmount: the API route persists the assistant row incrementally,
+  // and the browser tearing down the fetch on unload is what triggers the
+  // server-side cancel-fallback that marks the row as cancelled. Wiping state
+  // here would force the user to lose their in-progress reasoning/tool
+  // timeline on every page change — the exact bug the persistence layer
+  // exists to prevent. Intra-explore navigation also keeps this component
+  // mounted, so this cleanup never fires for new<->uuid.
 
-  // GSAP entrance animations
+  // GSAP entrance for the welcome view. Re-runs whenever the welcome view is
+  // (re)shown; a no-op for the thread view (its selectors won't match).
   useEffect(() => {
-    if (!containerRef.current || !isReady) return;
+    if (!containerRef.current || !isReady || !showWelcome) return;
 
     const ctx = gsap.context(() => {
-      const heroElements = containerRef.current?.querySelectorAll('.hero-content');
-      const inputElement = containerRef.current?.querySelector('.input-container');
-      const ambientElements = containerRef.current?.querySelectorAll('.ambient-element');
-      const chips = containerRef.current?.querySelectorAll('.suggestion-chip');
+      const heroElements =
+        containerRef.current?.querySelectorAll(".hero-content");
+      const ambientElements =
+        containerRef.current?.querySelectorAll(".ambient-element");
+      const chips = containerRef.current?.querySelectorAll(".suggestion-chip");
 
-      if (!heroElements || !inputElement || !ambientElements || !chips) return;
+      // The composer's entrance/position is owned by framer-motion (layout), not GSAP.
+      if (!heroElements || !ambientElements || !chips) return;
 
-      // Set initial states
       gsap.set(heroElements, { opacity: 0, y: 40 });
-      gsap.set(inputElement, { opacity: 0, y: 30 });
       gsap.set(ambientElements, { opacity: 0 });
       gsap.set(chips, { opacity: 0, y: 15, scale: 0.95 });
 
-      // Master timeline with refined easing
-      const tl = gsap.timeline({
-        defaults: { ease: 'power3.out' }
-      });
-
-      tl.to(heroElements, {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-        stagger: 0.1,
-      }, 0)
-      .to(inputElement, {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-      }, 0.1)
-      .to(ambientElements, {
-        opacity: 1,
-        duration: 2,
-        stagger: 0.2,
-      }, 0)
-      .to(chips, {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        visibility: 'visible',
-        duration: 0.6,
-        stagger: 0.05,
-      }, 0.4);
-
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      tl.to(heroElements, { opacity: 1, y: 0, duration: 0.8, stagger: 0.1 }, 0)
+        .to(ambientElements, { opacity: 1, duration: 2, stagger: 0.2 }, 0)
+        .to(
+          chips,
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            visibility: "visible",
+            duration: 0.6,
+            stagger: 0.05,
+          },
+          0.4,
+        );
     }, containerRef);
 
     return () => ctx.revert();
-  }, [isReady]);
+  }, [isReady, showWelcome]);
 
   return (
     <div
       ref={containerRef}
-      className="relative flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] w-full overflow-hidden"
+      // overflow-clip (not -hidden): clips the ambient bleed without making this
+      // a scroll container. overflow-hidden IS programmatically scrollable, so
+      // ChatMessages' scrollIntoView could nudge it (its content is a hair taller
+      // than the box), pushing the title bar up under the header and opening a
+      // matching gap below the composer. clip can't be scrolled.
+      className="relative z-10 h-full min-h-0 w-full overflow-clip"
     >
-      {/* Floating nodes background */}
       <FloatingNodes />
-
-      {/* Ambient Background Elements */}
       <AmbientGrid />
 
-      {/* Corner accents */}
-      <div className="ambient-element absolute top-8 left-8 w-24 h-24 border-l border-t border-sbi-dark-border/40 opacity-0" />
-      <div className="ambient-element absolute bottom-8 right-8 w-24 h-24 border-r border-b border-sbi-dark-border/40 opacity-0" />
+      {/* Sources for the latest answer (hover-to-peek / lock-to-dock, right edge).
+          Hides itself entirely when the latest answer cites no documents. */}
+      <SourcesPanel />
 
-      {/* Subtle gradient orbs */}
-      <div className="ambient-element absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
-      <div className="ambient-element absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
+      {/* Ambient accents — faded in by GSAP on the welcome screen, static otherwise */}
+      {showWelcome ? (
+        <>
+          <div className="ambient-element absolute top-8 left-8 w-24 h-24 border-l border-t border-sbi-dark-border/40 opacity-0" />
+          <div className="ambient-element absolute bottom-8 right-8 w-24 h-24 border-r border-b border-sbi-dark-border/40 opacity-0" />
+          <div className="ambient-element absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
+          <div className="ambient-element absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl opacity-0" />
+          <div className="ambient-element absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent opacity-0" />
+        </>
+      ) : (
+        <>
+          <div className="absolute top-8 left-8 w-24 h-24 border-l border-t border-sbi-dark-border/40" />
+          <div className="absolute bottom-8 right-8 w-24 h-24 border-r border-b border-sbi-dark-border/40" />
+          <div className="absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent" />
+        </>
+      )}
 
-      {/* Welcome mode */}
-      <div className="relative z-10 w-full max-w-3xl mx-auto px-4 space-y-8">
-        <PortalHero />
-        <div>
-          <PortalInput queueOnly />
-        </div>
-        <SuggestionChips disableAutoAnimation />
+      {/*
+        One flex column. The composer is a SINGLE persistent element (never
+        remounts), so its text + focus survive the welcome->thread switch, and
+        framer-motion `layout` smoothly animates it from centered (welcome) to
+        the bottom (thread). Mirrors claude.ai.
+      */}
+      <div
+        className={cn(
+          "relative z-10 flex flex-col h-full",
+          showWelcome && "justify-center",
+        )}
+      >
+        {/* SR-only live region: announces the active conversation and generating
+            state so screen-reader users aren't left guessing which thread they're
+            in or whether a response is in flight. */}
+        <p aria-live="polite" className="sr-only">
+          {liveAnnouncement}
+        </p>
+
+        {/* Conversation title — in-flow bar at the top of the chat column
+            (kept in normal flow so the container's overflow-hidden can never
+            clip it). Shows "Untitled" until the backend auto-titles the chat. */}
+        {!showWelcome && (
+          <div className="shrink-0 flex justify-center px-4 pt-3 pb-1 pointer-events-none">
+            <div className="min-w-[8rem] max-w-md rounded-full bg-sbi-dark/70 backdrop-blur-sm border border-sbi-dark-border/50 px-4 py-1.5">
+              {loadingHistory && !sessionTitle ? (
+                <span className="mx-auto block h-3.5 w-28 animate-pulse rounded bg-sbi-dark-border/40" />
+              ) : (
+                <span className="block text-xs font-medium text-white/80 text-center truncate">
+                  {sessionTitle || "Untitled"}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showWelcome ? (
+          // Welcome: the hero sits directly above the composer; the column's
+          // justify-center (above) vertically centers the hero + composer as a
+          // group, and the persistent composer animates from this centered spot
+          // to the bottom on the first message (framer-motion `layout`).
+          <div className="shrink-0 w-full max-w-3xl mx-auto px-4 mb-2">
+            <PortalHero />
+          </div>
+        ) : showEmptyState ? (
+          <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar flex items-center justify-center">
+            <div className="w-full max-w-md mx-auto px-4 text-center">
+              <p className="text-sm font-medium text-white/80">
+                This conversation couldn't be loaded
+              </p>
+              <p className="mt-2 text-xs text-sbi-muted-dark font-light leading-relaxed">
+                It may have been deleted or is no longer available. Start a new
+                message below to keep going.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar">
+            <div className="w-full max-w-3xl mx-auto px-4 pt-3">
+              {loadingHistory ? <ChatHistorySkeleton /> : <ChatMessages />}
+            </div>
+          </div>
+        )}
+
+        <motion.div
+          layout
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="shrink-0 w-full max-w-3xl mx-auto px-4 pt-2 pb-4"
+        >
+          {/* Quick-action chips: only on the empty new-chat hero. Once the
+              first message lands, showWelcome flips and the row unmounts. */}
+          {showWelcome && (
+            <div className="mb-3">
+              <QuickActionChips />
+            </div>
+          )}
+          <PortalInput animated={false} />
+          {!showWelcome && (
+            <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
+              AI can make mistakes, so double check responses
+            </p>
+          )}
+        </motion.div>
       </div>
-
-      {/* Bottom line */}
-      <div className="ambient-element absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent opacity-0" />
     </div>
   );
 }
 
 /**
- * Chat state rendered on the explore route (/{slug}/dashboard/explore)
- * Shows the active chat session with messages and input.
+ * Placeholder shown while loadSession() hydrates an existing conversation, so a
+ * reloaded chat reads as "loading history" instead of flashing an empty thread.
  */
-export function ExploreChat({ urlSlug }: ExploreProps) {
-  const router = useRouter();
-  const { messages, clearChat, cancelRequest, processPendingMessage } = useChat();
-  const mountedRef = useRef(false);
-
-  // If no messages (direct navigation or page reload), redirect to dashboard
-  useEffect(() => {
-    if (messages.length === 0) {
-      router.replace(`/${urlSlug}/dashboard`);
-    }
-  }, []);
-
-  // Process the queued message from the welcome page
-  useEffect(() => {
-    processPendingMessage();
-  }, []);
-
-  // Cleanup on page unload/refresh
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      cancelRequest();
-      clearChat();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [clearChat, cancelRequest]);
-
-  // Cleanup when navigating away from explore
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      mountedRef.current = true;
-    }, 50);
-
-    return () => {
-      clearTimeout(timer);
-      if (mountedRef.current) {
-        cancelRequest();
-        clearChat();
-      }
-    };
-  }, [cancelRequest, clearChat]);
-
+function ChatHistorySkeleton() {
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] w-full overflow-hidden">
-      {/* Floating nodes background */}
-      <FloatingNodes />
-
-      {/* Ambient Background Elements */}
-      <AmbientGrid />
-
-      {/* Corner accents */}
-      <div className="absolute top-8 left-8 w-24 h-24 border-l border-t border-sbi-dark-border/40" />
-      <div className="absolute bottom-8 right-8 w-24 h-24 border-r border-b border-sbi-dark-border/40" />
-
-      {/* Subtle gradient orbs */}
-      <div className="absolute top-1/4 -left-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
-      <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-sbi-green/2 rounded-full blur-3xl" />
-
-      {/* Chat scrollable messages */}
-      <div className="absolute inset-0 z-10 overflow-y-auto dashboard-scrollbar">
-        <div className="w-full max-w-3xl mx-auto px-4 min-h-full flex flex-col">
-          {/* Chat messages */}
-          <div className="flex-1 pt-6">
-            <ChatMessages />
-          </div>
-
-          {/* Input section */}
-          <div className="sticky bottom-0 bg-sbi-dark pb-4 pt-2">
-            <PortalInput animated={false} />
-            <p className="text-center text-xs text-sbi-muted-dark mt-3 font-light">
-              AI can make mistakes, so double check responses
-            </p>
-          </div>
-        </div>
+    <div className="space-y-6 py-2" aria-hidden="true">
+      <div className="flex justify-end">
+        <div className="h-9 w-40 rounded-2xl bg-sbi-dark-border/30 animate-pulse" />
       </div>
-
-      {/* Bottom line */}
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-sbi-dark-border/30 to-transparent" />
+      <div className="space-y-2">
+        <div className="h-3.5 w-3/4 rounded bg-sbi-dark-border/30 animate-pulse" />
+        <div className="h-3.5 w-5/6 rounded bg-sbi-dark-border/30 animate-pulse" />
+        <div className="h-3.5 w-2/3 rounded bg-sbi-dark-border/30 animate-pulse" />
+      </div>
+      <div className="flex justify-end">
+        <div className="h-9 w-28 rounded-2xl bg-sbi-dark-border/30 animate-pulse" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3.5 w-2/3 rounded bg-sbi-dark-border/30 animate-pulse" />
+        <div className="h-3.5 w-1/2 rounded bg-sbi-dark-border/30 animate-pulse" />
+      </div>
     </div>
   );
 }

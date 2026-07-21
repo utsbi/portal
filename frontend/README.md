@@ -1,67 +1,57 @@
-# SBI Portal - Frontend
+# UTSBI Portal — Frontend
 
-A Next.js application for the Sustainable Building Initiative, featuring project showcases, team management, and authenticated dashboards.
+Next.js 16 (App Router) application for the UT Sustainable Building Initiative:
+public marketing pages plus an authenticated dashboard (projects, reports,
+finance, messaging, and an AI portal).
 
-## Prerequisites
+> For full conventions, architecture, and code style, see
+> [`AGENTS.md`](AGENTS.md) — it is the source of truth for this app.
 
-- [Bun](https://bun.sh) (recommended runtime)
-- Node.js 18+ (alternative)
-
-## Getting Started
-
-Install dependencies and start the development server:
+## Getting started
 
 ```bash
-bun install
-bun dev
+bun install   # preferred runtime
+bun dev       # http://localhost:3000
 ```
 
-Visit [http://localhost:3000](http://localhost:3000) to view the application.
+Copy `.env.example` to `.env.local` and fill in the values before running.
+`.env.example` is the authoritative list of required environment variables.
+Production email configuration and verification are documented in
+[`docs/EMAIL.md`](docs/EMAIL.md).
 
-## Project Structure
+## Tech stack
+
+- **Framework:** Next.js 16 (App Router), React, TypeScript (strict)
+- **Styling:** Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com) (Radix primitives)
+- **Animation:** `motion/react`
+- **3D rendering:** React Three Fiber
+- **Auth & data:** Supabase (Auth + Postgres, RLS)
+- **Tooling:** Bun, Biome (lint/format)
+
+## Scripts
+
+```bash
+bun dev            # Start dev server (Turbopack)
+bun build          # Production build
+bun start          # Start production server
+bun lint           # Biome (biome check)
+bun run test       # Vitest suites
+bun run test:e2e   # Playwright smoke suite
+```
+
+## Project structure
 
 ```
 app/
-  ├── (static)/          # Public pages
-  │   ├── about/
-  │   ├── contact/
-  │   ├── outreach/
-  │   ├── projects/
-  │   └── login/         # Authentication
-  ├── dashboard/         # Protected pages
-  └── layout.tsx         # Root layout
-components/              # Reusable React components
+  (static)/      # Public pages (home, about, contact, projects, outreach, login)
+  dashboard/     # Protected routes (auth enforced via proxy.ts)
+  api/           # API routes
+components/
+  ui/            # shadcn/ui primitives
+  dashboard/     # Dashboard-specific components, grouped by feature
 lib/
-  └── supabase/          # Supabase client configuration
+  supabase/      # Client/server/middleware helpers
 ```
 
-## Tech Stack
-
-- **Framework:** Next.js 16 (App Router)
-- **Styling:** Tailwind CSS, Mantine UI
-- **3D Rendering:** React Three Fiber
-- **Authentication:** Supabase Auth
-- **Language:** TypeScript
-
-## Available Scripts
-
-```bash
-bun dev          # Start development server
-bun build        # Build for production
-bun start        # Start production server
-bun lint         # Run linter
-```
-
-## Environment Variables
-
-Create a `.env.local` file:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-N8N_CONTACT_WEBHOOK_URL=
-BASIC_AUTH_USER=
-BASIC_AUTH_PASSWORD=
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=
-TURNSTILE_SECRET_KEY=
-```
+See [`AGENTS.md`](AGENTS.md) for the complete structure, naming conventions,
+auth patterns, and component guidelines.

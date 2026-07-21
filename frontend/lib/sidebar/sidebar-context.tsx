@@ -2,11 +2,13 @@
 
 import {
   createContext,
-  useContext,
-  useState,
-  useCallback,
   type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
+import { SIDEBAR_COOKIE } from "./cookie";
 
 interface SidebarContextType {
   state: "expanded" | "collapsed";
@@ -31,6 +33,13 @@ export function SidebarProvider({
   const toggleSidebar = useCallback(() => {
     setOpen((prev) => !prev);
   }, []);
+
+  // Mirror the current state into a long-lived cookie so the next server render
+  // (DashboardLayout) seeds defaultOpen from it instead of a hardcoded value.
+  useEffect(() => {
+    // biome-ignore lint/suspicious/noDocumentCookie: simple synchronous write; the async CookieStore API lacks Safari support
+    document.cookie = `${SIDEBAR_COOKIE}=${open}; path=/; max-age=31536000; samesite=lax`;
+  }, [open]);
 
   return (
     <SidebarContext.Provider

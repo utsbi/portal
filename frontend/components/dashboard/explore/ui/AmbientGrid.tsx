@@ -1,37 +1,60 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import gsap from 'gsap';
+import gsap from "gsap";
+import { useEffect, useRef, useState } from "react";
+
+interface NodePosition {
+  id: string;
+  top: string;
+  left: string;
+}
 
 export function AmbientGrid() {
   const gridRef = useRef<HTMLDivElement>(null);
+  const [nodes, setNodes] = useState<NodePosition[]>([]);
+
+  // Positions use Math.random(), which would differ between the server and
+  // client render and break hydration. Generate them on the client only, after
+  // mount. SSR emits zero nodes (so server/client first render match); the
+  // nodes fade in via GSAP anyway, so the one-frame delay is invisible.
+  useEffect(() => {
+    setNodes(
+      Array.from({ length: 6 }, () => ({
+        id: crypto.randomUUID(),
+        top: `${20 + Math.random() * 60}%`,
+        left: `${10 + Math.random() * 80}%`,
+      })),
+    );
+  }, []);
 
   useEffect(() => {
-    if (!gridRef.current) return;
+    if (!gridRef.current || nodes.length === 0) return;
 
     const ctx = gsap.context(() => {
-      // Subtle pulse animation on grid nodes
-      const nodes = gridRef.current?.querySelectorAll('.grid-node');
-      if (nodes && nodes.length > 0) {
-        gsap.to(nodes, {
+      const els = gridRef.current?.querySelectorAll(".grid-node");
+      if (els && els.length > 0) {
+        gsap.to(els, {
           opacity: 0.15,
           duration: 2,
           stagger: {
             each: 0.5,
             repeat: -1,
             yoyo: true,
-            from: 'random',
+            from: "random",
           },
-          ease: 'sine.inOut',
+          ease: "sine.inOut",
         });
       }
     }, gridRef);
 
     return () => ctx.revert();
-  }, []);
+  }, [nodes]);
 
   return (
-    <div ref={gridRef} className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div
+      ref={gridRef}
+      className="absolute inset-0 overflow-hidden pointer-events-none"
+    >
       {/* Blueprint grid pattern */}
       <svg
         className="absolute inset-0 w-full h-full opacity-[0.015]"
@@ -73,16 +96,13 @@ export function AmbientGrid() {
         <rect width="100%" height="100%" fill="url(#dashboard-grid-large)" />
       </svg>
 
-      {/* Animated grid intersection nodes */}
+      {/* Animated grid intersection nodes (client-generated to avoid hydration mismatch) */}
       <div className="absolute inset-0">
-        {[...Array(6)].map((_, i) => (
+        {nodes.map((node) => (
           <div
-            key={i}
+            key={node.id}
             className="grid-node absolute w-1 h-1 bg-sbi-green rounded-full opacity-0"
-            style={{
-              top: `${20 + Math.random() * 60}%`,
-              left: `${10 + Math.random() * 80}%`,
-            }}
+            style={{ top: node.top, left: node.left }}
           />
         ))}
       </div>

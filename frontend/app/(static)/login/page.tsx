@@ -1,14 +1,16 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import bg from "@/assets/images/login.jpg";
-import { loginAction, checkAuthAction } from "./actions";
+import { BrandLoader } from "@/components/brand-loader";
+import { checkAuthAction, loginAction } from "./actions";
 
 const portalTypes = ["Client", "Member", "Sponsor"];
 
@@ -18,7 +20,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loginAttempts, setLoginAttempts] = useState(0);
   const [portalTypeIndex, setPortalTypeIndex] = useState(0);
   const [formState, setFormState] = useState({
     email: "",
@@ -36,9 +37,9 @@ export default function LoginPage() {
   useEffect(() => {
     const checkAuth = async () => {
       const result = await checkAuthAction();
-      
-      if (result.authenticated && result.urlSlug) {
-        router.replace(`/${result.urlSlug}/dashboard`);
+
+      if (result.authenticated) {
+        router.replace("/dashboard");
       } else {
         setIsCheckingAuth(false);
       }
@@ -65,14 +66,11 @@ export default function LoginPage() {
 
       if (!result.success) {
         setError(result.error || "An error occurred. Please try again.");
-        if (result.error === "Invalid email or password") {
-          setLoginAttempts((prev) => prev + 1);
-        }
         return;
       }
 
-      if (result.urlSlug) {
-        router.replace(`/${result.urlSlug}/dashboard`);
+      if (result.success) {
+        router.replace("/dashboard");
       }
     } catch {
       setError("An unexpected error occurred. Please try again.");
@@ -101,29 +99,12 @@ export default function LoginPage() {
       setError("Failed to send reset email. Please try again.");
     } else {
       setError(null);
-      alert("Password reset email sent. Please check your inbox.");
+      toast.success("Password reset email sent. Please check your inbox.");
     }
   };
 
   if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-sbi-dark flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-4"
-        >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-8 h-8 border-2 border-sbi-green border-t-transparent rounded-full"
-          />
-          <span className="text-sbi-muted text-sm tracking-wider uppercase">
-            Loading...
-          </span>
-        </motion.div>
-      </div>
-    );
+    return <BrandLoader />;
   }
 
   return (
@@ -153,29 +134,23 @@ export default function LoginPage() {
             transition={{ delay: 0.1, duration: 0.6 }}
             className="text-center mb-12"
           >
-            {/* <Link href="/" className="inline-block group"> */}
-            {/*   <span className="text-4xl font-light tracking-tight"> */}
-            {/*     <span className="text-sbi-green">S</span>BI */}
-            {/*   </span> */}
-            {/*   <div className="h-px w-0 bg-sbi-green group-hover:w-full transition-all duration-300 mx-auto" /> */}
-            {/* </Link> */}
             <p className="mt-4 text-sbi-muted text-sm tracking-wider uppercase flex items-center justify-center gap-[0.3em]">
               <span>SBI</span>
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={portalTypes[portalTypeIndex]}
-                    initial={{ y: "100%", opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: "-100%", opacity: 0 }}
-                    transition={{
-                      duration: 0.4,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    className="inline-block uppercase text-sbi-green"
-                  >
-                    {portalTypes[portalTypeIndex]}
-                  </motion.span>
-                </AnimatePresence>
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={portalTypes[portalTypeIndex]}
+                  initial={{ y: "100%", opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: "-100%", opacity: 0 }}
+                  transition={{
+                    duration: 0.4,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className="inline-block uppercase text-sbi-green"
+                >
+                  {portalTypes[portalTypeIndex]}
+                </motion.span>
+              </AnimatePresence>
               <span>Portal</span>
             </p>
           </motion.div>
@@ -273,17 +248,15 @@ export default function LoginPage() {
                   </motion.p>
                 )}
 
-                {loginAttempts >= 2 && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <button
-                      type="button"
-                      onClick={handleForgotPassword}
-                      className="text-sm text-white/50 hover:text-sbi-green transition-colors"
-                    >
-                      Forgot your password?
-                    </button>
-                  </motion.div>
-                )}
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-sm text-white/50 hover:text-sbi-green transition-colors"
+                  >
+                    Forgot your password?
+                  </button>
+                </div>
 
                 <motion.button
                   type="submit"

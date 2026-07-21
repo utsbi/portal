@@ -50,9 +50,9 @@ coverage.xml
 # AI custom response prompt
 system_prompt.md
 
-# AI context
-# claude.md
-# IMPLEMENTATION_SUMMARY.md
+# Local agent context files — intentionally never published
+AGENTS.md
+CLAUDE.md
 
 # Database
 *.db
@@ -92,3 +92,26 @@ system_prompt.md
 
 # exclude lancedb from source control by default
 lancedb/
+
+# Agent / tooling sidecar dirs. 
+.omc/
+.sisyphus/
+.claude/
+.impeccable/
+.superpowers/
+
+# Local MCP configuration may contain bearer tokens.
+.mcp.json
+
+# Playwright MCP scratch output (screenshots, snapshots, console logs)
+.playwright-mcp/
+
+# Supabase CLI scratch (linked-project + version cache, machine-local)
+supabase/.temp/
+
+# Local planning / spec notes — kept untracked, never committed
+docs/superpowers/
+
+# Local architecture/audit working documents — intentionally not published
+AUDIT_REPORT.md
+RAG_ARCHITECTURE.md

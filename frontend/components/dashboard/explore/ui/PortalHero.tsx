@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useClient } from '@/lib/client/client-context';
+import { useProject } from "@/lib/project/project-context";
 
 export function PortalHero() {
-  const { client, isLoading } = useClient();
-  
+  const { user, isLoading } = useProject();
+
   // Get first name from full name
-  const firstName = client?.name?.split(' ')[0] || '';
+  const firstName = user?.name?.split(" ")[0] || "";
 
   return (
     <div className="flex flex-col items-center text-center space-y-6">
@@ -15,10 +15,13 @@ export function PortalHero() {
         {/* Greeting text */}
         <div className="overflow-hidden">
           <h1 className="text-4xl md:text-4xl lg:text-5xl font-extralight tracking-tight text-white leading-none">
-            Hello, <span className="text-sbi-green">{isLoading ? '...' : firstName}</span>
+            Hello,{" "}
+            <span className="text-sbi-green">
+              {isLoading ? "..." : firstName}
+            </span>
           </h1>
         </div>
-        
+
         {/* Subtitle with refined styling */}
         <p className="text-lg md:text-xl font-light text-sbi-muted tracking-wide">
           How can I help you?

@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
 
 # next.js
 /.next/
@@ -32,6 +34,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +42,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Agent / tooling sidecar dirs. 
+.omc/
+.sisyphus/
+.claude/
+.impeccable/
+.superpowers/
+
+# Playwright MCP scratch output (screenshots, snapshots, console logs)
+.playwright-mcp/
+
+# Local / agent planning notes (not product docs)
+docs/plans/

@@ -1,18 +1,18 @@
 "use client";
 
-import {
-  Button,
-  Container,
-  Paper,
-  PasswordInput,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { DotLoader } from "react-spinners";
+import { btnGhost, btnPrimary } from "@/components/dashboard/common/ui";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+
+const inputClass =
+  "bg-sbi-dark border-sbi-dark-border rounded-lg px-4 py-3 h-auto text-base md:text-base text-white placeholder:text-white/30 focus-visible:border-sbi-green/50 focus-visible:ring-sbi-green/20 focus-visible:ring-[2px] shadow-none";
+
+const labelClass =
+  "text-xs uppercase tracking-[0.1em] text-sbi-muted mb-2 font-medium block";
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
@@ -54,7 +54,6 @@ export default function UpdatePasswordPage() {
       }
 
       try {
-        // Persist the recovery session supplied in the redirect hash.
         const { error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
@@ -132,7 +131,6 @@ export default function UpdatePasswordPage() {
       setPassword("");
       setConfirmPassword("");
 
-      // wait two seconds before redirecting to login
       setTimeout(() => {
         router.push("/login");
       }, 2000);
@@ -141,9 +139,7 @@ export default function UpdatePasswordPage() {
   );
 
   useEffect(() => {
-    if (isVerifying || verificationError) {
-      return;
-    }
+    if (isVerifying || verificationError) return;
 
     let isActive = true;
     const supabase = createClient();
@@ -152,7 +148,6 @@ export default function UpdatePasswordPage() {
       .getSession()
       .then(({ data }) => {
         if (!isActive) return;
-
         if (!data.session) {
           router.replace("/login");
         } else {
@@ -171,87 +166,108 @@ export default function UpdatePasswordPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-svh w-full items-center justify-center">
+      <div className="flex min-h-svh w-full items-center justify-center bg-sbi-dark">
         <div className="flex flex-col items-center gap-5">
-          <DotLoader size={40} color="#4B5563" />
-          <span className="text-gray-600 text-xl">Loading...</span>
+          <DotLoader size={40} color="#22c55e" />
+          <span className="text-sbi-muted text-xl">Loading…</span>
         </div>
       </div>
     );
   }
 
   return (
-    <Container size="xs" py="xl">
-      <Paper shadow="md" radius="md" p="xl" withBorder>
-        <Stack gap="lg">
-          <Title order={2}>Create a new password</Title>
+    <div className="min-h-svh w-full bg-sbi-dark flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md bg-sbi-dark-card/40 border border-sbi-dark-border/60 rounded-xl shadow-2xl shadow-black/40 p-8 space-y-6">
+        <h1 className="text-xl font-light tracking-tight text-white">
+          Create a new password
+        </h1>
 
-          {isVerifying && <Text c="dimmed">Verifying your reset link…</Text>}
+        {isVerifying && (
+          <p className="text-sm text-sbi-muted">Verifying your reset link…</p>
+        )}
 
-          {!isVerifying && verificationError && (
-            <Stack gap="xs">
-              <Text c="red" fw={600}>
-                Unable to continue
-              </Text>
-              <Text c="dimmed">{verificationError}</Text>
-              <Button variant="subtle" onClick={() => router.push("/login")}>
-                Return to login
-              </Button>
-            </Stack>
-          )}
+        {!isVerifying && verificationError && (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-red-400">
+              Unable to continue
+            </p>
+            <p className="text-sm text-sbi-muted">{verificationError}</p>
+            <button
+              type="button"
+              onClick={() => router.push("/login")}
+              className={btnGhost}
+            >
+              Return to login
+            </button>
+          </div>
+        )}
 
-          {!isVerifying && !verificationError && (
-            <form onSubmit={handleSubmit}>
-              <Stack gap="md">
-                <Text c="dimmed">
-                  Enter and confirm a new password for your account.
-                </Text>
+        {!isVerifying && !verificationError && (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <p className="text-sm text-sbi-muted">
+              Enter and confirm a new password for your account.
+            </p>
 
-                <PasswordInput
-                  label="New password"
-                  description="Minimum 8 characters"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.currentTarget.value)}
-                  autoComplete="new-password"
-                  autoFocus
-                />
+            <div>
+              <Label htmlFor="new-password" className={labelClass}>
+                New password
+              </Label>
+              <Input
+                id="new-password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                autoFocus
+                className={inputClass}
+              />
+              <p className="text-xs text-sbi-muted-dark mt-1.5">
+                Minimum 8 characters
+              </p>
+            </div>
 
-                <PasswordInput
-                  label="Confirm new password"
-                  required
-                  value={confirmPassword}
-                  onChange={(event) =>
-                    setConfirmPassword(event.currentTarget.value)
-                  }
-                  autoComplete="new-password"
-                />
+            <div>
+              <Label htmlFor="confirm-password" className={labelClass}>
+                Confirm new password
+              </Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                className={inputClass}
+              />
+            </div>
 
-                {updateError && (
-                  <Text size="sm" c="red">
-                    {updateError}
-                  </Text>
-                )}
+            {updateError && (
+              <p className="text-sm text-red-400">{updateError}</p>
+            )}
+            {isSuccess && (
+              <p className="text-sm text-sbi-green">
+                Password updated. Redirecting to login…
+              </p>
+            )}
 
-                {isSuccess && (
-                  <Text size="sm" c="green">
-                    Password updated. Redirecting to login…
-                  </Text>
-                )}
-
-                <Button
-                  type="submit"
-                  fullWidth
-                  loading={isSubmitting}
-                  disabled={isSubmitting || isSuccess || !canSubmit}
-                >
-                  Save new password
-                </Button>
-              </Stack>
-            </form>
-          )}
-        </Stack>
-      </Paper>
-    </Container>
+            <button
+              type="submit"
+              disabled={isSubmitting || isSuccess || !canSubmit}
+              className={`${btnPrimary} w-full`}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Save new password"
+              )}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }

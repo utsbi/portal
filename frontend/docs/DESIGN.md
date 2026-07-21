@@ -54,7 +54,7 @@ bg-linear-to-t from-sbi-dark via-sbi-dark/80 to-sbi-dark/60
 ### Font Families
 
 - **Urbanist** — Primary UI font (applied to `<body>` via `font-urbanist`)
-- **Old Standard TT** — Serif accent font (`font-old-standard`)
+- **JetBrains Mono** — Monospace (`font-jetbrains-mono`)
 
 ### Type Scale
 
@@ -370,6 +370,56 @@ Common patterns:
 - `grid-cols-1 md:grid-cols-3` — Responsive grids
 
 ---
+
+## Dashboard System
+
+The dashboard is a **separate surface** from the public site. It does NOT use
+BlueprintGrid, heroes, or parallax. It DOES inherit the color palette, type
+scale, and — critically — the **button language** (outlined green that fills
+on hover; never loud solid-green fills).
+
+Primitives live in `components/dashboard/common/ui.tsx`. Use them; do not
+hand-roll page chrome.
+
+### Containment rule (the #1 rule)
+
+**Nothing floats on bare `sbi-dark` black.** Stats, charts, lists, settings
+sections, message threads — every content block sits inside a `<Panel>`.
+Uncontained content reads as broken, not minimal.
+
+### Primitives
+
+| Component | Use for |
+|-----------|---------|
+| `<DashboardShell>` | Page wrapper: full height, padding, `max-w-7xl` centered column |
+| `<PageHeader title subtitle action>` | Every page's title block (pixel-identical) |
+| `<SectionLabel>` | Green-line + uppercase tracked section divider |
+| `<Panel>` | The canonical contained surface (`bg-sbi-dark-card/40` + border + `rounded-xl`) |
+| `<StatTile label value sublabel icon>` | KPI numbers — never render bare numbers |
+| `<EmptyState icon title description action>` | Fills its container; not a tiny island |
+
+### Button hierarchy
+
+| Intent | Token | Treatment |
+|--------|-------|-----------|
+| Primary action | `btnPrimary` | `bg-sbi-green/10` + green border → fills green on hover |
+| Secondary | `btnGhost` | transparent + muted border → white on hover |
+
+**Banned:** `bg-sbi-green text-sbi-dark` solid fills as default button state.
+
+### Surface tokens
+
+- Panel bg: `bg-sbi-dark-card/40`
+- Panel border: `border-sbi-dark-border/50`
+- Radius: `rounded-xl` (panels), `rounded-md` (buttons/inputs)
+- Eyebrow labels: `text-[0.7rem] tracking-[0.2em] uppercase text-sbi-muted-dark`
+- Stat value: `text-4xl font-thin tracking-tight tabular-nums`
+
+### Never
+
+- Raw IDs in UI ("Conversation 11" → use the client/company name)
+- Content clustered in the top third with a black void below
+- Two different green languages on one screen
 
 ## Implementation Checklist
 
