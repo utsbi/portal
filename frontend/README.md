@@ -4,9 +4,6 @@ Next.js 16 (App Router) application for the UT Sustainable Building Initiative:
 public marketing pages plus an authenticated dashboard (projects, reports,
 finance, messaging, and an AI portal).
 
-> For full conventions, architecture, and code style, see
-> [`AGENTS.md`](AGENTS.md) — it is the source of truth for this app.
-
 ## Getting started
 
 ```bash
@@ -41,10 +38,10 @@ bun run test:e2e   # Playwright smoke suite
 
 ## Project structure
 
-```
+```text
 app/
   (static)/      # Public pages (home, about, contact, projects, outreach, login)
-  dashboard/     # Protected routes (auth enforced via proxy.ts)
+  dashboard/     # Protected routes (auth enforced via middleware/proxy)
   api/           # API routes
 components/
   ui/            # shadcn/ui primitives
@@ -53,5 +50,11 @@ lib/
   supabase/      # Client/server/middleware helpers
 ```
 
-See [`AGENTS.md`](AGENTS.md) for the complete structure, naming conventions,
-auth patterns, and component guidelines.
+## Architecture & Conventions
+
+- **Supabase Clients:** Always use the helpers in `lib/supabase/` (e.g.
+  `createClient` from `@/lib/supabase/client` or `@/lib/supabase/server`).
+- **Auth Guarding:** Dashboard routes are protected by middleware and server
+  component checks enforcing authentication and workspace access.
+- **Styling & Components:** Built with Tailwind CSS v4 and shadcn/ui
+  primitives. Follow strict TypeScript typing and Biome formatting rules.

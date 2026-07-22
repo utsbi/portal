@@ -3,6 +3,7 @@
 import gsap from "gsap";
 import {
   Bell,
+  BookOpen,
   Calendar,
   ChevronUp,
   ClipboardList,
@@ -61,6 +62,7 @@ const generalItems: NavItem[] = [
     icon: FileEdit,
     roles: ["director"],
   },
+  { title: "Documentation", path: "/docs", icon: BookOpen },
 ];
 
 const projectItems: NavItem[] = [
@@ -91,7 +93,9 @@ function NavLink({
   onClick,
 }: NavLinkProps) {
   const indicatorRef = useRef<HTMLDivElement>(null);
-  const fullUrl = `${baseUrl}${item.path}`;
+  const fullUrl = item.path.startsWith("/docs")
+    ? item.path
+    : `${baseUrl}${item.path}`;
 
   useEffect(() => {
     if (!indicatorRef.current) return;
@@ -179,6 +183,9 @@ export function AppSidebar() {
   const userInitials = user?.initials || "...";
 
   const isActive = (path: string) => {
+    if (path.startsWith("/docs")) {
+      return pathname.startsWith("/docs");
+    }
     const fullPath = `${baseUrl}${path}`;
     if (path === "") {
       // Explore is active on both /dashboard and /dashboard/explore
