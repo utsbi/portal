@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const docsAppUrl = process.env.DOCS_APP_URL || "https://docs-2s4.pages.dev";
+const docsAppUrl = process.env.DOCS_APP_URL || "https://docs.utsbi.org";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 // Derive the realtime wss origin from the Supabase project URL
 // e.g. https://abc.supabase.co → wss://abc.supabase.co

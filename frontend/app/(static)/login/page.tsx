@@ -4,18 +4,20 @@ import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import bg from "@/assets/images/login.jpg";
 import { BrandLoader } from "@/components/brand-loader";
+import { safeLoginRedirect } from "@/lib/auth/redirect";
 import { checkAuthAction, loginAction } from "./actions";
 
 const portalTypes = ["Client", "Member", "Sponsor"];
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -34,19 +36,30 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // After login, send the user back where they came from (the docs site
+  // passes an absolute docs.utsbi.org URL in `next`) or to the dashboard.
+  const redirectAfterLogin = useCallback(() => {
+    const target = safeLoginRedirect(searchParams.get("next")) ?? "/dashboard";
+    if (target.startsWith("/")) {
+      router.replace(target);
+    } else {
+      window.location.assign(target);
+    }
+  }, [router, searchParams]);
+
   useEffect(() => {
     const checkAuth = async () => {
       const result = await checkAuthAction();
 
       if (result.authenticated) {
-        router.replace("/dashboard");
+        redirectAfterLogin();
       } else {
         setIsCheckingAuth(false);
       }
     };
 
     checkAuth();
-  }, [router]);
+  }, [redirectAfterLogin]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormState((prev) => ({
@@ -70,7 +83,7 @@ export default function LoginPage() {
       }
 
       if (result.success) {
-        router.replace("/dashboard");
+        redirectAfterLogin();
       }
     } catch {
       setError("An unexpected error occurred. Please try again.");
@@ -297,5 +310,13 @@ export default function LoginPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<BrandLoader />}>
+      <LoginForm />
+    </Suspense>
   );
 }

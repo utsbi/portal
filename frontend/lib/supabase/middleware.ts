@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { safeLoginRedirect } from "@/lib/auth/redirect";
+import { authCookieOptions } from "@/lib/supabase/cookie-options";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -10,6 +12,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL as string,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string,
     {
+      cookieOptions: authCookieOptions,
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -37,7 +40,9 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  // Redirect to login if not authenticated and on a protected route
+  // Redirect to login if not authenticated and on a protected route.
+  // Preserve the destination in `next` so the user lands back where they
+  // were headed (e.g. /docs) after signing in.
   if (
     !user &&
     (request.nextUrl.pathname.startsWith("/dashboard") ||
@@ -47,6 +52,11 @@ export async function updateSession(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
+    url.searchParams.set(
+      "next",
+      `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    );
     return NextResponse.redirect(url);
   }
 
@@ -64,6 +74,12 @@ export async function updateSession(request: NextRequest) {
       .maybeSingle();
 
     if (profile) {
+      // Honor a validated `next` target (e.g. a docs.utsbi.org URL the docs
+      // auth gate bounced here) before falling back to the dashboard.
+      const next = safeLoginRedirect(request.nextUrl.searchParams.get("next"));
+      if (next) {
+        return NextResponse.redirect(new URL(next, request.url));
+      }
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);
