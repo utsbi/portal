@@ -1,5 +1,8 @@
+from typing import List, Optional, Self
+from urllib.parse import urlparse
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -28,6 +31,26 @@ class Settings(BaseSettings):
     PORTAL_BASE_URL: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> Self:
+        """Reject development defaults when the service runs in production."""
+        if self.ENV != "production":
+            return self
+
+        if not self.allowed_hosts_list or "*" in self.allowed_hosts_list:
+            raise ValueError("ALLOWED_HOSTS must be explicit in production")
+        if not self.cors_origins_list or "*" in self.cors_origins_list:
+            raise ValueError("CORS_ORIGINS must be explicit in production")
+        if any(urlparse(origin).scheme != "https" for origin in self.cors_origins_list):
+            raise ValueError("CORS_ORIGINS must use HTTPS in production")
+
+        portal_url = (self.PORTAL_BASE_URL or "").strip()
+        if not portal_url:
+            raise ValueError("PORTAL_BASE_URL is required in production")
+        if urlparse(portal_url).scheme != "https":
+            raise ValueError("PORTAL_BASE_URL must use HTTPS in production")
+        return self
 
     @property
     def cors_origins_list(self) -> List[str]:
@@ -110,7 +133,7 @@ class Settings(BaseSettings):
         from the native ``project_events`` table under the caller's RLS. Defaults
         to local dev.
         """
-        return self.PORTAL_BASE_URL or "http://localhost:3000"
+        return (self.PORTAL_BASE_URL or "http://localhost:3000").rstrip("/")
 
     @property
     def supabase_secret(self) -> str:

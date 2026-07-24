@@ -57,7 +57,10 @@ function dedupeCookies(
   return [...selected.values()];
 }
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(
+  request: NextRequest,
+  forwardedHeaders: Headers = request.headers,
+) {
   // NextRequest.cookies stores values in a Map and therefore discards duplicate
   // cookie names. Read the raw header for the one-time legacy migration so both
   // the old host-only and newer domain-wide copies remain available.
@@ -66,7 +69,7 @@ export async function updateSession(request: NextRequest) {
   );
   const pendingCookies = new Map<string, PendingCookie>();
   let supabaseResponse = NextResponse.next({
-    request,
+    request: { headers: forwardedHeaders },
   });
 
   const setAll = (cookiesToSet: PendingCookie[]) => {
@@ -74,7 +77,9 @@ export async function updateSession(request: NextRequest) {
       request.cookies.set(cookie.name, cookie.value);
       pendingCookies.set(cookie.name, cookie);
     });
-    supabaseResponse = NextResponse.next({ request });
+    supabaseResponse = NextResponse.next({
+      request: { headers: forwardedHeaders },
+    });
     pendingCookies.forEach(({ name, value, options }) => {
       supabaseResponse.cookies.set(name, value, options);
     });

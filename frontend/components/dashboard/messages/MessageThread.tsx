@@ -51,6 +51,7 @@ import {
 import { toastError } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { uuid } from "@/lib/uuid";
 import type { Conversation } from "./ConversationList";
 import { useCmdKOptional } from "./cmdk/CommandPalette";
 import { renderMarkdown } from "./markdown";
@@ -1932,7 +1933,7 @@ export function MessageThread({
     // conversation. The same string is persisted to message_attachments.path,
     // keeping the read-side policy (which joins ma.path = objects.name) intact.
     if (!conversationId) return null;
-    const storagePath = `${conversationId}/${crypto.randomUUID()}-${file.name}`;
+    const storagePath = `${conversationId}/${uuid()}-${file.name}`;
     const { error } = await supabase.storage
       .from("Message Attachments")
       .upload(storagePath, file, { upsert: false });

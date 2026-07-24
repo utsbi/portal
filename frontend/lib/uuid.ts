@@ -5,8 +5,11 @@
  * localhost), so phones hitting the dev server over `http://<lan-ip>:3000`
  * throw `crypto.randomUUID is not a function`. `crypto.getRandomValues()` has
  * no such restriction — it's available in all contexts in every modern
- * browser (and in Node 19+), so we build the v4 UUID from those bytes. Falls
- * back to `Math.random` only if `getRandomValues` is somehow missing.
+ * browser (and in Node 19+), so we build the v4 UUID from those bytes.
+ *
+ * This helper deliberately has no `Math.random()` fallback: callers use these
+ * identifiers in persisted URLs and storage paths, so generation must fail
+ * clearly if a cryptographically secure random source is unavailable.
  */
 export function uuid(): string {
   const g = globalThis as {
@@ -38,11 +41,5 @@ export function uuid(): string {
     );
   }
 
-  // Last-resort non-cryptographic fallback. Should never hit in practice —
-  // every browser since 2014 and Node 19+ ship getRandomValues.
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  throw new Error("A cryptographically secure random source is unavailable");
 }

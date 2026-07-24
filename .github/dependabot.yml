@@ -1,6 +1,10 @@
 # Dependabot configuration.
-# Groups routine minor/patch bumps into one weekly PR per ecosystem to cut
-# noise; security updates still ship immediately and ungrouped by default.
+# Keep dependency metadata available to GitHub's dependency graph and alerts,
+# but do not open scheduled version-update pull requests. Dependency upgrades
+# are handled as deliberate, consolidated maintenance passes after local CI.
+#
+# Automatic Dependabot security-fix PRs are disabled in the repository's
+# Advanced Security settings; vulnerability alerts remain enabled.
 # Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 version: 2
 updates:
@@ -8,20 +12,16 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
-    groups:
-      minor-and-patch:
-        update-types:
-          - minor
-          - patch
+    open-pull-requests-limit: 0
 
-  # If the `uv` ecosystem is unavailable on this account, switch to `pip`
-  # against /backend (Dependabot reads pyproject.toml / uv.lock either way).
   - package-ecosystem: uv
     directory: /backend
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    open-pull-requests-limit: 0

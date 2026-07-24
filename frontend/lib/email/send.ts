@@ -20,7 +20,10 @@ import {
   rsvpNotificationHtml,
   rsvpNotificationText,
 } from "@/lib/email/templates/rsvp-notification";
+import { getPortalOrigin } from "@/lib/env/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+export { getPortalOrigin } from "@/lib/env/server";
 
 const MAX_SEND_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [250, 750];
@@ -57,28 +60,6 @@ function getEmailConfig() {
     from:
       process.env.EMAIL_FROM?.trim() || "SBI Portal <notifications@utsbi.org>",
   };
-}
-
-export function getPortalOrigin(): string {
-  const configured =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
-    process.env.VERCEL_URL?.trim() ||
-    "http://localhost:3000";
-  const withProtocol = /^https?:\/\//i.test(configured)
-    ? configured
-    : `https://${configured}`;
-  const url = new URL(withProtocol);
-
-  if (
-    process.env.NODE_ENV === "production" &&
-    url.protocol !== "https:" &&
-    url.hostname !== "localhost"
-  ) {
-    throw new Error("NEXT_PUBLIC_SITE_URL must use HTTPS in production");
-  }
-
-  return url.origin;
 }
 
 function getEmailTimeZone(): string {

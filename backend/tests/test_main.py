@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.explore.main import app
@@ -76,6 +77,9 @@ class TestDocsGating:
                 SUPABASE_URL="https://x.supabase.co",
                 SUPABASE_PUBLIC_KEY="anon",
                 ENV="production",
+                ALLOWED_HOSTS="api.example.com",
+                CORS_ORIGINS="https://app.example.com",
+                PORTAL_BASE_URL="https://app.example.com",
             )
             is_prod = prod_settings.ENV == "production"
             prod_app = fastapi.FastAPI(
@@ -168,6 +172,35 @@ class TestCORS:
             CORS_ORIGINS=" http://a.com , http://b.com ",
         )
         assert s.cors_origins_list == ["http://a.com", "http://b.com"]
+
+
+class TestProductionConfiguration:
+    """Production must not silently inherit development network defaults."""
+
+    @pytest.mark.parametrize(
+        ("overrides", "message"),
+        [
+            ({"ALLOWED_HOSTS": "*"}, "ALLOWED_HOSTS"),
+            ({"CORS_ORIGINS": "*"}, "CORS_ORIGINS"),
+            ({"CORS_ORIGINS": "http://app.example.com"}, "CORS_ORIGINS"),
+            ({"PORTAL_BASE_URL": None}, "PORTAL_BASE_URL"),
+            ({"PORTAL_BASE_URL": "http://app.example.com"}, "PORTAL_BASE_URL"),
+        ],
+    )
+    def test_rejects_insecure_production_defaults(self, overrides, message):
+        from app.explore.core.config import Settings
+
+        values = {
+            "SUPABASE_URL": "https://x.supabase.co",
+            "SUPABASE_PUBLIC_KEY": "k",
+            "ENV": "production",
+            "ALLOWED_HOSTS": "api.example.com",
+            "CORS_ORIGINS": "https://app.example.com",
+            "PORTAL_BASE_URL": "https://app.example.com",
+            **overrides,
+        }
+        with pytest.raises(ValueError, match=message):
+            Settings(**values)
 
 
 # ---------------------------------------------------------------------------

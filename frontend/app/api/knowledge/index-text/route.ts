@@ -1,10 +1,11 @@
 import type { NextRequest } from "next/server";
+import { getBackendUrl } from "@/lib/env/server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+const BACKEND_URL = getBackendUrl();
 
 function jsonError(status: number, detail: string) {
   return new Response(JSON.stringify({ detail }), {

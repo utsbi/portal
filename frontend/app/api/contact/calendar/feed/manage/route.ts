@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateFeedToken } from "@/lib/calendar/feed-token";
+import { getPortalOrigin } from "@/lib/env/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -9,12 +10,11 @@ interface ProfileConfig {
   [key: string]: unknown;
 }
 
-function buildFeedUrl(req: Request, token: string): string {
+function buildFeedUrl(token: string): string {
   // The browser uses https://, but the user pastes this into a calendar app
   // as webcal:// for auto-sync. We return the https form; the settings UI
   // rewrites the scheme to webcal:// when displaying the copy-paste URL.
-  const u = new URL(req.url);
-  return `${u.origin}/api/contact/calendar/feed/${token}`;
+  return `${getPortalOrigin()}/api/contact/calendar/feed/${token}`;
 }
 
 async function loadCallerProfileConfig() {
@@ -47,7 +47,7 @@ async function loadCallerProfileConfig() {
  * Returns the user's current feed URL. Generates a token on first request
  * (so we never return a feed URL that doesn't work).
  */
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
   const ctx = await loadCallerProfileConfig();
   if ("error" in ctx) return ctx.error;
   const { supabaseAdmin, profile } = ctx;
@@ -84,7 +84,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     hasToken: false,
-    url: buildFeedUrl(req, token.plaintext),
+    url: buildFeedUrl(token.plaintext),
   });
 }
 
@@ -92,7 +92,7 @@ export async function GET(req: Request) {
  * POST /api/contact/calendar/feed/manage  (rotate)
  * Issues a new token, invalidating the old one. Returns the new plaintext URL.
  */
-export async function POST(req: Request) {
+export async function POST(_req: Request) {
   const ctx = await loadCallerProfileConfig();
   if ("error" in ctx) return ctx.error;
   const { supabaseAdmin, profile } = ctx;
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({
     ok: true,
-    url: buildFeedUrl(req, token.plaintext),
+    url: buildFeedUrl(token.plaintext),
   });
 }
 

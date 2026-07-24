@@ -25,6 +25,9 @@ import app.explore.api.deps as deps_mod
 @pytest.fixture()
 def prod_app(monkeypatch):
     monkeypatch.setenv("ENV", "production")
+    monkeypatch.setenv("ALLOWED_HOSTS", "api.example.com,testserver")
+    monkeypatch.setenv("CORS_ORIGINS", "https://app.example.com")
+    monkeypatch.setenv("PORTAL_BASE_URL", "https://app.example.com")
     import app.explore.core.config as config_mod
     import app.explore.main as main_mod
 
@@ -37,6 +40,9 @@ def prod_app(monkeypatch):
     finally:
         # Restore the development-built modules for the rest of the suite.
         monkeypatch.setenv("ENV", "development")
+        monkeypatch.setenv("ALLOWED_HOSTS", "*")
+        monkeypatch.setenv("CORS_ORIGINS", "http://localhost:3000")
+        monkeypatch.delenv("PORTAL_BASE_URL", raising=False)
         importlib.reload(config_mod)
         importlib.reload(main_mod)
 

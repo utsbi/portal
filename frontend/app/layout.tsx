@@ -4,6 +4,8 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { JetBrains_Mono, Urbanist } from "next/font/google";
+import { headers } from "next/headers";
+import { connection } from "next/server";
 import { Toaster } from "sonner";
 import faviconLight from "@/assets/favicons/favicon.ico";
 import faviconDark from "@/assets/favicons/favicon-light.ico";
@@ -90,35 +92,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // A request-specific CSP nonce is attached by proxy.ts. Waiting for the
+  // request opts every route into dynamic rendering so Next can apply it.
+  await connection();
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
       suppressHydrationWarning
       className={`${urbanist.variable} ${jetbrainsMono.variable}`}
     >
-      <head>
-        {/*
-          crypto.randomUUID polyfill. The Web Crypto API's randomUUID() is only
-          exposed in secure contexts (HTTPS or localhost), so phones hitting
-          the dev server over http://<lan-ip> throw "crypto.randomUUID is not a
-          function". getRandomValues() has no such restriction — patch the
-          missing method with it so every caller (this app and its deps) works.
-        */}
-        <script
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted inline polyfill, must run before hydration
-          dangerouslySetInnerHTML={{
-            __html:
-              "(function(){try{var c=window.crypto;if(c&&typeof c.randomUUID!=='function'&&typeof c.getRandomValues==='function'){c.randomUUID=function(){var b=new Uint8Array(16);c.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h='';for(var i=0;i<16;i++){h+=(b[i]<16?'0':'')+b[i].toString(16);}return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20,32);};}}catch(e){}})();",
-          }}
-        />
-      </head>
       <body className="scrollbar font-urbanist">
         <ThemeProvider
+          nonce={nonce}
           attribute="class"
           defaultTheme="dark"
           forcedTheme="dark"

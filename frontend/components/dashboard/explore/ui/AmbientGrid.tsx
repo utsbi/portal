@@ -19,8 +19,8 @@ export function AmbientGrid() {
   // nodes fade in via GSAP anyway, so the one-frame delay is invisible.
   useEffect(() => {
     setNodes(
-      Array.from({ length: 6 }, () => ({
-        id: crypto.randomUUID(),
+      Array.from({ length: 6 }, (_, index) => ({
+        id: `ambient-node-${index}`,
         top: `${20 + Math.random() * 60}%`,
         left: `${10 + Math.random() * 80}%`,
       })),

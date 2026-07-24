@@ -1,3 +1,5 @@
+import { uuid } from "@/lib/uuid";
+
 // ---------------------------------------------------------------------------
 // Canonical form-schema definition for the Google-Forms-grade questionnaire
 // system. This is the typed shape stored in `custom_form_schemas.fields` (jsonb)
@@ -405,7 +407,7 @@ export function validateAnswers(
 // ---------------------------------------------------------------------------
 
 export function generateFieldId(): string {
-  return `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  return `f_${uuid().replaceAll("-", "")}`;
 }
 
 function defaultLabelForType(type: FieldType): string {

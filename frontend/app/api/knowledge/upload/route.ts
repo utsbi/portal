@@ -1,10 +1,11 @@
 import type { NextRequest } from "next/server";
+import { getBackendUrl } from "@/lib/env/server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+const BACKEND_URL = getBackendUrl();
 
 // PDF only (the backend ingester accepts PDF), capped at 10 MB.
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
