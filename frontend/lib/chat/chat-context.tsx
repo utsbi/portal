@@ -1186,6 +1186,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // not on every sidebar expand (callers read the cached `sessionList`).
   const refreshSessions = useCallback(async (): Promise<SessionSummary[]> => {
     const supabase = createClient();
+    const { data: authData, error: authError } =
+      await supabase.auth.getClaims();
+
+    if (authError || !authData?.claims) {
+      setError("Your session expired. Sign in again to load conversations.");
+      sessionsLoadedRef.current = true;
+      setSessionsLoaded(true);
+      return [];
+    }
+
     const { data, error: fetchErr } = await supabase
       .from("client_chat_sessions")
       .select("id, public_id, title, updated_at, project_id, pinned")
