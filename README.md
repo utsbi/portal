@@ -6,12 +6,12 @@ backend, and the database schema.
 
 ## Repository structure
 
-| Path        | What it is                                                                 |
-| ----------- | ------------------------------------------------------------------------- |
-| `frontend/` | Next.js 16 (App Router) app — site + dashboard. See [`frontend/README.md`](frontend/README.md) and [`frontend/AGENTS.md`](frontend/AGENTS.md). |
-| `backend/`  | FastAPI service (Python 3.12+, managed with `uv`) powering the AI portal — LangGraph + OpenAI, document ingestion. |
-| `supabase/` | Postgres migrations for the Supabase database (auth, RLS, finance/reporting tables). |
-| `docker-compose.yml` | Production stack definition for the VPS (currently runs the backend; frontend block is commented out). |
+| Path | Description |
+| --- | --- |
+| `frontend/` | Next.js 16 App Router app. See [`frontend/README.md`](frontend/README.md). |
+| `backend/` | FastAPI service (`uv`). See [`backend/README.md`](backend/README.md). |
+| `supabase/` | Supabase Postgres migrations & RLS policies. |
+| `docker-compose.yml` | VPS Docker production stack definition. |
 
 ## Quick start
 

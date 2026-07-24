@@ -40,8 +40,8 @@ docker compose up -d backend
 ```
 
 Copy each app's `.env.example` to `.env.local` (frontend) / `.env` (backend)
-and fill in the values first. See [`frontend/README.md`](frontend/README.md)
-and [`frontend/AGENTS.md`](frontend/AGENTS.md) for frontend details.
+and fill in the values first. See [`frontend/README.md`](frontend/README.md) for
+frontend details.
 
 ## E2E browser tests (Playwright)
 
@@ -62,6 +62,7 @@ bun test:e2e:ui
 ```
 
 The suite covers:
+
 - Public static pages (home, about) — HTTP 200 + key text
 - Login form — renders, HTML5 required validation, back-to-home link
 - Contact form — Turnstile is **mocked** (no external call), form fields present

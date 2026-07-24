@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+const docsAppUrl = process.env.DOCS_APP_URL || "https://docs.utsbi.org";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 // Derive the realtime wss origin from the Supabase project URL
 // e.g. https://abc.supabase.co → wss://abc.supabase.co
@@ -7,6 +8,19 @@ const supabaseWss = supabaseUrl.replace(/^https?:\/\//, "wss://");
 const supabaseOrigin = supabaseUrl.replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: "/docs",
+        destination: `${docsAppUrl}/docs`,
+      },
+      {
+        source: "/docs/:path*",
+        destination: `${docsAppUrl}/docs/:path*`,
+      },
+    ];
+  },
+
   // Produce a self-contained server bundle for the Docker runtime
   // (consumed by frontend/Dockerfile). No-op for `next dev`.
   output: "standalone",

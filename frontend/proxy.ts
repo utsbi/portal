@@ -9,6 +9,9 @@ export const config = {
   matcher: [
     // Match dashboard routes (session-based, no slug)
     "/dashboard/:path*",
+    // Match docs routes
+    "/docs/:path*",
+    "/docs",
     // Match auth routes
     "/auth/:path*",
     // Match login so authed users are redirected at the edge (no layout flash)
