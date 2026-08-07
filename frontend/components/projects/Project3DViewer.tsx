@@ -26,6 +26,11 @@ import type {
 } from "@/lib/data/projects";
 
 const HDRI = "/textures/spruit_sunrise_4k.jpg";
+// Self-hosted Draco decoder (three/examples/jsm/libs/draco/gltf). drei's
+// default is the gstatic CDN, which the CSP connect-src blocks — and the
+// cross-origin fetch adds latency to first paint. Keep this in sync with
+// the worker-src/'wasm-unsafe-eval' allowances in lib/security/csp.ts.
+const DRACO_DECODER_PATH = "/draco/";
 const AUTO_ROTATE_RESUME_DELAY_MS = 5000;
 const FALLBACK_CAMERA_POSITION: [number, number, number] = [6.5, 615, 1015];
 const FALLBACK_CAMERA_TARGET: [number, number, number] = [0, 0, 0];
@@ -242,12 +247,18 @@ const ModelOptimizer: React.FC<ModelOptimizerProps> = ({ houseRef }) => {
 
           if (mesh.material) {
             const material = mesh.material as THREE.Material;
-            material.needsUpdate = true;
-            if ("side" in material) {
-              (material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+            if ("map" in material && material.map) {
+              const map = material.map as THREE.Texture;
+              map.generateMipmaps = false;
+              map.minFilter = THREE.LinearFilter;
             }
+            material.needsUpdate = true;
 
             if ("transparent" in material && material.transparent) {
+              if ("side" in material) {
+                (material as THREE.MeshStandardMaterial).side =
+                  THREE.DoubleSide;
+              }
               if ("alphaTest" in material)
                 (material as THREE.MeshStandardMaterial).alphaTest = 0.01;
               if ("depthWrite" in material)
@@ -423,7 +434,7 @@ const Model: React.FC<ModelProps> = ({
   setModelRef,
   onReady,
 }) => {
-  const { scene } = useGLTF(url, true);
+  const { scene } = useGLTF(url, DRACO_DECODER_PATH);
   const group = useRef<THREE.Group>(null);
 
   useEffect(() => {
@@ -586,6 +597,7 @@ export const Project3DViewer = forwardRef<
     const modelRefState = useRef<React.RefObject<THREE.Group | null> | null>(
       null,
     );
+
     const [activeCameraIndex, setActiveCameraIndex] = useState<number>(-1);
     const [autoRotateEnabled, setAutoRotateEnabled] = useState(autoRotate);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -596,7 +608,7 @@ export const Project3DViewer = forwardRef<
     const [boundingBox, setBoundingBox] = useState<BBoxData | null>(null);
 
     useEffect(() => {
-      useGLTF.preload(modelUrl, true);
+      useGLTF.preload(modelUrl, DRACO_DECODER_PATH);
     }, [modelUrl]);
 
     // Reset camera when project changes (modelUrl changes)

@@ -25,10 +25,18 @@ interface ProjectHeroProps {
 const MIN_LOADING_MS = 1500;
 
 class ViewerErrorBoundary extends React.Component<
-  { children: React.ReactNode; fallback: React.ReactNode },
+  {
+    children: React.ReactNode;
+    fallback: React.ReactNode;
+    onError?: () => void;
+  },
   { hasError: boolean }
 > {
-  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+  constructor(props: {
+    children: React.ReactNode;
+    fallback: React.ReactNode;
+    onError?: () => void;
+  }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -39,6 +47,7 @@ class ViewerErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("3D Viewer crashed:", error, info.componentStack);
+    this.props.onError?.();
   }
 
   render() {
@@ -118,6 +127,14 @@ export function ProjectHero({
     modelLoadedRef.current = true;
   }, []);
 
+  // If the viewer crashes (decode failure, offline, 404), the error boundary
+  // swaps in the image fallback — dismiss the loading overlay too, otherwise
+  // it would sit at 85% forever hiding the fallback.
+  const handleViewerError = useCallback(() => {
+    hasCompletedRef.current = true;
+    setPhase("done");
+  }, []);
+
   // Smooth animated progress bar with minimum display duration
   useEffect(() => {
     if (phase !== "loading") return;
@@ -155,6 +172,7 @@ export function ProjectHero({
       {/* 3D Viewer or Parallax Image */}
       {project.has3D && project.modelUrl ? (
         <ViewerErrorBoundary
+          onError={handleViewerError}
           fallback={
             project.galleryImages && project.galleryImages.length > 1 ? (
               <ProjectImageHero
@@ -181,7 +199,7 @@ export function ProjectHero({
             defaultCamera={project.defaultCamera}
             cameraLimits={project.cameraLimits}
             modelScale={project.modelScale}
-            autoRotate={true}
+            autoRotate={false}
             onLoadProgress={handleLoadProgress}
             onModelReady={handleModelReady}
           />
