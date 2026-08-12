@@ -9,9 +9,18 @@ import type { CalendarEvent } from "./types";
 import {
   buildMonthDays,
   dayNames,
+  eventDateKeys,
   formatDateKey,
   prettyDateNoYear,
 } from "./utils";
+
+interface EventBar {
+  event: CalendarEvent;
+  row: number;
+  startColumn: number;
+  endColumn: number;
+  lane: number;
+}
 
 interface Props {
   events: CalendarEvent[];
@@ -43,9 +52,10 @@ export function MonthView({
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
     for (const ev of events) {
-      if (!ev.dateKey) continue;
-      if (!map[ev.dateKey]) map[ev.dateKey] = [];
-      map[ev.dateKey].push(ev);
+      for (const dateKey of eventDateKeys(ev)) {
+        if (!map[dateKey]) map[dateKey] = [];
+        map[dateKey].push(ev);
+      }
     }
     return map;
   }, [events]);
@@ -54,6 +64,61 @@ export function MonthView({
     () => buildMonthDays(currentMonth),
     [currentMonth],
   );
+  const eventBars = useMemo(() => {
+    const dateIndex = new Map(
+      monthCells.map(({ date }, index) => [formatDateKey(date), index]),
+    );
+    const bars: EventBar[] = [];
+    for (const event of events) {
+      const indices = eventDateKeys(event)
+        .map((dateKey) => dateIndex.get(dateKey))
+        .filter((index): index is number => index !== undefined)
+        .sort((left, right) => left - right);
+      if (indices.length === 0) continue;
+      let start = indices[0];
+      let previous = indices[0];
+      for (const index of indices.slice(1)) {
+        if (
+          index === previous + 1 &&
+          Math.floor(index / 7) === Math.floor(previous / 7)
+        ) {
+          previous = index;
+          continue;
+        }
+        bars.push({
+          event,
+          row: Math.floor(start / 7),
+          startColumn: start % 7,
+          endColumn: previous % 7,
+          lane: 0,
+        });
+        start = index;
+        previous = index;
+      }
+      bars.push({
+        event,
+        row: Math.floor(start / 7),
+        startColumn: start % 7,
+        endColumn: previous % 7,
+        lane: 0,
+      });
+    }
+
+    const lanesByRow = new Map<number, number[]>();
+    return bars
+      .sort(
+        (left, right) =>
+          left.row - right.row || left.startColumn - right.startColumn,
+      )
+      .map((bar) => {
+        const laneEnds = lanesByRow.get(bar.row) ?? [];
+        const lane = laneEnds.findIndex((end) => end < bar.startColumn);
+        const nextLane = lane === -1 ? laneEnds.length : lane;
+        laneEnds[nextLane] = bar.endColumn;
+        lanesByRow.set(bar.row, laneEnds);
+        return { ...bar, lane: nextLane };
+      });
+  }, [events, monthCells]);
   const todayKey = formatDateKey(new Date());
 
   const goPrev = () =>
@@ -125,90 +190,95 @@ export function MonthView({
         ))}
       </div>
 
-      {/* biome-ignore lint/a11y/useSemanticElements: calendar grid uses ARIA grid role intentionally per WCAG 2.1 — switching to <table> would constrain layout */}
-      <div
-        role="grid"
-        className="grid grid-cols-7 border-t border-l border-sbi-dark-border/40 mx-1"
-      >
-        {monthCells.map(({ date, inMonth }) => {
-          const key = formatDateKey(date);
-          const dayEvs = eventsByDate[key] ?? [];
-          const isSelected = selectedDate === key;
-          const isToday = key === todayKey;
-          const dayNum = date.getDate();
+      <div className="relative mx-1">
+        {/* biome-ignore lint/a11y/useSemanticElements: calendar grid uses ARIA grid role intentionally per WCAG 2.1 — switching to <table> would constrain layout */}
+        <div
+          role="grid"
+          className="grid grid-cols-7 border-l border-t border-sbi-dark-border/40"
+        >
+          {monthCells.map(({ date, inMonth }) => {
+            const key = formatDateKey(date);
+            const dayEvs = eventsByDate[key] ?? [];
+            const isSelected = selectedDate === key;
+            const isToday = key === todayKey;
+            const dayNum = date.getDate();
 
-          return (
-            <button
-              key={`${key}-${inMonth ? "in" : "out"}`}
-              type="button"
-              aria-pressed={isSelected}
-              aria-label={`${key}${isToday ? " (today)" : ""}${dayEvs.length > 0 ? `, ${dayEvs.length} ${dayEvs.length === 1 ? "event" : "events"}` : ""}`}
-              onClick={() => onSelectDate(isSelected ? null : key)}
-              className={[
-                "group relative flex min-h-[68px] flex-col items-start gap-1.5 border-b border-r border-sbi-dark-border/40 p-1.5 text-left transition-colors sm:min-h-[112px] sm:gap-2 sm:p-2.5",
-                isSelected
-                  ? "bg-sbi-green/[0.06] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.4)]"
-                  : "hover:bg-white/[0.02]",
-              ].join(" ")}
-            >
-              <span
+            return (
+              <button
+                key={`${key}-${inMonth ? "in" : "out"}`}
+                type="button"
+                aria-pressed={isSelected}
+                aria-label={`${key}${isToday ? " (today)" : ""}${dayEvs.length > 0 ? `, ${dayEvs.length} ${dayEvs.length === 1 ? "event" : "events"}` : ""}`}
+                onClick={() => onSelectDate(isSelected ? null : key)}
                 className={[
-                  "flex size-[22px] items-center justify-center rounded-full text-[13px] tabular-nums transition-colors",
-                  isToday
-                    ? "bg-sbi-green font-medium text-sbi-dark"
-                    : !inMonth
-                      ? "text-white/30"
-                      : isSelected
-                        ? "font-medium text-sbi-green"
-                        : "text-white/70 group-hover:text-white",
+                  "group relative flex h-[68px] flex-col items-start gap-1.5 border-b border-r border-sbi-dark-border/40 p-1.5 text-left transition-colors sm:h-[112px] sm:gap-2 sm:p-2.5",
+                  isSelected
+                    ? "bg-sbi-green/[0.06] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.4)]"
+                    : "hover:bg-white/[0.02]",
                 ].join(" ")}
               >
-                {dayNum}
-              </span>
+                <span
+                  className={[
+                    "flex size-[22px] items-center justify-center rounded-full text-[13px] tabular-nums transition-colors",
+                    isToday
+                      ? "bg-sbi-green font-medium text-sbi-dark"
+                      : !inMonth
+                        ? "text-white/30"
+                        : isSelected
+                          ? "font-medium text-sbi-green"
+                          : "text-white/70 group-hover:text-white",
+                  ].join(" ")}
+                >
+                  {dayNum}
+                </span>
 
-              {dayEvs.length > 0 ? (
-                <>
-                  {/* Compact event-presence dots on phones — tapping the day
+                {dayEvs.length > 0 ? (
+                  <>
+                    {/* Compact event-presence dots on phones — tapping the day
                       surfaces the full list in the selected-day panel below. */}
-                  <div className="flex items-center gap-1 pl-0.5 sm:hidden">
-                    {dayEvs.slice(0, 3).map((ev) => (
-                      <span
-                        key={ev.id}
-                        className={[
-                          "size-1.5 rounded-full",
-                          ev.past ? "bg-zinc-600/60" : "bg-sbi-green/70",
-                        ].join(" ")}
-                      />
-                    ))}
-                  </div>
-                  <div className="hidden w-full flex-col gap-1 sm:flex">
-                    {dayEvs.slice(0, 2).map((ev) => (
-                      <div
-                        key={ev.id}
-                        className={[
-                          "flex items-center gap-1.5 truncate border-l-2 pl-2 text-[12px] leading-snug",
-                          ev.past
-                            ? "border-l-zinc-600/60 text-zinc-500"
-                            : "border-l-sbi-green/70 text-sbi-muted",
-                        ].join(" ")}
-                      >
-                        <span className="hidden font-medium tabular-nums sm:inline">
-                          {ev.startTime}
-                        </span>
-                        <span className="truncate">{ev.title}</span>
-                      </div>
-                    ))}
-                    {dayEvs.length > 2 ? (
-                      <span className="text-[10px] tabular-nums text-sbi-muted/60 pl-0.5">
-                        +{dayEvs.length - 2} more
-                      </span>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
-            </button>
-          );
-        })}
+                    <div className="flex items-center gap-1 pl-0.5 sm:hidden">
+                      {dayEvs.slice(0, 3).map((ev) => (
+                        <span
+                          key={ev.id}
+                          className={[
+                            "size-1.5 rounded-full",
+                            ev.past ? "bg-zinc-600/60" : "bg-sbi-green/70",
+                          ].join(" ")}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 hidden grid-cols-7 sm:grid"
+          style={{
+            gridTemplateRows: `repeat(${monthCells.length / 7}, minmax(0, 1fr))`,
+          }}
+        >
+          {eventBars.map((bar, index) => (
+            <div
+              key={`${bar.event.id}-${bar.row}-${index}`}
+              className={[
+                "mx-1 mt-9 h-5 self-start truncate rounded-sm px-1.5 text-[11px] font-medium leading-5",
+                bar.event.past
+                  ? "bg-zinc-700/60 text-zinc-300"
+                  : "bg-sbi-green/70 text-sbi-dark",
+              ].join(" ")}
+              style={{
+                gridColumn: `${bar.startColumn + 1} / ${bar.endColumn + 2}`,
+                gridRow: bar.row + 1,
+                transform: `translateY(${bar.lane * 22}px)`,
+              }}
+            >
+              {bar.event.title}
+            </div>
+          ))}
+        </div>
       </div>
 
       {selectedDate ? (

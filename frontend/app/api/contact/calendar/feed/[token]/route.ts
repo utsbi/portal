@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { feedTokenMatches } from "@/lib/calendar/feed-token";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const CALENDAR_NAME = "SBI Portal Project Events";
+
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -106,7 +108,7 @@ export async function GET(
     .eq("profile_id", matched.id);
   const projectIds = (memberRows ?? []).map((m) => m.project_id);
   if (projectIds.length === 0) {
-    return emptyIcs(matched.name);
+    return emptyIcs(CALENDAR_NAME);
   }
 
   const { data: events, error: eventsErr } = await supabaseAdmin
@@ -126,7 +128,7 @@ export async function GET(
   }
 
   return new NextResponse(
-    buildIcs(matched.name, (events ?? []) as FeedEventRow[]),
+    buildIcs(CALENDAR_NAME, (events ?? []) as FeedEventRow[]),
     {
       headers: {
         "Content-Type": "text/calendar; charset=utf-8",
@@ -150,7 +152,7 @@ function buildIcs(calendarName: string, events: FeedEventRow[]): string {
   ];
   for (const e of events) {
     const project = e.project?.company_name;
-    const summary = project ? `${project} — ${e.title}` : e.title;
+    const summary = project ? `${project}: ${e.title}` : e.title;
     const dtstart = e.all_day
       ? `DTSTART;VALUE=DATE:${toIcsDateOnly(e.start_at)}`
       : `DTSTART:${toIcsUtc(e.start_at)}`;

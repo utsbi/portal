@@ -61,7 +61,7 @@ export async function GET(_req: Request) {
       ok: true,
       hasToken: true,
       message:
-        "Rotate the URL to get a fresh link — the existing one was only shown once at creation.",
+        "Rotate the URL to get a fresh link. The existing one was shown only once at creation.",
     });
   }
 

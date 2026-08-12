@@ -72,6 +72,36 @@ async function loadCallerAndEvent(eventIdRaw: string) {
 }
 
 /**
+ * Return the current attendee ids for an event. This is intentionally limited
+ * to the creator and directors because it is used by the event editor.
+ */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const ctx = await loadCallerAndEvent(id);
+  if ("error" in ctx) return ctx.error;
+  const { event, supabaseAdmin } = ctx;
+
+  const { data: attendees, error } = await supabaseAdmin
+    .from("project_event_attendees")
+    .select("profile_id")
+    .eq("event_id", event.id);
+  if (error) {
+    console.error("project_event_attendees select failed:", error);
+    return NextResponse.json(
+      { error: "Couldn't load event members" },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    profileIds: (attendees ?? []).map((attendee) => attendee.profile_id),
+  });
+}
+
+/**
  * POST /api/contact/calendar/client-events/[id]/attendees
  * Invite additional profiles to the event. Existing attendees (same id) are
  * silently skipped via ON CONFLICT DO NOTHING.

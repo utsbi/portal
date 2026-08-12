@@ -17,6 +17,8 @@ interface ModalProps {
   padded?: boolean;
   hideClose?: boolean;
   contentClassName?: string;
+  /** Class names for the scrollable body. */
+  bodyClassName?: string;
   /** Sticky action bar rendered below the scrollable content. */
   footer?: ReactNode;
   children: ReactNode;
@@ -42,6 +44,7 @@ export function Modal({
   padded = true,
   hideClose = false,
   contentClassName,
+  bodyClassName,
   footer,
   children,
 }: ModalProps) {
@@ -108,6 +111,7 @@ export function Modal({
             className={cn(
               "flex-1 min-h-0 overflow-y-auto custom-scrollbar",
               padded && "p-6",
+              bodyClassName,
             )}
           >
             {children}

@@ -63,7 +63,7 @@ export function DashboardMain({
   return (
     <main
       className={cn(
-        "flex-1 min-h-0 overflow-auto dashboard-scrollbar -mx-4 sm:-mx-6 md:-mx-8",
+        "flex-1 min-h-0 overflow-x-hidden overflow-y-auto dashboard-scrollbar -mx-4 sm:-mx-6 md:-mx-8",
         className,
       )}
     >

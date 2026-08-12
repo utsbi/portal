@@ -230,6 +230,28 @@ export function normalizeEvent(
   };
 }
 
+/**
+ * Every calendar day an event occupies. Timed events include their ending day;
+ * all-day events use an exclusive end timestamp, so its final day is one day
+ * earlier. The bound prevents malformed remote data from filling a whole year.
+ */
+export function eventDateKeys(event: CalendarEvent): string[] {
+  const start = parseEventStart(event.start);
+  const end = parseEventStart(event.end);
+  if (!start) return [];
+  const last = end ? startOfDay(end) : startOfDay(start);
+  if (event.allDay && end) last.setDate(last.getDate() - 1);
+  const cursor = startOfDay(start);
+  if (last.getTime() < cursor.getTime()) return [formatDateKey(cursor)];
+
+  const keys: string[] = [];
+  while (cursor.getTime() <= last.getTime() && keys.length < 370) {
+    keys.push(formatDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
+}
+
 function rangeLabel(start: Date, end: Date): string {
   const sameMonth = start.getMonth() === end.getMonth();
   const left = prettyDateNoYear(start);

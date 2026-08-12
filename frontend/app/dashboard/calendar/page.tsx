@@ -263,7 +263,11 @@ function CalendarPageInner() {
             activeProject ? Number(activeProject.projectId) : undefined
           }
           initialValue={formState.initial}
-          attendeeIds={activeProject && user ? [user.id] : []}
+          organizerProfileId={
+            formState.mode === "edit"
+              ? formState.event.organizerId
+              : currentProfileId
+          }
           onClose={() => setFormState({ open: false })}
           onSaved={refetch}
         />

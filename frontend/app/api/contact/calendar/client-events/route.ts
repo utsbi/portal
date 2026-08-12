@@ -15,9 +15,10 @@ const MAX_EVENT_ATTENDEES = 50;
  * - Browser: Supabase session cookie.
  * - Explore backend tool: forwards the caller's JWT as `Authorization: Bearer <token>`.
  *
- * Returns all events for the given project within a rolling window
- * (now-7d → now+60d), the caller's per-event RSVP, and the organizer
- * profile id (so the UI can decide whether to show edit/delete affordances).
+ * Returns events which overlap a rolling window (now-7d → now+60d), the
+ * caller's per-event RSVP, and the organizer profile id (so the UI can decide
+ * whether to show edit/delete affordances). Matching by overlap ensures a
+ * multi-day event remains visible after its start date has passed.
  */
 export async function GET(req: Request) {
   try {
@@ -92,7 +93,7 @@ export async function GET(req: Request) {
           `,
           )
           .eq("project_id", projectId)
-          .gte("start_at", timeMin)
+          .gte("end_at", timeMin)
           .lte("start_at", timeMax)
           .order("start_at", { ascending: true }),
         supabaseAdmin
@@ -107,7 +108,7 @@ export async function GET(req: Request) {
           )
           .eq("profile_id", callerId)
           .eq("event.project_id", projectId)
-          .gte("event.start_at", timeMin)
+          .gte("event.end_at", timeMin)
           .lte("event.start_at", timeMax),
       ]);
 

@@ -45,6 +45,24 @@ export interface IcsEvent {
   method?: "PUBLISH" | "REQUEST" | "CANCEL";
 }
 
+/** A safe, readable filename for per-event calendar downloads. */
+export function eventIcsFilename(
+  event: Pick<IcsEvent, "title" | "startAt">,
+): string {
+  const date = new Date(event.startAt);
+  const dateLabel = Number.isNaN(date.getTime())
+    ? "event"
+    : `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+  const title = event.title
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .slice(0, 72);
+  return `sbi-${title || "event"}-${dateLabel}.ics`;
+}
+
 function toIcsDate(dateIso: string, allDay: boolean): string {
   if (!allDay) return toIcsUtc(dateIso);
   const date = new Date(dateIso);
@@ -60,7 +78,7 @@ function toIcsDate(dateIso: string, allDay: boolean): string {
 
 export function buildEventIcs(event: IcsEvent): string {
   const summary = event.projectName
-    ? `${event.projectName} — ${event.title}`
+    ? `${event.projectName}: ${event.title}`
     : event.title;
   const method = event.method ?? "PUBLISH";
   const datePrefix = event.allDay ? ";VALUE=DATE" : "";

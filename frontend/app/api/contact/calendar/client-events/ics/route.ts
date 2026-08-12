@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildEventIcs } from "@/lib/calendar/ics";
+import { buildEventIcs, eventIcsFilename } from "@/lib/calendar/ics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -76,7 +76,7 @@ export async function GET(req: Request) {
   return new NextResponse(ics, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": `attachment; filename="sbi-event-${event.id}.ics"`,
+      "Content-Disposition": `attachment; filename="${eventIcsFilename({ title: event.title, startAt: event.start_at })}"`,
     },
   });
 }
