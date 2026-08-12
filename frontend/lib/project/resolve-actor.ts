@@ -53,7 +53,9 @@ export async function resolveActor(): Promise<ResolvedActor | null> {
   // Fetch all project memberships
   const { data: memberships } = await supabase
     .from("project_members")
-    .select("role, project_id, projects(id, url_slug, company_name)")
+    .select(
+      "role, project_id, projects(id, url_slug, company_name, archived_at)",
+    )
     .eq("profile_id", profile.id);
 
   type MembershipRow = {
@@ -62,6 +64,7 @@ export async function resolveActor(): Promise<ResolvedActor | null> {
       id: number;
       url_slug: string;
       company_name: string;
+      archived_at: string | null;
     } | null;
   };
 
@@ -71,7 +74,7 @@ export async function resolveActor(): Promise<ResolvedActor | null> {
         m,
       ): m is MembershipRow & {
         projects: NonNullable<MembershipRow["projects"]>;
-      } => m.projects !== null,
+      } => m.projects !== null && m.projects.archived_at === null,
     )
     .map((m) => ({
       projectId: m.projects.id,

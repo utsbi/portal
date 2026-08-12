@@ -148,7 +148,9 @@ export function ProjectProvider({
       // Fetch projects via project_members
       const { data: memberships } = await supabase
         .from("project_members")
-        .select("role, project_id, projects(id, url_slug, company_name)")
+        .select(
+          "role, project_id, projects(id, url_slug, company_name, archived_at)",
+        )
         .eq("profile_id", profile.id);
 
       if (memberships && memberships.length > 0) {
@@ -159,6 +161,7 @@ export function ProjectProvider({
             id: number;
             url_slug: string;
             company_name: string;
+            archived_at: string | null;
           } | null;
         };
         // Supabase generates the many-to-one `projects` embed as an array type,
@@ -172,7 +175,7 @@ export function ProjectProvider({
               m,
             ): m is MembershipRow & {
               projects: NonNullable<MembershipRow["projects"]>;
-            } => m.projects !== null,
+            } => m.projects !== null && m.projects.archived_at === null,
           )
           .map((m) => ({
             projectId: m.projects.id,

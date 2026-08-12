@@ -616,15 +616,30 @@ export async function listProjects() {
 
   const { data, error } = await admin
     .from("projects")
-    .select("id, url_slug, company_name, is_default")
+    .select("id, url_slug, company_name, is_default, archived_at")
+    .is("archived_at", null)
     .order("company_name");
 
   if (error) return { error: error.message, projects: [] };
   return { projects: data || [] };
 }
 
-/** Permanently removes a project and its project-scoped records. */
-export async function deleteProject(projectId: number) {
+export async function listArchivedProjects() {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error, projects: [] };
+
+  const { data, error } = await createAdminClient()
+    .from("projects")
+    .select("id, url_slug, company_name, is_default, archived_at")
+    .not("archived_at", "is", null)
+    .order("archived_at", { ascending: false });
+
+  if (error) return { error: error.message, projects: [] };
+  return { projects: data || [] };
+}
+
+/** Archives a project without removing its records or storage objects. */
+export async function archiveProject(projectId: number) {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error };
   if (!Number.isInteger(projectId) || projectId <= 0) {
@@ -633,14 +648,40 @@ export async function deleteProject(projectId: number) {
 
   const { data: project, error: lookupError } = await createAdminClient()
     .from("projects")
-    .select("id, company_name")
+    .select("id, company_name, archived_at")
     .eq("id", projectId)
     .maybeSingle();
   if (lookupError || !project) {
     return { error: lookupError?.message || "Project not found" };
   }
+  if (project.archived_at) return { error: "This project is already archived" };
 
-  const { error } = await gate.supabase.rpc("delete_project", {
+  const { error } = await gate.supabase.rpc("archive_project", {
+    _project_id: projectId,
+  });
+  if (error) return { error: error.message };
+  return { success: true, projectName: project.company_name };
+}
+
+/** Restores an archived project and makes it available to its existing members. */
+export async function restoreProject(projectId: number) {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return { error: "Invalid project" };
+  }
+
+  const { data: project, error: lookupError } = await createAdminClient()
+    .from("projects")
+    .select("id, company_name, archived_at")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (lookupError || !project) {
+    return { error: lookupError?.message || "Project not found" };
+  }
+  if (!project.archived_at) return { error: "This project is already active" };
+
+  const { error } = await gate.supabase.rpc("restore_project", {
     _project_id: projectId,
   });
   if (error) return { error: error.message };

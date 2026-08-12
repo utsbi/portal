@@ -2,6 +2,7 @@
 
 import {
   AlertCircle,
+  Archive,
   Bell,
   Calendar,
   Loader2,
@@ -9,6 +10,7 @@ import {
   type LucideIcon,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   Shield,
   Trash2,
@@ -51,21 +53,23 @@ import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
+  archiveProject,
   assignMemberToProject,
   assignOwnerToProject,
   createProject,
   deleteAccount,
-  deleteProject,
   getMyAccount,
   inviteAccount,
   inviteMemberProfile,
   listAccounts,
+  listArchivedProjects,
   listAvailableOwners,
   listMemberProfiles,
   listProjectMembers,
   listProjects,
   listUnassignedMembers,
   removeMemberFromProject,
+  restoreProject,
   setDefaultProject,
   updateAccount,
   updateMyNotificationPrefs,
@@ -98,6 +102,7 @@ interface Project {
   url_slug: string;
   company_name: string;
   is_default: boolean;
+  archived_at: string | null;
 }
 
 interface MemberProfile {
@@ -1282,6 +1287,7 @@ function CalendarSection() {
 function TeamSection() {
   const { refetch: refetchProjects } = useProject();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [archivedProjects, setArchivedProjects] = useState<Project[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [membersLoaded, setMembersLoaded] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
@@ -1296,7 +1302,9 @@ function TeamSection() {
   const [memberToRemove, setMemberToRemove] = useState<ProjectMember | null>(
     null,
   );
-  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [projectToArchive, setProjectToArchive] = useState<Project | null>(
+    null,
+  );
   const [availableOwners, setAvailableOwners] = useState<
     { id: number; name: string; email: string | null }[]
   >([]);
@@ -1329,16 +1337,23 @@ function TeamSection() {
   }, [unassignedMembers, assignQuery]);
 
   const loadProjects = useCallback(async () => {
-    const res = await listProjects();
-    if (res.projects) {
-      setProjects(res.projects);
+    const [activeResult, archivedResult] = await Promise.all([
+      listProjects(),
+      listArchivedProjects(),
+    ]);
+    if (activeResult.projects) {
+      setProjects(activeResult.projects);
       setSelectedProjectId((current) => {
-        if (current && res.projects.some((project) => project.id === current)) {
+        if (
+          current &&
+          activeResult.projects.some((project) => project.id === current)
+        ) {
           return current;
         }
-        return res.projects[0]?.id ?? null;
+        return activeResult.projects[0]?.id ?? null;
       });
     }
+    if (archivedResult.projects) setArchivedProjects(archivedResult.projects);
     setProjectsLoaded(true);
   }, []);
 
@@ -1426,17 +1441,27 @@ function TeamSection() {
     setMemberToRemove(null);
   };
 
-  const confirmDeleteProject = async () => {
-    if (!projectToDelete) return;
-    const target = projectToDelete;
-    const result = await deleteProject(target.id);
+  const confirmArchiveProject = async () => {
+    if (!projectToArchive) return;
+    const target = projectToArchive;
+    const result = await archiveProject(target.id);
     if (result.error) {
-      toastError(result.error, "Couldn't delete project");
+      toastError(result.error, "Couldn't archive project");
     } else {
-      toastSuccess(`Deleted ${target.company_name}.`);
-      setProjectToDelete(null);
+      toastSuccess(`Archived ${target.company_name}.`);
+      setProjectToArchive(null);
       setProjectMembers([]);
       setUnassignedMembers([]);
+      await Promise.all([loadProjects(), refetchProjects()]);
+    }
+  };
+
+  const handleRestoreProject = async (project: Project) => {
+    const result = await restoreProject(project.id);
+    if (result.error) {
+      toastError(result.error, "Couldn't restore project");
+    } else {
+      toastSuccess(`Restored ${project.company_name}.`);
       await Promise.all([loadProjects(), refetchProjects()]);
     }
   };
@@ -1467,9 +1492,14 @@ function TeamSection() {
   return (
     <div className="max-w-3xl space-y-4">
       <Panel>
-        <div className="relative flex items-center justify-between gap-4 mb-5">
-          <SectionLabel className="mb-0">Project members</SectionLabel>
-          <div className="flex items-center gap-2">
+        <div className="relative mb-5 flex flex-col gap-3 border-b border-sbi-dark-border/30 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <SectionLabel className="mb-1">Project members</SectionLabel>
+            <p className="max-w-md text-sm leading-relaxed text-sbi-muted-dark">
+              Manage who can access the selected project.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {!hasOwner && selectedProjectId && !isLoading && (
               <div ref={ownerDropdownRef}>
                 <button
@@ -1622,8 +1652,8 @@ function TeamSection() {
           </div>
         </div>
 
-        <div className="flex items-end gap-4 mb-5">
-          <div className="flex-1 min-w-0 max-w-xs">
+        <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="min-w-0">
             <label htmlFor="assign-project" className={labelClass}>
               Project
             </label>
@@ -1650,30 +1680,32 @@ function TeamSection() {
               </SelectContent>
             </Select>
           </div>
-          {selectedProjectId && !isLoading && (
-            <button
-              type="button"
-              onClick={() =>
-                setProjectToDelete(
-                  projects.find(
-                    (project) => project.id === selectedProjectId,
-                  ) ?? null,
-                )
-              }
-              className={cn(
-                btnGhost,
-                "shrink-0 justify-center text-red-300 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200",
-              )}
-            >
-              <Trash2 className="size-4" />
-              Delete project
-            </button>
-          )}
-          {countLine && (
-            <p className="text-xs text-sbi-muted-dark tabular-nums pb-2.5">
-              {countLine}
-            </p>
-          )}
+          <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 sm:h-9 sm:flex-nowrap sm:justify-end">
+            {countLine && (
+              <p className="text-xs text-sbi-muted-dark tabular-nums">
+                {countLine}
+              </p>
+            )}
+            {selectedProjectId && !isLoading && (
+              <button
+                type="button"
+                onClick={() =>
+                  setProjectToArchive(
+                    projects.find(
+                      (project) => project.id === selectedProjectId,
+                    ) ?? null,
+                  )
+                }
+                className={cn(
+                  btnGhost,
+                  "h-9 shrink-0 justify-center px-4 py-0 text-amber-300 hover:border-amber-400/40 hover:bg-amber-400/10 hover:text-amber-200",
+                )}
+              >
+                <Archive className="size-4" />
+                Archive project
+              </button>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
@@ -1809,24 +1841,62 @@ function TeamSection() {
       />
 
       <ConfirmDialog
-        opened={!!projectToDelete}
-        onClose={() => setProjectToDelete(null)}
+        opened={!!projectToArchive}
+        onClose={() => setProjectToArchive(null)}
         title={
-          projectToDelete
-            ? `Delete ${projectToDelete.company_name}?`
-            : "Delete project?"
+          projectToArchive
+            ? `Archive ${projectToArchive.company_name}?`
+            : "Archive project?"
         }
-        danger
         description={
           <p>
-            This permanently deletes the project and its memberships, events,
-            files, finance records, and other project data. This cannot be
-            undone.
+            The project and all of its records will be kept, but it will be
+            hidden from active project navigation. You can restore it later.
           </p>
         }
-        confirmLabel="Delete project"
-        onConfirm={confirmDeleteProject}
+        confirmationText={projectToArchive?.company_name}
+        confirmLabel="Archive project"
+        onConfirm={confirmArchiveProject}
       />
+
+      {archivedProjects.length > 0 && (
+        <Panel>
+          <div className="flex flex-col gap-1 border-b border-sbi-dark-border/30 pb-3">
+            <SectionLabel className="mb-0">Archived projects</SectionLabel>
+            <p className="text-sm text-sbi-muted">
+              Archived projects keep their data and can be restored at any time.
+            </p>
+          </div>
+          <div className="divide-y divide-sbi-dark-border/20">
+            {archivedProjects.map((project) => (
+              <div
+                key={project.id}
+                className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-white">
+                    {project.company_name}
+                  </p>
+                  <p className="mt-1 text-xs text-sbi-muted-dark">
+                    Archived{" "}
+                    {project.archived_at
+                      ? new Date(project.archived_at).toLocaleDateString()
+                      : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRestoreProject(project)}
+                  className={cn(btnGhost, "w-full justify-center sm:w-auto")}
+                >
+                  <RotateCcw className="size-4" />
+                  Restore project
+                </button>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }

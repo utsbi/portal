@@ -1171,6 +1171,7 @@ export type Database = {
       };
       projects: {
         Row: {
+          archived_at: string | null;
           company_name: string;
           config: Json | null;
           created_at: string;
@@ -1181,6 +1182,7 @@ export type Database = {
           url_slug: string;
         };
         Insert: {
+          archived_at?: string | null;
           company_name: string;
           config?: Json | null;
           created_at?: string;
@@ -1191,6 +1193,7 @@ export type Database = {
           url_slug: string;
         };
         Update: {
+          archived_at?: string | null;
           company_name?: string;
           config?: Json | null;
           created_at?: string;
@@ -1443,6 +1446,10 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      archive_project: {
+        Args: { _project_id: number };
+        Returns: undefined;
+      };
       chat_begin_turn: {
         Args: {
           _session_id: number;
@@ -1489,6 +1496,10 @@ export type Database = {
       is_project_member: { Args: { _project_id: number }; Returns: boolean };
       mark_conversation_read: {
         Args: { p_conversation_id: number };
+        Returns: undefined;
+      };
+      restore_project: {
+        Args: { _project_id: number };
         Returns: undefined;
       };
       match_client_knowledge: {
