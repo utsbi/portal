@@ -71,6 +71,15 @@ const INDEXABLE_EXTENSIONS = new Set([
   "xlsx",
 ]);
 
+// Storage does not materialize an empty folder, so the three supported
+// collaboration areas are rendered even before the first upload. The
+// database migration seeds the same names and access modes for every project.
+const DEFAULT_FILE_FOLDERS = [
+  "Shared",
+  "Deliverables",
+  "Member Inbox",
+] as const;
+
 function isIndexable(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   return INDEXABLE_EXTENSIONS.has(ext);
@@ -107,10 +116,15 @@ export default function FilesPage() {
   const [files, setFiles] = useState<StorageEntry[]>([]);
   const [subfolders, setSubfolders] = useState<FolderNode[]>([]);
   const [folderTree, setFolderTree] = useState<FolderNode[]>([]);
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string>("Media");
+  const [selectedFolderPath, setSelectedFolderPath] =
+    useState<string>("Shared");
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
-    new Set(["Media"]),
+    new Set(["Shared"]),
   );
+  const canUploadFiles =
+    isDirector ||
+    (user?.role === "member" &&
+      /^Member Inbox(?:\/|$)/.test(selectedFolderPath));
   const [error, setError] = useState<StorageError | null>(null);
   const [isLoadingTree, setIsLoadingTree] = useState(true);
   const [isLoadingContents, setIsLoadingContents] = useState(true);
@@ -230,6 +244,15 @@ export default function FilesPage() {
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
+    if (folderPath === "") {
+      for (const name of DEFAULT_FILE_FOLDERS) {
+        if (!folders.some((folder) => folder.name === name)) {
+          folders.push({ name, path: name });
+        }
+      }
+      folders.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     return Promise.all(
       folders.map(async (f) => {
         const { data: childData } = await listFolder(f.path);
@@ -284,6 +307,15 @@ export default function FilesPage() {
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
+    if (path === "") {
+      for (const name of DEFAULT_FILE_FOLDERS) {
+        if (!childFolders.some((folder) => folder.name === name)) {
+          childFolders.push({ name, path: name, hasSubfolders: false });
+        }
+      }
+      childFolders.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     setSubfolders(childFolders);
     setFiles(fileEntries);
     setIsLoadingContents(false);
@@ -319,10 +351,10 @@ export default function FilesPage() {
       setFolderTree(rootNodes);
       setIsLoadingTree(false);
 
-      const mediaFolder = rootNodes.find(
-        (node) => node.name.toLowerCase() === "media",
+      const sharedFolder = rootNodes.find(
+        (node) => node.name.toLowerCase() === "shared",
       );
-      const target = mediaFolder ?? rootNodes[0];
+      const target = sharedFolder ?? rootNodes[0];
       if (target) {
         setSelectedFolderPath(target.path);
         setExpandedPaths(new Set([target.path]));
@@ -614,7 +646,7 @@ export default function FilesPage() {
         });
       } else {
         okCount += 1;
-        if (isIndexable(file.name) && projectId !== null) {
+        if (isDirector && isIndexable(file.name) && projectId !== null) {
           toIndex.push({ id, path: targetPath });
           updateUploadItem(id, { status: "indexing" });
         } else {
@@ -630,7 +662,7 @@ export default function FilesPage() {
     // row), then the refreshed indexed-list flips it to "Indexed". A failed
     // index resolves the tray row to done — the storage upload already
     // succeeded — and reports the indexing failure as a toast.
-    if (projectId !== null && toIndex.length > 0) {
+    if (isDirector && projectId !== null && toIndex.length > 0) {
       setIndexingPaths((prev) => {
         const next = new Set(prev);
         for (const { path } of toIndex) next.add(path);
@@ -688,13 +720,13 @@ export default function FilesPage() {
     !!document.querySelector('[role="dialog"]');
 
   const onDragEnter = (e: React.DragEvent) => {
-    if (!isDirector || aModalIsOpen() || !dragHasFiles(e)) return;
+    if (!canUploadFiles || aModalIsOpen() || !dragHasFiles(e)) return;
     e.preventDefault();
     dragDepth.current += 1;
     setIsDragging(true);
   };
   const onDragLeave = (e: React.DragEvent) => {
-    if (!isDirector || !isDragging) return;
+    if (!canUploadFiles || !isDragging) return;
     e.preventDefault();
     dragDepth.current -= 1;
     if (dragDepth.current <= 0) {
@@ -703,11 +735,11 @@ export default function FilesPage() {
     }
   };
   const onDragOver = (e: React.DragEvent) => {
-    if (!isDirector || aModalIsOpen() || !dragHasFiles(e)) return;
+    if (!canUploadFiles || aModalIsOpen() || !dragHasFiles(e)) return;
     e.preventDefault();
   };
   const onDrop = (e: React.DragEvent) => {
-    if (!isDirector || aModalIsOpen()) return;
+    if (!canUploadFiles || aModalIsOpen()) return;
     e.preventDefault();
     dragDepth.current = 0;
     setIsDragging(false);
@@ -795,41 +827,88 @@ export default function FilesPage() {
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     const target = deleteTarget;
+    const previousFiles = files;
+    const previousSubfolders = subfolders;
+    const previousFolderTree = folderTree;
+    const previousIndexedPaths = indexedPaths;
+    const prefix = `${target.path}/`;
+    const toUnindex =
+      target.kind === "file"
+        ? indexedPaths.has(target.path)
+          ? [target.path]
+          : []
+        : Array.from(indexedPaths).filter((p) => p.startsWith(prefix));
+
+    // Remove the item from the visible grid immediately. This is especially
+    // important for recursive folder deletes, where Storage can take a moment
+    // to remove every object under the prefix.
+    if (target.kind === "file") {
+      setFiles((current) =>
+        current.filter((file) => file.name !== target.name),
+      );
+    } else {
+      setSubfolders((current) =>
+        current.filter((folder) => folder.path !== target.path),
+      );
+      const removeTreeNode = (nodes: FolderNode[]): FolderNode[] =>
+        nodes
+          .filter((node) => node.path !== target.path)
+          .map((node) =>
+            node.children
+              ? { ...node, children: removeTreeNode(node.children) }
+              : node,
+          );
+      setFolderTree(removeTreeNode);
+    }
+    if (toUnindex.length > 0) {
+      setIndexedPaths((current) => {
+        const next = new Set(current);
+        for (const path of toUnindex) next.delete(path);
+        return next;
+      });
+    }
+    setDeleteTarget(null);
+
+    let storageDeleted = false;
     try {
       if (target.kind === "file") {
         await removePaths([target.path]);
       } else {
         await deleteFolder(target.path);
       }
+      storageDeleted = true;
       invalidatePrefix(target.path);
       invalidatePath(parentOf(target.path));
       toastSuccess(
         `${target.kind === "file" ? "File" : "Folder"} "${target.name}" deleted.`,
       );
-      setDeleteTarget(null);
       await refreshAfterWrite();
 
-      // Best-effort cascade into the RAG index — never block or fail the
-      // storage delete on it. For a file, drop its single index; for a
-      // folder, drop every indexed path under that prefix.
-      if (projectId !== null) {
-        const prefix = `${target.path}/`;
-        const toUnindex =
-          target.kind === "file"
-            ? indexedPaths.has(target.path)
-              ? [target.path]
-              : []
-            : Array.from(indexedPaths).filter((p) => p.startsWith(prefix));
-        if (toUnindex.length > 0) {
-          await Promise.all(
-            toUnindex.map((p) =>
-              deletePortalFileIndex(projectId, p).catch(() => {}),
-            ),
+      // Remove the corresponding assistant knowledge after Storage succeeds.
+      // The API is intentionally director-only, just like file deletion.
+      if (projectId !== null && toUnindex.length > 0) {
+        const results = await Promise.allSettled(
+          toUnindex.map((path) => deletePortalFileIndex(projectId, path)),
+        );
+        const failed = results.filter(
+          (result): result is PromiseRejectedResult =>
+            result.status === "rejected",
+        );
+        await refreshIndexedFiles();
+        if (failed.length > 0) {
+          toastError(
+            `${target.name} was removed from files, but ${failed.length} knowledge index entr${failed.length === 1 ? "y" : "ies"} could not be removed. Ask a director to retry the cleanup.`,
+            "Knowledge cleanup incomplete",
           );
-          await refreshIndexedFiles();
         }
       }
     } catch (err) {
+      if (!storageDeleted) {
+        setFiles(previousFiles);
+        setSubfolders(previousSubfolders);
+        setFolderTree(previousFolderTree);
+        setIndexedPaths(previousIndexedPaths);
+      }
       const msg = err instanceof Error ? err.message : String(err);
       toastError(humanizeStorageError(msg, "delete"));
     }
@@ -952,7 +1031,7 @@ export default function FilesPage() {
                 })}
               </nav>
 
-              {isDirector ? (
+              {canUploadFiles ? (
                 <div className="flex items-center gap-2">
                   <input
                     ref={fileInputRef}
@@ -969,17 +1048,19 @@ export default function FilesPage() {
                     <Upload className="h-3.5 w-3.5" />
                     Upload
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewFolderName("");
-                      setNewFolderOpen(true);
-                    }}
-                    className={btnGhost}
-                  >
-                    <FolderPlus className="h-3.5 w-3.5" />
-                    New Folder
-                  </button>
+                  {isDirector ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewFolderName("");
+                        setNewFolderOpen(true);
+                      }}
+                      className={btnGhost}
+                    >
+                      <FolderPlus className="h-3.5 w-3.5" />
+                      New Folder
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -998,7 +1079,7 @@ export default function FilesPage() {
               onDragOver={onDragOver}
               onDrop={onDrop}
             >
-              {isDirector && isDragging ? (
+              {canUploadFiles && isDragging ? (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-sbi-green/30 bg-sbi-dark/80 backdrop-blur-sm pointer-events-none">
                   <div className="flex flex-col items-center gap-2 text-sbi-green">
                     <Upload className="h-7 w-7" />
