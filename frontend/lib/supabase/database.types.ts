@@ -14,6 +14,54 @@ export type Database = {
   };
   public: {
     Tables: {
+      ai_usage_events: {
+        Row: {
+          completion_tokens: number;
+          created_at: string;
+          estimated_cost_usd: number;
+          id: number;
+          metadata: Json;
+          model: string;
+          model_preference: "fast" | "thinking";
+          project_id: number | null;
+          prompt_tokens: number;
+          reasoning_effort: string | null;
+          reasoning_tokens: number;
+          total_tokens: number;
+          uid: string | null;
+        };
+        Insert: {
+          completion_tokens?: number;
+          created_at?: string;
+          estimated_cost_usd?: number;
+          id?: number;
+          metadata?: Json;
+          model: string;
+          model_preference: "fast" | "thinking";
+          project_id?: number | null;
+          prompt_tokens?: number;
+          reasoning_effort?: string | null;
+          reasoning_tokens?: number;
+          total_tokens?: number;
+          uid?: string | null;
+        };
+        Update: {
+          completion_tokens?: number;
+          created_at?: string;
+          estimated_cost_usd?: number;
+          id?: number;
+          metadata?: Json;
+          model?: string;
+          model_preference?: "fast" | "thinking";
+          project_id?: number | null;
+          prompt_tokens?: number;
+          reasoning_effort?: string | null;
+          reasoning_tokens?: number;
+          total_tokens?: number;
+          uid?: string | null;
+        };
+        Relationships: [];
+      };
       budget_categories: {
         Row: {
           budget_id: number;
@@ -982,7 +1030,7 @@ export type Database = {
           graduation: number | null;
           id: number;
           name: string;
-          role: "client" | "director" | "member";
+          role: "client" | "director" | "president" | "member";
           uid: string | null;
           updated_at: string;
         };
@@ -997,7 +1045,7 @@ export type Database = {
           graduation?: number | null;
           id?: number;
           name: string;
-          role: "client" | "director" | "member";
+          role: "client" | "director" | "president" | "member";
           uid?: string | null;
           updated_at?: string;
         };
@@ -1012,7 +1060,7 @@ export type Database = {
           graduation?: number | null;
           id?: number;
           name?: string;
-          role?: "client" | "director" | "member";
+          role?: "client" | "director" | "president" | "member";
           uid?: string | null;
           updated_at?: string;
         };
@@ -1385,6 +1433,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      admin_stats: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       chat_begin_turn: {
         Args: {
           _session_id: number;
@@ -1422,6 +1474,7 @@ export type Database = {
         }[];
       };
       is_director: { Args: { check_uid: string }; Returns: boolean };
+      is_president: { Args: { check_uid: string }; Returns: boolean };
       is_project_director: { Args: { _project_id: number }; Returns: boolean };
       is_project_member: { Args: { _project_id: number }; Returns: boolean };
       mark_conversation_read: {

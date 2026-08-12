@@ -1,5 +1,6 @@
 import { after, type NextRequest } from "next/server";
 import { getBackendUrl } from "@/lib/env/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -326,6 +327,7 @@ export async function POST(request: NextRequest) {
   // incremental write can never land after finalization and clobber the final
   // content/sources with a stale snapshot.
   let finalized = false;
+  let usagePersisted = false;
 
   const scheduleAssistantUpdate = () => {
     if (finalized || assistantMessageId === null) return;
@@ -537,6 +539,57 @@ export async function POST(request: NextRequest) {
                   titleErr,
                 );
             } else if (event.type === "result") {
+              const usage =
+                event.usage && typeof event.usage === "object"
+                  ? (event.usage as Record<string, unknown>)
+                  : null;
+              if (!usagePersisted && usage) {
+                const numberOrZero = (value: unknown) =>
+                  typeof value === "number" &&
+                  Number.isFinite(value) &&
+                  value >= 0
+                    ? Math.floor(value)
+                    : 0;
+                const model =
+                  typeof usage.model === "string" ? usage.model : "unknown";
+                const preference =
+                  usage.model_preference === "thinking" ? "thinking" : "fast";
+                const reasoningEffort =
+                  typeof usage.reasoning_effort === "string"
+                    ? usage.reasoning_effort
+                    : null;
+                const promptTokens = numberOrZero(usage.prompt_tokens);
+                const completionTokens = numberOrZero(usage.completion_tokens);
+                const reasoningTokens = numberOrZero(usage.reasoning_tokens);
+                const totalTokens = numberOrZero(usage.total_tokens);
+                const estimatedCost =
+                  typeof usage.estimated_cost_usd === "number" &&
+                  Number.isFinite(usage.estimated_cost_usd) &&
+                  usage.estimated_cost_usd >= 0
+                    ? usage.estimated_cost_usd
+                    : 0;
+                const { error: usageError } = await createAdminClient()
+                  .from("ai_usage_events")
+                  .insert({
+                    uid: user.id,
+                    project_id: sessionProjectId,
+                    model,
+                    model_preference: preference,
+                    reasoning_effort: reasoningEffort,
+                    prompt_tokens: promptTokens,
+                    completion_tokens: completionTokens,
+                    reasoning_tokens: reasoningTokens,
+                    total_tokens: totalTokens,
+                    estimated_cost_usd: estimatedCost,
+                    metadata: { session_id: sessionIdForClosure },
+                  });
+                usagePersisted = true;
+                if (usageError)
+                  console.error(
+                    "[/api/chat] failed to persist usage event:",
+                    usageError,
+                  );
+              }
               // From here on the final state is being written; block any
               // straggling debounced write from landing after it.
               finalized = true;
