@@ -63,6 +63,7 @@ export default function UpdatePasswordPage() {
 
         if (error) {
           setVerificationError(error.message);
+          setIsLoading(false);
           setIsVerifying(false);
           return;
         }
@@ -164,7 +165,7 @@ export default function UpdatePasswordPage() {
     };
   }, [isVerifying, verificationError, router]);
 
-  if (isLoading) {
+  if (isLoading && !verificationError) {
     return (
       <div className="flex min-h-svh w-full items-center justify-center bg-sbi-dark">
         <div className="flex flex-col items-center gap-5">

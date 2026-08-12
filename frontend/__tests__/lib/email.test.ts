@@ -20,13 +20,20 @@ vi.mock("@/lib/supabase/admin", () => ({
   })),
 }));
 
-const { buildEventIcs } = await import("@/lib/calendar/ics");
-const { calendarEmailEnabled, sendEmail } = await import("@/lib/email/send");
+const { buildEventIcs, eventIcsFilename } = await import("@/lib/calendar/ics");
+const { calendarEmailEnabled, emailNotificationEnabled, sendEmail } =
+  await import("@/lib/email/send");
 const { accountInviteHtml, accountInviteText } = await import(
   "@/lib/email/templates/account-invite"
 );
 const { eventInviteHtml, eventInviteText } = await import(
   "@/lib/email/templates/event-invite"
+);
+const { messageNotificationHtml, messageNotificationText } = await import(
+  "@/lib/email/templates/message-notification"
+);
+const { requestUpdateHtml, requestUpdateText } = await import(
+  "@/lib/email/templates/request-update"
 );
 
 describe("transactional email", () => {
@@ -111,6 +118,17 @@ describe("transactional email", () => {
   });
 });
 
+describe("calendar downloads", () => {
+  it("uses a readable title and date in the attachment filename", () => {
+    expect(
+      eventIcsFilename({
+        title: "Sprint review: August!",
+        startAt: "2026-08-11T14:00:00.000Z",
+      }),
+    ).toBe("sbi-sprint-review-august-2026-08-11.ics");
+  });
+});
+
 describe("email content", () => {
   it("honors an explicit calendar notification opt-out", () => {
     expect(calendarEmailEnabled(undefined)).toBe(true);
@@ -120,6 +138,22 @@ describe("email content", () => {
     expect(calendarEmailEnabled({ notifications: { calendar: false } })).toBe(
       false,
     );
+  });
+
+  it("honors message and request notification preferences", () => {
+    expect(emailNotificationEnabled(undefined, "messages")).toBe(true);
+    expect(
+      emailNotificationEnabled(
+        { notifications: { messages: false } },
+        "messages",
+      ),
+    ).toBe(false);
+    expect(
+      emailNotificationEnabled(
+        { notifications: { requests: false } },
+        "requests",
+      ),
+    ).toBe(false);
   });
 
   it("escapes user-controlled HTML while retaining readable text", () => {
@@ -156,6 +190,28 @@ describe("email content", () => {
     expect(accountInviteText(props)).not.toContain("<html>");
   });
 
+  it("renders escaped message and request emails with portal links", () => {
+    const message = {
+      recipientName: "Alex",
+      senderName: "Jordan <SBI>",
+      excerpt: "Please review <this> before Friday.",
+      portalUrl: "https://portal.example.com/dashboard/messages/42",
+    };
+    const request = {
+      recipientName: "Alex",
+      requestSubject: "Review <drawing>",
+      status: "In progress",
+      projectName: "Acme",
+      portalUrl: "https://portal.example.com/dashboard/requests",
+    };
+
+    expect(messageNotificationHtml(message)).toContain("Jordan &lt;SBI&gt;");
+    expect(messageNotificationHtml(message)).not.toContain("<this>");
+    expect(messageNotificationText(message)).toContain(message.portalUrl);
+    expect(requestUpdateHtml(request)).toContain("Review &lt;drawing&gt;");
+    expect(requestUpdateText(request)).toContain(request.portalUrl);
+  });
+
   it("builds an escaped, stable all-day calendar attachment", () => {
     const ics = buildEventIcs({
       id: 42,
@@ -173,7 +229,7 @@ describe("email content", () => {
 
     expect(ics).toContain("DTSTAMP:20260720T123000Z");
     expect(ics).toContain("DTSTART;VALUE=DATE:20260721");
-    expect(ics).toContain("SUMMARY:Acme — Review\\, approve\\; ship");
+    expect(ics).toContain("SUMMARY:Acme: Review\\, approve\\; ship");
     expect(ics).toContain("DESCRIPTION:Line one\\nLine two");
     expect(Buffer.from(ics).toString("utf8")).toBe(ics);
   });

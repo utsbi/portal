@@ -5,7 +5,8 @@ release.
 
 ## Portal transactional email (Resend)
 
-Resend delivers account invitations and calendar notifications. Configure the
+Resend delivers account invitations plus message, request, and calendar
+notifications. Configure the
 following variables in the Vercel **Production** environment:
 
 ```env
@@ -25,9 +26,14 @@ Before release:
 3. Send invitations to controlled Gmail and Outlook addresses.
 4. Verify the create-password link signs the recipient in, accepts a new
    password, and reaches the portal.
-5. Create, update, cancel, and RSVP to a calendar event. Confirm HTML, plain
-   text, timezone, and the attached `.ics` file are correct.
-6. Inspect Vercel logs for `email ... failed` and Resend logs for bounces or
+5. Send a message to an account with **New messages** enabled and disabled.
+   Confirm only the enabled account receives one email with the correct link.
+6. Update a request status for an account with **Request updates** enabled and
+   disabled. Confirm only the enabled account receives the update.
+7. Create, update, cancel, and RSVP to a calendar event. Confirm HTML, plain
+   text, timezone, and the attached `.ics` file are correct. Calendar emails
+   honor the **Calendar events** preference.
+8. Inspect Vercel logs for `email ... failed` and Resend logs for bounces or
    complaints.
 
 Calendar notifications run through Next.js `after()`, use stable Resend
@@ -37,19 +43,33 @@ delivery rolls the newly created account back.
 
 ## Supabase Auth email
 
-Password recovery still uses Supabase Auth. Configure custom SMTP in the
-Supabase production project; the built-in SMTP service is for development and
-is not a production delivery channel. Resend SMTP can be used so both paths
-share the same authenticated domain and monitoring account.
+Password recovery and security notifications use Supabase Auth. The portal's
+forgot-password page delegates token issuance to Supabase and redirects users
+to `/auth/update-password`; it deliberately returns a neutral success message
+so an attacker cannot use the form to discover which addresses have accounts.
+
+Custom local templates live in `supabase/templates/auth/` and are configured in
+`supabase/config.toml`. For the hosted project, they are **not deployed by a
+migration or Vercel**. Copy each template into Supabase Dashboard →
+Authentication → Email Templates (or apply the same fields through the
+Management API) before release.
+
+Configure custom SMTP in the Supabase production project; the built-in SMTP
+service is for development and is not a production delivery channel. Resend
+SMTP can be used so both paths share the same authenticated domain and
+monitoring account.
 
 In Supabase Auth settings:
 
 - set the Site URL to `NEXT_PUBLIC_SITE_URL`;
 - allow `/auth/update-password` and `/auth/confirm` redirect URLs;
 - configure custom SMTP credentials and sender name;
-- review the password-recovery template;
+- install the branded confirmation, invite, recovery, magic-link, email-change,
+  and password-changed templates from `supabase/templates/auth/`;
 - set a deliberate Auth email rate limit; and
-- run a real password-reset smoke test from `/login`.
+- enable the password-changed security notification; and
+- run a real password-reset smoke test from `/forgot-password`, including an
+  expired-link scenario and Gmail/Outlook delivery checks.
 
 Never place SMTP credentials or the Resend API key in `NEXT_PUBLIC_*`
 variables, source control, screenshots, or client-side code.

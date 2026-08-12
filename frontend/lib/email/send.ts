@@ -17,6 +17,14 @@ import {
   eventInviteText,
 } from "@/lib/email/templates/event-invite";
 import {
+  messageNotificationHtml,
+  messageNotificationText,
+} from "@/lib/email/templates/message-notification";
+import {
+  requestUpdateHtml,
+  requestUpdateText,
+} from "@/lib/email/templates/request-update";
+import {
   rsvpNotificationHtml,
   rsvpNotificationText,
 } from "@/lib/email/templates/rsvp-notification";
@@ -75,7 +83,12 @@ function getEmailTimeZone(): string {
   }
 }
 
-export function calendarEmailEnabled(config: unknown): boolean {
+export type EmailNotificationKind = "messages" | "calendar" | "requests";
+
+export function emailNotificationEnabled(
+  config: unknown,
+  kind: EmailNotificationKind,
+): boolean {
   if (!config || typeof config !== "object" || Array.isArray(config))
     return true;
   const notifications = (config as Record<string, unknown>).notifications;
@@ -86,7 +99,11 @@ export function calendarEmailEnabled(config: unknown): boolean {
   ) {
     return true;
   }
-  return (notifications as Record<string, unknown>).calendar !== false;
+  return (notifications as Record<string, unknown>)[kind] !== false;
+}
+
+export function calendarEmailEnabled(config: unknown): boolean {
+  return emailNotificationEnabled(config, "calendar");
 }
 
 function isRetryable(error: ProviderError): boolean {
@@ -382,10 +399,109 @@ export async function sendRsvpNotification(params: {
 
   await sendEmail({
     to: params.organizerEmail,
-    subject: `${params.attendeeName} ${responseLabels[params.response]} — ${params.eventTitle}`,
+    subject: `${params.attendeeName} ${responseLabels[params.response]}: ${params.eventTitle}`,
     html: rsvpNotificationHtml(template),
     text: rsvpNotificationText(template),
     idempotencyKey: `event-rsvp/${params.eventId}/${params.attendeeProfileId}/${params.responseVersionAt}`,
+  });
+}
+
+export async function sendMessageNotifications(params: {
+  messageId: number;
+  conversationId: number;
+  senderProfileId: number;
+  senderName: string;
+  content: string | null;
+  recipientProfileIds: number[];
+}): Promise<void> {
+  const recipientIds = [
+    ...new Set(
+      params.recipientProfileIds.filter((id) => id !== params.senderProfileId),
+    ),
+  ];
+  const profiles = await loadProfiles(recipientIds);
+  const portalUrl = `${getPortalOrigin()}/dashboard/messages/${params.conversationId}`;
+  const excerpt = params.content?.trim() || "Attachment";
+
+  await sendInSmallBatches(
+    profiles.flatMap((profile) => {
+      const recipientEmail = profile.email;
+      if (
+        !recipientEmail ||
+        !emailNotificationEnabled(profile.config, "messages")
+      )
+        return [];
+      const template = {
+        recipientName: profile.name,
+        senderName: params.senderName,
+        excerpt,
+        portalUrl,
+      };
+      return [
+        () =>
+          sendEmail({
+            to: recipientEmail,
+            subject: `New message from ${params.senderName}`,
+            html: messageNotificationHtml(template),
+            text: messageNotificationText(template),
+            idempotencyKey: `message/${params.messageId}/${profile.id}`,
+          }),
+      ];
+    }),
+  );
+}
+
+export async function sendRequestUpdateNotification(params: {
+  requestId: number;
+  requesterUid: string;
+  requestSubject: string;
+  status: "pending" | "in-progress" | "done" | "denied";
+  projectId: number | null;
+  versionAt: string;
+}): Promise<void> {
+  const supabaseAdmin = createAdminClient();
+  const [{ data: profile, error: profileError }, { data: project }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select("id, name, email, config")
+        .eq("uid", params.requesterUid)
+        .maybeSingle(),
+      params.projectId
+        ? supabaseAdmin
+            .from("projects")
+            .select("company_name")
+            .eq("id", params.projectId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+  if (profileError) {
+    throw new Error(`Couldn't load request recipient: ${profileError.message}`);
+  }
+  if (!profile?.email || !emailNotificationEnabled(profile.config, "requests"))
+    return;
+
+  const statusLabel: Record<typeof params.status, string> = {
+    pending: "Pending",
+    "in-progress": "In progress",
+    done: "Done",
+    denied: "Denied",
+  };
+  const template = {
+    recipientName: profile.name,
+    requestSubject: params.requestSubject,
+    status: statusLabel[params.status],
+    projectName: project?.company_name ?? null,
+    portalUrl: `${getPortalOrigin()}/dashboard/requests`,
+  };
+
+  await sendEmail({
+    to: profile.email,
+    subject: `Request update: ${params.requestSubject}`,
+    html: requestUpdateHtml(template),
+    text: requestUpdateText(template),
+    idempotencyKey: `request-status/${params.requestId}/${params.versionAt}`,
   });
 }
 

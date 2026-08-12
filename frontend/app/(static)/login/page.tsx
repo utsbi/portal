@@ -6,7 +6,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 
 import bg from "@/assets/images/login.jpg";
 import { BrandLoader } from "@/components/brand-loader";
@@ -89,30 +88,6 @@ function LoginForm() {
       setError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    if (!formState.email) {
-      setError("Please enter your email address first");
-      return;
-    }
-
-    // Use a dynamic import for the client-side forgot password
-    const { createClient } = await import("@/lib/supabase/client");
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      formState.email.trim().toLowerCase(),
-      {
-        redirectTo: `${window.location.origin}/auth/update-password`,
-      },
-    );
-
-    if (error) {
-      setError("Failed to send reset email. Please try again.");
-    } else {
-      setError(null);
-      toast.success("Password reset email sent. Please check your inbox.");
     }
   };
 
@@ -262,13 +237,12 @@ function LoginForm() {
                 )}
 
                 <div>
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
+                  <Link
+                    href="/forgot-password"
                     className="text-sm text-white/50 hover:text-sbi-green transition-colors"
                   >
                     Forgot your password?
-                  </button>
+                  </Link>
                 </div>
 
                 <motion.button
