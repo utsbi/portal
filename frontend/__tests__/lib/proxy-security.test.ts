@@ -1,5 +1,13 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/supabase/middleware", () => ({
+  updateSession: vi.fn(
+    async (_request: NextRequest, forwardedHeaders: Headers) =>
+      NextResponse.next({ request: { headers: forwardedHeaders } }),
+  ),
+}));
+
 import { proxy } from "@/proxy";
 
 describe("proxy security headers", () => {
@@ -27,5 +35,16 @@ describe("proxy security headers", () => {
     expect(scriptSrc).not.toContain("'unsafe-inline'");
     expect(scriptSrc).not.toContain("'unsafe-eval'");
     expect(secondCsp).not.toBe(firstCsp);
+  });
+
+  it("does not apply the portal CSP to proxied docs HTML", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abc.supabase.co");
+
+    const response = await proxy(
+      new NextRequest("https://portal.example.com/docs"),
+    );
+
+    expect(response.headers.get("content-security-policy")).toBeNull();
   });
 });

@@ -9,21 +9,35 @@ export async function proxy(request: NextRequest) {
     isDevelopment: process.env.NODE_ENV === "development",
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
   });
+  const pathname = request.nextUrl.pathname;
+  const isDocsRoute = pathname === "/docs" || pathname.startsWith("/docs/");
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
+  if (!isDocsRoute) {
+    requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
+  } else {
+    // Let the docs worker distinguish the portal's server-side rewrite from
+    // a direct browser request without adding a query parameter (which would
+    // otherwise drop search and markdown negotiation parameters).
+    requestHeaders.set("x-portal-docs-proxy", "1");
+  }
 
-  const pathname = request.nextUrl.pathname;
   const needsSession =
     pathname.startsWith("/dashboard") ||
-    (pathname.startsWith("/docs") && pathname !== "/docs/favicon.ico") ||
+    (isDocsRoute && pathname !== "/docs/favicon.ico") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/login");
   const response = needsSession
     ? await updateSession(request, requestHeaders)
     : NextResponse.next({ request: { headers: requestHeaders } });
 
-  response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  // The docs app is a separately-built static application. Its hydration
+  // scripts do not carry the portal's per-request nonce, so applying the
+  // portal CSP to the proxied HTML leaves the page looking rendered but
+  // disables theme, sidebar, search, and every other client interaction.
+  if (!isDocsRoute) {
+    response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  }
   return response;
 }
 
