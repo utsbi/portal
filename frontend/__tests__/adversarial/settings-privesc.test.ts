@@ -411,4 +411,29 @@ describe("ADVERSARIAL settings — input validation boundaries (S5)", () => {
     // The update is keyed to the caller's profile id (1), never a client-chosen id.
     expect(state.profileUpdateCalls[0].id).toBe(1);
   });
+
+  it("a member cannot change their own department", async () => {
+    state.user = { id: "uid-member" };
+    state.callerProfile = {
+      id: 1,
+      role: "member",
+      name: "Member",
+      email: "member@example.com",
+      department: "Engineering",
+      config: {},
+    };
+
+    const res = await updateMyProfile({
+      name: "Member Updated",
+      department: "Finance",
+    });
+
+    expect(res).toEqual({ success: true });
+    expect(state.profileUpdateCalls).toEqual([
+      {
+        patch: { name: "Member Updated", department: "Engineering" },
+        id: 1,
+      },
+    ]);
+  });
 });

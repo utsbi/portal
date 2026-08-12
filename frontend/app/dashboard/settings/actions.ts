@@ -948,7 +948,12 @@ export async function updateMyProfile(data: {
   const name = data.name.trim();
   if (name.length < 2) return { error: "Name must be at least 2 characters" };
 
-  const department = data.department?.trim() || null;
+  // A member's department is roster metadata managed by directors. Keep the
+  // stored value even if a client tampers with the submitted payload.
+  const department =
+    ctx.profile.role === "member"
+      ? ctx.profile.department
+      : data.department?.trim() || null;
 
   const { error } = await ctx.supabase
     .from("profiles")

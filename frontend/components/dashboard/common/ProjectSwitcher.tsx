@@ -87,9 +87,8 @@ export function ProjectSwitcher() {
 
       <DropdownMenuContent
         align="start"
-        alignOffset={8}
         sideOffset={6}
-        className="w-60 rounded-xl border-sbi-dark-border bg-sbi-dark p-1.5 shadow-xl shadow-black/40"
+        className="w-60 rounded-none border-sbi-dark-border bg-sbi-dark p-1.5 shadow-xl shadow-black/40"
       >
         <p className="px-2.5 pb-1.5 pt-1 text-[0.7rem] uppercase tracking-[0.2em] text-sbi-muted-dark">
           Switch project
@@ -101,7 +100,7 @@ export function ProjectSwitcher() {
               key={project.projectId}
               onClick={() => switchProject(project.projectId)}
               className={cn(
-                "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors focus:bg-sbi-dark-card",
+                "flex cursor-pointer items-center gap-2.5 rounded-none px-2.5 py-2 text-sm transition-colors focus:bg-sbi-dark-card",
                 isActive
                   ? "text-sbi-green focus:text-sbi-green"
                   : "text-sbi-muted focus:text-white",

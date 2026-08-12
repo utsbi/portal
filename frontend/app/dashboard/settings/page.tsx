@@ -501,7 +501,8 @@ function ProfileSection() {
 
   const isDirty =
     name.trim() !== account.name ||
-    (department.trim() || null) !== (account.department || null);
+    (account.role !== "member" &&
+      (department.trim() || null) !== (account.department || null));
   const showDepartment =
     account.role === "member" ||
     account.role === "director" ||
@@ -512,7 +513,10 @@ function ProfileSection() {
     setSaving(true);
     const result = await updateMyProfile({
       name,
-      department: department.trim() || null,
+      department:
+        account.role === "member"
+          ? account.department
+          : department.trim() || null,
     });
     if (result.error) {
       toastError(result.error, "Couldn't save profile");
@@ -520,7 +524,10 @@ function ProfileSection() {
       const next = {
         ...account,
         name: name.trim(),
-        department: department.trim() || null,
+        department:
+          account.role === "member"
+            ? account.department
+            : department.trim() || null,
       };
       setAccount(next);
       toastSuccess("Profile saved.");
@@ -590,24 +597,41 @@ function ProfileSection() {
                 <label htmlFor="account-department" className={labelClass}>
                   Department
                 </label>
-                <Select
-                  value={department || "__none__"}
-                  onValueChange={(v) =>
-                    setDepartment(v === "__none__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger id="account-department" className="mt-1">
-                    <SelectValue placeholder="No department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No department</SelectItem>
-                    {DEPARTMENTS.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {account.role === "member" ? (
+                  <>
+                    <div
+                      id="account-department"
+                      className={cn(
+                        inputClass,
+                        "mt-1 flex min-h-9 items-center cursor-not-allowed text-sbi-muted",
+                      )}
+                    >
+                      {account.department || "No department assigned"}
+                    </div>
+                    <p className="mt-1.5 text-xs text-sbi-muted-dark">
+                      Department is managed by directors.
+                    </p>
+                  </>
+                ) : (
+                  <Select
+                    value={department || "__none__"}
+                    onValueChange={(v) =>
+                      setDepartment(v === "__none__" ? "" : v)
+                    }
+                  >
+                    <SelectTrigger id="account-department" className="mt-1">
+                      <SelectValue placeholder="No department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No department</SelectItem>
+                      {DEPARTMENTS.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             )}
           </div>
