@@ -1,6 +1,7 @@
 "use server";
 
 import { requireDirector } from "@/lib/auth/guards";
+import { isStaffRole } from "@/lib/auth/roles";
 import { scheduleEmailTask } from "@/lib/email/schedule";
 import { sendRequestUpdateNotification } from "@/lib/email/send";
 import { createClient } from "@/lib/supabase/server";
@@ -55,7 +56,7 @@ async function requireProjectMember(projectId: number): Promise<
   if (profileError || !profile) return { error: "Profile not found" };
 
   // Directors have project-wide access — no membership row required.
-  if (profile.role === "director") {
+  if (isStaffRole(profile.role)) {
     return { error: null, supabase, profileId: profile.id };
   }
 

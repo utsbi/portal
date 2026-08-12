@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getAttachmentContent, type SourceDocument } from "@/lib/api/chat";
 import { saveTextToKnowledge } from "@/lib/api/knowledge";
+import { isStaffRole } from "@/lib/auth/roles";
 import type { DisplayMessage, TimelineStep } from "@/lib/chat/chat-context";
 import { useChat } from "@/lib/chat/chat-context";
 import { toastError, toastSuccess } from "@/lib/notifications";
@@ -184,7 +185,7 @@ function MessageAttachmentChip({
   // meaningful text — saving one to project knowledge would pollute the RAG
   // corpus with a base64 blob, so the save action is disabled for images.
   const canSave =
-    user?.role === "director" &&
+    isStaffRole(user?.role) &&
     projectId !== null &&
     attachment.file_type !== "image" &&
     Boolean(attachment.hash || attachment.content);

@@ -509,13 +509,14 @@ export async function sendAccountInvite(params: {
   email: string;
   recipientName: string;
   invitedByName: string;
-  role: "client" | "director" | "member";
+  role: "client" | "director" | "president" | "member";
   confirmationUrl: string;
   userId: string;
 }): Promise<void> {
   const roleLabels = {
     client: "a client",
     director: "a director",
+    president: "the SBI president",
     member: "a team member",
   } as const;
   const template = {

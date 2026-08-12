@@ -127,7 +127,10 @@ async def _is_director(db, user_id: str) -> bool:
 
     def _query() -> bool:
         prof = db.table("profiles").select("role").eq("uid", user_id).limit(1).execute()
-        return bool(prof.data) and prof.data[0].get("role") == "director"
+        return bool(prof.data) and prof.data[0].get("role") in {
+            "director",
+            "president",
+        }
 
     return await asyncio.to_thread(_query)
 

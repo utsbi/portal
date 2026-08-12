@@ -8,6 +8,7 @@ import { ProjectSwitchOverlay } from "@/components/dashboard/common/ProjectSwitc
 import { SidebarTriggerCustom } from "@/components/dashboard/common/SidebarTriggerCustom";
 import { MobileNewChatButton } from "@/components/dashboard/explore/ui/MobileNewChatButton";
 import { TimeDisplay } from "@/components/dashboard/explore/ui/TimeDisplay";
+import { isStaffRole } from "@/lib/auth/roles";
 import { ChatProvider } from "@/lib/chat/chat-context";
 import { ProjectProvider } from "@/lib/project/project-context";
 import { resolveActor } from "@/lib/project/resolve-actor";
@@ -42,7 +43,7 @@ export default async function DashboardLayout({
   // state or expose its navigation. Directors retain the workspace so they can
   // create a project and set its default from Settings.
   const needsProjectAccessGuard =
-    actor.projects.length === 0 && actor.profile.role !== "director";
+    actor.projects.length === 0 && !isStaffRole(actor.profile.role);
 
   if (needsProjectAccessGuard) {
     return (

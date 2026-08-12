@@ -333,7 +333,7 @@ export async function fetchAssignableProfiles(): Promise<AssignableProfile[]> {
   const { data, error } = await supabase
     .from("profiles")
     .select("id, name, role, department")
-    .in("role", ["director", "member"])
+    .in("role", ["director", "president", "member"])
     .order("name", { ascending: true });
   if (error || !data) {
     console.error("Error fetching assignable profiles:", error);

@@ -22,6 +22,7 @@ import {
 } from "@/components/dashboard/common/ui";
 import { type ColumnDef, DataTable } from "@/components/data-table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { isStaffRole } from "@/lib/auth/roles";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { deleteLifecycleTask } from "../api";
@@ -59,7 +60,7 @@ function ProjectDetailInner() {
   const demoMode = searchParams.get("demo") === "1";
 
   const { user } = useProject();
-  const canEdit = user?.role === "director";
+  const canEdit = isStaffRole(user?.role);
 
   const { project, loading, refetch, setTaskStatus } = useLifecycleProject({
     projectId,

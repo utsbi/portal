@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { isStaffRole } from "@/lib/auth/roles";
 import { useProject } from "@/lib/project/project-context";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +25,7 @@ export function ProjectSwitcher() {
   const { user, activeProject, projects, switchProject } = useProject();
 
   const role = user?.role;
-  const canSwitch = role === "director" || role === "member";
+  const canSwitch = isStaffRole(role) || role === "member";
 
   // Nothing to show until the project context has resolved a project.
   if (!activeProject && !canSwitch) return null;

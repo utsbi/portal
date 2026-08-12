@@ -36,6 +36,7 @@ import { shouldShowScrollToBottom } from "@/components/dashboard/common/scroll-t
 import { btnPrimary, EmptyState } from "@/components/dashboard/common/ui";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isStaffRole } from "@/lib/auth/roles";
 import { signWithCache } from "@/lib/messages/attachment-cache";
 import {
   ensureHydrated,
@@ -91,7 +92,7 @@ interface UnfurlData {
 interface ThreadMessage {
   id: number;
   text: string | null;
-  senderRole: "client" | "director" | "member";
+  senderRole: "client" | "director" | "president" | "member";
   /** Sender's profile id. Ownership ("is this mine") is by identity, not role,
    *  so same-role and group threads render correctly. */
   senderProfileId?: number | null;
@@ -596,7 +597,7 @@ function PinnedStrip({ pinnedMessages, onJump }: PinnedStripProps) {
               />
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.04em] text-sbi-muted-dark mb-0.5">
-                  {m.senderRole === "director"
+                  {isStaffRole(m.senderRole)
                     ? "Director"
                     : m.senderRole === "member"
                       ? "Member"
@@ -651,7 +652,7 @@ function PermissionPrompt({ onEnable, onDismiss }: PermissionPromptProps) {
 
 interface MessageThreadProps {
   conversationId?: string | null;
-  senderRole?: "client" | "director" | "member";
+  senderRole?: "client" | "director" | "president" | "member";
   readOnly?: boolean;
   basePath?: string;
   /** Conversations array to feed into Cmd+K switcher (optional). */
@@ -965,7 +966,8 @@ export function MessageThread({
         id: row.id,
         text: row.content ?? null,
         senderRole:
-          (row.sender_role as "client" | "director" | "member") ?? "client",
+          (row.sender_role as "client" | "director" | "president" | "member") ??
+          "client",
         senderProfileId: (row.sender_profile_id as number | null) ?? null,
         createdAt: (row.created_at as string) ?? new Date().toISOString(),
         editedAt:
@@ -1117,7 +1119,8 @@ export function MessageThread({
         id: row.id,
         text: row.content ?? null,
         senderRole:
-          (row.sender_role as "client" | "director" | "member") ?? "client",
+          (row.sender_role as "client" | "director" | "president" | "member") ??
+          "client",
         senderProfileId: (row.sender_profile_id as number | null) ?? null,
         createdAt: (row.created_at as string) ?? new Date().toISOString(),
         editedAt:
@@ -1255,7 +1258,11 @@ export function MessageThread({
             id: row.id,
             text: row.content ?? null,
             senderRole:
-              (row.sender_role as "client" | "director" | "member") ?? "client",
+              (row.sender_role as
+                | "client"
+                | "director"
+                | "president"
+                | "member") ?? "client",
             senderProfileId: (row.sender_profile_id as number | null) ?? null,
             createdAt: (row.created_at as string) ?? new Date().toISOString(),
             editedAt: row.edited_at ?? null,
@@ -1285,10 +1292,9 @@ export function MessageThread({
             getNotificationPermission() === "granted"
           ) {
             notifyNewMessage({
-              title:
-                senderRole === "director"
-                  ? "New message from client"
-                  : "New message from director",
+              title: isStaffRole(senderRole)
+                ? "New message from client"
+                : "New message from director",
               body: newMsg.text || "(attachment)",
               convId: conversationId,
               href: `${basePath}/${conversationId}`,
@@ -2970,7 +2976,7 @@ export function MessageThread({
       {/* Typing indicator */}
       {otherTyping && (
         <div className="shrink-0 px-4 py-1 text-[11px] text-sbi-muted-dark italic">
-          {senderRole === "director" ? "Client" : "Director"} is typing…
+          {isStaffRole(senderRole) ? "Client" : "Director"} is typing…
         </div>
       )}
 

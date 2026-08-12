@@ -32,6 +32,7 @@ import {
   listIndexedFiles,
   movePortalFileIndex,
 } from "@/lib/api/knowledge";
+import { isStaffRole } from "@/lib/auth/roles";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { uuid } from "@/lib/uuid";
@@ -100,7 +101,7 @@ function FolderSkeletonRow() {
 
 export default function FilesPage() {
   const { user, activeProject } = useProject();
-  const isDirector = user?.role === "director";
+  const isDirector = isStaffRole(user?.role);
   const projectId = activeProject?.projectId ?? null;
 
   const [files, setFiles] = useState<StorageEntry[]>([]);

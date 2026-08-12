@@ -13,6 +13,7 @@ import type { RequestFormData } from "@/components/dashboard/requests/RequestFor
 import { RequestForm } from "@/components/dashboard/requests/RequestForm";
 import type { Request } from "@/components/dashboard/requests/RequestHistory";
 import { RequestHistory } from "@/components/dashboard/requests/RequestHistory";
+import { isStaffRole } from "@/lib/auth/roles";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { createRequest, fetchRequests } from "@/lib/supabase/requests";
@@ -125,7 +126,7 @@ export default function RequestsPage() {
       <RequestDetailModal
         request={selectedRequest}
         onClose={() => setSelectedRequest(null)}
-        canEditStatus={user?.role === "director"}
+        canEditStatus={isStaffRole(user?.role)}
         onStatusChange={(id, status) => {
           setRequests((prev) =>
             prev.map((r) => (r.id === id ? { ...r, status } : r)),

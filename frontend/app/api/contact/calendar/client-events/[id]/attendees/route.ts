@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isStaffRole } from "@/lib/auth/roles";
 import { scheduleEmailTask } from "@/lib/email/schedule";
 import {
   sendEventChangeNotifications,
@@ -58,7 +59,7 @@ async function loadCallerAndEvent(eventIdRaw: string) {
   }
 
   const isCreator = event.created_by === callerProfile.id;
-  const isDirector = callerProfile.role === "director";
+  const isDirector = isStaffRole(callerProfile.role);
   if (!isCreator && !isDirector) {
     return {
       error: NextResponse.json(
@@ -278,7 +279,7 @@ export async function DELETE(
   const isSelf = profileId === callerProfile.id;
   if (!isSelf) {
     const isCreator = event.created_by === callerProfile.id;
-    const isDirector = callerProfile.role === "director";
+    const isDirector = isStaffRole(callerProfile.role);
     if (!isCreator && !isDirector) {
       return NextResponse.json(
         { error: "You can only remove yourself from this event" },

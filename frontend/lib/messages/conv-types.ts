@@ -30,7 +30,7 @@ export interface CachedAttachment {
 export interface CachedMessage {
   id: number;
   text: string | null;
-  senderRole: "client" | "director" | "member";
+  senderRole: "client" | "director" | "president" | "member";
   senderProfileId?: number | null;
   createdAt: string;
   editedAt?: string | null;

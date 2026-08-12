@@ -28,7 +28,7 @@ import type { Conversation } from "./ConversationList";
  * matrix and the project rules server-side and dedupes existing threads.
  */
 
-type Role = "director" | "member" | "client";
+type Role = "director" | "president" | "member" | "client";
 
 interface Candidate {
   profileId: number;
@@ -47,6 +47,7 @@ interface CreateConversationModalProps {
 
 const ROLE_LABEL: Record<Role, string> = {
   director: "Directors",
+  president: "Presidents",
   member: "Members",
   client: "Clients",
 };
@@ -122,7 +123,7 @@ export function CreateConversationModal({
       ? candidates.filter((c) => c.name.toLowerCase().includes(q))
       : candidates;
     // Group by role in a stable order.
-    const order: Role[] = ["director", "member", "client"];
+    const order: Role[] = ["president", "director", "member", "client"];
     return order
       .map((role) => ({
         role,

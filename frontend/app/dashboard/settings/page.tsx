@@ -45,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { isPresidentRole, isStaffRole } from "@/lib/auth/roles";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
 import { createClient } from "@/lib/supabase/client";
@@ -129,7 +130,7 @@ interface MyAccount {
   id: number;
   name: string;
   email: string | null;
-  role: "client" | "director" | "member";
+  role: "client" | "director" | "president" | "member";
   department: string | null;
   prefs: NotificationPrefs;
 }
@@ -192,6 +193,8 @@ function roleBadgeColor(role: string) {
   switch (role) {
     case "director":
       return "bg-amber-500/10 text-amber-400 border-amber-500/30";
+    case "president":
+      return "bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30";
     case "client":
       return "bg-blue-500/10 text-blue-400 border-blue-500/30";
     case "member":
@@ -220,7 +223,7 @@ function SettingsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const isDirector = user?.role === "director";
+  const isDirector = isStaffRole(user?.role);
 
   const requestedSection = searchParams.get("section");
   const activeSection: SectionId = useMemo(() => {
@@ -489,7 +492,9 @@ function ProfileSection() {
     name.trim() !== account.name ||
     (department.trim() || null) !== (account.department || null);
   const showDepartment =
-    account.role === "member" || account.role === "director";
+    account.role === "member" ||
+    account.role === "director" ||
+    account.role === "president";
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1764,10 +1769,11 @@ function TeamSection() {
 // Accounts section (director only)
 // ---------------------------------------------------------------------------
 
-type AccountFilter = "all" | "director" | "member" | "client";
+type AccountFilter = "all" | "director" | "president" | "member" | "client";
 
 function AccountsSection({ currentUserId }: { currentUserId: number }) {
-  const { refetch: refetchProjects, switchProject } = useProject();
+  const { refetch: refetchProjects, switchProject, user } = useProject();
+  const canManagePresident = isPresidentRole(user?.role);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [memberProfiles, setMemberProfiles] = useState<MemberProfile[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -1781,7 +1787,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
   const [createForm, setCreateForm] = useState({
     email: "",
     name: "",
-    role: "member" as "client" | "director" | "member",
+    role: "member" as "client" | "director" | "president" | "member",
     companyName: "",
     department: "",
   });
@@ -1825,9 +1831,14 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
   }, [loadAccounts]);
 
   const counts = useMemo(() => {
-    const acc = { director: 0, member: 0, client: 0 };
+    const acc = { director: 0, president: 0, member: 0, client: 0 };
     for (const a of accounts) {
-      if (a.role === "director" || a.role === "member" || a.role === "client")
+      if (
+        a.role === "director" ||
+        a.role === "president" ||
+        a.role === "member" ||
+        a.role === "client"
+      )
         acc[a.role]++;
     }
     return acc;
@@ -1836,7 +1847,12 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
   const visibleAccounts = useMemo(() => {
     const q = query.trim().toLowerCase();
     return accounts
-      .filter((a) => filter === "all" || a.role === filter)
+      .filter(
+        (a) =>
+          filter === "all" ||
+          a.role === filter ||
+          (filter === "director" && a.role === "president"),
+      )
       .filter(
         (a) =>
           !q ||
@@ -2033,7 +2049,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   onValueChange={(v) =>
                     setCreateForm((f) => ({
                       ...f,
-                      role: v as "client" | "director" | "member",
+                      role: v as "client" | "director" | "president" | "member",
                     }))
                   }
                 >
@@ -2044,6 +2060,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                     <SelectItem value="member">Member</SelectItem>
                     <SelectItem value="client">Client</SelectItem>
                     <SelectItem value="director">Director</SelectItem>
+                    {canManagePresident && (
+                      <SelectItem value="president">President</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -2155,10 +2174,18 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 />
                 <FilterChip
                   label="Directors"
-                  count={counts.director}
+                  count={counts.director + counts.president}
                   active={filter === "director"}
                   onClick={() => setFilter("director")}
                 />
+                {counts.president > 0 && (
+                  <FilterChip
+                    label="Presidents"
+                    count={counts.president}
+                    active={filter === "president"}
+                    onClick={() => setFilter("president")}
+                  />
+                )}
                 <FilterChip
                   label="Members"
                   count={counts.member}
@@ -2211,7 +2238,10 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                           onClick={() => setAccountToEdit(account)}
                           aria-label={`Edit ${account.name}'s account`}
                           title={`Edit ${account.name}'s account`}
-                          className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer"
+                          disabled={
+                            account.role === "president" && !canManagePresident
+                          }
+                          className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           <Pencil className="size-4" strokeWidth={1.5} />
                         </button>
@@ -2221,7 +2251,11 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                             onClick={() => setAccountToDelete(account)}
                             aria-label={`Delete ${account.name}'s account`}
                             title={`Delete ${account.name}'s account`}
-                            className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            disabled={
+                              account.role === "president" &&
+                              !canManagePresident
+                            }
+                            className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                           >
                             <Trash2 className="size-4" />
                           </button>
@@ -2266,7 +2300,10 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                         onClick={() => setAccountToEdit(account)}
                         aria-label={`Edit ${account.name}'s account`}
                         title={`Edit ${account.name}'s account`}
-                        className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer"
+                        disabled={
+                          account.role === "president" && !canManagePresident
+                        }
+                        className="p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         <Pencil className="size-4" strokeWidth={1.5} />
                       </button>
@@ -2276,7 +2313,10 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                           onClick={() => setAccountToDelete(account)}
                           aria-label={`Delete ${account.name}'s account`}
                           title={`Delete ${account.name}'s account`}
-                          className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                          disabled={
+                            account.role === "president" && !canManagePresident
+                          }
+                          className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -2474,6 +2514,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
       <EditAccountModal
         account={accountToEdit}
         currentUserId={currentUserId}
+        canManagePresident={canManagePresident}
         onClose={() => setAccountToEdit(null)}
         onSaved={() => {
           setAccountToEdit(null);
@@ -2568,16 +2609,20 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
 function EditAccountModal({
   account,
   currentUserId,
+  canManagePresident,
   onClose,
   onSaved,
 }: {
   account: Account | null;
   currentUserId: number;
+  canManagePresident: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"client" | "director" | "member">("member");
+  const [role, setRole] = useState<
+    "client" | "director" | "president" | "member"
+  >("member");
   const [department, setDepartment] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -2588,7 +2633,7 @@ function EditAccountModal({
   useEffect(() => {
     if (account) {
       setName(account.name);
-      setRole(account.role as "client" | "director" | "member");
+      setRole(account.role as "client" | "director" | "president" | "member");
       setDepartment(account.department ?? "");
       setError("");
     }
@@ -2615,7 +2660,8 @@ function EditAccountModal({
     setSaving(false);
   };
 
-  const showDepartment = role === "member" || role === "director";
+  const showDepartment =
+    role === "member" || role === "director" || role === "president";
 
   return (
     <Modal
@@ -2667,7 +2713,7 @@ function EditAccountModal({
               <Select
                 value={role}
                 onValueChange={(v) =>
-                  setRole(v as "client" | "director" | "member")
+                  setRole(v as "client" | "director" | "president" | "member")
                 }
                 disabled={isSelf}
               >
@@ -2678,6 +2724,9 @@ function EditAccountModal({
                   <SelectItem value="member">Member</SelectItem>
                   <SelectItem value="client">Client</SelectItem>
                   <SelectItem value="director">Director</SelectItem>
+                  {canManagePresident && (
+                    <SelectItem value="president">President</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               {isSelf && (

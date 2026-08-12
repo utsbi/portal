@@ -2,6 +2,7 @@
 
 import gsap from "gsap";
 import {
+  BarChart3,
   Bell,
   BookOpen,
   Calendar,
@@ -29,6 +30,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChatHistoryNav } from "@/components/dashboard/explore/ui/ChatHistoryNav";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isStaffRole } from "@/lib/auth/roles";
 import { useChat } from "@/lib/chat/chat-context";
 import { useProject } from "@/lib/project/project-context";
 import { useSidebar } from "@/lib/sidebar/sidebar-context";
@@ -39,7 +41,7 @@ interface NavItem {
   title: string;
   path: string;
   icon: LucideIcon;
-  roles?: Array<"client" | "director" | "member">; // if undefined, shown to all
+  roles?: Array<"client" | "director" | "president" | "member">; // if undefined, shown to all
 }
 
 // Nav is grouped by SCOPE, not by content type:
@@ -60,7 +62,7 @@ const generalItems: NavItem[] = [
     title: "Form Builder",
     path: "/questionnaire/builder",
     icon: FileEdit,
-    roles: ["director"],
+    roles: ["director", "president"],
   },
   { title: "Documentation", path: "/docs", icon: BookOpen },
 ];
@@ -438,8 +440,10 @@ export function AppSidebar() {
                   SBI
                 </span>
                 <span className="text-[9px] tracking-widest text-sbi-muted uppercase">
-                  {user?.role === "director"
-                    ? "Director Portal"
+                  {isStaffRole(user?.role)
+                    ? user?.role === "president"
+                      ? "President Portal"
+                      : "Director Portal"
                     : user?.role === "member"
                       ? "Member Portal"
                       : "Client Portal"}
@@ -601,6 +605,20 @@ export function AppSidebar() {
 
               {/* Menu items */}
               <div className="py-1">
+                {isStaffRole(user?.role) && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      router.push("/dashboard/admin/stats");
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
+                  >
+                    <BarChart3 className="size-4" strokeWidth={1.5} />
+                    <span className="text-sm font-light">Admin stats</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   role="menuitem"

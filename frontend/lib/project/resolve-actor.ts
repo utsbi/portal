@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import type { PortalRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export interface ResolvedActor {
@@ -6,7 +7,7 @@ export interface ResolvedActor {
     id: number;
     name: string;
     email: string;
-    role: "client" | "director" | "member";
+    role: PortalRole;
     initials: string;
     department: string | null;
   };

@@ -38,7 +38,7 @@ export interface EventFormModalProps {
 interface ProjectMember {
   id: number;
   name: string;
-  role: "client" | "director" | "member";
+  role: "client" | "director" | "president" | "member";
 }
 
 interface DateTimeParts {

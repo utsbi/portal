@@ -9,6 +9,7 @@ import {
   PageHeader,
   SectionLabel,
 } from "@/components/dashboard/common/ui";
+import { isStaffRole } from "@/lib/auth/roles";
 import { useProject } from "@/lib/project/project-context";
 import { NewReportModal } from "./NewReportModal";
 import { ReportDetailModal } from "./ReportDetailModal";
@@ -18,7 +19,7 @@ import { useReports } from "./use-reports";
 
 export function ReportsView() {
   const { activeProject, user } = useProject();
-  const canCreate = user?.role === "director" || user?.role === "member";
+  const canCreate = isStaffRole(user?.role) || user?.role === "member";
 
   const { reports, loading, addReport, updateStatus } = useReports(
     activeProject?.projectId,

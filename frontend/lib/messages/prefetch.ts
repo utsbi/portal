@@ -83,7 +83,8 @@ export async function prefetchConv(convId: string): Promise<void> {
       id: row.id,
       text: row.content ?? null,
       senderRole:
-        (row.sender_role as "client" | "director" | "member") ?? "client",
+        (row.sender_role as "client" | "director" | "president" | "member") ??
+        "client",
       senderProfileId: (row.sender_profile_id as number | null) ?? null,
       createdAt: (row.created_at as string) ?? new Date().toISOString(),
       editedAt:

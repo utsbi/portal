@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isStaffRole } from "@/lib/auth/roles";
 import { scheduleEmailTask } from "@/lib/email/schedule";
 import { sendEventChangeNotifications } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -173,7 +174,7 @@ export async function PATCH(
   // RLS allows update if caller is creator or director. We re-check explicitly
   // so the response can distinguish 403 (not allowed) from 404 (not found).
   const isCreator = event.created_by === callerProfile.id;
-  const isDirector = callerProfile.role === "director";
+  const isDirector = isStaffRole(callerProfile.role);
   if (!isCreator && !isDirector) {
     return NextResponse.json(
       { error: "You can't edit this event" },
@@ -282,7 +283,7 @@ export async function DELETE(
   }
 
   const isCreator = event.created_by === callerProfile.id;
-  const isDirector = callerProfile.role === "director";
+  const isDirector = isStaffRole(callerProfile.role);
   if (!isCreator && !isDirector) {
     return NextResponse.json(
       { error: "You can't delete this event" },

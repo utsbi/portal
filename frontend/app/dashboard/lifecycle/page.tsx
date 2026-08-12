@@ -11,6 +11,7 @@ import {
   PageHeader,
   SectionLabel,
 } from "@/components/dashboard/common/ui";
+import { isStaffRole } from "@/lib/auth/roles";
 import { useProject } from "@/lib/project/project-context";
 import ProjectCard from "./components/ProjectCard";
 import { ProjectHeroCard } from "./components/ProjectHeroCard";
@@ -63,7 +64,7 @@ function LifecyclePageInner() {
 
   const { hero, rest } = useMemo(() => arrange(projects), [projects]);
 
-  const canCreate = user?.role === "director" && !demoMode;
+  const canCreate = isStaffRole(user?.role) && !demoMode;
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
 
   return (

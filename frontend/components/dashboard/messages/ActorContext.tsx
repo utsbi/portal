@@ -1,9 +1,10 @@
 "use client";
 
 import { createContext, type ReactNode, useContext } from "react";
+import type { PortalRole } from "@/lib/auth/roles";
 
 export interface ActorInfo {
-  role: "client" | "director" | "member";
+  role: PortalRole;
   profileId: number;
 }
 

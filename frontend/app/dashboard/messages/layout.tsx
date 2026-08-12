@@ -4,6 +4,7 @@ import { ActorProvider } from "@/components/dashboard/messages/ActorContext";
 import { CreateConversationModalProvider } from "@/components/dashboard/messages/CreateConversationModalContext";
 import { DirectorMessages } from "@/components/dashboard/messages/DirectorMessages";
 import { MemberMessages } from "@/components/dashboard/messages/MemberMessages";
+import { isStaffRole } from "@/lib/auth/roles";
 import { resolveActor } from "@/lib/project/resolve-actor";
 import { CmdKShell } from "./CmdKShell";
 import { DetailPane } from "./DetailPane";
@@ -38,7 +39,7 @@ export default async function MessagesLayout({
             side-by-side two-pane layout from md up. */}
         <MessagesPanes
           list={
-            role === "director" ? (
+            isStaffRole(role) ? (
               <DirectorMessages profileId={profileId} />
             ) : isMember ? (
               <MemberMessages profileId={profileId} />

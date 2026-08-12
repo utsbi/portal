@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { FinancesView } from "@/components/dashboard/finances";
 import type { BudgetFetchResult } from "@/components/dashboard/finances/types";
+import { isStaffRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ async function fetchFinancesData(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, role")
     .eq("uid", user.id)
     .single();
   if (!profile) return { redirect: "/login" };
@@ -28,7 +29,7 @@ async function fetchFinancesData(
     .eq("profile_id", profile.id)
     .eq("project_id", projectId)
     .maybeSingle();
-  const canEdit = membership?.role === "director";
+  const canEdit = isStaffRole(profile.role) || membership?.role === "director";
 
   const { data: budget } = await supabase
     .from("project_budgets")

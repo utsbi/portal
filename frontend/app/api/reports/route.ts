@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { isStaffRole } from "@/lib/auth/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -131,7 +132,7 @@ export async function GET(request: Request) {
     // Non-directors must scope to a single project they belong to.
     // Without a project_id they could otherwise receive cross-project data
     // (RLS is the backstop, but enforce scoping explicitly here).
-    if (profile.role !== "director") {
+    if (!isStaffRole(profile.role)) {
       if (!projectId) {
         return NextResponse.json(
           { error: "project_id is required" },
@@ -235,7 +236,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Profile not found" }, { status: 403 });
     }
 
-    if (profile.role !== "director" && profile.role !== "member") {
+    if (!isStaffRole(profile.role) && profile.role !== "member") {
       return NextResponse.json(
         { error: "Only directors or members can submit reports" },
         { status: 403 },
@@ -260,7 +261,7 @@ export async function POST(request: Request) {
 
     // Mirror the GET handler's project-membership check: non-directors must
     // supply a project_id they actually belong to.
-    if (profile.role !== "director") {
+    if (!isStaffRole(profile.role)) {
       if (!body.project_id) {
         return NextResponse.json(
           { error: "project_id is required" },

@@ -1,3 +1,4 @@
+import { isStaffRole } from "@/lib/auth/roles";
 import type { AnswerMap } from "@/lib/questionnaire/schema";
 import {
   countQuestions,
@@ -282,7 +283,7 @@ export async function fetchDirectorData(): Promise<
     .eq("uid", user.id)
     .maybeSingle();
   if (!profile) return { redirect: "/login" };
-  if (profile.role !== "director") return { forbidden: true };
+  if (!isStaffRole(profile.role)) return { forbidden: true };
 
   const { data: schemas } = await supabase
     .from("custom_form_schemas")
@@ -403,7 +404,7 @@ export async function fetchEditFormData(
     .eq("uid", user.id)
     .maybeSingle();
   if (!profile) return { redirect: "/login" };
-  if (profile.role !== "director") return { forbidden: true };
+  if (!isStaffRole(profile.role)) return { forbidden: true };
 
   const { data: schema } = await supabase
     .from("custom_form_schemas")
@@ -697,7 +698,7 @@ export async function fetchTemplatesData(): Promise<
     .eq("uid", user.id)
     .maybeSingle();
   if (!profile) return { redirect: "/login" };
-  if (profile.role !== "director") return { forbidden: true };
+  if (!isStaffRole(profile.role)) return { forbidden: true };
 
   const { data: rows } = await supabase
     .from("custom_form_templates")

@@ -42,7 +42,7 @@ async function requireUser() {
 // Account Management
 // ============================================================
 
-const ACCOUNT_ROLES = ["client", "director", "member"] as const;
+const ACCOUNT_ROLES = ["client", "director", "president", "member"] as const;
 type AccountRole = (typeof ACCOUNT_ROLES)[number];
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -108,6 +108,12 @@ export async function inviteAccount(data: {
   }
   if (!ACCOUNT_ROLES.includes(data.role)) {
     return { error: "Select a valid account role" };
+  }
+  // Only a president can create or assign the president role. Directors may
+  // still manage ordinary director accounts; they may never create another
+  // principal above their own role.
+  if (data.role === "president" && gate.role !== "president") {
+    return { error: "Only the president can manage president accounts" };
   }
   if (
     data.role === "client" &&
@@ -364,7 +370,7 @@ export async function inviteMemberProfile(data: {
     .eq("id", profile.id)
     .is("uid", null);
   if (linkError) {
-    await admin.auth.admin.deleteUser(uid);
+    await rollback();
     return { error: linkError.message || "Couldn't link the portal account" };
   }
 
@@ -417,7 +423,7 @@ export async function setDefaultProject(projectId: number) {
 export async function updateAccount(data: {
   id: number;
   name: string;
-  role: "client" | "director" | "member";
+  role: "client" | "director" | "president" | "member";
   department: string | null;
 }) {
   const gate = await requireDirector();
@@ -439,6 +445,13 @@ export async function updateAccount(data: {
   if (existingError || !existing)
     return { error: existingError?.message || "Profile not found" };
 
+  if (
+    (existing.role === "president" || data.role === "president") &&
+    gate.role !== "president"
+  ) {
+    return { error: "Only the president can manage president accounts" };
+  }
+
   // Block self role-change to prevent locking yourself out mid-session.
   if (data.id === callerProfileId && data.role !== existing.role) {
     return { error: "You can't change your own role." };
@@ -459,7 +472,7 @@ export async function updateAccount(data: {
   //      must backfill director memberships here, and demotion must remove
   //      exactly the rows the auto-link would have created.
   if (data.role !== existing.role) {
-    if (existing.role === "director") {
+    if (existing.role === "director" || existing.role === "president") {
       // Demotion from director: drop only the auto-linked director rows,
       // preserving owner/member memberships.
       const { error: cleanupError } = await admin
@@ -488,7 +501,7 @@ export async function updateAccount(data: {
       }
     }
 
-    if (data.role === "director") {
+    if (data.role === "director" || data.role === "president") {
       // Promotion to director: mirror auto_link_director_to_projects()
       // (INSERT ... ON CONFLICT DO NOTHING) for all existing projects.
       // ignoreDuplicates leaves any surviving row (e.g. 'owner') untouched,
@@ -534,11 +547,22 @@ export async function deleteAccount(profileId: number) {
   // Get the profile to delete
   const { data: profile } = await admin
     .from("profiles")
-    .select("uid")
+    .select("uid, role")
     .eq("id", profileId)
     .single();
 
   if (!profile) return { error: "Profile not found" };
+
+  if (profile.uid && profile.uid !== uid) {
+    const { data: caller } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("uid", uid)
+      .maybeSingle();
+    if (profile.role === "president" && caller?.role !== "president") {
+      return { error: "Only the president can manage president accounts" };
+    }
+  }
 
   if (!profile.uid) return { error: "This profile has no portal account" };
 
@@ -594,7 +618,7 @@ export async function listProjectMembers(projectId: number) {
   const { data: directors, error: directorsError } = await admin
     .from("profiles")
     .select("id, name, email, role")
-    .eq("role", "director")
+    .in("role", ["director", "president"])
     .order("name");
   if (directorsError) return { error: directorsError.message, members: [] };
 

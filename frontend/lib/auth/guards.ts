@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import type { StaffRole } from "./roles";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -11,11 +12,17 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
  */
 export type AuthzGate =
   | { ok: false; error: string }
-  | { ok: true; supabase: Supabase; userId: string; profileId: number };
+  | {
+      ok: true;
+      supabase: Supabase;
+      userId: string;
+      profileId: number;
+      role?: StaffRole;
+    };
 
 /**
  * Verifies the authenticated caller holds the **global** director role
- * (`profiles.role === 'director'`).
+ * (`profiles.role IN ('director', 'president')`).
  *
  * Always uses the RLS-respecting server client.  The service-role / admin
  * client must never be used here — doing so would bypass the very policies
@@ -35,11 +42,17 @@ export async function requireDirector(): Promise<AuthzGate> {
     .eq("uid", user.id)
     .maybeSingle();
   if (!profile) return { ok: false, error: "Profile not found" };
-  if (profile.role !== "director") {
+  if (profile.role !== "director" && profile.role !== "president") {
     return { ok: false, error: "Director role required" };
   }
 
-  return { ok: true, supabase, userId: user.id, profileId: profile.id };
+  return {
+    ok: true,
+    supabase,
+    userId: user.id,
+    profileId: profile.id,
+    role: profile.role,
+  };
 }
 
 /**
@@ -61,11 +74,23 @@ export async function requireProjectDirector(
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, role")
     .eq("uid", user.id)
     .single();
   if (profileError || !profile)
     return { ok: false, error: "Profile not found" };
+
+  // Presidents are global staff and retain director access even if a legacy
+  // database missed one of their synthetic project memberships.
+  if (profile.role === "president") {
+    return {
+      ok: true,
+      supabase,
+      userId: user.id,
+      profileId: profile.id,
+      role: profile.role,
+    };
+  }
 
   const { data: membership, error: memberError } = await supabase
     .from("project_members")
@@ -78,5 +103,11 @@ export async function requireProjectDirector(
     return { ok: false, error: "Director role required" };
   }
 
-  return { ok: true, supabase, userId: user.id, profileId: profile.id };
+  return {
+    ok: true,
+    supabase,
+    userId: user.id,
+    profileId: profile.id,
+    role: "director",
+  };
 }

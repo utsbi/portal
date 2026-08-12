@@ -9,6 +9,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import type { PortalRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/client";
 
 export interface ProjectData {
@@ -22,7 +23,7 @@ export interface UserProfile {
   id: number;
   name: string;
   email: string;
-  role: "client" | "director" | "member";
+  role: PortalRole;
   initials: string;
   department: string | null;
 }

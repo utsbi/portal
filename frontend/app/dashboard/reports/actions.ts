@@ -1,5 +1,6 @@
 "use server";
 
+import { isStaffRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------------
@@ -27,12 +28,12 @@ export async function updateReportStatus(
     .single();
   if (profileError || !profile) return { error: "Profile not found" };
 
-  if (profile.role !== "director" && profile.role !== "member") {
+  if (!isStaffRole(profile.role) && profile.role !== "member") {
     return { error: "Insufficient permissions" };
   }
 
   // For non-directors, confirm they belong to the project that owns this ticket.
-  if (profile.role !== "director") {
+  if (!isStaffRole(profile.role)) {
     const { data: ticket, error: ticketError } = await supabase
       .from("tickets")
       .select("project_id")
