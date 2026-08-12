@@ -134,7 +134,6 @@ export async function inviteAccount(data: {
       .select("id")
       .eq("role", "member")
       .eq("contact_email", email)
-      .is("uid", null)
       .maybeSingle();
     if (existingMember) {
       return {
@@ -178,6 +177,10 @@ export async function inviteAccount(data: {
       email,
       role: data.role,
       department: data.role === "member" ? department : null,
+      portal_invited_at:
+        data.role === "member" ? new Date().toISOString() : null,
+      portal_activated_at:
+        data.role === "member" ? null : new Date().toISOString(),
     })
     .select("id")
     .single();
@@ -272,15 +275,22 @@ export async function listAccounts() {
 
   const { data: profiles, error } = await admin
     .from("profiles")
-    .select("id, name, email, role, department, created_at")
+    .select(
+      "id, name, email, role, department, created_at, portal_invited_at, portal_activated_at",
+    )
     .not("uid", "is", null)
     .order("created_at", { ascending: false });
 
   if (error) return { error: error.message, accounts: [] };
-  return { accounts: profiles || [] };
+  return {
+    accounts: (profiles || []).filter(
+      (profile) =>
+        profile.role !== "member" || profile.portal_activated_at !== null,
+    ),
+  };
 }
 
-/** Member records collected before a portal account exists (Discord/recovery). */
+/** Member records collected before a portal account is active (Discord/recovery). */
 export async function listMemberProfiles() {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error, members: [] };
@@ -288,14 +298,17 @@ export async function listMemberProfiles() {
   const { data, error } = await createAdminClient()
     .from("profiles")
     .select(
-      "id, name, eid, contact_email, discord_id, department, graduation, created_at",
+      "id, name, eid, contact_email, discord_id, department, graduation, created_at, uid, portal_invited_at, portal_activated_at",
     )
     .eq("role", "member")
-    .is("uid", null)
     .order("name");
 
   if (error) return { error: error.message, members: [] };
-  return { members: data || [] };
+  return {
+    members: (data || []).filter(
+      (profile) => !profile.uid || profile.portal_activated_at === null,
+    ),
+  };
 }
 
 /**
@@ -306,6 +319,7 @@ export async function listMemberProfiles() {
 export async function inviteMemberProfile(data: {
   profileId: number;
   email: string;
+  department?: string | null;
 }) {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error };
@@ -314,14 +328,18 @@ export async function inviteMemberProfile(data: {
     return { error: "Invalid member profile" };
   }
   const email = data.email.trim().toLowerCase();
+  const department = data.department?.trim() || null;
   if (!EMAIL_PATTERN.test(email) || email.length > 254) {
     return { error: "Enter a valid email address" };
+  }
+  if (department && department.length > 100) {
+    return { error: "Department must be 100 characters or fewer" };
   }
 
   const admin = createAdminClient();
   const { data: profile, error: profileError } = await admin
     .from("profiles")
-    .select("id, name, eid, role, uid, email")
+    .select("id, name, eid, role, uid, email, department")
     .eq("id", data.profileId)
     .single();
   if (profileError || !profile) {
@@ -359,14 +377,26 @@ export async function inviteMemberProfile(data: {
   const rollback = async () => {
     await admin
       .from("profiles")
-      .update({ uid: null, email: profile.email ?? null })
+      .update({
+        uid: null,
+        email: profile.email ?? null,
+        department: profile.department ?? null,
+        portal_invited_at: null,
+        portal_activated_at: null,
+      })
       .eq("id", profile.id);
     await admin.auth.admin.deleteUser(uid);
   };
 
   const { error: linkError } = await admin
     .from("profiles")
-    .update({ uid, email })
+    .update({
+      uid,
+      email,
+      department: department ?? profile.department ?? null,
+      portal_invited_at: new Date().toISOString(),
+      portal_activated_at: null,
+    })
     .eq("id", profile.id)
     .is("uid", null);
   if (linkError) {
@@ -591,6 +621,30 @@ export async function listProjects() {
 
   if (error) return { error: error.message, projects: [] };
   return { projects: data || [] };
+}
+
+/** Permanently removes a project and its project-scoped records. */
+export async function deleteProject(projectId: number) {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return { error: "Invalid project" };
+  }
+
+  const { data: project, error: lookupError } = await createAdminClient()
+    .from("projects")
+    .select("id, company_name")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (lookupError || !project) {
+    return { error: lookupError?.message || "Project not found" };
+  }
+
+  const { error } = await gate.supabase.rpc("delete_project", {
+    _project_id: projectId,
+  });
+  if (error) return { error: error.message };
+  return { success: true, projectName: project.company_name };
 }
 
 export async function listProjectMembers(projectId: number) {

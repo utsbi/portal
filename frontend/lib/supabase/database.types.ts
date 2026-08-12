@@ -1030,6 +1030,8 @@ export type Database = {
           graduation: number | null;
           id: number;
           name: string;
+          portal_activated_at: string | null;
+          portal_invited_at: string | null;
           role: "client" | "director" | "president" | "member";
           uid: string | null;
           updated_at: string;
@@ -1045,6 +1047,8 @@ export type Database = {
           graduation?: number | null;
           id?: number;
           name: string;
+          portal_activated_at?: string | null;
+          portal_invited_at?: string | null;
           role: "client" | "director" | "president" | "member";
           uid?: string | null;
           updated_at?: string;
@@ -1060,6 +1064,8 @@ export type Database = {
           graduation?: number | null;
           id?: number;
           name?: string;
+          portal_activated_at?: string | null;
+          portal_invited_at?: string | null;
           role?: "client" | "director" | "president" | "member";
           uid?: string | null;
           updated_at?: string;
@@ -1457,6 +1463,10 @@ export type Database = {
         Returns: boolean;
       };
       current_user_role: { Args: never; Returns: string };
+      delete_project: {
+        Args: { _project_id: number };
+        Returns: undefined;
+      };
       hybrid_search: {
         Args: {
           _filter_client_id?: string;

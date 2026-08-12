@@ -55,6 +55,7 @@ import {
   assignOwnerToProject,
   createProject,
   deleteAccount,
+  deleteProject,
   getMyAccount,
   inviteAccount,
   inviteMemberProfile,
@@ -88,6 +89,8 @@ interface Account {
   role: string;
   department: string | null;
   created_at: string;
+  portal_invited_at: string | null;
+  portal_activated_at: string | null;
 }
 
 interface Project {
@@ -106,6 +109,9 @@ interface MemberProfile {
   department: string | null;
   graduation: number | null;
   created_at: string;
+  uid: string | null;
+  portal_invited_at: string | null;
+  portal_activated_at: string | null;
 }
 
 interface ProjectMember {
@@ -1274,6 +1280,7 @@ function CalendarSection() {
 // ---------------------------------------------------------------------------
 
 function TeamSection() {
+  const { refetch: refetchProjects } = useProject();
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [membersLoaded, setMembersLoaded] = useState(false);
@@ -1289,6 +1296,7 @@ function TeamSection() {
   const [memberToRemove, setMemberToRemove] = useState<ProjectMember | null>(
     null,
   );
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [availableOwners, setAvailableOwners] = useState<
     { id: number; name: string; email: string | null }[]
   >([]);
@@ -1324,8 +1332,12 @@ function TeamSection() {
     const res = await listProjects();
     if (res.projects) {
       setProjects(res.projects);
-      if (res.projects.length > 0)
-        setSelectedProjectId((curr) => curr ?? res.projects[0].id);
+      setSelectedProjectId((current) => {
+        if (current && res.projects.some((project) => project.id === current)) {
+          return current;
+        }
+        return res.projects[0]?.id ?? null;
+      });
     }
     setProjectsLoaded(true);
   }, []);
@@ -1412,6 +1424,21 @@ function TeamSection() {
       loadProjectMembers(selectedProjectId);
     }
     setMemberToRemove(null);
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return;
+    const target = projectToDelete;
+    const result = await deleteProject(target.id);
+    if (result.error) {
+      toastError(result.error, "Couldn't delete project");
+    } else {
+      toastSuccess(`Deleted ${target.company_name}.`);
+      setProjectToDelete(null);
+      setProjectMembers([]);
+      setUnassignedMembers([]);
+      await Promise.all([loadProjects(), refetchProjects()]);
+    }
   };
 
   // Inline loading matches the Accounts pattern — header + selector stay
@@ -1623,6 +1650,25 @@ function TeamSection() {
               </SelectContent>
             </Select>
           </div>
+          {selectedProjectId && !isLoading && (
+            <button
+              type="button"
+              onClick={() =>
+                setProjectToDelete(
+                  projects.find(
+                    (project) => project.id === selectedProjectId,
+                  ) ?? null,
+                )
+              }
+              className={cn(
+                btnGhost,
+                "shrink-0 justify-center text-red-300 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200",
+              )}
+            >
+              <Trash2 className="size-4" />
+              Delete project
+            </button>
+          )}
           {countLine && (
             <p className="text-xs text-sbi-muted-dark tabular-nums pb-2.5">
               {countLine}
@@ -1761,6 +1807,26 @@ function TeamSection() {
         confirmLabel="Remove"
         onConfirm={confirmRemove}
       />
+
+      <ConfirmDialog
+        opened={!!projectToDelete}
+        onClose={() => setProjectToDelete(null)}
+        title={
+          projectToDelete
+            ? `Delete ${projectToDelete.company_name}?`
+            : "Delete project?"
+        }
+        danger
+        description={
+          <p>
+            This permanently deletes the project and its memberships, events,
+            files, finance records, and other project data. This cannot be
+            undone.
+          </p>
+        }
+        confirmLabel="Delete project"
+        onConfirm={confirmDeleteProject}
+      />
     </div>
   );
 }
@@ -1801,6 +1867,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     null,
   );
   const [memberInviteEmail, setMemberInviteEmail] = useState("");
+  const [memberInviteDepartment, setMemberInviteDepartment] = useState("");
   const [memberInviteError, setMemberInviteError] = useState("");
   const [memberInviteLoading, setMemberInviteLoading] = useState(false);
   const [memberQuery, setMemberQuery] = useState("");
@@ -1934,6 +2001,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     setMemberInviteEmail(
       eid ? `${eid}@eid.utexas.edu` : member.contact_email || "",
     );
+    setMemberInviteDepartment(member.department || "");
     setMemberInviteError("");
   };
 
@@ -1945,6 +2013,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     const result = await inviteMemberProfile({
       profileId: memberToInvite.id,
       email: memberInviteEmail,
+      department: memberInviteDepartment,
     });
     if (result.error) {
       setMemberInviteError(result.error);
@@ -2412,7 +2481,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           </div>
         ) : memberProfiles.length === 0 ? (
           <p className="text-sm text-sbi-muted-dark">
-            No uninvited member profiles yet.
+            No member profiles awaiting a portal account.
           </p>
         ) : visibleMemberProfiles.length === 0 ? (
           <p className="py-3 text-sm text-sbi-muted-dark">
@@ -2420,42 +2489,60 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           </p>
         ) : (
           <div className="divide-y divide-sbi-dark-border/20 border-y border-sbi-dark-border/30">
-            {visibleMemberProfiles.map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center justify-between gap-4 py-3.5"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-white">
-                    {member.name}
-                  </p>
-                  <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-sbi-muted">
-                    <span className="truncate">
-                      {member.eid || "EID not recorded"}
-                    </span>
-                    <span aria-hidden className="text-sbi-muted-dark">
-                      ·
-                    </span>
-                    <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
-                      <DiscordIcon className="size-3.5 shrink-0 text-sbi-muted-dark" />
-                      <span className="truncate">
-                        {member.discord_id || "Discord ID not recorded"}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openMemberInvite(member)}
-                  className={cn(
-                    btnGhost,
-                    "shrink-0 justify-center px-3 py-2.5 text-[11px]",
-                  )}
+            {visibleMemberProfiles.map((member) => {
+              const isPending = Boolean(
+                member.uid && !member.portal_activated_at,
+              );
+              return (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between gap-4 py-3.5"
                 >
-                  <UserPlus className="size-4" /> Invite to portal
-                </button>
-              </div>
-            ))}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium text-white">
+                        {member.name}
+                      </p>
+                      {isPending && (
+                        <span className="shrink-0 rounded border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.15em] text-amber-300">
+                          Pending
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-sbi-muted">
+                      <span className="truncate">
+                        {member.eid || "EID not recorded"}
+                      </span>
+                      <span aria-hidden className="text-sbi-muted-dark">
+                        ·
+                      </span>
+                      <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                        <DiscordIcon className="size-3.5 shrink-0 text-sbi-muted-dark" />
+                        <span className="truncate">
+                          {member.discord_id || "Discord ID not recorded"}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  {isPending ? (
+                    <span className="shrink-0 text-xs text-sbi-muted-dark">
+                      Awaiting password setup
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openMemberInvite(member)}
+                      className={cn(
+                        btnGhost,
+                        "shrink-0 justify-center px-3 py-2.5 text-[11px]",
+                      )}
+                    >
+                      <UserPlus className="size-4" /> Invite to portal
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </Panel>
@@ -2486,6 +2573,29 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
               onChange={(event) => setMemberInviteEmail(event.target.value)}
               className={cn(inputClass, "mt-1")}
             />
+          </div>
+          <div>
+            <label htmlFor="member-invite-department" className={labelClass}>
+              Department
+            </label>
+            <Select
+              value={memberInviteDepartment || "unassigned"}
+              onValueChange={(value) =>
+                setMemberInviteDepartment(value === "unassigned" ? "" : value)
+              }
+            >
+              <SelectTrigger id="member-invite-department" className="mt-1">
+                <SelectValue placeholder="Select a department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Not set</SelectItem>
+                {DEPARTMENTS.map((department) => (
+                  <SelectItem key={department} value={department}>
+                    {department}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {memberInviteError ? (
             <p role="alert" className="text-sm text-red-400">

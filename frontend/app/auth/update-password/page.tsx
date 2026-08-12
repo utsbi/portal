@@ -7,6 +7,7 @@ import { btnGhost, btnPrimary } from "@/components/dashboard/common/ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { markPortalAccountActivated } from "./actions";
 
 const inputClass =
   "bg-sbi-dark border-sbi-dark-border rounded-lg px-4 py-3 h-auto text-base md:text-base text-white placeholder:text-white/30 focus-visible:border-sbi-green/50 focus-visible:ring-sbi-green/20 focus-visible:ring-[2px] shadow-none";
@@ -125,6 +126,17 @@ export default function UpdatePasswordPage() {
         setUpdateError(error.message);
         setIsSubmitting(false);
         return;
+      }
+
+      const activation = await markPortalAccountActivated();
+      if ("error" in activation) {
+        // The password was accepted. Keep the success state, but leave a
+        // useful diagnostic in the console if the administrative status
+        // update needs to be retried rather than making the user submit twice.
+        console.error(
+          "Failed to activate the portal profile",
+          activation.error,
+        );
       }
 
       setIsSuccess(true);
