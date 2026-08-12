@@ -43,6 +43,13 @@ const state = {
   },
   deleteUserResult: { error: null } as { error: unknown },
   deleteUserCalls: 0,
+  listUsersResult: {
+    data: { users: [] as Array<{ email?: string }> },
+    error: null,
+  } as {
+    data: { users: Array<{ email?: string }> };
+    error: unknown;
+  },
   updateResult: { error: null } as { error: unknown },
   accountsResult: { data: [] as unknown, error: null } as {
     data: unknown;
@@ -71,6 +78,7 @@ vi.mock("@/lib/supabase/server", () => ({
     const profilesChain: Record<string, ReturnType<typeof vi.fn>> = {
       select: vi.fn(),
       eq: vi.fn(),
+      is: vi.fn(),
       // Used by requireUser() (.single) and requireDirector() (.maybeSingle)
       single: vi.fn(async () => ({
         data: state.callerProfile,
@@ -130,6 +138,7 @@ vi.mock("@supabase/supabase-js", () => {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {
       select: vi.fn(),
       eq: vi.fn(),
+      is: vi.fn(),
       // Admin-client .single() on profiles is always a TARGET lookup
       // (updateAccount's existing-row fetch, deleteAccount's uid fetch) —
       // caller-profile lookups go through the server-client mock above.
@@ -142,10 +151,18 @@ vi.mock("@supabase/supabase-js", () => {
     };
     chain.select.mockReturnValue(chain);
     chain.eq.mockReturnValue(chain);
+    chain.is.mockReturnValue(chain);
     chain.not.mockReturnValue(chain);
-    chain.update.mockImplementation(() => ({
-      eq: vi.fn(async () => state.updateResult),
-    }));
+    chain.update.mockImplementation(() => {
+      const filters = {
+        is: vi.fn(async () => state.updateResult),
+        // biome-ignore lint/suspicious/noThenProperty: mimics an awaitable PostgREST filter builder
+        then(onfulfilled: (value: unknown) => unknown) {
+          return Promise.resolve(state.updateResult).then(onfulfilled);
+        },
+      };
+      return { eq: vi.fn(() => filters) };
+    });
     // profiles.insert(...).select(...).single() → insertProfileResult
     chain.insert.mockImplementation(() => ({
       select: vi.fn(() => ({
@@ -222,6 +239,7 @@ vi.mock("@supabase/supabase-js", () => {
       auth: {
         admin: {
           generateLink: vi.fn(async () => state.insertAuthResult),
+          listUsers: vi.fn(async () => state.listUsersResult),
           deleteUser: vi.fn(async () => {
             state.deleteUserCalls++;
             return state.deleteUserResult;
@@ -250,6 +268,7 @@ vi.mock("@supabase/supabase-js", () => {
 // Import AFTER mocks are registered.
 const {
   inviteAccount,
+  inviteMemberProfile,
   listAccounts,
   updateAccount,
   deleteAccount,
@@ -272,6 +291,7 @@ function resetState() {
   state.insertProfileResult = { data: { id: 99 }, error: null };
   state.deleteUserResult = { error: null };
   state.deleteUserCalls = 0;
+  state.listUsersResult = { data: { users: [] }, error: null };
   state.updateResult = { error: null };
   state.accountsResult = { data: [], error: null };
   state.targetProfile = { data: null, error: null };
@@ -360,6 +380,64 @@ describe("settings/actions — auth gates", () => {
         email: "member@example.com",
         name: "New Member",
         role: "member",
+      });
+
+      expect(result.error).toMatch(/no account was created/i);
+      expect(state.deleteUserCalls).toBe(1);
+    });
+  });
+
+  describe("inviteMemberProfile", () => {
+    it("links an existing uid-less member profile instead of creating a duplicate", async () => {
+      state.user = { id: "uid-director" };
+      state.callerProfile = { id: 1, role: "director", name: "Director" };
+      state.targetProfile = {
+        data: {
+          id: 44,
+          name: "Discord Member",
+          eid: "dm123",
+          role: "member",
+          uid: null,
+          email: null,
+        },
+        error: null,
+      };
+
+      const result = await inviteMemberProfile({
+        profileId: 44,
+        email: "dm123@eid.utexas.edu",
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({ success: true, profileId: 44 }),
+      );
+      expect(sendAccountInviteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "dm123@eid.utexas.edu",
+          role: "member",
+        }),
+      );
+    });
+
+    it("rolls back the generated auth user when member invitation delivery fails", async () => {
+      state.user = { id: "uid-director" };
+      state.callerProfile = { id: 1, role: "director", name: "Director" };
+      state.targetProfile = {
+        data: {
+          id: 45,
+          name: "Discord Member",
+          eid: "dm124",
+          role: "member",
+          uid: null,
+          email: null,
+        },
+        error: null,
+      };
+      sendAccountInviteMock.mockRejectedValueOnce(new Error("provider down"));
+
+      const result = await inviteMemberProfile({
+        profileId: 45,
+        email: "dm124@eid.utexas.edu",
       });
 
       expect(result.error).toMatch(/no account was created/i);
