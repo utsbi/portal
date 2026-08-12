@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { renderMarkdown } from "@/components/dashboard/messages/markdown";
 import type { TimelineStep, ToolStepOutput } from "@/lib/chat/chat-context";
 import { cn } from "@/lib/utils";
 import { getFileInfo } from "./file-info";
@@ -151,7 +152,7 @@ function ReasoningText({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
-  const ref = useRef<HTMLParagraphElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   // Collapse the model's generous blank-line gaps so the rail stays tight.
   const normalized = useMemo(
     () => text.replace(/\n{2,}/g, "\n").trim(),
@@ -170,15 +171,15 @@ function ReasoningText({
 
   return (
     <div>
-      <p
+      <div
         ref={ref}
         className={cn(
-          "whitespace-pre-wrap break-words text-[13px] font-light leading-snug text-sbi-muted",
-          clamped && "line-clamp-3",
+          "break-words text-[13px] font-light leading-snug text-sbi-muted [&_h1]:mt-0 [&_h1]:mb-0 [&_h1]:text-[13px] [&_h1]:font-medium [&_h2]:mt-0 [&_h2]:mb-0 [&_h2]:text-[13px] [&_h2]:font-medium [&_h3]:mt-0 [&_h3]:mb-0 [&_h3]:text-[13px] [&_h3]:font-medium",
+          clamped && "max-h-[3.75rem] overflow-hidden",
         )}
       >
-        {normalized}
-      </p>
+        {renderMarkdown(normalized)}
+      </div>
       {!streaming && (overflows || expanded) && (
         <button
           type="button"
