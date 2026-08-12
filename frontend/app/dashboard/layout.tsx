@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/common/app-sidebar";
+import { NoProjectAccess } from "@/components/dashboard/common/NoProjectAccess";
 import { ProjectStatusBar } from "@/components/dashboard/common/ProjectStatusBar";
 import { ProjectSwitcher } from "@/components/dashboard/common/ProjectSwitcher";
 import { ProjectSwitchOverlay } from "@/components/dashboard/common/ProjectSwitchOverlay";
@@ -34,6 +35,28 @@ export default async function DashboardLayout({
     actor.projects.find((p) => p.projectId === actor.activeProjectId) ||
     actor.projects[0] ||
     null;
+
+  // An authenticated profile can legitimately exist before a director assigns
+  // it to a project (for example after Discord verification).  Do this at the
+  // layout boundary so deep links cannot render a feature with null project
+  // state or expose its navigation. Directors retain the workspace so they can
+  // create a project and set its default from Settings.
+  const needsProjectAccessGuard =
+    actor.projects.length === 0 && actor.profile.role !== "director";
+
+  if (needsProjectAccessGuard) {
+    return (
+      <ProjectProvider
+        initialUser={actor.profile}
+        initialProjects={actor.projects}
+        initialActiveProjectId={null}
+      >
+        <div className="font-urbanist h-screen overflow-hidden bg-sbi-dark">
+          <NoProjectAccess />
+        </div>
+      </ProjectProvider>
+    );
+  }
 
   return (
     <ProjectProvider

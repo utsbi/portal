@@ -46,6 +46,44 @@ const ACCOUNT_ROLES = ["client", "director", "member"] as const;
 type AccountRole = (typeof ACCOUNT_ROLES)[number];
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Creates a project without a client; the database adds all directors. */
+export async function createProject(data: {
+  companyName: string;
+}): Promise<
+  { success: true; projectId: number; companyName: string } | { error: string }
+> {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+
+  const companyName = data.companyName.trim();
+  if (companyName.length < 2 || companyName.length > 150) {
+    return { error: "Project name must be between 2 and 150 characters" };
+  }
+
+  const slugBase =
+    companyName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "project";
+  const urlSlug = `${slugBase}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+
+  const { data: project, error } = await createAdminClient()
+    .from("projects")
+    .insert({
+      company_name: companyName,
+      url_slug: urlSlug,
+      created_by: gate.profileId,
+    })
+    .select("id")
+    .single();
+
+  if (error || !project) {
+    return { error: error?.message || "Couldn't create the project" };
+  }
+
+  return { success: true, projectId: project.id, companyName };
+}
+
 export async function inviteAccount(data: {
   email: string;
   name: string;
@@ -79,6 +117,25 @@ export async function inviteAccount(data: {
   }
   if (department && department.length > 100) {
     return { error: "Department must be 100 characters or fewer" };
+  }
+
+  // The member-profile invitation preserves historical Discord/recovery data.
+  // Catch the common contact-email path here so the general form cannot make a
+  // second profile for a member the director should invite from the roster.
+  if (data.role === "member") {
+    const { data: existingMember } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("role", "member")
+      .eq("contact_email", email)
+      .is("uid", null)
+      .maybeSingle();
+    if (existingMember) {
+      return {
+        error:
+          "A member profile already uses this contact email. Invite them from Member profiles instead.",
+      };
+    }
   }
 
   // Generate a one-time Supabase invite token for our custom Resend template.
@@ -210,10 +267,151 @@ export async function listAccounts() {
   const { data: profiles, error } = await admin
     .from("profiles")
     .select("id, name, email, role, department, created_at")
+    .not("uid", "is", null)
     .order("created_at", { ascending: false });
 
   if (error) return { error: error.message, accounts: [] };
   return { accounts: profiles || [] };
+}
+
+/** Member records collected before a portal account exists (Discord/recovery). */
+export async function listMemberProfiles() {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error, members: [] };
+
+  const { data, error } = await createAdminClient()
+    .from("profiles")
+    .select(
+      "id, name, eid, contact_email, discord_id, department, graduation, created_at",
+    )
+    .eq("role", "member")
+    .is("uid", null)
+    .order("name");
+
+  if (error) return { error: error.message, members: [] };
+  return { members: data || [] };
+}
+
+/**
+ * Gives an existing member profile a portal login without creating another
+ * profile.  The order matters: the auth user is removed if the profile link or
+ * email delivery fails, leaving the member record available to retry.
+ */
+export async function inviteMemberProfile(data: {
+  profileId: number;
+  email: string;
+}) {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+
+  if (!Number.isInteger(data.profileId) || data.profileId <= 0) {
+    return { error: "Invalid member profile" };
+  }
+  const email = data.email.trim().toLowerCase();
+  if (!EMAIL_PATTERN.test(email) || email.length > 254) {
+    return { error: "Enter a valid email address" };
+  }
+
+  const admin = createAdminClient();
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("id, name, eid, role, uid, email")
+    .eq("id", data.profileId)
+    .single();
+  if (profileError || !profile) {
+    return { error: profileError?.message || "Member profile not found" };
+  }
+  if (profile.role !== "member" || profile.uid) {
+    return { error: "This member already has a portal account" };
+  }
+
+  // Supabase's generateLink does not expose a reliable created-vs-existing
+  // discriminator. Refuse an existing email up front so rollback can never
+  // delete somebody else's Auth user.
+  const { data: usersData, error: usersError } =
+    await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (usersError) return { error: "Couldn't check the portal account email" };
+  if (
+    usersData.users.some((user) => user.email?.trim().toLowerCase() === email)
+  ) {
+    return { error: "A portal account already uses that email address" };
+  }
+
+  const { data: authData, error: authError } =
+    await admin.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: { data: { name: profile.name, role: "member" } },
+    });
+  if (authError || !authData.user || !authData.properties.hashed_token) {
+    return {
+      error: authError?.message || "Couldn't create an invitation link",
+    };
+  }
+
+  const uid = authData.user.id;
+  const rollback = async () => {
+    await admin
+      .from("profiles")
+      .update({ uid: null, email: profile.email ?? null })
+      .eq("id", profile.id);
+    await admin.auth.admin.deleteUser(uid);
+  };
+
+  const { error: linkError } = await admin
+    .from("profiles")
+    .update({ uid, email })
+    .eq("id", profile.id)
+    .is("uid", null);
+  if (linkError) {
+    await admin.auth.admin.deleteUser(uid);
+    return { error: linkError.message || "Couldn't link the portal account" };
+  }
+
+  const { data: inviter } = await gate.supabase
+    .from("profiles")
+    .select("name")
+    .eq("id", gate.profileId)
+    .maybeSingle();
+  const confirmationParams = new URLSearchParams({
+    token_hash: authData.properties.hashed_token,
+    type: "invite",
+    next: "/auth/update-password",
+  });
+
+  try {
+    await sendAccountInvite({
+      email,
+      recipientName: profile.name,
+      invitedByName: inviter?.name ?? "An SBI director",
+      role: "member",
+      confirmationUrl: `${getPortalOrigin()}/auth/confirm?${confirmationParams.toString()}`,
+      userId: uid,
+    });
+  } catch (error) {
+    console.error("Member invitation delivery failed:", error);
+    await rollback();
+    return {
+      error:
+        "The invitation email could not be delivered, so no account was created. Try again.",
+    };
+  }
+
+  return { success: true, profileId: profile.id, invitedEmail: email };
+}
+
+export async function setDefaultProject(projectId: number) {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return { error: "Invalid project" };
+  }
+
+  const { error } = await gate.supabase.rpc("set_default_project", {
+    _project_id: projectId,
+  });
+  if (error) return { error: error.message };
+  return { success: true };
 }
 
 export async function updateAccount(data: {
@@ -342,6 +540,8 @@ export async function deleteAccount(profileId: number) {
 
   if (!profile) return { error: "Profile not found" };
 
+  if (!profile.uid) return { error: "This profile has no portal account" };
+
   if (profile.uid === uid) return { error: "Cannot delete your own account" };
 
   // Delete auth user (cascades to profile via FK)
@@ -362,7 +562,7 @@ export async function listProjects() {
 
   const { data, error } = await admin
     .from("projects")
-    .select("id, url_slug, company_name")
+    .select("id, url_slug, company_name, is_default")
     .order("company_name");
 
   if (error) return { error: error.message, projects: [] };

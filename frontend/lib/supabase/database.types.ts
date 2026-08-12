@@ -937,44 +937,47 @@ export type Database = {
       profiles: {
         Row: {
           config: Json | null;
+          contact_email: string | null;
           created_at: string;
           department: string | null;
-          discord_id: number | null;
+          discord_id: string | null;
           eid: string | null;
           email: string | null;
           graduation: number | null;
           id: number;
           name: string;
           role: "client" | "director" | "member";
-          uid: string;
+          uid: string | null;
           updated_at: string;
         };
         Insert: {
           config?: Json | null;
+          contact_email?: string | null;
           created_at?: string;
           department?: string | null;
-          discord_id?: number | null;
+          discord_id?: string | null;
           eid?: string | null;
           email?: string | null;
           graduation?: number | null;
           id?: number;
           name: string;
           role: "client" | "director" | "member";
-          uid: string;
+          uid?: string | null;
           updated_at?: string;
         };
         Update: {
           config?: Json | null;
+          contact_email?: string | null;
           created_at?: string;
           department?: string | null;
-          discord_id?: number | null;
+          discord_id?: string | null;
           eid?: string | null;
           email?: string | null;
           graduation?: number | null;
           id?: number;
           name?: string;
           role?: "client" | "director" | "member";
-          uid?: string;
+          uid?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -1083,6 +1086,7 @@ export type Database = {
           created_at: string;
           created_by: number | null;
           id: number;
+          is_default: boolean;
           updated_at: string;
           url_slug: string;
         };
@@ -1092,6 +1096,7 @@ export type Database = {
           created_at?: string;
           created_by?: number | null;
           id?: number;
+          is_default?: boolean;
           updated_at?: string;
           url_slug: string;
         };
@@ -1101,6 +1106,7 @@ export type Database = {
           created_at?: string;
           created_by?: number | null;
           id?: number;
+          is_default?: boolean;
           updated_at?: string;
           url_slug?: string;
         };

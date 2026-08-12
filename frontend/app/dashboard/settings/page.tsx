@@ -52,15 +52,19 @@ import { cn } from "@/lib/utils";
 import {
   assignMemberToProject,
   assignOwnerToProject,
+  createProject,
   deleteAccount,
   getMyAccount,
   inviteAccount,
+  inviteMemberProfile,
   listAccounts,
   listAvailableOwners,
+  listMemberProfiles,
   listProjectMembers,
   listProjects,
   listUnassignedMembers,
   removeMemberFromProject,
+  setDefaultProject,
   updateAccount,
   updateMyNotificationPrefs,
   updateMyPassword,
@@ -89,6 +93,18 @@ interface Project {
   id: number;
   url_slug: string;
   company_name: string;
+  is_default: boolean;
+}
+
+interface MemberProfile {
+  id: number;
+  name: string;
+  eid: string | null;
+  contact_email: string | null;
+  discord_id: string | null;
+  department: string | null;
+  graduation: number | null;
+  created_at: string;
 }
 
 interface ProjectMember {
@@ -246,7 +262,7 @@ function SettingsPageInner() {
       />
 
       <DashboardMain>
-        <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-5 md:gap-8 lg:gap-12 pb-8">
+        <div className="grid grid-cols-1 xl:grid-cols-[200px_minmax(0,1fr)] gap-5 xl:gap-8 2xl:gap-12 pb-8">
           <SettingsNav
             sections={visibleSections}
             activeSection={activeSection}
@@ -287,11 +303,11 @@ function SettingsNav({
 
   return (
     <>
-      {/* Below md: one horizontal, scrollable segmented row (same chip idiom
-          as the requests status filters) above the full-width content panel. */}
+      {/* Until the content pane itself is wide enough for navigation and a
+          dense account table, retain the full-width segmented navigation. */}
       <nav
         aria-label="Settings sections"
-        className="flex items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:hidden"
+        className="flex items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:hidden"
       >
         {sections.map((s) => {
           const isActive = activeSection === s.id;
@@ -314,8 +330,7 @@ function SettingsNav({
         })}
       </nav>
 
-      {/* md and up: the familiar sticky vertical nav */}
-      <nav className="hidden md:sticky md:top-0 md:block self-start space-y-7">
+      <nav className="hidden xl:sticky xl:top-0 xl:block self-start space-y-7">
         <NavGroup
           label="Personal"
           sections={personal}
@@ -787,7 +802,6 @@ const NOTIFICATION_ITEMS: {
     key: "calendar",
     label: "Calendar events",
     description: "Email me when an event involving me is created or changes.",
-    comingSoon: true,
   },
   {
     key: "reports",
@@ -966,6 +980,9 @@ function CalendarSection() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingFeedAction, setPendingFeedAction] = useState<
+    "rotate" | "disable" | null
+  >(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -1026,13 +1043,7 @@ function CalendarSection() {
     }
   };
 
-  const handleRotate = async () => {
-    if (
-      !window.confirm(
-        "Rotate the calendar feed link? Your old link will stop working immediately.",
-      )
-    )
-      return;
+  const rotateFeed = async () => {
     setBusy(true);
     setError("");
     try {
@@ -1057,13 +1068,7 @@ function CalendarSection() {
     }
   };
 
-  const handleDisable = async () => {
-    if (
-      !window.confirm(
-        "Disable the calendar feed? The current link will stop working.",
-      )
-    )
-      return;
+  const disableFeed = async () => {
     setBusy(true);
     try {
       const res = await fetch("/api/contact/calendar/feed/manage", {
@@ -1101,6 +1106,13 @@ function CalendarSection() {
   // The webcal:// form is what the user's phone calendar app needs to
   // subscribe. Only show it once (right after creation or rotation).
   const displayUrl = feedUrl ? feedUrl.replace(/^https?:/, "webcal:") : null;
+  const confirmFeedAction = async () => {
+    const action = pendingFeedAction;
+    if (!action) return;
+    if (action === "rotate") await rotateFeed();
+    else await disableFeed();
+    setPendingFeedAction(null);
+  };
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -1109,7 +1121,7 @@ function CalendarSection() {
         <p className="text-sbi-muted text-sm mb-5">
           Subscribe in your phone's calendar to see every project event
           automatically. Once you add the link, the calendar app keeps itself up
-          to date — you don't need to come back here.
+          to date. You don't need to come back here.
         </p>
 
         {status === "loading" ? (
@@ -1122,13 +1134,13 @@ function CalendarSection() {
           <div className="space-y-4">
             <p className="text-sm text-sbi-muted">
               Your calendar feed is active. The link was shown only once when it
-              was created — for security, generate a new one if you need to
+              was created. For security, generate a new one if you need to
               re-add it on a device.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={handleRotate}
+                onClick={() => setPendingFeedAction("rotate")}
                 disabled={busy}
                 className={cn(btnPrimary, "h-9 px-4 text-xs")}
               >
@@ -1136,7 +1148,7 @@ function CalendarSection() {
               </button>
               <button
                 type="button"
-                onClick={handleDisable}
+                onClick={() => setPendingFeedAction("disable")}
                 disabled={busy}
                 className={cn(btnGhost, "h-9 px-4 text-xs")}
               >
@@ -1160,12 +1172,12 @@ function CalendarSection() {
             <ol className="text-sm text-sbi-muted space-y-1.5 list-decimal list-inside">
               <li>Copy the link above (or use the button).</li>
               <li>
-                On iPhone: open Calendar → Calendars tab → Add → Add Subscribed
-                Calendar → paste.
+                On iPhone: open Calendar, then Calendars, Add, Add Subscribed
+                Calendar, and paste.
               </li>
               <li>
-                On Android: open Google Calendar → Settings → Add calendar →
-                From URL → paste.
+                On Android: open Google Calendar, then Settings, Add calendar,
+                From URL, and paste.
               </li>
               <li>
                 Events appear within a few minutes and stay in sync
@@ -1183,7 +1195,7 @@ function CalendarSection() {
               </button>
               <button
                 type="button"
-                onClick={handleRotate}
+                onClick={() => setPendingFeedAction("rotate")}
                 disabled={busy}
                 className={cn(btnGhost, "h-9 px-4 text-xs")}
               >
@@ -1191,7 +1203,7 @@ function CalendarSection() {
               </button>
               <button
                 type="button"
-                onClick={handleDisable}
+                onClick={() => setPendingFeedAction("disable")}
                 disabled={busy}
                 className={cn(btnGhost, "h-9 px-4 text-xs")}
               >
@@ -1199,7 +1211,7 @@ function CalendarSection() {
               </button>
             </div>
             <p className="text-[11px] text-sbi-muted-dark pt-1">
-              Treat this link like a password — anyone with the URL can see your
+              Treat this link like a password. Anyone with the URL can see your
               project events. Rotating immediately invalidates the old one.
             </p>
           </div>
@@ -1229,6 +1241,25 @@ function CalendarSection() {
           </div>
         ) : null}
       </Panel>
+      <ConfirmDialog
+        opened={pendingFeedAction !== null}
+        onClose={() => setPendingFeedAction(null)}
+        title={
+          pendingFeedAction === "rotate"
+            ? "Generate a new calendar link?"
+            : "Disable calendar feed?"
+        }
+        description={
+          pendingFeedAction === "rotate"
+            ? "The current link will stop working immediately. Copy the new link before adding it to another calendar."
+            : "The current link will stop working immediately. You can create a new one later."
+        }
+        confirmLabel={
+          pendingFeedAction === "rotate" ? "Generate new link" : "Disable feed"
+        }
+        danger={pendingFeedAction === "disable"}
+        onConfirm={confirmFeedAction}
+      />
     </div>
   );
 }
@@ -1605,7 +1636,7 @@ function TeamSection() {
           </p>
         ) : (
           <div className="border border-sbi-dark-border/30 rounded-md overflow-hidden">
-            <div className="hidden md:grid grid-cols-[1.2fr_1.8fr_96px_32px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
+            <div className="hidden xl:grid grid-cols-[1.2fr_1.8fr_96px_32px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
               <div>Name</div>
               <div>Email</div>
               <div>Role</div>
@@ -1618,14 +1649,14 @@ function TeamSection() {
               return (
                 <div
                   key={pm.id}
-                  className="flex flex-col gap-1 md:grid md:grid-cols-[1.2fr_1.8fr_96px_32px] md:gap-3 md:items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
+                  className="flex flex-col gap-1 xl:grid xl:grid-cols-[1.2fr_1.8fr_96px_32px] xl:gap-3 xl:items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
                 >
-                  <div className="flex items-center justify-between md:contents">
+                  <div className="flex items-center justify-between xl:contents">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm text-white font-medium md:font-normal truncate">
+                      <span className="text-sm text-white font-medium xl:font-normal truncate">
                         {pm.profiles.name}
                       </span>
-                      <span className="md:hidden">
+                      <span className="xl:hidden">
                         <span
                           className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}
                         >
@@ -1633,7 +1664,7 @@ function TeamSection() {
                         </span>
                       </span>
                     </div>
-                    <div className="md:hidden flex">
+                    <div className="xl:hidden flex">
                       {pm.role === "member" && !pm.synthetic ? (
                         <button
                           type="button"
@@ -1668,14 +1699,14 @@ function TeamSection() {
                       </span>
                     )}
                   </div>
-                  <div className="hidden md:block">
+                  <div className="hidden xl:flex xl:items-center">
                     <span
-                      className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}
+                      className={`inline-flex items-center text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}
                     >
                       {pm.role}
                     </span>
                   </div>
-                  <div className="hidden md:flex justify-end">
+                  <div className="hidden xl:flex justify-end">
                     {pm.role === "member" && !pm.synthetic ? (
                       <button
                         type="button"
@@ -1736,9 +1767,17 @@ function TeamSection() {
 type AccountFilter = "all" | "director" | "member" | "client";
 
 function AccountsSection({ currentUserId }: { currentUserId: number }) {
+  const { refetch: refetchProjects, switchProject } = useProject();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [memberProfiles, setMemberProfiles] = useState<MemberProfile[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
+  const [memberProfilesLoaded, setMemberProfilesLoaded] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectError, setProjectError] = useState("");
+  const [projectLoading, setProjectLoading] = useState(false);
   const [createForm, setCreateForm] = useState({
     email: "",
     name: "",
@@ -1752,11 +1791,33 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
   const [accountToEdit, setAccountToEdit] = useState<Account | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AccountFilter>("all");
+  const [memberToInvite, setMemberToInvite] = useState<MemberProfile | null>(
+    null,
+  );
+  const [memberInviteEmail, setMemberInviteEmail] = useState("");
+  const [memberInviteError, setMemberInviteError] = useState("");
+  const [memberInviteLoading, setMemberInviteLoading] = useState(false);
+  const [memberQuery, setMemberQuery] = useState("");
+  const [defaultProjectId, setDefaultProjectId] = useState("");
+  const [defaultLoading, setDefaultLoading] = useState(false);
 
   const loadAccounts = useCallback(async () => {
-    const res = await listAccounts();
-    if (res.accounts) setAccounts(res.accounts);
+    const [accountResult, memberResult, projectResult] = await Promise.all([
+      listAccounts(),
+      listMemberProfiles(),
+      listProjects(),
+    ]);
+    if (accountResult.accounts) setAccounts(accountResult.accounts);
+    if (memberResult.members) setMemberProfiles(memberResult.members);
+    if (projectResult.projects) {
+      setProjects(projectResult.projects as Project[]);
+      const currentDefault = projectResult.projects.find(
+        (project: Project) => project.is_default,
+      );
+      setDefaultProjectId(currentDefault ? String(currentDefault.id) : "");
+    }
     setAccountsLoaded(true);
+    setMemberProfilesLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -1785,6 +1846,18 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [accounts, filter, query]);
 
+  const visibleMemberProfiles = useMemo(() => {
+    const q = memberQuery.trim().toLowerCase();
+    return memberProfiles.filter(
+      (member) =>
+        !q ||
+        member.name.toLowerCase().includes(q) ||
+        (member.eid?.toLowerCase().includes(q) ?? false) ||
+        (member.contact_email?.toLowerCase().includes(q) ?? false) ||
+        (member.discord_id?.includes(q) ?? false),
+    );
+  }, [memberProfiles, memberQuery]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreateLoading(true);
@@ -1809,6 +1882,24 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     setCreateLoading(false);
   };
 
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProjectLoading(true);
+    setProjectError("");
+    const res = await createProject({ companyName: projectName });
+    if ("error" in res) {
+      setProjectError(res.error);
+      toastError(res.error, "Couldn't create project");
+    } else {
+      await refetchProjects();
+      switchProject(res.projectId);
+      setShowCreateProject(false);
+      setProjectName("");
+      toastSuccess(`${res.companyName} project created.`);
+    }
+    setProjectLoading(false);
+  };
+
   const confirmDelete = async () => {
     if (!accountToDelete) return;
     const target = accountToDelete;
@@ -1821,19 +1912,70 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     setAccountToDelete(null);
   };
 
+  const openMemberInvite = (member: MemberProfile) => {
+    const eid = member.eid?.trim().toLowerCase();
+    setMemberToInvite(member);
+    setMemberInviteEmail(
+      eid ? `${eid}@eid.utexas.edu` : member.contact_email || "",
+    );
+    setMemberInviteError("");
+  };
+
+  const handleMemberInvite = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!memberToInvite) return;
+    setMemberInviteLoading(true);
+    setMemberInviteError("");
+    const result = await inviteMemberProfile({
+      profileId: memberToInvite.id,
+      email: memberInviteEmail,
+    });
+    if (result.error) {
+      setMemberInviteError(result.error);
+      toastError(result.error, "Couldn't invite member");
+    } else {
+      toastSuccess(`Invitation sent to ${memberToInvite.name}.`);
+      setMemberToInvite(null);
+      await loadAccounts();
+    }
+    setMemberInviteLoading(false);
+  };
+
+  const handleDefaultProject = async () => {
+    if (!defaultProjectId) return;
+    setDefaultLoading(true);
+    const result = await setDefaultProject(Number(defaultProjectId));
+    if (result.error) toastError(result.error, "Couldn't set default project");
+    else {
+      toastSuccess("Default project updated. Unassigned members were added.");
+      await loadAccounts();
+    }
+    setDefaultLoading(false);
+  };
+
   return (
     <div className="max-w-3xl space-y-4">
       <Panel>
-        <div className="flex items-center justify-between gap-4 mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
           <SectionLabel className="mb-0">Portal accounts</SectionLabel>
-          <button
-            type="button"
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className={btnPrimary}
-          >
-            <Plus className="size-4" />
-            Invite account
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={() => setShowCreateProject(true)}
+              className={cn(btnGhost, "w-full justify-center sm:w-auto")}
+            >
+              <Plus className="size-4" />
+              New project
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              className={cn(btnPrimary, "w-full justify-center sm:w-auto")}
+            >
+              <UserPlus className="size-4" />
+              Invite account
+            </button>
+          </div>
         </div>
 
         {showCreateForm && (
@@ -1990,8 +2132,8 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           />
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <div className="relative flex-1 min-w-[200px]">
+            <div className="mb-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="relative min-w-0">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark"
                   strokeWidth={1.5}
@@ -2001,10 +2143,10 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search by name or email"
-                  className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
+                  className={cn(inputClass, "h-9 pl-9 pr-3 py-0")}
                 />
               </div>
-              <div className="flex items-center gap-1 text-xs">
+              <div className="flex max-w-full flex-wrap items-center justify-start gap-1.5 text-xs sm:justify-end">
                 <FilterChip
                   label="All"
                   count={accounts.length}
@@ -2033,7 +2175,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
             </div>
 
             <div className="border border-sbi-dark-border/30 rounded-md overflow-hidden">
-              <div className="hidden md:grid grid-cols-[1.3fr_1.7fr_92px_120px_64px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
+              <div className="hidden xl:grid grid-cols-[1.3fr_1.7fr_96px_120px_64px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
                 <div>Name</div>
                 <div>Email</div>
                 <div>Role</div>
@@ -2048,14 +2190,14 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                 visibleAccounts.map((account) => (
                   <div
                     key={account.id}
-                    className="flex flex-col gap-1 md:grid md:grid-cols-[1.3fr_1.7fr_92px_120px_28px] md:gap-3 md:items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
+                    className="flex flex-col gap-1 xl:grid xl:grid-cols-[1.3fr_1.7fr_96px_120px_64px] xl:gap-3 xl:items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
                   >
-                    <div className="flex items-center justify-between md:contents">
+                    <div className="flex items-center justify-between xl:contents">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm text-white font-medium md:font-normal truncate">
+                        <span className="text-sm text-white font-medium xl:font-normal truncate">
                           {account.name}
                         </span>
-                        <span className="md:hidden">
+                        <span className="xl:hidden">
                           <span
                             className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}
                           >
@@ -2063,7 +2205,7 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                           </span>
                         </span>
                       </div>
-                      <div className="md:hidden flex items-center gap-1">
+                      <div className="xl:hidden flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => setAccountToEdit(account)}
@@ -2096,29 +2238,29 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 md:contents">
+                    <div className="flex items-center gap-2 xl:contents">
                       <span className="text-xs text-sbi-muted truncate">
                         {account.email}
                       </span>
                       {account.department && (
-                        <span className="md:hidden text-[10px] text-sbi-muted-dark truncate">
+                        <span className="xl:hidden text-[10px] text-sbi-muted-dark truncate">
                           · {account.department}
                         </span>
                       )}
                     </div>
-                    <div className="hidden md:block">
+                    <div className="hidden xl:flex xl:items-center">
                       <span
-                        className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}
+                        className={`inline-flex items-center text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}
                       >
                         {account.role}
                       </span>
                     </div>
-                    <div className="hidden md:block text-xs text-sbi-muted-dark truncate">
+                    <div className="hidden xl:flex xl:items-center text-xs text-sbi-muted-dark truncate">
                       {account.department || (
                         <span className="text-sbi-muted-dark/40">—</span>
                       )}
                     </div>
-                    <div className="hidden md:flex justify-end items-center gap-3">
+                    <div className="hidden xl:flex justify-end items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setAccountToEdit(account)}
@@ -2158,6 +2300,177 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
         )}
       </Panel>
 
+      <Panel>
+        <SectionLabel>Default member project</SectionLabel>
+        <p className="mb-4 max-w-[65ch] text-sm text-sbi-muted">
+          New member profiles and members without any project access are added
+          to this project. Changing it never removes existing assignments.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="default-project" className={labelClass}>
+              Project
+            </label>
+            <Select
+              value={defaultProjectId || undefined}
+              onValueChange={setDefaultProjectId}
+              disabled={projects.length === 0 || defaultLoading}
+            >
+              <SelectTrigger id="default-project" className="mt-1">
+                <SelectValue placeholder="Select a default project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={String(project.id)}>
+                    {project.company_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <button
+            type="button"
+            disabled={!defaultProjectId || defaultLoading}
+            onClick={handleDefaultProject}
+            className={cn(
+              btnPrimary,
+              "h-9 w-full justify-center px-4 py-0 sm:w-auto",
+            )}
+          >
+            {defaultLoading ? "Saving…" : "Set default"}
+          </button>
+        </div>
+      </Panel>
+
+      <Panel>
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <SectionLabel className="mb-2">Member profiles</SectionLabel>
+            <p className="max-w-[65ch] text-sm text-sbi-muted">
+              Verified Discord and recovery records without a portal account.
+            </p>
+          </div>
+          <div className="relative w-full shrink-0 sm:w-64">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark"
+              strokeWidth={1.5}
+            />
+            <input
+              id="member-profile-search"
+              type="search"
+              value={memberQuery}
+              onChange={(event) => setMemberQuery(event.target.value)}
+              placeholder="Search people"
+              aria-label="Search member profiles"
+              className={cn(inputClass, "h-9 pl-9 pr-3 py-0")}
+            />
+          </div>
+        </div>
+        {!memberProfilesLoaded ? (
+          <div className="flex items-center gap-2 text-sm text-sbi-muted">
+            <Loader2 className="size-4 animate-spin" /> Loading member profiles…
+          </div>
+        ) : memberProfiles.length === 0 ? (
+          <p className="text-sm text-sbi-muted-dark">
+            No uninvited member profiles yet.
+          </p>
+        ) : visibleMemberProfiles.length === 0 ? (
+          <p className="py-3 text-sm text-sbi-muted-dark">
+            No member profiles match “{memberQuery.trim()}”.
+          </p>
+        ) : (
+          <div className="divide-y divide-sbi-dark-border/20 border-y border-sbi-dark-border/30">
+            {visibleMemberProfiles.map((member) => (
+              <div
+                key={member.id}
+                className="flex items-center justify-between gap-4 py-3.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-white">
+                    {member.name}
+                  </p>
+                  <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-sbi-muted">
+                    <span className="truncate">
+                      {member.eid || "EID not recorded"}
+                    </span>
+                    <span aria-hidden className="text-sbi-muted-dark">
+                      ·
+                    </span>
+                    <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                      <DiscordIcon className="size-3.5 shrink-0 text-sbi-muted-dark" />
+                      <span className="truncate">
+                        {member.discord_id || "Discord ID not recorded"}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openMemberInvite(member)}
+                  className={cn(
+                    btnGhost,
+                    "shrink-0 justify-center px-3 py-2.5 text-[11px]",
+                  )}
+                >
+                  <UserPlus className="size-4" /> Invite to portal
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <Modal
+        opened={memberToInvite !== null}
+        onClose={() => !memberInviteLoading && setMemberToInvite(null)}
+        title={
+          memberToInvite ? `Invite ${memberToInvite.name}` : "Invite member"
+        }
+        size="sm"
+      >
+        <form onSubmit={handleMemberInvite} className="space-y-4">
+          <p className="text-sm text-sbi-muted">
+            {memberToInvite?.eid
+              ? "The UT EID address is pre-filled. You can use a different portal address if needed."
+              : "Use the member's preferred portal address. Their contact email remains on the profile."}
+          </p>
+          <div>
+            <label htmlFor="member-invite-email" className={labelClass}>
+              Portal email
+            </label>
+            <input
+              id="member-invite-email"
+              type="email"
+              required
+              value={memberInviteEmail}
+              onChange={(event) => setMemberInviteEmail(event.target.value)}
+              className={cn(inputClass, "mt-1")}
+            />
+          </div>
+          {memberInviteError ? (
+            <p role="alert" className="text-sm text-red-400">
+              {memberInviteError}
+            </p>
+          ) : null}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              className={cn(btnGhost, "w-full justify-center sm:w-auto")}
+              onClick={() => setMemberToInvite(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={memberInviteLoading}
+              className={cn(btnPrimary, "w-full justify-center sm:w-auto")}
+            >
+              {memberInviteLoading ? "Sending…" : "Send invitation"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <EditAccountModal
         account={accountToEdit}
         currentUserId={currentUserId}
@@ -2167,6 +2480,60 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           loadAccounts();
         }}
       />
+
+      <Modal
+        opened={showCreateProject}
+        onClose={() => {
+          if (!projectLoading) setShowCreateProject(false);
+        }}
+        title="New project"
+        size="sm"
+      >
+        <form onSubmit={handleCreateProject} className="space-y-5">
+          <p className="text-sm leading-relaxed text-sbi-muted">
+            Create the project first, then add its client and team from the
+            Project Team section.
+          </p>
+          <div>
+            <label htmlFor="project-name" className={labelClass}>
+              Project name
+            </label>
+            <input
+              id="project-name"
+              type="text"
+              required
+              minLength={2}
+              maxLength={150}
+              value={projectName}
+              onChange={(event) => setProjectName(event.target.value)}
+              className={cn(inputClass, "mt-1")}
+              placeholder="e.g. Riverfront retrofit"
+            />
+          </div>
+          {projectError && (
+            <p role="alert" className="text-sm text-red-400">
+              {projectError}
+            </p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={projectLoading}
+              onClick={() => setShowCreateProject(false)}
+              className={btnGhost}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={projectLoading}
+              className={btnPrimary}
+            >
+              {projectLoading ? "Creating project…" : "Create project"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <ConfirmDialog
         opened={!!accountToDelete}
@@ -2383,7 +2750,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 leading-none [text-box-trim:both] [text-box-edge:cap_alphabetic] rounded-md border transition-colors cursor-pointer ${
+      className={`inline-flex h-9 items-center justify-center gap-1.5 px-3 leading-none [text-box-trim:both] [text-box-edge:cap_alphabetic] rounded-md border transition-colors cursor-pointer ${
         active
           ? "bg-sbi-green/10 text-sbi-green border-sbi-green/40"
           : "bg-transparent text-sbi-muted border-sbi-dark-border/40 hover:text-white hover:border-white/20"
@@ -2391,7 +2758,7 @@ function FilterChip({
     >
       <span className="leading-none">{label}</span>
       <span
-        className={`tabular-nums text-[10px] leading-none px-1.5 py-1 rounded-sm ${
+        className={`inline-flex size-5 items-center justify-center tabular-nums text-[10px] leading-none rounded-sm ${
           active
             ? "bg-sbi-green/15 text-sbi-green"
             : "bg-sbi-dark-border/40 text-sbi-muted-dark"
@@ -2400,5 +2767,18 @@ function FilterChip({
         {count}
       </span>
     </button>
+  );
+}
+
+function DiscordIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+    >
+      <path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.075.075 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.676 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.027c.46-.63.87-1.295 1.226-1.994.021-.04.001-.088-.042-.104a13.2 13.2 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .077-.01c3.928 1.795 8.18 1.795 12.062 0a.074.074 0 0 1 .078.01c.12.099.246.197.373.291a.077.077 0 0 1-.006.128c-.598.35-1.22.648-1.873.892a.077.077 0 0 0-.041.105c.36.698.77 1.363 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.548-13.66a.061.061 0 0 0-.031-.028ZM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.418 2.157-2.418 1.21 0 2.176 1.094 2.158 2.418 0 1.334-.957 2.419-2.158 2.419Zm7.974 0c-1.183 0-2.158-1.085-2.158-2.419 0-1.333.957-2.418 2.158-2.418 1.21 0 2.176 1.094 2.158 2.418 0 1.334-.948 2.419-2.158 2.419Z" />
+    </svg>
   );
 }
