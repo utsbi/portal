@@ -1,6 +1,6 @@
 -- Folder defaults and member-inbox storage permissions.
 BEGIN;
-SELECT plan(8);
+SELECT plan(9);
 
 SELECT is(
   (SELECT count(*)::int FROM public.project_file_folders
@@ -53,6 +53,25 @@ SELECT is(
      AND name = (SELECT v FROM public._test_ids WHERE k = 'project_alpha')::text || '/Member Inbox/member-upload.pdf'),
   1,
   'members can read the Member Inbox they uploaded to'
+);
+
+SELECT t.as_service();
+INSERT INTO public.client_knowledge
+  (uid, content, project_id, storage_path, source)
+VALUES
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'indexed member upload',
+   t.id('project_alpha'), 'Member Inbox/member-upload.pdf', 'portal');
+SELECT t.as_user(t.uid_director());
+DELETE FROM storage.objects
+WHERE bucket_id = 'Files'
+  AND name = (SELECT v FROM public._test_ids WHERE k = 'project_alpha')::text || '/Member Inbox/member-upload.pdf';
+SELECT t.as_service();
+SELECT is(
+  (SELECT count(*)::int FROM public.client_knowledge
+   WHERE project_id = t.id('project_alpha')
+     AND storage_path = 'Member Inbox/member-upload.pdf'),
+  0,
+  'deleting a Files object removes its portal knowledge chunks'
 );
 
 SELECT t.as_user(t.uid_clienta());
