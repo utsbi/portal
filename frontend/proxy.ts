@@ -16,7 +16,7 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const needsSession =
     pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/docs") ||
+    (pathname.startsWith("/docs") && pathname !== "/docs/favicon.ico") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/login");
   const response = needsSession

@@ -80,12 +80,12 @@ export const metadata: Metadata = {
     icon: [
       {
         url: faviconLight.src,
-        type: "image/png",
+        type: "image/x-icon",
         media: "(prefers-color-scheme: light)",
       },
       {
         url: faviconDark.src,
-        type: "image/png",
+        type: "image/x-icon",
         media: "(prefers-color-scheme: dark)",
       },
     ],

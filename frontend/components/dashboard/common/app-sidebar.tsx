@@ -380,7 +380,11 @@ export function AppSidebar() {
           "fixed inset-y-0 left-0 z-50 w-60 max-w-[85vw]",
           open ? "translate-x-0" : "-translate-x-full",
           // md+: back to an inline rail in normal flow; collapse toggles width.
-          "md:static md:z-auto md:max-w-none md:translate-x-0",
+          // Keep the rail above the adjacent content when its account menu
+          // opens to the right. `z-auto` created a stacking context below the
+          // main pane, so the menu was mounted but visually hidden when the
+          // rail was collapsed.
+          "md:static md:z-40 md:max-w-none md:translate-x-0",
           isCollapsed ? "md:w-16" : "md:w-60",
         )}
       >
