@@ -89,7 +89,7 @@ export function CategoryEditorDrawer({
     if (blocked.length > 0) {
       const names = blocked.map((c) => `"${c.name}"`).join(", ");
       setError(
-        `Can't remove ${names} — ${blocked.length === 1 ? "it has" : "they have"} transactions. Reassign or delete those first.`,
+        `Can't remove ${names}. ${blocked.length === 1 ? "It has" : "They have"} transactions. Reassign or delete those first.`,
       );
       setSubmitting(false);
       return;
@@ -137,7 +137,7 @@ export function CategoryEditorDrawer({
       <div className="flex flex-col gap-3">
         <p className="text-sm text-sbi-muted">
           Each category has an expected amount. Actual is computed from
-          transactions. Categories with transactions can't be removed here —
+          transactions. Categories with transactions can't be removed here.
           clear their transactions first.
         </p>
 
@@ -185,7 +185,7 @@ export function CategoryEditorDrawer({
                   disabled={locked}
                   title={
                     locked
-                      ? `Has ${txCount} transaction${txCount === 1 ? "" : "s"} — reassign or delete them before removing this category`
+                      ? `Has ${txCount} transaction${txCount === 1 ? "" : "s"}. Reassign or delete them before removing this category.`
                       : "Remove category"
                   }
                   className="flex h-9 items-center justify-center rounded-md text-sbi-muted transition-colors hover:text-red-400 hover:bg-red-500/10 disabled:text-sbi-muted-dark/40 disabled:hover:bg-transparent disabled:hover:text-sbi-muted-dark/40 disabled:cursor-not-allowed"

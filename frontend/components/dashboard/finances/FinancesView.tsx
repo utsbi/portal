@@ -285,7 +285,7 @@ export function FinancesView({
         title="Delete this transaction?"
         description={
           pendingDeleteTx
-            ? `${pendingDeleteTx.title} — ${formatCurrency(Number(pendingDeleteTx.amount))}`
+            ? `${pendingDeleteTx.title}: ${formatCurrency(Number(pendingDeleteTx.amount))}`
             : ""
         }
         confirmLabel="Delete"

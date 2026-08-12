@@ -169,8 +169,8 @@ export function HoverPeekPanel({
             aria-expanded={open}
             title={
               canHover
-                ? `${title} — hover to peek, click to keep open`
-                : `${title} — tap to open`
+                ? `${title}. Hover to peek, click to keep open`
+                : `${title}. Tap to open`
             }
             className={cn(
               "absolute right-0 top-1/2 -translate-y-1/2 z-30 inline-flex items-center justify-center rounded-l-xl border border-r-0 border-sbi-dark-border bg-sbi-dark-card py-4 pl-2.5 pr-2 text-sbi-muted shadow-lg shadow-black/30 transition-all duration-200 hover:text-sbi-green hover:pr-3",

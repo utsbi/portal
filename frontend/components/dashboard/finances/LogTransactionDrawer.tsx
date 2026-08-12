@@ -5,6 +5,7 @@ import {
   logTransaction,
   updateTransaction,
 } from "@/app/dashboard/finances/actions";
+import { DatePicker } from "@/components/dashboard/common/DateTimePicker";
 import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
 import type { BudgetCategory, BudgetTransaction, ProjectBudget } from "./types";
@@ -41,6 +42,7 @@ export function LogTransactionDrawer({
   const [amountStr, setAmountStr] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -114,17 +116,19 @@ export function LogTransactionDrawer({
       opened={open}
       onClose={onClose}
       title={editingTransaction ? "Edit transaction" : "Log transaction"}
+      contentClassName={datePickerOpen ? "overflow-visible" : undefined}
+      bodyClassName={datePickerOpen ? "overflow-visible" : undefined}
     >
       <div className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">
             Date
           </span>
-          <input
-            type="date"
+          <DatePicker
             value={occurredOn}
-            onChange={(e) => setOccurredOn(e.target.value)}
-            className="px-3 h-9 text-sm bg-sbi-dark-card/40 border border-sbi-dark-border/50 rounded text-white focus:outline-none focus:border-sbi-green/40"
+            onChange={setOccurredOn}
+            onOpenChange={setDatePickerOpen}
+            ariaLabel="Transaction date"
           />
           {outOfPeriod ? (
             <span className="text-[11px] text-amber-400">
@@ -132,7 +136,7 @@ export function LogTransactionDrawer({
               {budget.period_end}). Saving anyway.
             </span>
           ) : null}
-        </label>
+        </div>
 
         <label className="flex flex-col gap-1">
           <span className="text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">

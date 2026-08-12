@@ -2,12 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createBudget } from "@/app/dashboard/finances/actions";
-import {
-  btnGhost,
-  btnPrimary,
-  Modal,
-  TextField,
-} from "@/components/dashboard/common/ui";
+import { DatePicker } from "@/components/dashboard/common/DateTimePicker";
+import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
 
 interface SetupBudgetDrawerProps {
   open: boolean;
@@ -33,6 +29,7 @@ export function SetupBudgetDrawer({
   const [periodEnd, setPeriodEnd] = useState(oneYearFromIso(todayIso()));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -62,24 +59,40 @@ export function SetupBudgetDrawer({
   }
 
   return (
-    <Modal opened={open} onClose={onClose} title="Set up project budget">
+    <Modal
+      opened={open}
+      onClose={onClose}
+      title="Set up project budget"
+      contentClassName={datePickerOpen ? "overflow-visible" : undefined}
+      bodyClassName={datePickerOpen ? "overflow-visible" : undefined}
+    >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-sbi-muted">
           Define the budget period. You can add categories and log transactions
           after.
         </p>
-        <TextField
-          label="Period start"
-          type="date"
-          value={periodStart}
-          onChange={setPeriodStart}
-        />
-        <TextField
-          label="Period end"
-          type="date"
-          value={periodEnd}
-          onChange={setPeriodEnd}
-        />
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs uppercase tracking-[0.15em] text-sbi-muted">
+            Period start
+          </span>
+          <DatePicker
+            value={periodStart}
+            onChange={setPeriodStart}
+            onOpenChange={setDatePickerOpen}
+            ariaLabel="Budget period start"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs uppercase tracking-[0.15em] text-sbi-muted">
+            Period end
+          </span>
+          <DatePicker
+            value={periodEnd}
+            onChange={setPeriodEnd}
+            onOpenChange={setDatePickerOpen}
+            ariaLabel="Budget period end"
+          />
+        </div>
         <p className="text-xs text-sbi-muted-dark">
           Currency: USD (multi-currency comes later.)
         </p>

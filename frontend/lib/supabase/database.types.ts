@@ -376,6 +376,42 @@ export type Database = {
           },
         ];
       };
+      conversation_participants: {
+        Row: {
+          conversation_id: number;
+          created_at: string;
+          profile_id: number;
+          role_at_join: string | null;
+        };
+        Insert: {
+          conversation_id: number;
+          created_at?: string;
+          profile_id: number;
+          role_at_join?: string | null;
+        };
+        Update: {
+          conversation_id?: number;
+          created_at?: string;
+          profile_id?: number;
+          role_at_join?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "conversation_participants_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       custom_form_assignments: {
         Row: {
           created_at: string;

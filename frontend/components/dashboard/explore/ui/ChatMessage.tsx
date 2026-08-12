@@ -141,8 +141,8 @@ function SourceViewerSheet({
           </SheetTitle>
           <SheetDescription className="text-xs text-sbi-muted">
             {source.page_number ? `Page ${source.page_number} · ` : ""}
-            Passage retrieved from your project documents — the answer's [
-            {index}] citations are grounded in this text.
+            Passage retrieved from your project documents. The answer's [{index}
+            ] citations are grounded in this text.
           </SheetDescription>
         </SheetHeader>
         <div className="flex-1 min-h-0 overflow-y-auto dashboard-scrollbar px-5 py-4">
@@ -232,7 +232,7 @@ function MessageAttachmentChip({
       toastSuccess(
         res.duplicate
           ? `"${attachment.filename}" is already in the project knowledge.`
-          : `"${attachment.filename}" saved — the assistant can now search it for the whole team.`,
+          : `"${attachment.filename}" saved. The assistant can now search it for the whole team.`,
         "Project knowledge",
       );
     } catch (err) {

@@ -1840,6 +1840,13 @@ export function MessageThread({
       .single();
 
     if (error || !data?.id) return null;
+    // Keep email delivery behind a server-side authorization boundary. The
+    // message remains realtime even if the best-effort notification request
+    // cannot be queued (for example, a transient network failure).
+    void fetch(`/api/notifications/messages/${data.id}`, {
+      method: "POST",
+      credentials: "same-origin",
+    }).catch(() => {});
     return {
       id: data.id,
       uid: user.id,

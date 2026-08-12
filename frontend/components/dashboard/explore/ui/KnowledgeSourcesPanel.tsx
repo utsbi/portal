@@ -110,7 +110,7 @@ export function KnowledgeSourcesPanel({ className }: { className?: string }) {
           ) : sources.length === 0 ? (
             <p className="px-3.5 py-3 text-xs font-light leading-relaxed text-sbi-muted-dark">
               Nothing indexed yet. Upload a PDF, Word, text, slides, or
-              spreadsheet file and it's added automatically — then ask Explore
+              spreadsheet file and it's added automatically. Then ask Explore
               about it.
             </p>
           ) : (
