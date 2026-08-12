@@ -247,6 +247,54 @@ async def run_graph_streaming(
     model = (
         settings.think_model if model_preference == "thinking" else settings.fast_model
     )
+    reasoning_effort = (
+        settings.think_reasoning_effort
+        if model_preference == "thinking"
+        else settings.fast_reasoning_effort
+    )
+
+    # OpenRouter includes usage on the terminal stream chunk when requested.
+    # Tool-calling turns can have several model streams, so accumulate every
+    # iteration before emitting one private usage record with the final result.
+    usage_totals = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0,
+    }
+
+    def record_usage(chunk: Any) -> None:
+        usage = getattr(chunk, "usage", None)
+        if usage is None:
+            return
+
+        def value(obj: Any, key: str) -> int:
+            raw = obj.get(key) if isinstance(obj, dict) else getattr(obj, key, 0)
+            try:
+                return max(0, int(raw or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        details = (
+            usage.get("completion_tokens_details")
+            if isinstance(usage, dict)
+            else getattr(usage, "completion_tokens_details", None)
+        )
+        usage_totals["prompt_tokens"] += value(usage, "prompt_tokens")
+        usage_totals["completion_tokens"] += value(usage, "completion_tokens")
+        usage_totals["reasoning_tokens"] += value(details, "reasoning_tokens")
+        usage_totals["total_tokens"] += value(usage, "total_tokens")
+
+    input_price = (
+        settings.think_input_price_per_m
+        if model_preference == "thinking"
+        else settings.fast_input_price_per_m
+    )
+    output_price = (
+        settings.think_output_price_per_m
+        if model_preference == "thinking"
+        else settings.fast_output_price_per_m
+    )
 
     # Set when a create_request tool call runs this turn: the draft-confirmation
     # card in the main chat IS the response, so the loop ends without a
@@ -310,11 +358,13 @@ async def run_graph_streaming(
                 model=model,
                 messages=cast(Any, messages),
                 stream=True,
+                stream_options={"include_usage": True},
                 tools=cast(Any, TOOLS),
                 tool_choice="auto",
-                extra_body={"reasoning": {"effort": "medium"}},
+                extra_body={"reasoning": {"effort": reasoning_effort}},
             )
             async for chunk in stream:
+                record_usage(chunk)
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
@@ -557,9 +607,11 @@ async def run_graph_streaming(
                 model=model,
                 messages=cast(Any, messages),
                 stream=True,
-                extra_body={"reasoning": {"effort": "medium"}},
+                stream_options={"include_usage": True},
+                extra_body={"reasoning": {"effort": reasoning_effort}},
             )
             async for chunk in stream:
+                record_usage(chunk)
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
@@ -609,4 +661,15 @@ async def run_graph_streaming(
         "type": "result",
         "answer": full_answer,
         "sources": collected_sources,
+        "usage": {
+            **usage_totals,
+            "model": model,
+            "model_preference": model_preference,
+            "reasoning_effort": reasoning_effort,
+            "estimated_cost_usd": round(
+                usage_totals["prompt_tokens"] * input_price / 1_000_000
+                + usage_totals["completion_tokens"] * output_price / 1_000_000,
+                8,
+            ),
+        },
     }

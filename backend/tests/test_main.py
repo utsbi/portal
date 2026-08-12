@@ -302,6 +302,28 @@ class TestSettings:
         )
         assert s.title_model == "my/fast-model"
 
+    def test_reasoning_effort_defaults_are_mode_safe(self):
+        from app.explore.core.config import Settings
+
+        s = Settings(
+            SUPABASE_URL="https://x.supabase.co",
+            SUPABASE_PUBLIC_KEY="k",
+        )
+        assert s.fast_reasoning_effort == "low"
+        assert s.think_reasoning_effort == "xhigh"
+
+    def test_reasoning_effort_env_overrides_defaults(self):
+        from app.explore.core.config import Settings
+
+        s = Settings(
+            SUPABASE_URL="https://x.supabase.co",
+            SUPABASE_PUBLIC_KEY="k",
+            FAST_REASONING_EFFORT="medium",
+            THINK_REASONING_EFFORT="high",
+        )
+        assert s.fast_reasoning_effort == "medium"
+        assert s.think_reasoning_effort == "high"
+
     def test_allowed_hosts_list_property(self):
         from app.explore.core.config import Settings
 

@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     OPEN_ROUTER_KEY: Optional[str] = None
     THINK_MODEL: Optional[str] = None
     FAST_MODEL: Optional[str] = None
+    # OpenRouter reasoning effort for the two chat modes. DeepSeek V4 Flash
+    # currently exposes low/high/max (not medium), so the fast default is low;
+    # a Luna-only deployment can set FAST_REASONING_EFFORT=medium.
+    FAST_REASONING_EFFORT: Optional[str] = None
+    THINK_REASONING_EFFORT: Optional[str] = None
+    FAST_INPUT_PRICE_PER_M: Optional[float] = None
+    FAST_OUTPUT_PRICE_PER_M: Optional[float] = None
+    THINK_INPUT_PRICE_PER_M: Optional[float] = None
+    THINK_OUTPUT_PRICE_PER_M: Optional[float] = None
     TITLE_MODEL: Optional[str] = None
     EMBEDDING_MODEL: Optional[str] = None
     EMBEDDING_DIMENSIONS: Optional[int] = None
@@ -76,6 +85,36 @@ class Settings(BaseSettings):
     def fast_model(self) -> str:
         """Get fast model name."""
         return self.FAST_MODEL or ""
+
+    @property
+    def fast_reasoning_effort(self) -> str:
+        """Reasoning effort for fast turns."""
+        return self.FAST_REASONING_EFFORT or "low"
+
+    @property
+    def think_reasoning_effort(self) -> str:
+        """Reasoning effort for thinking turns."""
+        return self.THINK_REASONING_EFFORT or "xhigh"
+
+    @property
+    def fast_input_price_per_m(self) -> float:
+        """Estimated fast-model input price in USD per million tokens."""
+        return self.FAST_INPUT_PRICE_PER_M or 0.08
+
+    @property
+    def fast_output_price_per_m(self) -> float:
+        """Estimated fast-model output price in USD per million tokens."""
+        return self.FAST_OUTPUT_PRICE_PER_M or 0.18
+
+    @property
+    def think_input_price_per_m(self) -> float:
+        """Estimated thinking-model input price in USD per million tokens."""
+        return self.THINK_INPUT_PRICE_PER_M or 0.10
+
+    @property
+    def think_output_price_per_m(self) -> float:
+        """Estimated thinking-model output price in USD per million tokens."""
+        return self.THINK_OUTPUT_PRICE_PER_M or 0.60
 
     @property
     def title_model(self) -> str:
