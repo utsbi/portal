@@ -12,6 +12,7 @@ import {
   serializeFormSchema,
   validateAnswers,
 } from "@/lib/questionnaire/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "./action-types";
@@ -454,11 +455,17 @@ export async function updateFormSharing(input: {
     return { error: "Form not found or not owned by you" };
   }
 
-  const { data: cur } = await gate.supabase
+  // These columns are intentionally revoked from the authenticated role. The
+  // director ownership check above authorizes this server-only lookup.
+  const { data: cur, error: sharingError } = await createAdminClient()
     .from("custom_form_schemas")
     .select("public_token, public_password_hash")
     .eq("id", input.id)
     .maybeSingle();
+  if (sharingError) {
+    console.error("Couldn't load form sharing settings:", sharingError);
+    return { error: "Couldn't load the form's sharing settings" };
+  }
 
   const update: {
     visibility: string;

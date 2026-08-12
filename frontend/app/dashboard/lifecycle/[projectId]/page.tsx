@@ -300,7 +300,7 @@ function ProjectDetailInner() {
               {blocked > 0 ? (
                 <p className="mt-3 flex items-center gap-2 text-sm text-red-400">
                   <ShieldAlert className="h-4 w-4 shrink-0" />
-                  {blocked} {blocked === 1 ? "task is" : "tasks are"} blocked —
+                  {blocked} {blocked === 1 ? "task is" : "tasks are"} blocked.
                   needs attention.
                 </p>
               ) : null}

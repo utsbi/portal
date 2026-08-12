@@ -56,25 +56,24 @@ export function BuilderOverview({ forms }: BuilderOverviewProps) {
             : `${totalForms} form${totalForms > 1 ? "s" : ""} · ${published} published`
         }
         action={
-          <Link
-            href="/dashboard/questionnaire/builder/new"
-            className={btnPrimary}
-          >
-            <Plus className="size-4" /> New Form
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard/questionnaire/builder/templates"
+              className={cn(btnGhost, "h-9 px-3 text-xs")}
+            >
+              Use a template
+            </Link>
+            <Link
+              href="/dashboard/questionnaire/builder/new"
+              className={cn(btnPrimary, "h-9 px-3 text-xs")}
+            >
+              <Plus className="size-4" /> New Form
+            </Link>
+          </div>
         }
       />
 
       <DashboardMain>
-        <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Link
-            href="/dashboard/questionnaire/builder/templates"
-            className="inline-flex items-center text-xs text-sbi-green/80 transition-colors hover:text-sbi-green"
-          >
-            Use a template →
-          </Link>
-        </div>
-
         {forms.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="h-6 w-6" />}

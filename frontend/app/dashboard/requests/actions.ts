@@ -1,6 +1,8 @@
 "use server";
 
 import { requireDirector } from "@/lib/auth/guards";
+import { scheduleEmailTask } from "@/lib/email/schedule";
+import { sendRequestUpdateNotification } from "@/lib/email/send";
 import { createClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------------
@@ -178,11 +180,40 @@ export async function updateTicketRequestStatus(
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error };
 
-  const { error } = await gate.supabase
+  const requestIdNumber = Number(requestId);
+  if (!Number.isSafeInteger(requestIdNumber) || requestIdNumber <= 0) {
+    return { error: "Invalid request" };
+  }
+  const validStatuses = ["pending", "in-progress", "done", "denied"] as const;
+  if (!validStatuses.includes(status as (typeof validStatuses)[number])) {
+    return { error: "Invalid request status" };
+  }
+  const nextStatus = status as (typeof validStatuses)[number];
+
+  const { data: ticket, error } = await gate.supabase
     .from("tickets")
-    .update({ status })
-    .eq("id", requestId);
+    .update({ status: nextStatus })
+    .eq("id", requestIdNumber)
+    .eq("ticket_type", "request")
+    .select("id, uid, subject, status, project_id, updated_at")
+    .maybeSingle();
 
   if (error) return { error: error.message };
+  if (!ticket) return { error: "Request not found" };
+
+  // Delivery is best effort and preference-aware. Keep the status mutation
+  // successful even when the email provider is temporarily unavailable.
+  if (ticket.uid && ticket.status) {
+    scheduleEmailTask("request status notification", () =>
+      sendRequestUpdateNotification({
+        requestId: ticket.id,
+        requesterUid: ticket.uid,
+        requestSubject: ticket.subject,
+        status: ticket.status,
+        projectId: ticket.project_id,
+        versionAt: ticket.updated_at,
+      }),
+    );
+  }
   return { error: null, success: true };
 }

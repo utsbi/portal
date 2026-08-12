@@ -9,6 +9,7 @@ import {
   parseFormSchema,
   validateAnswers,
 } from "@/lib/questionnaire/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -407,12 +408,21 @@ export async function fetchEditFormData(
   const { data: schema } = await supabase
     .from("custom_form_schemas")
     .select(
-      "id, title, description, fields, version, is_active, created_by, visibility, public_token, public_password_hash, opens_at, closes_at",
+      "id, title, description, fields, version, is_active, created_by, visibility, opens_at, closes_at",
     )
     .eq("id", formId)
     .maybeSingle();
   if (!schema) return { notFound: true };
   if (schema.created_by !== user.id) return { forbidden: true };
+
+  // These capability credentials are deliberately not selectable by the
+  // authenticated role. Only read them through the server-only service client
+  // after the normal RLS-backed ownership check above has succeeded.
+  const { data: sharing } = await createAdminClient()
+    .from("custom_form_schemas")
+    .select("public_token, public_password_hash")
+    .eq("id", formId)
+    .maybeSingle();
 
   const [{ data: assignments }, { data: memberships }] = await Promise.all([
     supabase
@@ -453,8 +463,8 @@ export async function fetchEditFormData(
       .filter((x): x is number => x != null),
     projects,
     visibility,
-    publicToken: schema.public_token,
-    hasPassword: !!schema.public_password_hash,
+    publicToken: sharing?.public_token ?? null,
+    hasPassword: !!sharing?.public_password_hash,
     opensAt: schema.opens_at,
     closesAt: schema.closes_at,
   };

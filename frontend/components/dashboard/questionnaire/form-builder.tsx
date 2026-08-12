@@ -30,6 +30,10 @@ import {
   updateFormSharing,
 } from "@/app/dashboard/questionnaire/actions";
 import {
+  DatePicker,
+  TimeInput,
+} from "@/components/dashboard/common/DateTimePicker";
+import {
   btnGhost,
   btnPrimary,
   DashboardMain,
@@ -296,8 +300,8 @@ export function FormBuilder({
         title={mode === "create" ? "New Form" : "Edit Form"}
         subtitle={
           active
-            ? "Published — visible to assigned clients"
-            : "Draft — not yet visible"
+            ? "Published. Visible to assigned clients"
+            : "Draft. Not yet visible"
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -665,6 +669,21 @@ function localInputToIso(v: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+function scheduleParts(value: string): { date: string; time: string } {
+  const [date = "", time = ""] = value.split("T");
+  return { date, time };
+}
+
+function setScheduleDate(value: string, date: string): string {
+  const { time } = scheduleParts(value);
+  return `${date}T${time || "09:00"}`;
+}
+
+function setScheduleTime(value: string, time: string): string {
+  const { date } = scheduleParts(value);
+  return date && time ? `${date}T${time}` : "";
+}
+
 function SchedulePanel({
   formId,
   initialOpensAt,
@@ -711,21 +730,61 @@ function SchedulePanel({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <span className={cn("block", labelClass)}>Opens</span>
-          <input
-            type="datetime-local"
-            className={cn(inputClass, "mt-1.5")}
-            value={opensAt}
-            onChange={(e) => setOpensAt(e.target.value)}
-          />
+          <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+            <DatePicker
+              value={scheduleParts(opensAt).date}
+              onChange={(date) =>
+                setOpensAt((value) => setScheduleDate(value, date))
+              }
+              ariaLabel="Form opening date"
+            />
+            <TimeInput
+              value={scheduleParts(opensAt).time}
+              onChange={(time) =>
+                setOpensAt((value) => setScheduleTime(value, time))
+              }
+              disabled={!scheduleParts(opensAt).date}
+              ariaLabel="Form opening time"
+            />
+          </div>
+          {opensAt ? (
+            <button
+              type="button"
+              onClick={() => setOpensAt("")}
+              className="mt-1.5 text-xs text-sbi-muted-dark hover:text-white"
+            >
+              Clear opening time
+            </button>
+          ) : null}
         </div>
         <div>
           <span className={cn("block", labelClass)}>Closes</span>
-          <input
-            type="datetime-local"
-            className={cn(inputClass, "mt-1.5")}
-            value={closesAt}
-            onChange={(e) => setClosesAt(e.target.value)}
-          />
+          <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+            <DatePicker
+              value={scheduleParts(closesAt).date}
+              onChange={(date) =>
+                setClosesAt((value) => setScheduleDate(value, date))
+              }
+              ariaLabel="Form closing date"
+            />
+            <TimeInput
+              value={scheduleParts(closesAt).time}
+              onChange={(time) =>
+                setClosesAt((value) => setScheduleTime(value, time))
+              }
+              disabled={!scheduleParts(closesAt).date}
+              ariaLabel="Form closing time"
+            />
+          </div>
+          {closesAt ? (
+            <button
+              type="button"
+              onClick={() => setClosesAt("")}
+              className="mt-1.5 text-xs text-sbi-muted-dark hover:text-white"
+            >
+              Clear closing time
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="flex items-center justify-between gap-3">

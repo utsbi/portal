@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
   } else if (allowed === false) {
     return jsonError(
       429,
-      "Too many transcription requests — please wait a moment",
+      "Too many transcription requests. Please wait a moment.",
     );
   }
 

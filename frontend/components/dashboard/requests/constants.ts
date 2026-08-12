@@ -9,51 +9,51 @@ export interface TeamMember {
 // Placeholder roster while we wait for a directory backed by `profiles`.
 // Departments use canonical values from lib/departments.ts.
 export const TEAM_MEMBERS: TeamMember[] = [
-  { value: "pedro", label: "Pedro Guzman — President", department: null },
-  { value: "sam", label: "Sam Moran — Vice President", department: null },
+  { value: "pedro", label: "Pedro Guzman, President", department: null },
+  { value: "sam", label: "Sam Moran, Vice President", department: null },
   {
     value: "brendan",
-    label: "Brendan Lyon — Director of Project Operations",
+    label: "Brendan Lyon, Director of Project Operations",
     department: "Engineering — General",
   },
   {
     value: "kabir",
-    label: "Kabir Muzumdar — Director of Civil Engineering",
+    label: "Kabir Muzumdar, Director of Civil Engineering",
     department: "Engineering — Civil",
   },
   {
     value: "preston",
-    label: "Preston Vajdos — Director of Civil Engineering",
+    label: "Preston Vajdos, Director of Civil Engineering",
     department: "Engineering — Civil",
   },
   {
     value: "enoch",
-    label: "Enoch Zhu — Director of External Technologies",
+    label: "Enoch Zhu, Director of External Technologies",
     department: "Internal Technologies",
   },
   {
     value: "daniel",
-    label: "Daniel Lam — Director of Internal Technologies",
+    label: "Daniel Lam, Director of Internal Technologies",
     department: "Internal Technologies",
   },
   {
     value: "dev",
-    label: "Dev Shroff — Director of Business",
+    label: "Dev Shroff, Director of Business",
     department: "Finance",
   },
   {
     value: "arianne",
-    label: "Arianne Yude — Director of Public Relations",
+    label: "Arianne Yude, Director of Public Relations",
     department: "Public Relations",
   },
   {
     value: "christian",
-    label: "Christian Butler — Director of Architecture",
+    label: "Christian Butler, Director of Architecture",
     department: "Architecture",
   },
   {
     value: "alim",
-    label: "Alim Makanov — Director of Legal",
+    label: "Alim Makanov, Director of Legal",
     department: "Legal",
   },
 ];

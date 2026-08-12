@@ -477,7 +477,7 @@ export default function FilesPage() {
     const parts = selectedFolderPath
       ? selectedFolderPath.split("/").filter(Boolean)
       : [];
-    const segments: { label: string; path: string }[] = [
+    const segments: { label: string; path: string; collapsed?: boolean }[] = [
       { label: "Home", path: "" },
     ];
     let accumulated = "";
@@ -487,6 +487,14 @@ export default function FilesPage() {
     }
     return segments;
   }, [selectedFolderPath]);
+  const visibleBreadcrumbSegments = useMemo(() => {
+    if (breadcrumbSegments.length <= 4) return breadcrumbSegments;
+    return [
+      breadcrumbSegments[0],
+      { label: "…", path: "", collapsed: true },
+      ...breadcrumbSegments.slice(-2),
+    ];
+  }, [breadcrumbSegments]);
 
   const isEmpty =
     !isLoadingContents && subfolders.length === 0 && files.length === 0;
@@ -655,7 +663,7 @@ export default function FilesPage() {
       // is. Tell the director the assistant can now search what they added.
       if (indexedCount > 0) {
         toastSuccess(
-          `${indexedCount} file${indexedCount === 1 ? "" : "s"} added to project knowledge — ask Explore about ${indexedCount === 1 ? "it" : "them"}.`,
+          `${indexedCount} file${indexedCount === 1 ? "" : "s"} added to project knowledge. Ask Explore about ${indexedCount === 1 ? "it" : "them"}.`,
           "Knowledge updated",
         );
       }
@@ -713,8 +721,10 @@ export default function FilesPage() {
       toastError("Folder name can't be empty.");
       return;
     }
-    if (name.includes("/")) {
-      toastError("Folder name can't contain a slash.");
+    if (/[/\\:*?"<>|]/.test(name)) {
+      toastError(
+        "Folder names can't contain /, \\, :, *, ?, quotes, <, >, or |.",
+      );
       return;
     }
     setCreatingFolder(true);
@@ -747,8 +757,8 @@ export default function FilesPage() {
       toastError("Name can't be empty.");
       return;
     }
-    if (newName.includes("/")) {
-      toastError("Name can't contain a slash.");
+    if (/[/\\:*?"<>|]/.test(newName)) {
+      toastError("Names can't contain /, \\, :, *, ?, quotes, <, >, or |.");
       return;
     }
     if (newName === renameTarget.name) {
@@ -913,14 +923,18 @@ export default function FilesPage() {
                 aria-label="Folder breadcrumb"
                 className="min-h-10 text-sm text-sbi-muted flex flex-wrap items-center gap-1"
               >
-                {breadcrumbSegments.map((seg, i) => {
-                  const isLast = i === breadcrumbSegments.length - 1;
+                {visibleBreadcrumbSegments.map((seg, i) => {
+                  const isLast = i === visibleBreadcrumbSegments.length - 1;
                   return (
                     <span
                       key={`${seg.path}-${i}`}
                       className="flex items-center gap-1"
                     >
-                      {isLast ? (
+                      {seg.collapsed ? (
+                        <span title="Earlier folders are collapsed">
+                          {seg.label}
+                        </span>
+                      ) : isLast ? (
                         <span className="text-white">{seg.label}</span>
                       ) : (
                         <button

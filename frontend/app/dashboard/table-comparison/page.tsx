@@ -1396,7 +1396,7 @@ export default function TableComparisonPage() {
           <span className="text-sbi-green font-medium">Questionnaire</span>,{" "}
           <span className="text-sbi-green font-medium">Reports</span>, and{" "}
           <span className="text-sbi-green font-medium">Requests</span> branch
-          table designs. All are fully interactive — try sorting, filtering,
+          table designs. All are fully interactive. Try sorting, filtering,
           expanding, and hovering to compare the feel of each.
         </p>
       </div>

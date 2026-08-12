@@ -141,7 +141,11 @@ export default function TreeNode({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-x-visible overflow-y-clip ml-[1.05rem] border-l border-sbi-dark-border/70 pl-2"
+            className={
+              level >= 4
+                ? "overflow-x-visible overflow-y-clip ml-0 border-l-0 pl-1"
+                : "overflow-x-visible overflow-y-clip ml-[1.05rem] border-l border-sbi-dark-border/70 pl-2"
+            }
           >
             <ul className="space-y-1 mt-1">
               {node.children.map((child) => (

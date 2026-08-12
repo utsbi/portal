@@ -2,6 +2,7 @@
 
 import { ListPlus, Save } from "lucide-react";
 import { useEffect, useState } from "react";
+import { DatePicker } from "@/components/dashboard/common/DateTimePicker";
 import { btnGhost, btnPrimary, Modal } from "@/components/dashboard/common/ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,6 +91,7 @@ export function TaskModal({
   const [profiles, setProfiles] = useState<AssignableProfile[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Load the assignable roster whenever the modal opens.
   useEffect(() => {
@@ -175,6 +177,8 @@ export function TaskModal({
       onClose={onClose}
       title={isEdit ? "Edit Task" : "Add Task"}
       size="lg"
+      contentClassName={datePickerOpen ? "overflow-visible" : undefined}
+      bodyClassName={datePickerOpen ? "overflow-visible" : undefined}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
@@ -266,14 +270,12 @@ export function TaskModal({
                 *
               </span>
             </Label>
-            <Input
-              id="lt-due"
-              type="date"
-              required
+            <DatePicker
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              onChange={setDueDate}
+              onOpenChange={setDatePickerOpen}
               disabled={submitting}
-              className={fieldClass}
+              ariaLabel="Task due date"
             />
           </div>
           <label className="flex cursor-pointer items-center gap-2 self-end pb-3 text-sm text-white/85">

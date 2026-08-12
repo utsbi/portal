@@ -3,6 +3,10 @@
 import { Download, Loader2, Paperclip, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import {
+  DatePicker,
+  TimeInput,
+} from "@/components/dashboard/common/DateTimePicker";
+import {
   btnGhost,
   inputClass,
   labelClass,
@@ -138,22 +142,20 @@ export function FieldRenderer({
       )}
 
       {field.type === "date" && (
-        <input
-          type="date"
-          className={inputClass}
+        <DatePicker
           value={typeof value === "string" ? value : ""}
+          ariaLabel={field.label || "Date"}
           disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
         />
       )}
 
       {field.type === "time" && (
-        <input
-          type="time"
-          className={inputClass}
+        <TimeInput
           value={typeof value === "string" ? value : ""}
+          ariaLabel={field.label || "Time"}
           disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
         />
       )}
 

@@ -83,7 +83,7 @@ export async function deleteKnowledgeSource(
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) {
     throw new Error(
-      `Couldn't remove "${filename}" — it may have already been deleted or you may not have permission.`,
+      `Couldn't remove "${filename}". It may have already been deleted or you may not have permission.`,
     );
   }
 }

@@ -229,7 +229,7 @@ export async function removePaths(paths: string[]): Promise<void> {
     // fewer than requested" as a permission error instead of false success.
     if (!data || data.length < batch.length) {
       throw new Error(
-        "Delete was blocked — you don't have permission to delete here.",
+        "Delete was blocked. You don't have permission to delete here.",
       );
     }
   }
@@ -342,6 +342,9 @@ export function humanizeStorageError(
             ? "rename this"
             : "create folders here";
     return `You don't have permission to ${verb}.`;
+  }
+  if (msg.includes("invalid key") || msg.includes("invalid object key")) {
+    return "This folder path contains unsupported characters. Rename the folder or choose a different location, then try again.";
   }
   return message || "Something went wrong. Please try again.";
 }

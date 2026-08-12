@@ -54,7 +54,7 @@ test.describe("Login page", () => {
 
   test("shows forgot-password link", async ({ page }) => {
     await expect(
-      page.getByRole("button", { name: /forgot your password/i }),
+      page.getByRole("link", { name: /forgot your password/i }),
     ).toBeVisible();
   });
 

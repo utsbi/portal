@@ -26,7 +26,7 @@ function task(
     title,
     description:
       opts.description ??
-      `${title} — coordinated by the ${team} team for this project phase.`,
+      `${title}, coordinated by the ${team} team for this project phase.`,
     status,
     team,
     due_date: new Date(due),
