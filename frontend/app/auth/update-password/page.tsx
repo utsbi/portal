@@ -1,19 +1,15 @@
 "use client";
 
+import { Lock } from "lucide-react";
+import { motion } from "motion/react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { DotLoader } from "react-spinners";
-import { btnGhost, btnPrimary } from "@/components/dashboard/common/ui";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import bg from "@/assets/images/login.jpg";
+import { btnGhost } from "@/components/dashboard/common/ui";
 import { createClient } from "@/lib/supabase/client";
 import { markPortalAccountActivated } from "./actions";
-
-const inputClass =
-  "bg-sbi-dark border-sbi-dark-border rounded-lg px-4 py-3 h-auto text-base md:text-base text-white placeholder:text-white/30 focus-visible:border-sbi-green/50 focus-visible:ring-sbi-green/20 focus-visible:ring-[2px] shadow-none";
-
-const labelClass =
-  "text-xs uppercase tracking-[0.1em] text-sbi-muted mb-2 font-medium block";
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
@@ -179,108 +175,162 @@ export default function UpdatePasswordPage() {
 
   if (isLoading && !verificationError) {
     return (
-      <div className="flex min-h-svh w-full items-center justify-center bg-sbi-dark">
+      <div className="relative flex min-h-svh w-full items-center justify-center overflow-hidden bg-sbi-dark">
+        <Image
+          src={bg}
+          alt=""
+          fill
+          priority
+          className="object-cover brightness-[0.35]"
+        />
+        <div className="absolute inset-0 bg-linear-to-br from-sbi-dark/70 via-sbi-dark/50 to-sbi-dark/70" />
         <div className="flex flex-col items-center gap-5">
           <DotLoader size={40} color="#22c55e" />
-          <span className="text-sbi-muted text-xl">Loading…</span>
+          <span className="relative text-sbi-muted text-sm uppercase tracking-wider">
+            Loading…
+          </span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-svh w-full bg-sbi-dark flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md bg-sbi-dark-card/40 border border-sbi-dark-border/60 rounded-xl shadow-2xl shadow-black/40 p-8 space-y-6">
-        <h1 className="text-xl font-light tracking-tight text-white">
-          Create a new password
-        </h1>
-
-        {isVerifying && (
-          <p className="text-sm text-sbi-muted">Verifying your reset link…</p>
-        )}
-
-        {!isVerifying && verificationError && (
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-red-400">
-              Unable to continue
-            </p>
-            <p className="text-sm text-sbi-muted">{verificationError}</p>
-            <button
-              type="button"
-              onClick={() => router.push("/login")}
-              className={btnGhost}
-            >
-              Return to login
-            </button>
-          </div>
-        )}
-
-        {!isVerifying && !verificationError && (
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <p className="text-sm text-sbi-muted">
-              Enter and confirm a new password for your account.
-            </p>
-
-            <div>
-              <Label htmlFor="new-password" className={labelClass}>
-                New password
-              </Label>
-              <Input
-                id="new-password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                autoFocus
-                className={inputClass}
-              />
-              <p className="text-xs text-sbi-muted-dark mt-1.5">
-                Minimum 8 characters
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="confirm-password" className={labelClass}>
-                Confirm new password
-              </Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                autoComplete="new-password"
-                className={inputClass}
-              />
-            </div>
-
-            {updateError && (
-              <p className="text-sm text-red-400">{updateError}</p>
-            )}
-            {isSuccess && (
-              <p className="text-sm text-sbi-green">
-                Password updated. Redirecting to login…
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isSubmitting || isSuccess || !canSubmit}
-              className={`${btnPrimary} w-full`}
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                "Save new password"
-              )}
-            </button>
-          </form>
-        )}
+    <main className="relative min-h-svh overflow-hidden bg-sbi-dark text-white">
+      <div className="absolute inset-0">
+        <Image
+          src={bg}
+          alt=""
+          fill
+          priority
+          className="object-cover brightness-[0.35]"
+        />
+        <div className="absolute inset-0 bg-linear-to-br from-sbi-dark/70 via-sbi-dark/50 to-sbi-dark/70" />
       </div>
-    </div>
+
+      <div className="relative z-10 flex min-h-svh items-center justify-center px-8 py-24">
+        <motion.section
+          initial={{ y: 40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full max-w-md"
+        >
+          <div className="mb-12 text-center">
+            <p className="text-sm uppercase tracking-wider text-sbi-muted">
+              SBI <span className="text-sbi-green">Portal</span>
+            </p>
+          </div>
+
+          <div className="relative">
+            <div className="absolute -left-3 -top-3 h-6 w-6 border-l border-t border-white/20" />
+            <div className="absolute -right-3 -top-3 h-6 w-6 border-r border-t border-white/20" />
+            <div className="absolute -bottom-3 -left-3 h-6 w-6 border-b border-l border-white/20" />
+            <div className="absolute -bottom-3 -right-3 h-6 w-6 border-b border-r border-white/20" />
+
+            <div className="border border-white/[0.15] bg-white/[0.08] p-8 shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-xl md:p-10">
+              <div className="mb-8 flex items-center gap-3">
+                <div className="h-px w-8 bg-sbi-green" />
+                <h1 className="text-xs uppercase tracking-[0.3em] text-sbi-green">
+                  New password
+                </h1>
+              </div>
+
+              {isVerifying && (
+                <p className="text-sm text-white/60">
+                  Verifying your reset link…
+                </p>
+              )}
+
+              {!isVerifying && verificationError && (
+                <div className="space-y-4">
+                  <p className="text-sm font-semibold text-red-400">
+                    Unable to continue
+                  </p>
+                  <p className="text-sm text-white/60">{verificationError}</p>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/login")}
+                    className={btnGhost}
+                  >
+                    Return to login
+                  </button>
+                </div>
+              )}
+
+              {!isVerifying && !verificationError && (
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <p className="text-sm leading-relaxed text-white/60">
+                    Enter and confirm a new password for your account.
+                  </p>
+
+                  <div className="group">
+                    <label
+                      htmlFor="new-password"
+                      className="mb-3 block text-xs uppercase tracking-[0.2em] text-white/60 transition-colors group-focus-within:text-sbi-green"
+                    >
+                      New password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40 transition-colors group-focus-within:text-sbi-green" />
+                      <input
+                        id="new-password"
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="new-password"
+                        className="w-full border-b border-white/20 bg-transparent py-3 pl-8 text-white outline-none transition-colors placeholder:text-white/30 focus:border-sbi-green disabled:opacity-50"
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-white/40">
+                      Minimum 8 characters
+                    </p>
+                  </div>
+
+                  <div className="group">
+                    <label
+                      htmlFor="confirm-password"
+                      className="mb-3 block text-xs uppercase tracking-[0.2em] text-white/60 transition-colors group-focus-within:text-sbi-green"
+                    >
+                      Confirm password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40 transition-colors group-focus-within:text-sbi-green" />
+                      <input
+                        id="confirm-password"
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                        className="w-full border-b border-white/20 bg-transparent py-3 pl-8 text-white outline-none transition-colors placeholder:text-white/30 focus:border-sbi-green disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  {updateError && (
+                    <p className="text-sm text-red-400" role="alert">
+                      {updateError}
+                    </p>
+                  )}
+                  {isSuccess && (
+                    <p className="text-sm text-sbi-green" aria-live="polite">
+                      Password updated. Redirecting to login…
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || isSuccess || !canSubmit}
+                    className="inline-flex w-full items-center justify-center gap-3 border border-sbi-green/30 bg-sbi-green/10 px-8 py-4 text-sm font-medium uppercase tracking-wider text-sbi-green transition-all duration-300 hover:bg-sbi-green hover:text-sbi-dark disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Saving…" : "Save new password"}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </motion.section>
+      </div>
+    </main>
   );
 }
