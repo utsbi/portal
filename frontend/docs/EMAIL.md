@@ -16,6 +16,11 @@ EMAIL_FROM=SBI Portal <notifications@utsbi.org>
 EMAIL_TIME_ZONE=America/Chicago
 ```
 
+Email typography intentionally uses a system sans stack (`-apple-system`,
+`Segoe UI`, Roboto, Helvetica, Arial). We do not load Urbanist, Google Fonts,
+or another hosted web font in email; the portal identity comes from its dark
+surface, green structural rules, outlined actions, and restrained spacing.
+
 `NEXT_PUBLIC_SITE_URL` must be the canonical HTTPS origin registered with
 Supabase Auth. Do not rely on a preview deployment URL for account links.
 
@@ -47,6 +52,9 @@ Password recovery and security notifications use Supabase Auth. The portal's
 forgot-password page delegates token issuance to Supabase and redirects users
 to `/auth/update-password`; it deliberately returns a neutral success message
 so an attacker cannot use the form to discover which addresses have accounts.
+Auth emails first open `/auth/continue`, where the recipient explicitly presses
+a button before the one-time token is verified. This protects links from
+email-client security scanners that prefetch URLs.
 
 Custom local templates live in `supabase/templates/auth/` and are configured in
 `supabase/config.toml`. For the hosted project, they are **not deployed by a
@@ -62,14 +70,17 @@ monitoring account.
 In Supabase Auth settings:
 
 - set the Site URL to `NEXT_PUBLIC_SITE_URL`;
-- allow `/auth/update-password` and `/auth/confirm` redirect URLs;
+- allow `/auth/continue`, `/auth/update-password`, and the legacy
+  `/auth/confirm` redirect URLs;
 - configure custom SMTP credentials and sender name;
 - install the branded confirmation, invite, recovery, magic-link, email-change,
   and password-changed templates from `supabase/templates/auth/`;
 - set a deliberate Auth email rate limit; and
 - enable the password-changed security notification; and
 - run a real password-reset smoke test from `/forgot-password`, including an
-  expired-link scenario and Gmail/Outlook delivery checks.
+  expired-link scenario, a second-click scenario, and Gmail/Outlook delivery
+  checks. Finish the reset in the original browser session after the first
+  link click.
 
 Never place SMTP credentials or the Resend API key in `NEXT_PUBLIC_*`
 variables, source control, screenshots, or client-side code.

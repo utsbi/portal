@@ -1,4 +1,10 @@
-import { compactText, escapeHtml } from "./shared";
+import {
+  compactText,
+  emailButton,
+  emailDocument,
+  emailPanel,
+  escapeHtml,
+} from "./shared";
 
 export type EventChangeKind = "updated" | "cancelled" | "removed";
 
@@ -32,28 +38,16 @@ export function eventChangeHtml(props: EventChangeProps): string {
   const message = copy[props.kind];
   const showPortalLink = props.kind !== "cancelled";
 
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;background:#f5f5f5">
-  <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
-    <tr><td style="padding:32px 24px;background:#050807;border-radius:12px 12px 0 0">
-      <p style="color:#22c55e;margin:0;font-size:20px;font-weight:600">${escapeHtml(props.projectName)}</p>
-    </td></tr>
-    <tr><td style="padding:32px 24px;background:#fff;border-radius:0 0 12px 12px">
-      <p style="color:#333;font-size:16px;margin:0 0 20px">Hi <strong>${escapeHtml(props.recipientName)}</strong>,</p>
-      <h1 style="color:#050807;font-size:20px;margin:0 0 8px">${message.heading}</h1>
-      <p style="color:#555;font-size:15px;line-height:1.55;margin:0 0 20px">${message.sentence}</p>
-      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:24px">
-        <h2 style="margin:0 0 12px;font-size:18px;color:#050807">${escapeHtml(props.eventTitle)}</h2>
-        <p style="margin:4px 0;color:#333"><strong>Date:</strong> ${escapeHtml(props.eventDate)}</p>
-        <p style="margin:4px 0;color:#333"><strong>Time:</strong> ${escapeHtml(props.eventTime)}</p>
-        ${props.eventLocation ? `<p style="margin:4px 0;color:#333"><strong>Location:</strong> ${escapeHtml(props.eventLocation)}</p>` : ""}
-      </div>
-      ${showPortalLink ? `<a href="${escapeHtml(props.portalUrl)}" style="display:inline-block;padding:12px 24px;background:#22c55e;color:#050807;text-decoration:none;border-radius:6px;font-size:15px;font-weight:600">View in Portal</a>` : ""}
-    </td></tr>
-  </table>
-</body></html>`;
+  return emailDocument({
+    brand: props.projectName,
+    preheader: `${message.heading}: ${props.eventTitle}`,
+    content: `<p style="margin:0 0 12px;color:#22c55e;font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase">Calendar</p>
+      <p style="margin:0 0 18px;color:#dbe7df;font-size:16px;line-height:1.6">Hi <strong>${escapeHtml(props.recipientName)}</strong>,</p>
+      <h1 style="margin:0 0 8px;color:#ffffff;font-size:25px;line-height:1.2;font-weight:500;letter-spacing:-.02em">${message.heading}</h1>
+      <p style="margin:0 0 22px;color:#b8c8bd;font-size:15px;line-height:1.6">${message.sentence}</p>
+      ${emailPanel(`<h2 style="margin:0 0 14px;color:#ffffff;font-size:18px;font-weight:500">${escapeHtml(props.eventTitle)}</h2><p style="margin:5px 0;color:#b8c8bd;font-size:14px"><strong style="color:#7d8f86">Date:</strong> ${escapeHtml(props.eventDate)}</p><p style="margin:5px 0;color:#b8c8bd;font-size:14px"><strong style="color:#7d8f86">Time:</strong> ${escapeHtml(props.eventTime)}</p>${props.eventLocation ? `<p style="margin:5px 0;color:#b8c8bd;font-size:14px"><strong style="color:#7d8f86">Location:</strong> ${escapeHtml(props.eventLocation)}</p>` : ""}`)}
+      ${showPortalLink ? emailButton(props.portalUrl, "View in Portal") : ""}`,
+  });
 }
 
 export function eventChangeText(props: EventChangeProps): string {

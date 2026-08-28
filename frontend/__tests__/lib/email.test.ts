@@ -182,12 +182,50 @@ describe("email content", () => {
       invitedByName: "Jordan",
       roleLabel: "a client",
       inviteUrl:
-        "https://portal.example.com/auth/confirm?token_hash=secret&type=invite",
+        "https://portal.example.com/auth/continue?token_hash=secret&type=invite",
     };
 
     expect(accountInviteHtml(props)).toContain("Create password");
+    expect(accountInviteHtml(props)).toContain("#0a120c");
+    expect(accountInviteHtml(props)).toContain("-apple-system");
+    expect(accountInviteHtml(props)).not.toContain("fonts.googleapis.com");
     expect(accountInviteText(props)).toContain(props.inviteUrl);
     expect(accountInviteText(props)).not.toContain("<html>");
+  });
+
+  it("uses the shared branded shell for every transactional HTML template", () => {
+    const samples = [
+      eventInviteHtml({
+        recipientName: "Alex",
+        eventTitle: "Review",
+        eventDate: "Tuesday",
+        eventTime: "2:00 PM",
+        eventLocation: null,
+        eventDescription: null,
+        organizerName: "Jordan",
+        projectName: "SBI",
+        portalUrl: "https://utsbi.org/dashboard",
+      }),
+      messageNotificationHtml({
+        recipientName: "Alex",
+        senderName: "Jordan",
+        excerpt: "Hello",
+        portalUrl: "https://utsbi.org/dashboard",
+      }),
+      requestUpdateHtml({
+        recipientName: "Alex",
+        requestSubject: "Review",
+        status: "Open",
+        projectName: null,
+        portalUrl: "https://utsbi.org/dashboard",
+      }),
+    ];
+    for (const html of samples) {
+      expect(html).toContain("#0a120c");
+      expect(html).toContain("-apple-system");
+      expect(html).not.toContain("Urbanist");
+      expect(html).toContain("Sustainable Building Initiative");
+    }
   });
 
   it("renders escaped message and request emails with portal links", () => {
