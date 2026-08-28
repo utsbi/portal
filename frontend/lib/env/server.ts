@@ -26,16 +26,11 @@ export function getBackendUrl(): string {
 }
 
 export function getPortalOrigin(): string {
-  const configured =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
-    process.env.VERCEL_URL?.trim();
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
   if (!configured) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error(
-        "NEXT_PUBLIC_SITE_URL or a Vercel production URL is required in production",
-      );
+      throw new Error("NEXT_PUBLIC_SITE_URL is required in production");
     }
     return "http://localhost:3000";
   }

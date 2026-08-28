@@ -1,33 +1,12 @@
-import type { EmailOtpType } from "@supabase/supabase-js";
-import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");
-  const type = searchParams.get("type") as EmailOtpType | null;
-  const rawNext = searchParams.get("next") ?? "/dashboard";
-  // Only accept same-origin relative paths: must start with "/" but not "//" or "/\"
-  // (both forms are protocol-relative and resolve to external origins).
-  const next =
-    rawNext.startsWith("/") &&
-    !rawNext.startsWith("//") &&
-    !rawNext.startsWith("/\\")
-      ? rawNext
-      : "/dashboard";
-
-  if (token_hash && type) {
-    const supabase = await createClient();
-
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      token_hash,
-    });
-    if (!error) {
-      redirect(next);
-    }
-  }
-
-  redirect("/error");
+  const type = searchParams.get("type");
+  const target = new URL("/auth/continue", request.url);
+  if (token_hash) target.searchParams.set("token_hash", token_hash);
+  if (type) target.searchParams.set("type", type);
+  return NextResponse.redirect(target);
 }

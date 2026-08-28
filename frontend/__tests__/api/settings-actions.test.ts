@@ -366,7 +366,9 @@ describe("settings/actions — auth gates", () => {
       expect(sendAccountInviteMock).toHaveBeenCalledWith(
         expect.objectContaining({
           email: "member@example.com",
-          confirmationUrl: expect.stringContaining("token_hash=invite-token"),
+          confirmationUrl: expect.stringMatching(
+            /\/auth\/continue\?.*token_hash=invite-token/,
+          ),
         }),
       );
     });

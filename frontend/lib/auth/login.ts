@@ -1,0 +1,71 @@
+import "server-only";
+
+import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
+
+export interface LoginResult {
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Authenticate a portal user and establish the active-project cookie.
+ *
+ * This is deliberately not a Server Action. Credentials arrive through the
+ * dedicated login API route so Next's development Server Action trace cannot
+ * print the password alongside the action name and arguments.
+ */
+export async function authenticateLogin(
+  email: string,
+  password: string,
+): Promise<LoginResult> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+
+  if (error) {
+    if (error.message.includes("Invalid login credentials")) {
+      return { success: false, error: "Invalid email or password" };
+    }
+    if (error.message.includes("Email not confirmed")) {
+      return { success: false, error: "Please verify your email address" };
+    }
+    return { success: false, error: "An error occurred. Please try again." };
+  }
+
+  if (!data.user) {
+    return { success: false, error: "An error occurred. Please try again." };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("uid", data.user.id)
+    .single();
+
+  if (!profile) {
+    await supabase.auth.signOut();
+    return { success: false, error: "Invalid email or password" };
+  }
+
+  const { data: membership } = await supabase
+    .from("project_members")
+    .select("project_id")
+    .eq("profile_id", profile.id)
+    .limit(1)
+    .single();
+
+  if (membership) {
+    const cookieStore = await cookies();
+    cookieStore.set("active_project_id", String(membership.project_id), {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+    });
+  }
+
+  return { success: true };
+}

@@ -26,7 +26,16 @@ describe("server environment URLs", () => {
     vi.stubEnv("NODE_ENV", "production");
 
     expect(() => getBackendUrl()).toThrow("BACKEND_URL is required");
-    expect(() => getPortalOrigin()).toThrow("required in production");
+    expect(() => getPortalOrigin()).toThrow("NEXT_PUBLIC_SITE_URL is required");
+  });
+
+  it("does not use a preview deployment URL for production auth links", () => {
+    clearDeploymentUrls();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "utsbi.org");
+    vi.stubEnv("VERCEL_URL", "preview-123.vercel.app");
+
+    expect(() => getPortalOrigin()).toThrow("NEXT_PUBLIC_SITE_URL is required");
   });
 
   it("requires an HTTPS portal origin in production", () => {

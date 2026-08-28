@@ -11,12 +11,55 @@ import { btnGhost } from "@/components/dashboard/common/ui";
 import { createClient } from "@/lib/supabase/client";
 import { markPortalAccountActivated } from "./actions";
 
+const RECOVERY_MARKER_KEY = "sbi:recovery-session";
+const RECOVERY_MARKER_MAX_AGE_MS = 60 * 60 * 1000;
+
+function readRecoveryMarker(): { userId: string; expiresAt: number } | null {
+  try {
+    const raw = window.localStorage.getItem(RECOVERY_MARKER_KEY);
+    if (!raw) return null;
+    const marker = JSON.parse(raw) as { userId?: unknown; expiresAt?: unknown };
+    if (
+      typeof marker.userId !== "string" ||
+      typeof marker.expiresAt !== "number" ||
+      marker.expiresAt <= Date.now()
+    ) {
+      window.localStorage.removeItem(RECOVERY_MARKER_KEY);
+      return null;
+    }
+    return { userId: marker.userId, expiresAt: marker.expiresAt };
+  } catch {
+    return null;
+  }
+}
+
+function writeRecoveryMarker(userId: string) {
+  window.localStorage.setItem(
+    RECOVERY_MARKER_KEY,
+    JSON.stringify({
+      userId,
+      expiresAt: Date.now() + RECOVERY_MARKER_MAX_AGE_MS,
+    }),
+  );
+}
+
+function recoveryErrorMessage(params: URLSearchParams): string | null {
+  const code = params.get("error_code") ?? params.get("error");
+  if (!code) return null;
+  if (code === "otp_expired" || code === "access_denied") {
+    return "This reset link has expired or has already been used. Request a new link to continue.";
+  }
+  return "This reset link is unavailable. Request a new link to continue.";
+}
+
 export default function UpdatePasswordPage() {
   const router = useRouter();
   const [isVerifying, setIsVerifying] = useState(true);
   const [verificationError, setVerificationError] = useState<string | null>(
     null,
   );
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
+  const [hasRecoverySession, setHasRecoverySession] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -31,10 +74,14 @@ export default function UpdatePasswordPage() {
     let isMounted = true;
 
     const processRecoveryLink = async () => {
+      const queryParams = new URLSearchParams(window.location.search);
+      const flow = queryParams.get("flow");
       const rawHash = window.location.hash.startsWith("#")
         ? window.location.hash.slice(1)
         : window.location.hash;
       const params = new URLSearchParams(rawHash);
+      const queryError =
+        recoveryErrorMessage(queryParams) ?? recoveryErrorMessage(params);
       const type = params.get("type");
       const accessToken = params.get("access_token");
       const refreshToken = params.get("refresh_token");
@@ -43,52 +90,86 @@ export default function UpdatePasswordPage() {
         typeof accessToken === "string" &&
         typeof refreshToken === "string";
 
-      if (!hasRecoveryTokens || !accessToken || !refreshToken) {
-        if (!isMounted) return;
-        setVerificationError(null);
-        setIsVerifying(false);
-        return;
-      }
-
-      try {
+      if (hasRecoveryTokens && accessToken && refreshToken) {
         const { error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
-
         if (!isMounted) return;
-
         if (error) {
-          setVerificationError(error.message);
+          setVerificationError(
+            "This reset link has expired or has already been used. Request a new link to continue.",
+          );
           setIsLoading(false);
           setIsVerifying(false);
           return;
         }
-
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          writeRecoveryMarker(data.session.user.id);
+          setHasRecoverySession(true);
+        }
         setVerificationError(null);
         window.history.replaceState(
           {},
           document.title,
-          `${window.location.pathname}${window.location.search}`,
+          `${window.location.pathname}?flow=recovery`,
         );
-      } catch (unknownError) {
-        if (!isMounted) return;
-        setVerificationError(
-          unknownError instanceof Error
-            ? unknownError.message
-            : "Something went wrong while validating this link.",
-        );
-      } finally {
-        if (isMounted) {
-          setIsVerifying(false);
-        }
+        setIsLoading(false);
+        setIsVerifying(false);
+        return;
       }
+
+      const { data } = await supabase.auth.getSession();
+      if (!isMounted) return;
+      const marker = readRecoveryMarker();
+      const markerMatchesSession = Boolean(
+        data.session && marker?.userId === data.session.user.id,
+      );
+
+      // The continue route verifies the token on the server and supplies a
+      // flow marker. Establish the browser-side marker once its session cookie
+      // is visible to the client.
+      if (data.session && (flow === "recovery" || flow === "invite")) {
+        writeRecoveryMarker(data.session.user.id);
+        setHasRecoverySession(true);
+        setVerificationError(null);
+        setIsLoading(false);
+        setIsVerifying(false);
+        return;
+      }
+
+      if (queryError) {
+        if (markerMatchesSession) {
+          setHasRecoverySession(true);
+          setRecoveryNotice(
+            "This link was already opened in this browser. Continue with the active recovery session below.",
+          );
+          setVerificationError(null);
+        } else {
+          setVerificationError(queryError);
+        }
+        setIsLoading(false);
+        setIsVerifying(false);
+        return;
+      }
+
+      if (markerMatchesSession) {
+        setHasRecoverySession(true);
+        setVerificationError(null);
+        setIsLoading(false);
+        setIsVerifying(false);
+        return;
+      }
+
+      router.replace("/login");
     };
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
       if (!isMounted) return;
       if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setVerificationError(null);
+        setHasRecoverySession(true);
       }
     });
 
@@ -98,7 +179,7 @@ export default function UpdatePasswordPage() {
       isMounted = false;
       authListener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -140,38 +221,12 @@ export default function UpdatePasswordPage() {
       setPassword("");
       setConfirmPassword("");
 
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000);
+      window.localStorage.removeItem(RECOVERY_MARKER_KEY);
+      await supabase.auth.signOut({ scope: "local" });
+      window.setTimeout(() => router.replace("/login?reset=success"), 1200);
     },
     [canSubmit, password, router],
   );
-
-  useEffect(() => {
-    if (isVerifying || verificationError) return;
-
-    let isActive = true;
-    const supabase = createClient();
-
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (!isActive) return;
-        if (!data.session) {
-          router.replace("/login");
-        } else {
-          setIsLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!isActive) return;
-        router.replace("/login");
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [isVerifying, verificationError, router]);
 
   if (isLoading && !verificationError) {
     return (
@@ -251,13 +306,18 @@ export default function UpdatePasswordPage() {
                     onClick={() => router.push("/login")}
                     className={btnGhost}
                   >
-                    Return to login
+                    Request a new link
                   </button>
                 </div>
               )}
 
-              {!isVerifying && !verificationError && (
+              {!isVerifying && !verificationError && hasRecoverySession && (
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {recoveryNotice && (
+                    <p className="border border-sbi-green/25 bg-sbi-green/10 px-4 py-3 text-sm leading-relaxed text-sbi-green">
+                      {recoveryNotice}
+                    </p>
+                  )}
                   <p className="text-sm leading-relaxed text-white/60">
                     Enter and confirm a new password for your account.
                   </p>

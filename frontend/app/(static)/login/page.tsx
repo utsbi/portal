@@ -10,7 +10,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import bg from "@/assets/images/login.jpg";
 import { BrandLoader } from "@/components/brand-loader";
 import { safeLoginRedirect } from "@/lib/auth/redirect";
-import { checkAuthAction, loginAction } from "./actions";
+import { checkAuthAction } from "./actions";
 
 const portalTypes = ["Client", "Member", "Sponsor"];
 
@@ -74,9 +74,20 @@ function LoginForm() {
     setError(null);
 
     try {
-      const result = await loginAction(formState.email, formState.password);
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formState.email,
+          password: formState.password,
+        }),
+      });
+      const result = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+      };
 
-      if (!result.success) {
+      if (!response.ok || !result.success) {
         setError(result.error || "An error occurred. Please try again.");
         return;
       }

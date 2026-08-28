@@ -244,7 +244,6 @@ export async function inviteAccount(data: {
   const confirmationParams = new URLSearchParams({
     token_hash: authData.properties.hashed_token,
     type: "invite",
-    next: "/auth/update-password",
   });
 
   try {
@@ -253,7 +252,7 @@ export async function inviteAccount(data: {
       recipientName: name,
       invitedByName: inviter?.name ?? "An SBI director",
       role: data.role,
-      confirmationUrl: `${getPortalOrigin()}/auth/confirm?${confirmationParams.toString()}`,
+      confirmationUrl: `${getPortalOrigin()}/auth/continue?${confirmationParams.toString()}`,
       userId: uid,
     });
   } catch (error) {
@@ -412,7 +411,6 @@ export async function inviteMemberProfile(data: {
   const confirmationParams = new URLSearchParams({
     token_hash: authData.properties.hashed_token,
     type: "invite",
-    next: "/auth/update-password",
   });
 
   try {
@@ -421,7 +419,7 @@ export async function inviteMemberProfile(data: {
       recipientName: profile.name,
       invitedByName: inviter?.name ?? "An SBI director",
       role: "member",
-      confirmationUrl: `${getPortalOrigin()}/auth/confirm?${confirmationParams.toString()}`,
+      confirmationUrl: `${getPortalOrigin()}/auth/continue?${confirmationParams.toString()}`,
       userId: uid,
     });
   } catch (error) {
