@@ -24,13 +24,17 @@ test.describe("Public form — not-found", () => {
   }) => {
     await page.goto("/forms/smoke-test-nonexistent-token-abc123xyz");
 
+    // Wait for the not-found UI to render; an immediate body text snapshot
+    // can run before Next.js has finished displaying the fallback.
+    await expect(
+      page.getByRole("heading", {
+        name: "This page you're looking for does not exist :(",
+      }),
+    ).toBeVisible();
+
     // Next.js not-found pages must not contain unhandled error UI.
     // Check there is no "Application error" text (Next.js 500 indicator).
     await expect(page.getByText(/application error/i)).not.toBeVisible();
-
-    // The page should contain something — confirm the <body> has content.
-    const bodyText = await page.locator("body").innerText();
-    expect(bodyText.trim().length).toBeGreaterThan(0);
   });
 });
 
@@ -50,7 +54,10 @@ test.describe("Global 404", () => {
 
   test("unknown route renders a page, not a blank screen", async ({ page }) => {
     await page.goto("/this-route-definitely-does-not-exist-xyz");
-    const bodyText = await page.locator("body").innerText();
-    expect(bodyText.trim().length).toBeGreaterThan(0);
+    await expect(
+      page.getByRole("heading", {
+        name: "This page you're looking for does not exist :(",
+      }),
+    ).toBeVisible();
   });
 });
