@@ -115,3 +115,9 @@ docs/superpowers/
 # Local architecture/audit working documents — intentionally not published
 AUDIT_REPORT.md
 RAG_ARCHITECTURE.md
+
+TODOS.md
+
+plans/
+
+agent/settings.json

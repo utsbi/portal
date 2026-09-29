@@ -8,7 +8,7 @@ import { useRef } from "react";
 interface TeamCardProps {
   name: string;
   role: string;
-  email: string;
+  email?: string;
   imageSrc?: string | null;
   index: number;
 }
@@ -97,17 +97,19 @@ export function TeamCard({
           </h3>
           <p className="text-sm text-sbi-green/80 mb-4">{role}</p>
 
-          <motion.a
-            href={`mailto:${email}`}
-            className="inline-flex items-center gap-2 text-xs text-sbi-muted hover:text-white transition-colors duration-300"
-            whileHover={{ x: 4 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-          >
-            <span className="w-6 h-6 flex items-center justify-center border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-300">
-              <Mail className="w-3 h-3" />
-            </span>
-            <span className="tracking-wide">{email}</span>
-          </motion.a>
+          {email && (
+            <motion.a
+              href={`mailto:${email}`}
+              className="inline-flex items-center gap-2 text-xs text-sbi-muted hover:text-white transition-colors duration-300"
+              whileHover={{ x: 4 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            >
+              <span className="w-6 h-6 flex items-center justify-center border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-300">
+                <Mail className="w-3 h-3" />
+              </span>
+              <span className="tracking-wide">{email}</span>
+            </motion.a>
+          )}
         </div>
 
         <motion.div
