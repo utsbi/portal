@@ -7,14 +7,14 @@ import Link from "next/link";
 import group from "@/assets/images/group.jpg";
 import Ali from "@/assets/images/people/Ali.jpg";
 import Brendan from "@/assets/images/people/Brendan.jpg";
-import Daniel from "@/assets/images/people/Daniel.jpg";
-import Dev from "@/assets/images/people/Dev.jpg";
-import Enoch from "@/assets/images/people/Enoch.jpg";
+import JohnathanAlvarado from "@/assets/images/people/JohnathanAlvarado.jpg";
+import JohnathanRodriguez from "@/assets/images/people/JohnathanRodriguez.jpeg";
 import Kabir from "@/assets/images/people/Kabir.jpg";
+import KirstenWomack from "@/assets/images/people/KirstenWomack.jpg";
+import NikhilKadiyala from "@/assets/images/people/NikhilKadiyala.png";
 import Noah from "@/assets/images/people/Noah.jpg";
 import Pedro from "@/assets/images/people/Pedro.jpg";
-import Preston from "@/assets/images/people/Preston.jpg";
-import Sam from "@/assets/images/people/Sam.jpg";
+import VishnuNalamKandan from "@/assets/images/people/VishnuNalamKandan.png";
 import Harvard from "@/assets/images/schools/Harvard_University_coat_of_arms.svg";
 // University Logos
 import Rice from "@/assets/images/schools/rice_university.png";
@@ -37,16 +37,15 @@ const teamMembers = [
     image: Pedro,
   },
   {
-    name: "Sam Moran",
-    role: "Vice President",
-    email: "sam@utsbi.org",
-    image: Sam,
-  },
-  {
     name: "Brendan Lyon",
     role: "Director of Project Operations",
     email: "brendan@utsbi.org",
     image: Brendan,
+  },
+  {
+    name: "Kirsten Womack",
+    role: "Director of Legal",
+    image: KirstenWomack,
   },
   {
     name: "Kabir Muzumdar",
@@ -55,28 +54,39 @@ const teamMembers = [
     image: Kabir,
   },
   {
-    name: "Preston Vajdos",
-    role: "Director of Civil Engineering",
-    email: "vajdosp@utsbi.org",
-    image: Preston,
+    name: "Johnathan Rodriguez",
+    role: "Director of Engineering",
+    image: JohnathanRodriguez,
   },
   {
-    name: "Enoch Zhu",
+    name: "Johnathan Alvarado",
+    role: "Sustainability Director",
+    image: JohnathanAlvarado,
+  },
+  {
+    name: "Nikhil Kadiyala",
     role: "Director of External Technologies",
-    email: "enoch@utsbi.org",
-    image: Enoch,
+    image: NikhilKadiyala,
   },
   {
-    name: "Daniel Lam",
+    name: "Vishnu Nalam Kandan",
+    role: "Director of Research Technologies",
+    image: VishnuNalamKandan,
+  },
+  {
+    name: "Sahithi Bhagavatula",
+    role: "Secretary",
+    image: null,
+  },
+  {
+    name: "Adetola Adetunji",
     role: "Director of Internal Technologies",
-    email: "daniel@utsbi.org",
-    image: Daniel,
+    image: null,
   },
   {
-    name: "Dev Shroff",
+    name: "Winston Crane",
     role: "Director of Business",
-    email: "dev@utsbi.org",
-    image: Dev,
+    image: null,
   },
   // {
   //   name: "",
@@ -85,21 +95,9 @@ const teamMembers = [
   //   image: null,
   // },
   {
-    name: "Arianne Grace",
-    role: "Director of Public Relations",
-    email: "ariannegraceyude@utsbi.org",
-    image: null,
-  },
-  {
     name: "Christian Butler",
     role: "Director of Architecture",
     email: "christian.butler@utsbi.org",
-    image: null,
-  },
-  {
-    name: "Alim Makanov",
-    role: "Director of Legal",
-    email: "alim.makanov@utsbi.org",
     image: null,
   },
 ];
