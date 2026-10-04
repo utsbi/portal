@@ -76,6 +76,9 @@ export default function UpdatePasswordPage() {
     const processRecoveryLink = async () => {
       const queryParams = new URLSearchParams(window.location.search);
       const flow = queryParams.get("flow");
+      // Capture before the browser client exchanges the PKCE code and removes
+      // it from the URL during initialization.
+      const hasRecoveryCode = Boolean(queryParams.get("code"));
       const rawHash = window.location.hash.startsWith("#")
         ? window.location.hash.slice(1)
         : window.location.hash;
@@ -120,8 +123,30 @@ export default function UpdatePasswordPage() {
         return;
       }
 
+      // createBrowserClient automatically exchanges a PKCE callback code.
+      // getSession waits for that initialization; exchanging it again here
+      // would consume the same one-time code twice.
       const { data } = await supabase.auth.getSession();
       if (!isMounted) return;
+      if (hasRecoveryCode) {
+        if (data.session) {
+          writeRecoveryMarker(data.session.user.id);
+          setHasRecoverySession(true);
+          setVerificationError(null);
+          window.history.replaceState(
+            {},
+            document.title,
+            `${window.location.pathname}?flow=recovery`,
+          );
+        } else {
+          setVerificationError(
+            "This reset link could not establish a session. Request a new link and open it in the same browser where you requested it.",
+          );
+        }
+        setIsLoading(false);
+        setIsVerifying(false);
+        return;
+      }
       const marker = readRecoveryMarker();
       const markerMatchesSession = Boolean(
         data.session && marker?.userId === data.session.user.id,

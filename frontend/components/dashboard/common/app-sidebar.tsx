@@ -41,6 +41,7 @@ interface NavItem {
   title: string;
   path: string;
   icon: LucideIcon;
+  newTab?: boolean;
   roles?: Array<"client" | "director" | "president" | "member">; // if undefined, shown to all
 }
 
@@ -64,7 +65,7 @@ const generalItems: NavItem[] = [
     icon: FileEdit,
     roles: ["director", "president"],
   },
-  { title: "Documentation", path: "/docs", icon: BookOpen },
+  { title: "Documentation", path: "/docs", icon: BookOpen, newTab: true },
 ];
 
 const projectItems: NavItem[] = [
@@ -122,6 +123,8 @@ function NavLink({
   return (
     <Link
       href={fullUrl}
+      target={item.newTab ? "_blank" : undefined}
+      rel={item.newTab ? "noopener noreferrer" : undefined}
       onClick={onClick}
       className={`group relative flex items-center gap-3 px-3 py-2.5 transition-all duration-300 ${
         isCollapsed ? "justify-center" : ""
