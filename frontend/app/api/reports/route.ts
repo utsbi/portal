@@ -1,7 +1,6 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { isStaffRole } from "@/lib/auth/roles";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -95,24 +94,7 @@ export async function GET(request: Request) {
   const projectId = searchParams.get("project_id");
 
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
-      db: { schema: "public" },
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
-            }
-          } catch {
-            /* Server Component — safe to ignore */
-          }
-        },
-      },
-    });
+    const supabase = await createClient();
 
     const { data: authData, error: authErr } = await supabase.auth.getUser();
     if (authErr || !authData.user) {
@@ -208,18 +190,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(supabaseUrl, supabaseKey, {
-      db: { schema: "public" },
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {
-          /* server side read-only */
-        },
-      },
-    });
+    const supabase = await createClient();
 
     const { data: authData, error: authErr } = await supabase.auth.getUser();
     if (authErr || !authData.user) {
