@@ -60,6 +60,7 @@ const state = {
   targetProfile: { data: null as unknown, error: null as unknown },
   // listProjects / updateAccount's backfill query on the projects table.
   projectsListResult: { data: [] as unknown, error: null as unknown },
+  internalProjectResult: { data: null as { id: number } | null, error: null },
   // Recorded project_members mutations so tests can assert exactly which
   // rows a role change deletes / backfills.
   memberDeleteCalls: [] as Array<
@@ -218,6 +219,7 @@ vi.mock("@supabase/supabase-js", () => {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi.fn(async () => state.insertProfileResult),
+      maybeSingle: vi.fn(async () => state.internalProjectResult),
       insert: vi.fn(() => ({
         select: vi.fn(() => ({
           single: vi.fn(async () => state.insertProfileResult),
@@ -296,6 +298,7 @@ function resetState() {
   state.accountsResult = { data: [], error: null };
   state.targetProfile = { data: null, error: null };
   state.projectsListResult = { data: [], error: null };
+  state.internalProjectResult = { data: null, error: null };
   state.memberDeleteCalls = [];
   state.memberUpsertCalls = [];
 }
@@ -709,6 +712,22 @@ describe("settings/actions — updateAccount role-change membership reconciliati
     ]);
     // No backfill on demotion.
     expect(state.memberUpsertCalls).toEqual([]);
+  });
+
+  it("excludes SBI from role-change cleanup so its automatic membership survives", async () => {
+    state.targetProfile = { data: { id: 7, role: "director" }, error: null };
+    state.internalProjectResult = { data: { id: 6 }, error: null };
+    await updateAccount({
+      id: 7,
+      name: "Demoted Director",
+      role: "member",
+      department: null,
+    });
+    expect(state.memberDeleteCalls[0]).toContainEqual({
+      op: "neq",
+      column: "project_id",
+      value: 6,
+    });
   });
 
   it("leaves project_members completely untouched when the role is unchanged", async () => {

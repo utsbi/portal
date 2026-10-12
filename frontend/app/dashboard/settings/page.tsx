@@ -5,6 +5,7 @@ import {
   Archive,
   Bell,
   Calendar,
+  FolderKanban,
   Loader2,
   Lock,
   type LucideIcon,
@@ -16,7 +17,6 @@ import {
   Trash2,
   User,
   UserPlus,
-  Users,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -50,7 +50,9 @@ import {
 import { isPresidentRole, isStaffRole } from "@/lib/auth/roles";
 import { toastError, toastSuccess } from "@/lib/notifications";
 import { useProject } from "@/lib/project/project-context";
+import { isInternalProject, type ProjectPerson } from "@/lib/project/roster";
 import { createClient } from "@/lib/supabase/client";
+import type { Json } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 import {
   archiveProject,
@@ -70,7 +72,6 @@ import {
   listUnassignedMembers,
   removeMemberFromProject,
   restoreProject,
-  setDefaultProject,
   updateAccount,
   updateMyNotificationPrefs,
   updateMyPassword,
@@ -101,6 +102,7 @@ interface Project {
   id: number;
   url_slug: string;
   company_name: string;
+  config: Json | null;
   is_default: boolean;
   archived_at: string | null;
 }
@@ -119,15 +121,7 @@ interface MemberProfile {
   portal_activated_at: string | null;
 }
 
-interface ProjectMember {
-  id: number;
-  synthetic: boolean;
-  role: string;
-  profile_id: number;
-  created_at: string | null;
-  profiles: { id: number; name: string; email: string; role: string };
-  assigner: { id: number; name: string } | null;
-}
+type ProjectMember = ProjectPerson;
 
 interface UnassignedMember {
   id: number;
@@ -155,7 +149,7 @@ type SectionId =
   | "security"
   | "notifications"
   | "calendar"
-  | "team"
+  | "projects"
   | "accounts";
 
 interface SectionDef {
@@ -183,9 +177,9 @@ const SECTIONS: SectionDef[] = [
     directorOnly: true,
   },
   {
-    id: "team",
-    label: "Team",
-    icon: Users,
+    id: "projects",
+    label: "Projects",
+    icon: FolderKanban,
     group: "workspace",
     directorOnly: true,
   },
@@ -217,6 +211,23 @@ function roleBadgeColor(role: string) {
   }
 }
 
+function AccountStatus({ status }: { status: ProjectPerson["accountStatus"] }) {
+  return (
+    <span
+      className={cn(
+        "text-[11px]",
+        status === "pending" ? "text-amber-300" : "text-sbi-muted-dark",
+      )}
+    >
+      {status === "active"
+        ? "Active"
+        : status === "pending"
+          ? "Pending setup"
+          : "No account"}
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -238,8 +249,11 @@ function SettingsPageInner() {
 
   const requestedSection = searchParams.get("section");
   const activeSection: SectionId = useMemo(() => {
-    const candidate = SECTION_IDS.includes(requestedSection as SectionId)
-      ? (requestedSection as SectionId)
+    // Keep old bookmarks working after Team was renamed to Projects.
+    const normalizedSection =
+      requestedSection === "team" ? "projects" : requestedSection;
+    const candidate = SECTION_IDS.includes(normalizedSection as SectionId)
+      ? (normalizedSection as SectionId)
       : "profile";
     const def = SECTIONS.find((s) => s.id === candidate);
     if (def?.directorOnly && !isDirector) return "profile";
@@ -288,7 +302,7 @@ function SettingsPageInner() {
             {activeSection === "security" && <SecuritySection />}
             {activeSection === "notifications" && <NotificationsSection />}
             {activeSection === "calendar" && isDirector && <CalendarSection />}
-            {activeSection === "team" && isDirector && <TeamSection />}
+            {activeSection === "projects" && isDirector && <ProjectsSection />}
             {activeSection === "accounts" && isDirector && (
               <AccountsSection currentUserId={user.id} />
             )}
@@ -1305,18 +1319,20 @@ function CalendarSection() {
 }
 
 // ---------------------------------------------------------------------------
-// Team section (director only)
+// Projects section (director only)
 // ---------------------------------------------------------------------------
 
-function TeamSection() {
-  const { refetch: refetchProjects } = useProject();
+function ProjectsSection() {
+  const {
+    activeProject,
+    refetch: refetchProjects,
+    switchProject,
+  } = useProject();
   const [projects, setProjects] = useState<Project[]>([]);
   const [archivedProjects, setArchivedProjects] = useState<Project[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
-  const [membersLoaded, setMembersLoaded] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
-    null,
-  );
+  const [membersLoadedFor, setMembersLoadedFor] = useState<number | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [unassignedMembers, setUnassignedMembers] = useState<
     UnassignedMember[]
@@ -1334,6 +1350,20 @@ function TeamSection() {
   >([]);
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
   const [ownerQuery, setOwnerQuery] = useState("");
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectError, setProjectError] = useState("");
+  const [projectLoading, setProjectLoading] = useState(false);
+  const selectedProjectId = activeProject?.projectId ?? null;
+  const projectIdRef = useRef(selectedProjectId);
+  projectIdRef.current = selectedProjectId;
+  const rosterRequest = useRef(0);
+  const selectedProject = projects.find(
+    (project) => project.id === selectedProjectId,
+  );
+  const isInternal = selectedProject
+    ? isInternalProject(selectedProject)
+    : false;
 
   const assignDropdownRef = useRef<HTMLDivElement>(null);
   const ownerDropdownRef = useRef<HTMLDivElement>(null);
@@ -1365,32 +1395,41 @@ function TeamSection() {
       listProjects(),
       listArchivedProjects(),
     ]);
-    if (activeResult.projects) {
-      setProjects(activeResult.projects);
-      setSelectedProjectId((current) => {
-        if (
-          current &&
-          activeResult.projects.some((project) => project.id === current)
-        ) {
-          return current;
-        }
-        return activeResult.projects[0]?.id ?? null;
-      });
-    }
+    if (activeResult.projects) setProjects(activeResult.projects);
     if (archivedResult.projects) setArchivedProjects(archivedResult.projects);
     setProjectsLoaded(true);
   }, []);
 
   const loadProjectMembers = useCallback(async (projectId: number) => {
-    const [m, u, o] = await Promise.all([
-      listProjectMembers(projectId),
-      listUnassignedMembers(projectId),
-      listAvailableOwners(projectId),
-    ]);
-    if (m.members) setProjectMembers(m.members as ProjectMember[]);
-    if (u.members) setUnassignedMembers(u.members);
-    if (o.clients) setAvailableOwners(o.clients);
-    setMembersLoaded(true);
+    if (projectIdRef.current !== projectId) return;
+    const request = ++rosterRequest.current;
+    setMembersLoadedFor(null);
+    setRosterError(null);
+    try {
+      const [m, u, o] = await Promise.all([
+        listProjectMembers(projectId),
+        listUnassignedMembers(projectId),
+        listAvailableOwners(projectId),
+      ]);
+      if (
+        request !== rosterRequest.current ||
+        projectIdRef.current !== projectId
+      )
+        return;
+      setProjectMembers(m.members || []);
+      setUnassignedMembers(u.members || []);
+      setAvailableOwners(o.clients || []);
+      setRosterError(m.error || u.error || o.error || null);
+      setMembersLoadedFor(projectId);
+    } catch {
+      if (
+        request !== rosterRequest.current ||
+        projectIdRef.current !== projectId
+      )
+        return;
+      setRosterError("Couldn't load project access. Please try again.");
+      setMembersLoadedFor(projectId);
+    }
   }, []);
 
   useEffect(() => {
@@ -1407,6 +1446,24 @@ function TeamSection() {
     );
   }, [availableOwners, ownerQuery]);
 
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProjectLoading(true);
+    setProjectError("");
+    const res = await createProject({ companyName: projectName });
+    if ("error" in res) {
+      setProjectError(res.error);
+      toastError(res.error, "Couldn't create project");
+    } else {
+      setShowCreateProject(false);
+      setProjectName("");
+      await Promise.all([loadProjects(), refetchProjects()]);
+      switchProject(res.projectId);
+      toastSuccess(`${res.companyName} project created.`);
+    }
+    setProjectLoading(false);
+  };
+
   const handleAssignOwner = async (profileId: number) => {
     if (!selectedProjectId) return;
     const res = await assignOwnerToProject(profileId, selectedProjectId);
@@ -1422,25 +1479,20 @@ function TeamSection() {
     loadProjects();
   }, [loadProjects]);
   useEffect(() => {
-    if (!selectedProjectId) return;
-    let cancelled = false;
-    setMembersLoaded(false);
-    (async () => {
-      const [m, u, o] = await Promise.all([
-        listProjectMembers(selectedProjectId),
-        listUnassignedMembers(selectedProjectId),
-        listAvailableOwners(selectedProjectId),
-      ]);
-      if (cancelled) return;
-      if (m.members) setProjectMembers(m.members as ProjectMember[]);
-      if (u.members) setUnassignedMembers(u.members);
-      if (o.clients) setAvailableOwners(o.clients);
-      setMembersLoaded(true);
-    })();
+    setShowAssignDropdown(false);
+    setShowOwnerDropdown(false);
+    setMemberToRemove(null);
+    if (selectedProjectId) loadProjectMembers(selectedProjectId);
+    else {
+      setProjectMembers([]);
+      setUnassignedMembers([]);
+      setAvailableOwners([]);
+      setRosterError(null);
+    }
     return () => {
-      cancelled = true;
+      rosterRequest.current++;
     };
-  }, [selectedProjectId]);
+  }, [selectedProjectId, loadProjectMembers]);
 
   const handleAssign = async (profileId: number) => {
     if (!selectedProjectId) return;
@@ -1494,47 +1546,129 @@ function TeamSection() {
   // visible, only the table area shows the spinner during the first fetch
   // or while switching projects.
   const isLoading =
-    !projectsLoaded || (selectedProjectId !== null && !membersLoaded);
+    !projectsLoaded ||
+    (selectedProjectId !== null && membersLoadedFor !== selectedProjectId);
 
-  const memberCount = projectMembers.filter((m) => m.role === "member").length;
-  const directorCount = projectMembers.filter(
-    (m) => m.role === "director",
-  ).length;
-  const ownerCount = projectMembers.filter((m) => m.role === "owner").length;
-  const hasOwner = ownerCount > 0;
-  const countLine =
-    projectMembers.length === 0
-      ? null
-      : [
-          ownerCount > 0 ? `${ownerCount} owner` : null,
-          `${memberCount} member${memberCount === 1 ? "" : "s"}`,
-          `${directorCount} director${directorCount === 1 ? "" : "s"}`,
-        ]
-          .filter(Boolean)
-          .join(" · ");
+  const assignedPeople = isInternal
+    ? projectMembers
+    : projectMembers.filter(
+        (person) => person.isOwner || !isStaffRole(person.role),
+      );
+  const hasOwner = projectMembers.some((person) => person.isOwner);
+  const countLine = `${assignedPeople.length} ${isInternal ? "people" : "assigned people"}`;
 
   return (
     <div className="max-w-3xl space-y-4">
       <Panel>
         <div className="relative mb-5 flex flex-col gap-3 border-b border-sbi-dark-border/30 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <SectionLabel className="mb-1">Project members</SectionLabel>
+            <SectionLabel className="mb-1">Projects</SectionLabel>
             <p className="max-w-md text-sm leading-relaxed text-sbi-muted-dark">
-              Manage who can access the selected project.
+              Create projects, manage access, and archive projects that are no
+              longer active.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {!hasOwner && selectedProjectId && !isLoading && (
-              <div ref={ownerDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowCreateProject(true)}
+              className={btnGhost}
+            >
+              <Plus className="size-4" />
+              New project
+            </button>
+            {!isInternal &&
+              !hasOwner &&
+              selectedProjectId &&
+              !isLoading &&
+              !rosterError && (
+                <div ref={ownerDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowOwnerDropdown(!showOwnerDropdown)}
+                    className={btnGhost}
+                  >
+                    <UserPlus className="size-4" />
+                    Assign owner
+                  </button>
+                  {showOwnerDropdown && (
+                    <div className="absolute top-full mt-2 right-0 w-[min(24rem,100%)] bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
+                      <div className="p-2 border-b border-sbi-dark-border/40">
+                        <div className="relative">
+                          <Search
+                            className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark"
+                            strokeWidth={1.5}
+                          />
+                          <input
+                            type="text"
+                            // biome-ignore lint/a11y/noAutofocus: focus the filter input when this user-triggered owner-search dropdown opens (standard combobox UX)
+                            autoFocus
+                            value={ownerQuery}
+                            onChange={(e) => setOwnerQuery(e.target.value)}
+                            placeholder="Search clients"
+                            className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">
+                        <span>Available clients</span>
+                        <span className="tabular-nums">
+                          {filteredOwners.length}
+                          {ownerQuery &&
+                          filteredOwners.length !== availableOwners.length
+                            ? ` of ${availableOwners.length}`
+                            : ""}
+                        </span>
+                      </div>
+                      <div className="flex-1 overflow-y-auto py-1">
+                        {availableOwners.length === 0 ? (
+                          <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
+                            No unassigned clients available.
+                          </p>
+                        ) : filteredOwners.length === 0 ? (
+                          <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
+                            No matches for{" "}
+                            <span className="text-sbi-muted">
+                              "{ownerQuery}"
+                            </span>
+                            .
+                          </p>
+                        ) : (
+                          filteredOwners.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => handleAssignOwner(c.id)}
+                              className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors cursor-pointer focus:bg-white/5 focus:outline-none"
+                            >
+                              <div className="text-sm text-white truncate">
+                                {c.name}
+                              </div>
+                              <div className="text-xs text-sbi-muted-dark truncate">
+                                {c.email}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            {!isInternal && (
+              <div ref={assignDropdownRef}>
                 <button
                   type="button"
-                  onClick={() => setShowOwnerDropdown(!showOwnerDropdown)}
-                  className={btnGhost}
+                  onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                  disabled={
+                    !selectedProjectId || isLoading || Boolean(rosterError)
+                  }
+                  className={btnPrimary}
                 >
                   <UserPlus className="size-4" />
-                  Assign owner
+                  Add member
                 </button>
-                {showOwnerDropdown && (
+                {showAssignDropdown && (
                   <div className="absolute top-full mt-2 right-0 w-[min(24rem,100%)] bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
                     <div className="p-2 border-b border-sbi-dark-border/40">
                       <div className="relative">
@@ -1544,49 +1678,58 @@ function TeamSection() {
                         />
                         <input
                           type="text"
-                          // biome-ignore lint/a11y/noAutofocus: focus the filter input when this user-triggered owner-search dropdown opens (standard combobox UX)
+                          // biome-ignore lint/a11y/noAutofocus: focus the filter input when this user-triggered assignee-search dropdown opens (standard combobox UX)
                           autoFocus
-                          value={ownerQuery}
-                          onChange={(e) => setOwnerQuery(e.target.value)}
-                          placeholder="Search clients"
+                          value={assignQuery}
+                          onChange={(e) => setAssignQuery(e.target.value)}
+                          placeholder="Search by name, email, or department"
                           className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
                         />
                       </div>
                     </div>
                     <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">
-                      <span>Available clients</span>
+                      <span>Available members</span>
                       <span className="tabular-nums">
-                        {filteredOwners.length}
-                        {ownerQuery &&
-                        filteredOwners.length !== availableOwners.length
-                          ? ` of ${availableOwners.length}`
+                        {filteredUnassigned.length}
+                        {assignQuery &&
+                        filteredUnassigned.length !== unassignedMembers.length
+                          ? ` of ${unassignedMembers.length}`
                           : ""}
                       </span>
                     </div>
                     <div className="flex-1 overflow-y-auto py-1">
-                      {availableOwners.length === 0 ? (
+                      {unassignedMembers.length === 0 ? (
                         <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
-                          No unassigned clients available.
+                          Everyone available is already on this project.
                         </p>
-                      ) : filteredOwners.length === 0 ? (
+                      ) : filteredUnassigned.length === 0 ? (
                         <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
                           No matches for{" "}
-                          <span className="text-sbi-muted">"{ownerQuery}"</span>
+                          <span className="text-sbi-muted">
+                            "{assignQuery}"
+                          </span>
                           .
                         </p>
                       ) : (
-                        filteredOwners.map((c) => (
+                        filteredUnassigned.map((m) => (
                           <button
-                            key={c.id}
+                            key={m.id}
                             type="button"
-                            onClick={() => handleAssignOwner(c.id)}
+                            onClick={() => handleAssign(m.id)}
                             className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors cursor-pointer focus:bg-white/5 focus:outline-none"
                           >
-                            <div className="text-sm text-white truncate">
-                              {c.name}
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="text-sm text-white truncate">
+                                {m.name}
+                              </div>
+                              {m.department && (
+                                <span className="shrink-0 text-[10px] tracking-[0.15em] uppercase text-sbi-muted-dark">
+                                  {m.department}
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-sbi-muted-dark truncate">
-                              {c.email}
+                              {m.email}
                             </div>
                           </button>
                         ))
@@ -1596,121 +1739,24 @@ function TeamSection() {
                 )}
               </div>
             )}
-            <div ref={assignDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-                disabled={!selectedProjectId}
-                className={btnPrimary}
-              >
-                <UserPlus className="size-4" />
-                Assign member
-              </button>
-              {showAssignDropdown && (
-                <div className="absolute top-full mt-2 right-0 w-[min(24rem,100%)] bg-sbi-dark border border-sbi-dark-border/60 rounded-lg shadow-2xl shadow-black/60 z-50 flex flex-col max-h-96">
-                  <div className="p-2 border-b border-sbi-dark-border/40">
-                    <div className="relative">
-                      <Search
-                        className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-sbi-muted-dark"
-                        strokeWidth={1.5}
-                      />
-                      <input
-                        type="text"
-                        // biome-ignore lint/a11y/noAutofocus: focus the filter input when this user-triggered assignee-search dropdown opens (standard combobox UX)
-                        autoFocus
-                        value={assignQuery}
-                        onChange={(e) => setAssignQuery(e.target.value)}
-                        placeholder="Search by name, email, or department"
-                        className={cn(inputClass, "h-8 pl-9 pr-3 py-0")}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark">
-                    <span>Available members</span>
-                    <span className="tabular-nums">
-                      {filteredUnassigned.length}
-                      {assignQuery &&
-                      filteredUnassigned.length !== unassignedMembers.length
-                        ? ` of ${unassignedMembers.length}`
-                        : ""}
-                    </span>
-                  </div>
-                  <div className="flex-1 overflow-y-auto py-1">
-                    {unassignedMembers.length === 0 ? (
-                      <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
-                        Everyone available is already on this project.
-                      </p>
-                    ) : filteredUnassigned.length === 0 ? (
-                      <p className="px-3 py-6 text-sbi-muted-dark text-sm text-center">
-                        No matches for{" "}
-                        <span className="text-sbi-muted">"{assignQuery}"</span>.
-                      </p>
-                    ) : (
-                      filteredUnassigned.map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => handleAssign(m.id)}
-                          className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors cursor-pointer focus:bg-white/5 focus:outline-none"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm text-white truncate">
-                              {m.name}
-                            </div>
-                            {m.department && (
-                              <span className="shrink-0 text-[10px] tracking-[0.15em] uppercase text-sbi-muted-dark">
-                                {m.department}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-sbi-muted-dark truncate">
-                            {m.email}
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <label htmlFor="assign-project" className={labelClass}>
-              Project
-            </label>
-            <Select
-              value={selectedProjectId ? String(selectedProjectId) : undefined}
-              onValueChange={(v) => setSelectedProjectId(Number(v))}
-              disabled={projects.length === 0}
-            >
-              <SelectTrigger id="assign-project" className="mt-1">
-                <SelectValue
-                  placeholder={
-                    projects.length === 0
-                      ? "No projects yet"
-                      : "Select a project"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.company_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span className={labelClass}>Managing project</span>
+            <p className="mt-1 truncate text-sm text-white">
+              {activeProject?.companyName || "No project selected"}
+            </p>
+            <p className="mt-1 text-xs text-sbi-muted-dark">
+              Change projects using the switcher in the header.
+            </p>
           </div>
-          <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 sm:h-9 sm:flex-nowrap sm:justify-end">
-            {countLine && (
-              <p className="text-xs text-sbi-muted-dark tabular-nums">
-                {countLine}
-              </p>
-            )}
-            {selectedProjectId && !isLoading && (
+          <div className="flex min-h-9 flex-wrap items-center justify-end gap-3">
+            <p className="text-xs text-sbi-muted-dark tabular-nums">
+              {isLoading ? "Loading…" : rosterError ? "" : countLine}
+            </p>
+            {!isInternal && selectedProjectId && !isLoading && (
               <button
                 type="button"
                 onClick={() =>
@@ -1732,113 +1778,100 @@ function TeamSection() {
           </div>
         </div>
 
+        <div className="mb-4 rounded-md border border-sbi-green/15 bg-sbi-green/[0.03] px-3 py-2.5 text-xs leading-relaxed text-sbi-muted">
+          {isInternal
+            ? "Everyone except clients belongs to SBI automatically, including people without portal accounts. Roles below are account roles."
+            : "Directors and presidents have automatic access to every project. Assigned people are listed below, with the owner first."}
+        </div>
+
         {isLoading ? (
           <div className="flex items-center gap-2 text-sbi-muted text-sm py-2">
-            <Loader2 className="size-4 animate-spin" /> Loading team…
+            <Loader2 className="size-4 animate-spin" /> Loading project access…
           </div>
-        ) : projectMembers.length === 0 ? (
+        ) : rosterError ? (
+          <p role="alert" className="text-sm text-red-400">
+            {rosterError}
+          </p>
+        ) : assignedPeople.length === 0 ? (
           <p className="text-sm text-sbi-muted-dark py-3">
-            No one's on this project yet. Use{" "}
-            <span className="text-sbi-muted">Assign member</span> above.
+            {isInternal
+              ? "No non-client profiles yet."
+              : "No assigned people yet. Add a member or assign the client owner above."}
           </p>
         ) : (
           <div className="border border-sbi-dark-border/30 rounded-md overflow-hidden">
-            <div className="hidden xl:grid grid-cols-[1.2fr_1.8fr_96px_32px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
+            <div className="hidden xl:grid grid-cols-[1.2fr_1.5fr_96px_96px_32px] gap-3 px-3 py-2 text-[10px] tracking-[0.2em] uppercase text-sbi-muted-dark border-b border-sbi-dark-border/30">
               <div>Name</div>
               <div>Email</div>
-              <div>Role</div>
+              <div>Account role</div>
+              <div>Portal login</div>
               <div />
             </div>
-            {projectMembers.map((pm) => {
-              const assignedTooltip = pm.assigner
-                ? `Added by ${pm.assigner.name}${pm.created_at ? ` on ${new Date(pm.created_at).toLocaleDateString()}` : ""}`
-                : undefined;
-              return (
-                <div
-                  key={pm.id}
-                  className="flex flex-col gap-1 xl:grid xl:grid-cols-[1.2fr_1.8fr_96px_32px] xl:gap-3 xl:items-center px-3 py-2.5 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
-                >
-                  <div className="flex items-center justify-between xl:contents">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm text-white font-medium xl:font-normal truncate">
-                        {pm.profiles.name}
-                      </span>
-                      <span className="xl:hidden">
-                        <span
-                          className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}
-                        >
-                          {pm.role}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="xl:hidden flex">
-                      {pm.role === "member" && !pm.synthetic ? (
-                        <button
-                          type="button"
-                          onClick={() => setMemberToRemove(pm)}
-                          aria-label={`Remove ${pm.profiles.name} from project`}
-                          title={`Remove ${pm.profiles.name} from project`}
-                          className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled
-                          aria-label="Directors can't be removed from a project"
-                          title="Directors can't be removed from a project"
-                          className="p-1.5 rounded-md text-sbi-muted-dark/40 cursor-not-allowed"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-xs text-sbi-muted truncate flex items-center gap-2 min-w-0">
-                    <span className="truncate">{pm.profiles.email}</span>
-                    {pm.assigner && (
-                      <span
-                        title={assignedTooltip}
-                        className="shrink-0 text-[10px] uppercase tracking-[0.15em] text-sbi-muted-dark/70"
-                      >
-                        · by {pm.assigner.name.split(" ")[0]}
-                      </span>
-                    )}
-                  </div>
-                  <div className="hidden xl:flex xl:items-center">
-                    <span
-                      className={`inline-flex items-center text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(pm.role)}`}
-                    >
-                      {pm.role}
+            {assignedPeople.map((person) => (
+              <div
+                key={person.profile_id}
+                className="flex flex-wrap items-center gap-2 xl:grid xl:grid-cols-[1.2fr_1.5fr_96px_96px_32px] xl:gap-3 px-3 py-3 border-b border-sbi-dark-border/15 last:border-b-0 hover:bg-white/[0.015] transition-colors"
+              >
+                <div className="flex w-full min-w-0 items-center gap-2 xl:w-auto">
+                  <span className="truncate text-sm text-white">
+                    {person.profiles.name}
+                  </span>
+                  {person.isOwner && (
+                    <span className="shrink-0 rounded border border-purple-400/30 bg-purple-400/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-purple-300">
+                      Owner
                     </span>
-                  </div>
-                  <div className="hidden xl:flex justify-end">
-                    {pm.role === "member" && !pm.synthetic ? (
-                      <button
-                        type="button"
-                        onClick={() => setMemberToRemove(pm)}
-                        aria-label={`Remove ${pm.profiles.name} from project`}
-                        title={`Remove ${pm.profiles.name} from project`}
-                        className="p-1.5 rounded-md text-sbi-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled
-                        aria-label="Directors can't be removed from a project"
-                        title="Directors can't be removed from a project"
-                        className="p-1.5 rounded-md text-sbi-muted-dark/40 cursor-not-allowed"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
-              );
-            })}
+                <div
+                  className="w-full min-w-0 truncate text-xs text-sbi-muted xl:w-auto"
+                  title={
+                    person.assigner
+                      ? `Added by ${person.assigner.name}`
+                      : undefined
+                  }
+                >
+                  {person.profiles.email ||
+                    person.profiles.contact_email ||
+                    "—"}
+                </div>
+                <div>
+                  <span
+                    className={`inline-flex rounded border px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] ${roleBadgeColor(person.role)}`}
+                  >
+                    {person.role}
+                  </span>
+                </div>
+                <AccountStatus status={person.accountStatus} />
+                <div className="ml-auto flex justify-end xl:ml-0">
+                  {person.canRemove ? (
+                    <button
+                      type="button"
+                      onClick={() => setMemberToRemove(person)}
+                      aria-label={`Remove ${person.profiles.name} from project`}
+                      title={`Remove ${person.profiles.name} from project`}
+                      className="cursor-pointer rounded-md p-1.5 text-sbi-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  ) : (
+                    <span
+                      title={
+                        isInternal
+                          ? "SBI membership is automatic"
+                          : person.isOwner
+                            ? "Project owner"
+                            : "Automatic staff access"
+                      }
+                    >
+                      <Lock
+                        className="size-3.5 text-sbi-muted-dark/50"
+                        aria-label="System-managed access"
+                      />
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Panel>
@@ -1921,6 +1954,59 @@ function TeamSection() {
           </div>
         </Panel>
       )}
+
+      <Modal
+        opened={showCreateProject}
+        onClose={() => {
+          if (!projectLoading) setShowCreateProject(false);
+        }}
+        title="New project"
+        size="sm"
+      >
+        <form onSubmit={handleCreateProject} className="space-y-5">
+          <p className="text-sm leading-relaxed text-sbi-muted">
+            Create a project, then assign its client and members from this page.
+          </p>
+          <div>
+            <label htmlFor="project-name" className={labelClass}>
+              Project name
+            </label>
+            <input
+              id="project-name"
+              type="text"
+              required
+              minLength={2}
+              maxLength={150}
+              value={projectName}
+              onChange={(event) => setProjectName(event.target.value)}
+              className={cn(inputClass, "mt-1")}
+              placeholder="e.g. Riverfront retrofit"
+            />
+          </div>
+          {projectError && (
+            <p role="alert" className="text-sm text-red-400">
+              {projectError}
+            </p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={projectLoading}
+              onClick={() => setShowCreateProject(false)}
+              className={btnGhost}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={projectLoading}
+              className={btnPrimary}
+            >
+              {projectLoading ? "Creating project…" : "Create project"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -1932,18 +2018,13 @@ function TeamSection() {
 type AccountFilter = "all" | "director" | "president" | "member" | "client";
 
 function AccountsSection({ currentUserId }: { currentUserId: number }) {
-  const { refetch: refetchProjects, switchProject, user } = useProject();
+  const { user } = useProject();
   const canManagePresident = isPresidentRole(user?.role);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [memberProfiles, setMemberProfiles] = useState<MemberProfile[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [memberProfilesLoaded, setMemberProfilesLoaded] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [projectError, setProjectError] = useState("");
-  const [projectLoading, setProjectLoading] = useState(false);
   const [createForm, setCreateForm] = useState({
     email: "",
     name: "",
@@ -1965,24 +2046,14 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
   const [memberInviteError, setMemberInviteError] = useState("");
   const [memberInviteLoading, setMemberInviteLoading] = useState(false);
   const [memberQuery, setMemberQuery] = useState("");
-  const [defaultProjectId, setDefaultProjectId] = useState("");
-  const [defaultLoading, setDefaultLoading] = useState(false);
 
   const loadAccounts = useCallback(async () => {
-    const [accountResult, memberResult, projectResult] = await Promise.all([
+    const [accountResult, memberResult] = await Promise.all([
       listAccounts(),
       listMemberProfiles(),
-      listProjects(),
     ]);
     if (accountResult.accounts) setAccounts(accountResult.accounts);
     if (memberResult.members) setMemberProfiles(memberResult.members);
-    if (projectResult.projects) {
-      setProjects(projectResult.projects as Project[]);
-      const currentDefault = projectResult.projects.find(
-        (project: Project) => project.is_default,
-      );
-      setDefaultProjectId(currentDefault ? String(currentDefault.id) : "");
-    }
     setAccountsLoaded(true);
     setMemberProfilesLoaded(true);
   }, []);
@@ -2059,24 +2130,6 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     setCreateLoading(false);
   };
 
-  const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setProjectLoading(true);
-    setProjectError("");
-    const res = await createProject({ companyName: projectName });
-    if ("error" in res) {
-      setProjectError(res.error);
-      toastError(res.error, "Couldn't create project");
-    } else {
-      await refetchProjects();
-      switchProject(res.projectId);
-      setShowCreateProject(false);
-      setProjectName("");
-      toastSuccess(`${res.companyName} project created.`);
-    }
-    setProjectLoading(false);
-  };
-
   const confirmDelete = async () => {
     if (!accountToDelete) return;
     const target = accountToDelete;
@@ -2120,32 +2173,12 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
     setMemberInviteLoading(false);
   };
 
-  const handleDefaultProject = async () => {
-    if (!defaultProjectId) return;
-    setDefaultLoading(true);
-    const result = await setDefaultProject(Number(defaultProjectId));
-    if (result.error) toastError(result.error, "Couldn't set default project");
-    else {
-      toastSuccess("Default project updated. Unassigned members were added.");
-      await loadAccounts();
-    }
-    setDefaultLoading(false);
-  };
-
   return (
     <div className="max-w-3xl space-y-4">
       <Panel>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
           <SectionLabel className="mb-0">Portal accounts</SectionLabel>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <button
-              type="button"
-              onClick={() => setShowCreateProject(true)}
-              className={cn(btnGhost, "w-full justify-center sm:w-auto")}
-            >
-              <Plus className="size-4" />
-              New project
-            </button>
             <button
               type="button"
               onClick={() => setShowCreateForm(!showCreateForm)}
@@ -2387,6 +2420,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                         <span className="text-sm text-white font-medium xl:font-normal truncate">
                           {account.name}
                         </span>
+                        {!account.portal_activated_at && (
+                          <AccountStatus status="pending" />
+                        )}
                         <span className="xl:hidden">
                           <span
                             className={`text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 rounded border ${roleBadgeColor(account.role)}`}
@@ -2504,53 +2540,12 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
       </Panel>
 
       <Panel>
-        <SectionLabel>Default member project</SectionLabel>
-        <p className="mb-4 max-w-[65ch] text-sm text-sbi-muted">
-          New member profiles and members without any project access are added
-          to this project. Changing it never removes existing assignments.
-        </p>
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <div className="min-w-0 flex-1">
-            <label htmlFor="default-project" className={labelClass}>
-              Project
-            </label>
-            <Select
-              value={defaultProjectId || undefined}
-              onValueChange={setDefaultProjectId}
-              disabled={projects.length === 0 || defaultLoading}
-            >
-              <SelectTrigger id="default-project" className="mt-1">
-                <SelectValue placeholder="Select a default project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={String(project.id)}>
-                    {project.company_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <button
-            type="button"
-            disabled={!defaultProjectId || defaultLoading}
-            onClick={handleDefaultProject}
-            className={cn(
-              btnPrimary,
-              "h-9 w-full justify-center px-4 py-0 sm:w-auto",
-            )}
-          >
-            {defaultLoading ? "Saving…" : "Set default"}
-          </button>
-        </div>
-      </Panel>
-
-      <Panel>
         <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <SectionLabel className="mb-2">Member profiles</SectionLabel>
             <p className="max-w-[65ch] text-sm text-sbi-muted">
-              Verified Discord and recovery records without a portal account.
+              Member records without a portal login. Pending invitations appear
+              in Portal accounts above.
             </p>
           </div>
           <div className="relative w-full shrink-0 sm:w-64">
@@ -2583,60 +2578,44 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           </p>
         ) : (
           <div className="divide-y divide-sbi-dark-border/20 border-y border-sbi-dark-border/30">
-            {visibleMemberProfiles.map((member) => {
-              const isPending = Boolean(
-                member.uid && !member.portal_activated_at,
-              );
-              return (
-                <div
-                  key={member.id}
-                  className="flex items-center justify-between gap-4 py-3.5"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-medium text-white">
-                        {member.name}
-                      </p>
-                      {isPending && (
-                        <span className="shrink-0 rounded border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.15em] text-amber-300">
-                          Pending
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-sbi-muted">
-                      <span className="truncate">
-                        {member.eid || "EID not recorded"}
-                      </span>
-                      <span aria-hidden className="text-sbi-muted-dark">
-                        ·
-                      </span>
-                      <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
-                        <DiscordIcon className="size-3.5 shrink-0 text-sbi-muted-dark" />
-                        <span className="truncate">
-                          {member.discord_id || "Discord ID not recorded"}
-                        </span>
-                      </span>
-                    </div>
+            {visibleMemberProfiles.map((member) => (
+              <div
+                key={member.id}
+                className="flex items-center justify-between gap-4 py-3.5"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium text-white">
+                      {member.name}
+                    </p>
                   </div>
-                  {isPending ? (
-                    <span className="shrink-0 text-xs text-sbi-muted-dark">
-                      Awaiting password setup
+                  <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-sbi-muted">
+                    <span className="truncate">
+                      {member.eid || "EID not recorded"}
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => openMemberInvite(member)}
-                      className={cn(
-                        btnGhost,
-                        "shrink-0 justify-center px-3 py-2.5 text-[11px]",
-                      )}
-                    >
-                      <UserPlus className="size-4" /> Invite to portal
-                    </button>
-                  )}
+                    <span aria-hidden className="text-sbi-muted-dark">
+                      ·
+                    </span>
+                    <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                      <DiscordIcon className="size-3.5 shrink-0 text-sbi-muted-dark" />
+                      <span className="truncate">
+                        {member.discord_id || "Discord ID not recorded"}
+                      </span>
+                    </span>
+                  </div>
                 </div>
-              );
-            })}
+                <button
+                  type="button"
+                  onClick={() => openMemberInvite(member)}
+                  className={cn(
+                    btnGhost,
+                    "shrink-0 justify-center px-3 py-2.5 text-[11px]",
+                  )}
+                >
+                  <UserPlus className="size-4" /> Invite to portal
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </Panel>
@@ -2725,60 +2704,6 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
           loadAccounts();
         }}
       />
-
-      <Modal
-        opened={showCreateProject}
-        onClose={() => {
-          if (!projectLoading) setShowCreateProject(false);
-        }}
-        title="New project"
-        size="sm"
-      >
-        <form onSubmit={handleCreateProject} className="space-y-5">
-          <p className="text-sm leading-relaxed text-sbi-muted">
-            Create the project first, then add its client and team from the
-            Project Team section.
-          </p>
-          <div>
-            <label htmlFor="project-name" className={labelClass}>
-              Project name
-            </label>
-            <input
-              id="project-name"
-              type="text"
-              required
-              minLength={2}
-              maxLength={150}
-              value={projectName}
-              onChange={(event) => setProjectName(event.target.value)}
-              className={cn(inputClass, "mt-1")}
-              placeholder="e.g. Riverfront retrofit"
-            />
-          </div>
-          {projectError && (
-            <p role="alert" className="text-sm text-red-400">
-              {projectError}
-            </p>
-          )}
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              disabled={projectLoading}
-              onClick={() => setShowCreateProject(false)}
-              className={btnGhost}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={projectLoading}
-              className={btnPrimary}
-            >
-              {projectLoading ? "Creating project…" : "Create project"}
-            </button>
-          </div>
-        </form>
-      </Modal>
 
       <ConfirmDialog
         opened={!!accountToDelete}
