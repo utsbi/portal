@@ -36,8 +36,20 @@ export function getPortalOrigin(): string {
   }
 
   const origin = normalizeHttpOrigin(configured, "NEXT_PUBLIC_SITE_URL");
-  if (process.env.NODE_ENV === "production" && !origin.startsWith("https://")) {
-    throw new Error("The portal origin must use HTTPS in production");
+  if (process.env.NODE_ENV === "production") {
+    if (!origin.startsWith("https://")) {
+      throw new Error("The portal origin must use HTTPS in production");
+    }
+    const hostname = new URL(origin).hostname;
+    if (
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      /^127\./.test(hostname) ||
+      hostname === "[::1]" ||
+      hostname === "0.0.0.0"
+    ) {
+      throw new Error("The portal origin must not use a loopback host in production");
+    }
   }
   return origin;
 }
