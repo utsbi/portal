@@ -27,7 +27,7 @@ export async function prefetchConv(convId: string): Promise<void> {
     supabase
       .from("messages")
       .select(
-        "id, content, sender_role, sender_profile_id, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
+        "id, content, sender_role, sender_display_name, sender_profile_id, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
       )
       .eq("conversation_id", Number(convId))
       .order("created_at", { ascending: true }),
@@ -86,6 +86,7 @@ export async function prefetchConv(convId: string): Promise<void> {
         (row.sender_role as "client" | "director" | "president" | "member") ??
         "client",
       senderProfileId: (row.sender_profile_id as number | null) ?? null,
+      senderDisplayName: row.sender_display_name ?? null,
       createdAt: (row.created_at as string) ?? new Date().toISOString(),
       editedAt:
         ((row as Record<string, unknown>).edited_at as string | null) ?? null,

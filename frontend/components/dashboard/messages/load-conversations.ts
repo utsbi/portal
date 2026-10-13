@@ -37,7 +37,7 @@ export async function loadActorConversations(
   const [convoRes, partsRes] = await Promise.all([
     supabase
       .from("conversations")
-      .select("id, project_id, created_at")
+      .select("id, project_id, created_at, title_override")
       .in("id", convoIds),
     supabase
       .from("conversation_participants")
@@ -115,7 +115,9 @@ export async function loadActorConversations(
       : undefined;
 
     let name: string;
-    if (peers.length === 0) {
+    if (convo.title_override) {
+      name = convo.title_override;
+    } else if (peers.length === 0) {
       name = projectName || `Conversation ${id}`;
     } else if (peers.length <= 2) {
       name = peers.join(", ");

@@ -13,6 +13,9 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "anon-key";
 process.env.SUPABASE_SECRET_KEY = "service-role-secret";
 
+const generateLinkMock = vi.fn(
+  async (_params: unknown) => state.insertAuthResult,
+);
 const sendAccountInviteMock = vi.fn(async () => undefined);
 vi.mock("@/lib/email/send", () => ({
   getPortalOrigin: () => "https://portal.example.com",
@@ -60,6 +63,7 @@ const state = {
   targetProfile: { data: null as unknown, error: null as unknown },
   // listProjects / updateAccount's backfill query on the projects table.
   projectsListResult: { data: [] as unknown, error: null as unknown },
+  internalProjectResult: { data: null as { id: number } | null, error: null },
   // Recorded project_members mutations so tests can assert exactly which
   // rows a role change deletes / backfills.
   memberDeleteCalls: [] as Array<
@@ -218,6 +222,7 @@ vi.mock("@supabase/supabase-js", () => {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi.fn(async () => state.insertProfileResult),
+      maybeSingle: vi.fn(async () => state.internalProjectResult),
       insert: vi.fn(() => ({
         select: vi.fn(() => ({
           single: vi.fn(async () => state.insertProfileResult),
@@ -238,7 +243,7 @@ vi.mock("@supabase/supabase-js", () => {
     createClient: vi.fn(() => ({
       auth: {
         admin: {
-          generateLink: vi.fn(async () => state.insertAuthResult),
+          generateLink: generateLinkMock,
           listUsers: vi.fn(async () => state.listUsersResult),
           deleteUser: vi.fn(async () => {
             state.deleteUserCalls++;
@@ -269,6 +274,7 @@ vi.mock("@supabase/supabase-js", () => {
 const {
   inviteAccount,
   inviteMemberProfile,
+  resendAccountInvitation,
   listAccounts,
   updateAccount,
   deleteAccount,
@@ -296,6 +302,7 @@ function resetState() {
   state.accountsResult = { data: [], error: null };
   state.targetProfile = { data: null, error: null };
   state.projectsListResult = { data: [], error: null };
+  state.internalProjectResult = { data: null, error: null };
   state.memberDeleteCalls = [];
   state.memberUpsertCalls = [];
 }
@@ -308,6 +315,94 @@ describe("settings/actions — auth gates", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe("resendAccountInvitation", () => {
+    const pendingProfile = {
+      id: 99,
+      uid: "new-uid",
+      name: "Pending Member",
+      email: "pending@example.com",
+      role: "member",
+      portal_activated_at: null,
+    };
+
+    beforeEach(() => {
+      state.user = { id: "director-uid" };
+      state.callerProfile = { id: 1, role: "director", name: "Director" };
+      state.targetProfile = { data: { ...pendingProfile }, error: null };
+    });
+
+    it("sends a fresh setup link for the existing pending account", async () => {
+      expect(await resendAccountInvitation(99)).toEqual({ success: true });
+      expect(generateLinkMock).toHaveBeenCalledWith({
+        type: "recovery",
+        email: "pending@example.com",
+      });
+      expect(sendAccountInviteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "pending@example.com",
+          userId: "new-uid",
+          deliveryKey: "invite-token",
+          confirmationUrl:
+            "https://portal.example.com/auth/continue?token_hash=invite-token&type=recovery",
+        }),
+      );
+      expect(state.deleteUserCalls).toBe(0);
+    });
+
+    it("rejects unauthenticated callers and ordinary members", async () => {
+      state.user = null;
+      expect((await resendAccountInvitation(99)).error).toMatch(
+        /authenticated/i,
+      );
+      state.user = { id: "member-uid" };
+      state.callerProfile = { id: 1, role: "member" };
+      expect((await resendAccountInvitation(99)).error).toMatch(/director/i);
+      expect(generateLinkMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects invalid IDs, missing accounts, and activated accounts", async () => {
+      expect((await resendAccountInvitation(0)).error).toMatch(/invalid/i);
+      state.targetProfile.data = null;
+      expect((await resendAccountInvitation(99)).error).toMatch(/not found/i);
+      state.targetProfile.data = {
+        ...pendingProfile,
+        portal_activated_at: "2026-01-01",
+      };
+      expect((await resendAccountInvitation(99)).error).toMatch(
+        /completed setup/i,
+      );
+      expect(generateLinkMock).not.toHaveBeenCalled();
+    });
+
+    it("only lets the president resend president invitations", async () => {
+      state.targetProfile.data = { ...pendingProfile, role: "president" };
+      expect((await resendAccountInvitation(99)).error).toMatch(/president/i);
+      expect(generateLinkMock).not.toHaveBeenCalled();
+      state.callerProfile = { id: 1, role: "president" };
+      expect(await resendAccountInvitation(99)).toEqual({ success: true });
+    });
+
+    it("does not deliver a token for a different Auth user", async () => {
+      state.insertAuthResult.data = {
+        user: { id: "different-uid" },
+        properties: { hashed_token: "token" },
+      };
+      expect((await resendAccountInvitation(99)).error).toMatch(/setup link/i);
+      expect(sendAccountInviteMock).not.toHaveBeenCalled();
+      expect(state.deleteUserCalls).toBe(0);
+    });
+
+    it("keeps the account when delivery fails", async () => {
+      sendAccountInviteMock.mockRejectedValueOnce(
+        new Error("Provider unavailable"),
+      );
+      expect((await resendAccountInvitation(99)).error).toMatch(
+        /could not be sent/i,
+      );
+      expect(state.deleteUserCalls).toBe(0);
+    });
   });
 
   // ── inviteAccount ─────────────────────────────────────────────────────────
@@ -709,6 +804,22 @@ describe("settings/actions — updateAccount role-change membership reconciliati
     ]);
     // No backfill on demotion.
     expect(state.memberUpsertCalls).toEqual([]);
+  });
+
+  it("excludes SBI from role-change cleanup so its automatic membership survives", async () => {
+    state.targetProfile = { data: { id: 7, role: "director" }, error: null };
+    state.internalProjectResult = { data: { id: 6 }, error: null };
+    await updateAccount({
+      id: 7,
+      name: "Demoted Director",
+      role: "member",
+      department: null,
+    });
+    expect(state.memberDeleteCalls[0]).toContainEqual({
+      op: "neq",
+      column: "project_id",
+      value: 6,
+    });
   });
 
   it("leaves project_members completely untouched when the role is unchanged", async () => {

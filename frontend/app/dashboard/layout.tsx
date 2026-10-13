@@ -41,7 +41,7 @@ export default async function DashboardLayout({
   // it to a project (for example after Discord verification).  Do this at the
   // layout boundary so deep links cannot render a feature with null project
   // state or expose its navigation. Directors retain the workspace so they can
-  // create a project and set its default from Settings.
+  // manage client projects from Settings; SBI membership is automatic.
   const needsProjectAccessGuard =
     actor.projects.length === 0 && !isStaffRole(actor.profile.role);
 
