@@ -1747,6 +1747,11 @@ function ProjectsSection() {
             <span className={labelClass}>Managing project</span>
             <p className="mt-1 truncate text-sm text-white">
               {activeProject?.companyName || "No project selected"}
+              {isInternal && (
+                <span className="ml-1 text-xs text-sbi-muted-dark">
+                  (Default)
+                </span>
+              )}
             </p>
             <p className="mt-1 text-xs text-sbi-muted-dark">
               Change projects using the switcher in the header.
@@ -1776,12 +1781,6 @@ function ProjectsSection() {
               </button>
             )}
           </div>
-        </div>
-
-        <div className="mb-4 rounded-md border border-sbi-green/15 bg-sbi-green/[0.03] px-3 py-2.5 text-xs leading-relaxed text-sbi-muted">
-          {isInternal
-            ? "Everyone except clients belongs to SBI automatically, including people without portal accounts. Roles below are account roles."
-            : "Directors and presidents have automatic access to every project. Assigned people are listed below, with the owner first."}
         </div>
 
         {isLoading ? (
