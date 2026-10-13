@@ -96,6 +96,7 @@ interface ThreadMessage {
   /** Sender's profile id. Ownership ("is this mine") is by identity, not role,
    *  so same-role and group threads render correctly. */
   senderProfileId?: number | null;
+  senderDisplayName?: string | null;
   createdAt: string;
   editedAt?: string | null;
   replyToId?: number | null;
@@ -597,11 +598,12 @@ function PinnedStrip({ pinnedMessages, onJump }: PinnedStripProps) {
               />
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.04em] text-sbi-muted-dark mb-0.5">
-                  {isStaffRole(m.senderRole)
-                    ? "Director"
-                    : m.senderRole === "member"
-                      ? "Member"
-                      : "Client"}
+                  {m.senderDisplayName ??
+                    (isStaffRole(m.senderRole)
+                      ? "Director"
+                      : m.senderRole === "member"
+                        ? "Member"
+                        : "Client")}
                 </div>
                 <div className="text-[11px] text-white truncate">
                   {m.text || "(attachment)"}
@@ -900,7 +902,7 @@ export function MessageThread({
     const { data, error } = await supabase
       .from("messages")
       .select(
-        "id, content, sender_role, sender_profile_id, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
+        "id, content, sender_role, sender_display_name, sender_profile_id, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
       )
       .eq("conversation_id", Number(conversationId))
       .lt("created_at", oldestCreatedAt.current)
@@ -969,6 +971,7 @@ export function MessageThread({
           (row.sender_role as "client" | "director" | "president" | "member") ??
           "client",
         senderProfileId: (row.sender_profile_id as number | null) ?? null,
+        senderDisplayName: row.sender_display_name ?? null,
         createdAt: (row.created_at as string) ?? new Date().toISOString(),
         editedAt:
           ((row as Record<string, unknown>).edited_at as string | null) ?? null,
@@ -1036,7 +1039,7 @@ export function MessageThread({
       supabase
         .from("messages")
         .select(
-          "id, content, sender_role, sender_profile_id, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
+          "id, content, sender_role, sender_display_name, sender_profile_id, created_at, edited_at, reply_to_id, is_pinned, pinned_at, message_attachments(id, path, name, mime_type, meta, sort_index), message_unfurls(url, title, description, image_url, site_name)",
         )
         .eq("conversation_id", Number(conversationId))
         .order("created_at", { ascending: false })
@@ -1122,6 +1125,7 @@ export function MessageThread({
           (row.sender_role as "client" | "director" | "president" | "member") ??
           "client",
         senderProfileId: (row.sender_profile_id as number | null) ?? null,
+        senderDisplayName: row.sender_display_name ?? null,
         createdAt: (row.created_at as string) ?? new Date().toISOString(),
         editedAt:
           ((row as Record<string, unknown>).edited_at as string | null) ?? null,
@@ -1248,6 +1252,7 @@ export function MessageThread({
             content: string | null;
             sender_role: string;
             sender_profile_id: number | null;
+            sender_display_name: string | null;
             created_at: string;
             edited_at: string | null;
             reply_to_id: number | null;
@@ -1264,6 +1269,7 @@ export function MessageThread({
                 | "president"
                 | "member") ?? "client",
             senderProfileId: (row.sender_profile_id as number | null) ?? null,
+            senderDisplayName: row.sender_display_name ?? null,
             createdAt: (row.created_at as string) ?? new Date().toISOString(),
             editedAt: row.edited_at ?? null,
             replyToId: row.reply_to_id ?? null,
@@ -2514,6 +2520,7 @@ export function MessageThread({
             >
               {isGroupStart && time && (
                 <span className="text-[10px] tabular-nums text-sbi-muted-dark px-1">
+                  {msg.senderDisplayName ? `${msg.senderDisplayName} · ` : ""}
                   {time}
                   {msg.editedAt && (
                     <span className="ml-1 text-[10px] tabular-nums text-sbi-muted-dark">

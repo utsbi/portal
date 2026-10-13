@@ -4,7 +4,7 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export const AUTH_CONTINUE_DESTINATIONS = {
+const AUTH_CONTINUE_DESTINATIONS = {
   invite: "/auth/update-password?flow=invite",
   recovery: "/auth/update-password?flow=recovery",
   signup: "/login?confirmed=1",
