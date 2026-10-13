@@ -48,7 +48,9 @@ export function getPortalOrigin(): string {
       hostname === "[::1]" ||
       hostname === "0.0.0.0"
     ) {
-      throw new Error("The portal origin must not use a loopback host in production");
+      throw new Error(
+        "The portal origin must not use a loopback host in production",
+      );
     }
   }
   return origin;
