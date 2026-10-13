@@ -1,41 +1,16 @@
 /**
- * Seed script: creates 3 test accounts (director, client, member)
+ * Create missing test accounts and reset existing accounts' passwords in place.
+ * Existing profiles, projects, memberships, and messages are never deleted.
  *
- * Usage: npx tsx scripts/seed-test-accounts.ts
- *
- * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in .env
+ * Usage (from frontend): bun run scripts/seed-test-accounts.ts
+ * Requires NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, and
+ * SEED_TEST_PASSWORD in .env.local or the environment. Use a test database.
  */
 
 import { resolve } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { pathToFileURL } from "node:url";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-
-config({ path: resolve(__dirname, "../.env") });
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY;
-const TEST_PASSWORD = process.env.SEED_TEST_PASSWORD as string;
-
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in .env",
-  );
-  process.exit(1);
-}
-
-if (!TEST_PASSWORD) {
-  console.error(
-    "Missing SEED_TEST_PASSWORD. Set it in .env or pass as env var:",
-  );
-  console.error(
-    "  SEED_TEST_PASSWORD='yourpass' npx tsx scripts/seed-test-accounts.ts",
-  );
-  process.exit(1);
-}
-
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
 
 const TEST_ACCOUNTS = [
   {
@@ -61,190 +36,231 @@ const TEST_ACCOUNTS = [
   },
 ];
 
-async function cleanExisting() {
-  console.log("Cleaning existing test accounts...");
+export async function seedTestAccounts(
+  supabase: SupabaseClient,
+  password: string,
+) {
+  if (!password) throw new Error("Missing SEED_TEST_PASSWORD");
 
-  for (const account of TEST_ACCOUNTS) {
-    // Find auth user by email
-    const { data: users } = await supabase.auth.admin.listUsers();
-    const existing = users?.users?.find((u) => u.email === account.email);
-
-    if (existing) {
-      // Delete project_members, projects, profile (cascade from auth user delete)
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("uid", existing.id)
-        .single();
-
-      if (profile) {
-        // Delete project memberships
-        await supabase
-          .from("project_members")
-          .delete()
-          .eq("profile_id", profile.id);
-
-        // Delete projects created by this user
-        await supabase.from("projects").delete().eq("created_by", profile.id);
-
-        // Delete profile
-        await supabase.from("profiles").delete().eq("id", profile.id);
-      }
-
-      // Delete auth user
-      await supabase.auth.admin.deleteUser(existing.id);
-      console.log(`  Deleted existing: ${account.email}`);
+  // listUsers is paginated; do not mistake accounts beyond page one for new users.
+  const existingUsers = new Map<string, string>();
+  const perPage = 100;
+  for (let page = 1; ; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+    if (error) throw new Error(`Cannot list auth users: ${error.message}`);
+    for (const user of data.users) {
+      if (user.email) existingUsers.set(user.email.toLowerCase(), user.id);
     }
+    if (data.users.length < perPage) break;
   }
-}
 
-async function createTestAccounts() {
-  console.log("Creating test accounts...\n");
+  console.log("Seeding test accounts (preserving existing data)...\n");
 
   for (const account of TEST_ACCOUNTS) {
-    // 1. Create auth user
-    const { data: authData, error: authError } =
-      await supabase.auth.admin.createUser({
-        email: account.email,
-        password: TEST_PASSWORD,
-        email_confirm: true,
-      });
+    const existingUid = existingUsers.get(account.email);
+    const { data: authData, error: authError } = existingUid
+      ? await supabase.auth.admin.updateUserById(existingUid, {
+          password,
+          email_confirm: true,
+        })
+      : await supabase.auth.admin.createUser({
+          email: account.email,
+          password,
+          email_confirm: true,
+        });
 
-    if (authError) {
-      console.error(
-        `  Failed to create auth user ${account.email}:`,
-        authError.message,
+    if (authError || !authData.user) {
+      throw new Error(
+        `Cannot ${existingUid ? "update" : "create"} ${account.email}: ${authError?.message ?? "No auth user returned"}`,
       );
-      continue;
     }
 
     const uid = authData.user.id;
-    console.log(`  Auth user: ${account.email} (${uid})`);
+    console.log(
+      `  ${existingUid ? "Reset password" : "Created auth user"}: ${account.email}`,
+    );
 
-    // 2. Create profile
-    const { data: profile, error: profileError } = await supabase
+    const { data: existingProfile, error: lookupError } = await supabase
       .from("profiles")
-      .insert({
-        uid,
-        name: account.name,
-        email: account.email,
-        role: account.role,
-        department: account.department,
-      })
-      .select("id")
-      .single();
-
-    if (profileError) {
-      console.error(`  Failed to create profile:`, profileError.message);
-      continue;
+      .select("id, role")
+      .eq("uid", uid)
+      .maybeSingle();
+    if (lookupError) {
+      throw new Error(
+        `Cannot look up ${account.email}: ${lookupError.message}`,
+      );
     }
 
-    console.log(`  Profile: id=${profile.id}, role=${account.role}`);
-
-    // 3. If client, create a project
-    if (account.role === "client" && account.companyName) {
-      const slug =
-        account.companyName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "") +
-        "-" +
-        Math.random().toString(36).slice(2, 6);
-
-      const { data: project, error: projectError } = await supabase
-        .from("projects")
+    let profile = existingProfile;
+    if (!profile) {
+      const { data, error } = await supabase
+        .from("profiles")
         .insert({
-          url_slug: slug,
-          company_name: account.companyName,
-          created_by: profile.id,
+          uid,
+          name: account.name,
+          email: account.email,
+          role: account.role,
+          department: account.department,
         })
-        .select("id, url_slug")
+        .select("id, role")
         .single();
+      if (error || !data) {
+        throw new Error(
+          `Cannot create profile for ${account.email}: ${error?.message ?? "No profile returned"}`,
+        );
+      }
+      profile = data;
+    }
+    if (profile.role !== account.role) {
+      throw new Error(
+        `Unexpected role for ${account.email}: ${profile.role}; expected ${account.role}. Existing profile left unchanged.`,
+      );
+    }
+    console.log(`  Profile: id=${profile.id}, role=${profile.role}`);
 
-      if (projectError) {
-        console.error(`  Failed to create project:`, projectError.message);
+    if (account.role === "client" && account.companyName) {
+      const { data: projects, error: projectLookupError } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("created_by", profile.id)
+        .limit(1);
+      if (projectLookupError) {
+        throw new Error(
+          `Cannot look up projects: ${projectLookupError.message}`,
+        );
+      }
+      const { data: memberships, error: membershipError } = await supabase
+        .from("project_members")
+        .select("project_id")
+        .eq("profile_id", profile.id)
+        .limit(1);
+      if (membershipError) {
+        throw new Error(
+          `Cannot look up memberships: ${membershipError.message}`,
+        );
+      }
+
+      if (!projects?.length && !memberships?.length) {
+        const slug =
+          account.companyName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "") +
+          "-" +
+          Math.random().toString(36).slice(2, 6);
+        const { data: project, error: projectError } = await supabase
+          .from("projects")
+          .insert({
+            url_slug: slug,
+            company_name: account.companyName,
+            created_by: profile.id,
+          })
+          .select("id, url_slug")
+          .single();
+        if (projectError || !project) {
+          throw new Error(
+            `Cannot create client project: ${projectError?.message ?? "No project returned"}`,
+          );
+        }
+        console.log(
+          `  Created project: ${project.url_slug} (id=${project.id})`,
+        );
+        // Database triggers handle client/director project assignment.
       } else {
-        console.log(`  Project: ${project.url_slug} (id=${project.id})`);
-        // Note: auto_link_directors_to_new_project trigger handles director assignment
-        // Note: auto_link_director_to_projects trigger handles new director → all projects
+        console.log("  Preserved existing client project/memberships.");
       }
     }
-
     console.log("");
   }
 }
 
-async function verify() {
-  console.log("Verifying...\n");
-
-  const { data: profiles } = await supabase
+export async function verifyTestAccounts(
+  supabase: SupabaseClient,
+  signInClient: SupabaseClient,
+  password: string,
+) {
+  let ok = true;
+  const { data: profiles, error } = await supabase
     .from("profiles")
-    .select("id, name, email, role")
+    .select("id, email, role")
     .in(
       "email",
       TEST_ACCOUNTS.map((a) => a.email),
-    )
-    .order("role");
-
-  if (!profiles?.length) {
-    console.error("  No test profiles found!");
-    return false;
-  }
-
-  for (const p of profiles) {
-    const { data: memberships } = await supabase
-      .from("project_members")
-      .select("project_id, role, projects(company_name)")
-      .eq("profile_id", p.id);
-
-    type VerifyMembershipRow = {
-      role: string;
-      projects: { company_name: string } | null;
-    };
-
-    const projectList = (
-      (memberships ?? []) as unknown as VerifyMembershipRow[]
-    )
-      .map((m) => `${m.projects?.company_name} (${m.role})`)
-      .join(", ");
-
-    console.log(
-      `  ${p.role.padEnd(8)} | ${p.name.padEnd(15)} | ${p.email.padEnd(25)} | Projects: ${projectList || "none"}`,
     );
-  }
-
-  // Test sign-in for each account
-  console.log("\nTesting sign-in...\n");
+  if (error) throw new Error(`Cannot verify profiles: ${error.message}`);
 
   for (const account of TEST_ACCOUNTS) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: account.email,
-      password: TEST_PASSWORD,
-    });
-
-    if (error) {
-      console.error(`  FAIL: ${account.email} — ${error.message}`);
-    } else {
-      console.log(`  OK:   ${account.email} — signed in as ${data.user?.id}`);
-      await supabase.auth.signOut();
+    const matching = profiles?.filter((p) => p.email === account.email) ?? [];
+    if (matching.length !== 1 || matching[0].role !== account.role) {
+      console.error(`  FAIL: ${account.email} — missing or incorrect profile`);
+      ok = false;
     }
   }
 
-  return true;
+  console.log("Testing sign-in...\n");
+  for (const account of TEST_ACCOUNTS) {
+    const { data, error: signInError } =
+      await signInClient.auth.signInWithPassword({
+        email: account.email,
+        password,
+      });
+    if (signInError || !data.user) {
+      console.error(
+        `  FAIL: ${account.email} — ${signInError?.message ?? "No user returned"}`,
+      );
+      ok = false;
+    } else {
+      console.log(`  OK:   ${account.email} — signed in as ${data.user.id}`);
+      const { error: signOutError } = await signInClient.auth.signOut();
+      if (signOutError) {
+        console.error(`  FAIL: sign-out — ${signOutError.message}`);
+        ok = false;
+      }
+    }
+  }
+  return ok;
 }
 
 async function main() {
-  try {
-    await cleanExisting();
-    await createTestAccounts();
-    const ok = await verify();
+  // Explicitly support .env.local even when run with a runtime other than Bun.
+  config({ path: resolve(import.meta.dirname, "../.env.local"), quiet: true });
+  config({ path: resolve(import.meta.dirname, "../.env"), quiet: true });
 
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    const password = process.env.SEED_TEST_PASSWORD;
+    if (!url || !key || !password) {
+      throw new Error(
+        "Set NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, and SEED_TEST_PASSWORD in frontend/.env.local or the environment.",
+      );
+    }
+    const options = {
+      auth: { autoRefreshToken: false, persistSession: false },
+    };
+    const supabase = createClient(url, key, options);
+    // A separate client keeps test sign-ins from replacing the admin session.
+    const signInClient = createClient(
+      url,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || key,
+      options,
+    );
+    await seedTestAccounts(supabase, password);
+    const ok = await verifyTestAccounts(supabase, signInClient, password);
     console.log(ok ? "\nSeed complete." : "\nSeed had errors.");
-    process.exit(ok ? 0 : 1);
+    process.exitCode = ok ? 0 : 1;
   } catch (err) {
     console.error("Seed failed:", err);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
-main();
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  void main();
+}
