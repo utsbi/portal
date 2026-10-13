@@ -71,6 +71,7 @@ import {
   listProjects,
   listUnassignedMembers,
   removeMemberFromProject,
+  resendAccountInvitation,
   restoreProject,
   updateAccount,
   updateMyNotificationPrefs,
@@ -2045,6 +2046,9 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
   const [memberInviteError, setMemberInviteError] = useState("");
   const [memberInviteLoading, setMemberInviteLoading] = useState(false);
   const [memberQuery, setMemberQuery] = useState("");
+  const [resendingInviteId, setResendingInviteId] = useState<number | null>(
+    null,
+  );
 
   const loadAccounts = useCallback(async () => {
     const [accountResult, memberResult] = await Promise.all([
@@ -2139,6 +2143,22 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
       loadAccounts();
     }
     setAccountToDelete(null);
+  };
+
+  const handleResendInvite = async (account: Account) => {
+    setResendingInviteId(account.id);
+    try {
+      const result = await resendAccountInvitation(account.id);
+      if (result.error) {
+        toastError(result.error, "Couldn't resend invitation");
+      } else {
+        toastSuccess(`Invitation resent to ${account.email}.`);
+      }
+    } catch {
+      toastError("Please try again.", "Couldn't resend invitation");
+    } finally {
+      setResendingInviteId(null);
+    }
   };
 
   const openMemberInvite = (member: MemberProfile) => {
@@ -2420,7 +2440,30 @@ function AccountsSection({ currentUserId }: { currentUserId: number }) {
                           {account.name}
                         </span>
                         {!account.portal_activated_at && (
-                          <AccountStatus status="pending" />
+                          <>
+                            <AccountStatus status="pending" />
+                            <button
+                              type="button"
+                              onClick={() => handleResendInvite(account)}
+                              disabled={
+                                resendingInviteId !== null ||
+                                (account.role === "president" &&
+                                  !canManagePresident)
+                              }
+                              aria-label={`Resend invitation to ${account.name}`}
+                              title={`Resend invitation to ${account.email}`}
+                              className="shrink-0 p-1.5 rounded-md text-sbi-muted hover:text-sbi-green hover:bg-sbi-green/10 transition-colors disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              {resendingInviteId === account.id ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <RotateCcw
+                                  className="size-4"
+                                  strokeWidth={1.5}
+                                />
+                              )}
+                            </button>
+                          </>
                         )}
                         <span className="xl:hidden">
                           <span

@@ -46,6 +46,15 @@ idempotency keys, and retry bounded transient provider failures. Account
 invitations are awaited because delivery is part of account creation; a failed
 delivery rolls the newly created account back.
 
+In Settings → Portal accounts, pending accounts have a **Resend invitation**
+control beside their status. It sends a fresh password-setup link through Resend
+without recreating the account. Resends use a Supabase recovery token so setup
+still works if the original invite was opened but no password was saved. Each
+fresh token has its own delivery idempotency key. Resend failures leave the
+existing account intact; activated accounts cannot be resent invitations.
+Only directors/presidents may resend, and only presidents may resend invitations
+for president accounts.
+
 ## Supabase Auth email
 
 Password recovery and security notifications use Supabase Auth. The portal's

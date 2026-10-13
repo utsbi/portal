@@ -184,10 +184,8 @@ export async function inviteAccount(data: {
       email,
       role: data.role,
       department: data.role === "member" ? department : null,
-      portal_invited_at:
-        data.role === "member" ? new Date().toISOString() : null,
-      portal_activated_at:
-        data.role === "member" ? null : new Date().toISOString(),
+      portal_invited_at: new Date().toISOString(),
+      portal_activated_at: null,
     })
     .select("id")
     .single();
@@ -433,6 +431,74 @@ export async function inviteMemberProfile(data: {
   return { success: true, profileId: profile.id, invitedEmail: email };
 }
 
+export async function resendAccountInvitation(profileId: number) {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  if (!Number.isInteger(profileId) || profileId <= 0) {
+    return { error: "Invalid account" };
+  }
+
+  const admin = createAdminClient();
+  const { data: profile, error } = await admin
+    .from("profiles")
+    .select("id, uid, name, email, role, portal_activated_at")
+    .eq("id", profileId)
+    .single();
+  if (error || !profile?.uid || !profile.email) {
+    return { error: "Portal account not found" };
+  }
+  if (profile.role === "president" && gate.role !== "president") {
+    return { error: "Only the president can manage president accounts" };
+  }
+  if (profile.portal_activated_at) {
+    return { error: "This account has already completed setup" };
+  }
+  if (!ACCOUNT_ROLES.includes(profile.role)) {
+    return { error: "Invalid account role" };
+  }
+
+  // A recipient may have opened the original invite but not set a password.
+  // Recovery works for both unconfirmed and confirmed existing Auth users,
+  // and returns them to password setup without creating another account.
+  const { data: authData, error: authError } =
+    await admin.auth.admin.generateLink({
+      type: "recovery",
+      email: profile.email,
+    });
+  if (
+    authError ||
+    authData?.user?.id !== profile.uid ||
+    !authData?.properties?.hashed_token
+  ) {
+    return { error: "Couldn't create a new setup link" };
+  }
+  const { data: inviter } = await gate.supabase
+    .from("profiles")
+    .select("name")
+    .eq("id", gate.profileId)
+    .maybeSingle();
+  const params = new URLSearchParams({
+    token_hash: authData.properties.hashed_token,
+    type: "recovery",
+  });
+  try {
+    await sendAccountInvite({
+      email: profile.email,
+      recipientName: profile.name,
+      invitedByName: inviter?.name ?? "An SBI director",
+      role: profile.role,
+      confirmationUrl: `${getPortalOrigin()}/auth/continue?${params.toString()}`,
+      userId: profile.uid,
+      // Each new token must be delivered, not deduplicated as the first invite.
+      deliveryKey: authData.properties.hashed_token,
+    });
+  } catch (error) {
+    console.error("Invitation resend failed:", error);
+    return { error: "The invitation could not be sent. Try again." };
+  }
+  return { success: true };
+}
+
 export async function setDefaultProject(projectId: number) {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error };
@@ -605,9 +671,52 @@ export async function deleteAccount(profileId: number) {
 
   if (profile.uid === uid) return { error: "Cannot delete your own account" };
 
+  // Keep the thread discoverable under a neutral title after its participant
+  // row cascades away with the profile.
+  const { data: participantRows, error: participantError } = await admin
+    .from("conversation_participants")
+    .select("conversation_id")
+    .eq("profile_id", profileId);
+  if (participantError) {
+    return {
+      error: `Couldn't update conversation titles: ${participantError.message}`,
+    };
+  }
+  const conversationIds = [
+    ...new Set((participantRows ?? []).map((row) => row.conversation_id)),
+  ];
+  if (conversationIds.length > 0) {
+    const { error: titleError } = await admin
+      .from("conversations")
+      .update({ title_override: "Deleted User" })
+      .in("id", conversationIds);
+    if (titleError) {
+      return {
+        error: `Couldn't update conversation titles: ${titleError.message}`,
+      };
+    }
+  }
+
+  // Preserve historical messages but remove identity foreign keys before the
+  // auth/profile cascade. The display-name snapshot keeps attribution clear.
+  const { error: attributionError } = await admin
+    .from("messages")
+    .update({
+      sender_display_name: "Deleted User",
+      sender_profile_id: null,
+      sender_uid: null,
+    })
+    .or(`sender_uid.eq.${profile.uid},sender_profile_id.eq.${profileId}`);
+  if (attributionError) {
+    return {
+      error: `Couldn't anonymize their messages: ${attributionError.message}`,
+    };
+  }
+
   // Delete auth user (cascades to profile via FK)
   const { error } = await admin.auth.admin.deleteUser(profile.uid);
-  if (error) return { error: error.message };
+  if (error)
+    return { error: error.message || "Supabase rejected account deletion" };
 
   return { success: true };
 }
