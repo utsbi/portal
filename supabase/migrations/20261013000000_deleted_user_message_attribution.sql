@@ -16,6 +16,13 @@ CREATE OR REPLACE FUNCTION public.prevent_message_identity_mutation()
   SET search_path TO 'public', 'pg_temp'
 AS $$
 BEGIN
+  -- The account-deletion action uses the trusted service-role client to
+  -- restore these fields if Supabase Auth rejects deletion after the
+  -- pre-deletion anonymization step. Browser roles never use this path.
+  IF current_user = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+
   IF NEW.sender_uid IS DISTINCT FROM OLD.sender_uid
      AND NOT (
        NEW.sender_uid IS NULL

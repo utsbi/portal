@@ -70,6 +70,25 @@ const state = {
     Array<{ op: "eq" | "neq"; column: string; value: unknown }>
   >,
   memberUpsertCalls: [] as Array<{ rows: unknown; options: unknown }>,
+  deletionParticipantRows: [] as Array<{ conversation_id: number }>,
+  deletionConversationSnapshots: [] as Array<{
+    id: number;
+    title_override: string | null;
+  }>,
+  deletionMessageSnapshots: [] as Array<{
+    id: number;
+    sender_uid: string | null;
+    sender_profile_id: number | null;
+    sender_display_name: string | null;
+  }>,
+  deletionUpdates: [] as Array<{
+    table: string;
+    patch: Record<string, unknown>;
+  }>,
+  deletionUpdateErrors: {
+    conversations: null as { message: string } | null,
+    messages: null as { message: string } | null,
+  },
 };
 
 // ─── @/lib/supabase/server mock (SSR auth client) ────────────────────────────
@@ -239,6 +258,56 @@ vi.mock("@supabase/supabase-js", () => {
     return c;
   }
 
+  function makeDeletionChain(table: string) {
+    const query: Record<string, ReturnType<typeof vi.fn>> = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      in: vi.fn(),
+      or: vi.fn(),
+      is: vi.fn(),
+      update: vi.fn(),
+      // biome-ignore lint/suspicious/noThenProperty: mimics an awaitable PostgREST query builder
+      then: vi.fn(),
+    };
+    for (const method of ["select", "eq", "in", "or", "is"]) {
+      query[method].mockReturnValue(query);
+    }
+    query.then.mockImplementation(
+      (onfulfilled: (value: unknown) => unknown) => {
+        const data =
+          table === "conversation_participants"
+            ? state.deletionParticipantRows
+            : table === "conversations"
+              ? state.deletionConversationSnapshots
+              : state.deletionMessageSnapshots;
+        return Promise.resolve({ data, error: null }).then(onfulfilled);
+      },
+    );
+    query.update.mockImplementation((patch: Record<string, unknown>) => {
+      const updateQuery: Record<string, ReturnType<typeof vi.fn>> = {
+        eq: vi.fn(),
+        in: vi.fn(),
+        or: vi.fn(),
+        is: vi.fn(),
+        // biome-ignore lint/suspicious/noThenProperty: mimics an awaitable PostgREST update builder
+        then: vi.fn(),
+      };
+      for (const method of ["eq", "in", "or", "is"])
+        updateQuery[method].mockReturnValue(updateQuery);
+      updateQuery.then.mockImplementation(
+        (onfulfilled: (value: unknown) => unknown) => {
+          state.deletionUpdates.push({ table, patch });
+          return Promise.resolve({
+            error:
+              state.deletionUpdateErrors[table as "conversations" | "messages"],
+          }).then(onfulfilled);
+        },
+      );
+      return updateQuery;
+    });
+    return query;
+  }
+
   return {
     createClient: vi.fn(() => ({
       auth: {
@@ -255,6 +324,12 @@ vi.mock("@supabase/supabase-js", () => {
         if (table === "profiles") return makeProfilesChain();
         if (table === "project_members") return makeProjectMembersChain();
         if (table === "projects") return makeProjectsChain();
+        if (
+          table === "conversation_participants" ||
+          table === "conversations" ||
+          table === "messages"
+        )
+          return makeDeletionChain(table);
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
@@ -305,6 +380,11 @@ function resetState() {
   state.internalProjectResult = { data: null, error: null };
   state.memberDeleteCalls = [];
   state.memberUpsertCalls = [];
+  state.deletionParticipantRows = [];
+  state.deletionConversationSnapshots = [];
+  state.deletionMessageSnapshots = [];
+  state.deletionUpdates = [];
+  state.deletionUpdateErrors = { conversations: null, messages: null };
 }
 
 describe("settings/actions — auth gates", () => {
@@ -573,6 +653,52 @@ describe("settings/actions — auth gates", () => {
       const result = await deleteAccount(99);
       // requireDirector() now returns "Director role required"
       expect(result.error).toMatch(/director role required/i);
+    });
+
+    it("restores message identity and conversation titles when Auth deletion fails", async () => {
+      state.user = { id: "uid-director" };
+      state.callerProfile = { id: 1, role: "director" };
+      state.targetProfile = {
+        data: { uid: "uid-target", role: "member" },
+        error: null,
+      };
+      state.deletionParticipantRows = [{ conversation_id: 42 }];
+      state.deletionConversationSnapshots = [{ id: 42, title_override: null }];
+      state.deletionMessageSnapshots = [
+        {
+          id: 7,
+          sender_uid: "uid-target",
+          sender_profile_id: 99,
+          sender_display_name: null,
+        },
+      ];
+      state.deleteUserResult = {
+        error: { message: "Auth service unavailable" },
+      };
+
+      const result = await deleteAccount(99);
+
+      expect(result).toEqual({ error: "Auth service unavailable" });
+      expect(state.deletionUpdates).toEqual([
+        { table: "conversations", patch: { title_override: "Deleted User" } },
+        {
+          table: "messages",
+          patch: {
+            sender_display_name: "Deleted User",
+            sender_profile_id: null,
+            sender_uid: null,
+          },
+        },
+        {
+          table: "messages",
+          patch: {
+            sender_uid: "uid-target",
+            sender_profile_id: 99,
+            sender_display_name: null,
+          },
+        },
+        { table: "conversations", patch: { title_override: null } },
+      ]);
     });
   });
 

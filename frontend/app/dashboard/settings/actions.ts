@@ -671,29 +671,104 @@ export async function deleteAccount(profileId: number) {
 
   if (profile.uid === uid) return { error: "Cannot delete your own account" };
 
-  // Keep the thread discoverable under a neutral title after its participant
-  // row cascades away with the profile.
+  // Capture the rows we are about to anonymize so an Auth deletion failure can
+  // be compensated. Supabase Auth deletion is outside the Postgres transaction
+  // used by these REST calls, so the application must not leave a live account
+  // with erased message identity if Auth rejects the deletion.
   const { data: participantRows, error: participantError } = await admin
     .from("conversation_participants")
     .select("conversation_id")
     .eq("profile_id", profileId);
   if (participantError) {
     return {
-      error: `Couldn't update conversation titles: ${participantError.message}`,
+      error: `Couldn't inspect conversation memberships: ${participantError.message}`,
     };
   }
   const conversationIds = [
     ...new Set((participantRows ?? []).map((row) => row.conversation_id)),
   ];
+  const conversationSnapshots =
+    conversationIds.length > 0
+      ? await admin
+          .from("conversations")
+          .select("id, title_override")
+          .in("id", conversationIds)
+      : { data: [], error: null };
+  if (conversationSnapshots.error) {
+    return {
+      error: `Couldn't inspect conversation titles: ${conversationSnapshots.error.message}`,
+    };
+  }
+
+  const messageSnapshots = await admin
+    .from("messages")
+    .select("id, sender_uid, sender_profile_id, sender_display_name")
+    .or(`sender_uid.eq.${profile.uid},sender_profile_id.eq.${profileId}`);
+  if (messageSnapshots.error) {
+    return {
+      error: `Couldn't inspect message attribution: ${messageSnapshots.error.message}`,
+    };
+  }
+
+  const rollbackDeletionPreparation = async () => {
+    const rollbackErrors: string[] = [];
+
+    for (const message of messageSnapshots.data ?? []) {
+      const { error } = await admin
+        .from("messages")
+        .update({
+          sender_uid: message.sender_uid,
+          sender_profile_id: message.sender_profile_id,
+          sender_display_name: message.sender_display_name,
+        })
+        .eq("id", message.id)
+        .is("sender_uid", null)
+        .is("sender_profile_id", null)
+        .eq("sender_display_name", "Deleted User");
+      if (error) rollbackErrors.push(`message ${message.id}: ${error.message}`);
+    }
+
+    for (const conversation of conversationSnapshots.data ?? []) {
+      const { error } = await admin
+        .from("conversations")
+        .update({ title_override: conversation.title_override })
+        .eq("id", conversation.id)
+        .eq("title_override", "Deleted User");
+      if (error)
+        rollbackErrors.push(
+          `conversation ${conversation.id}: ${error.message}`,
+        );
+    }
+
+    if (rollbackErrors.length > 0) {
+      console.error(
+        "Account deletion rollback was incomplete:",
+        rollbackErrors.join("; "),
+      );
+    }
+    return rollbackErrors.length === 0;
+  };
+
+  const failDeletion = async (message: string) => {
+    const rolledBack = await rollbackDeletionPreparation();
+    return {
+      error: rolledBack
+        ? message
+        : `${message} Some related records could not be restored; contact an administrator immediately.`,
+    };
+  };
+
+  // Keep the thread discoverable under a neutral title after its participant
+  // row cascades away with the profile.
   if (conversationIds.length > 0) {
     const { error: titleError } = await admin
       .from("conversations")
       .update({ title_override: "Deleted User" })
       .in("id", conversationIds);
     if (titleError) {
-      return {
-        error: `Couldn't update conversation titles: ${titleError.message}`,
-      };
+      return await failDeletion(
+        `Couldn't update conversation titles: ${titleError.message}`,
+      );
     }
   }
 
@@ -708,15 +783,20 @@ export async function deleteAccount(profileId: number) {
     })
     .or(`sender_uid.eq.${profile.uid},sender_profile_id.eq.${profileId}`);
   if (attributionError) {
-    return {
-      error: `Couldn't anonymize their messages: ${attributionError.message}`,
-    };
+    return await failDeletion(
+      `Couldn't anonymize their messages: ${attributionError.message}`,
+    );
   }
 
-  // Delete auth user (cascades to profile via FK)
+  // Delete auth user (cascades to profile via FK). Auth is external to the
+  // database calls above, so restore the prepared records if it rejects this
+  // operation. The trusted service-role trigger path permits that restoration.
   const { error } = await admin.auth.admin.deleteUser(profile.uid);
-  if (error)
-    return { error: error.message || "Supabase rejected account deletion" };
+  if (error) {
+    return await failDeletion(
+      error.message || "Supabase rejected account deletion",
+    );
+  }
 
   return { success: true };
 }
