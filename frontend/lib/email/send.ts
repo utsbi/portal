@@ -512,6 +512,7 @@ export async function sendAccountInvite(params: {
   role: "client" | "director" | "president" | "member";
   confirmationUrl: string;
   userId: string;
+  deliveryKey?: string;
 }): Promise<void> {
   const roleLabels = {
     client: "a client",
@@ -531,6 +532,8 @@ export async function sendAccountInvite(params: {
     subject: "Create your SBI Portal account",
     html: accountInviteHtml(template),
     text: accountInviteText(template),
-    idempotencyKey: `account-invite/${params.userId}`,
+    idempotencyKey: params.deliveryKey
+      ? `account-invite/${params.userId}/${params.deliveryKey}`
+      : `account-invite/${params.userId}`,
   });
 }

@@ -4,9 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * A member invite is not considered active when the director sends it. The
- * password form calls this after Supabase accepts the new password, keeping
- * the member in the pending roster until they have completed setup.
+ * An invited account is not considered active when the invitation is sent.
+ * The password form calls this after Supabase accepts the new password, for
+ * every role, so the account leaves the pending roster after setup.
  */
 export async function markPortalAccountActivated(): Promise<
   { success: true } | { error: string }
@@ -21,7 +21,6 @@ export async function markPortalAccountActivated(): Promise<
     .from("profiles")
     .update({ portal_activated_at: new Date().toISOString() })
     .eq("uid", user.id)
-    .eq("role", "member")
     .is("portal_activated_at", null);
 
   if (error) return { error: error.message };

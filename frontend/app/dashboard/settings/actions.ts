@@ -2,7 +2,14 @@
 
 import { randomUUID } from "node:crypto";
 import { requireDirector } from "@/lib/auth/guards";
+import { isStaffRole } from "@/lib/auth/roles";
 import { getPortalOrigin, sendAccountInvite } from "@/lib/email/send";
+import {
+  buildProjectRoster,
+  isInternalProject,
+  type RosterAssignment,
+  type RosterProfile,
+} from "@/lib/project/roster";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from "./types";
@@ -177,10 +184,8 @@ export async function inviteAccount(data: {
       email,
       role: data.role,
       department: data.role === "member" ? department : null,
-      portal_invited_at:
-        data.role === "member" ? new Date().toISOString() : null,
-      portal_activated_at:
-        data.role === "member" ? null : new Date().toISOString(),
+      portal_invited_at: new Date().toISOString(),
+      portal_activated_at: null,
     })
     .select("id")
     .single();
@@ -281,15 +286,10 @@ export async function listAccounts() {
     .order("created_at", { ascending: false });
 
   if (error) return { error: error.message, accounts: [] };
-  return {
-    accounts: (profiles || []).filter(
-      (profile) =>
-        profile.role !== "member" || profile.portal_activated_at !== null,
-    ),
-  };
+  return { accounts: profiles || [] };
 }
 
-/** Member records collected before a portal account is active (Discord/recovery). */
+/** Member roster records without a login. Pending invitations are Accounts. */
 export async function listMemberProfiles() {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error, members: [] };
@@ -300,14 +300,11 @@ export async function listMemberProfiles() {
       "id, name, eid, contact_email, discord_id, department, graduation, created_at, uid, portal_invited_at, portal_activated_at",
     )
     .eq("role", "member")
+    .is("uid", null)
     .order("name");
 
   if (error) return { error: error.message, members: [] };
-  return {
-    members: (data || []).filter(
-      (profile) => !profile.uid || profile.portal_activated_at === null,
-    ),
-  };
+  return { members: data || [] };
 }
 
 /**
@@ -434,6 +431,74 @@ export async function inviteMemberProfile(data: {
   return { success: true, profileId: profile.id, invitedEmail: email };
 }
 
+export async function resendAccountInvitation(profileId: number) {
+  const gate = await requireDirector();
+  if (!gate.ok) return { error: gate.error };
+  if (!Number.isInteger(profileId) || profileId <= 0) {
+    return { error: "Invalid account" };
+  }
+
+  const admin = createAdminClient();
+  const { data: profile, error } = await admin
+    .from("profiles")
+    .select("id, uid, name, email, role, portal_activated_at")
+    .eq("id", profileId)
+    .single();
+  if (error || !profile?.uid || !profile.email) {
+    return { error: "Portal account not found" };
+  }
+  if (profile.role === "president" && gate.role !== "president") {
+    return { error: "Only the president can manage president accounts" };
+  }
+  if (profile.portal_activated_at) {
+    return { error: "This account has already completed setup" };
+  }
+  if (!ACCOUNT_ROLES.includes(profile.role)) {
+    return { error: "Invalid account role" };
+  }
+
+  // A recipient may have opened the original invite but not set a password.
+  // Recovery works for both unconfirmed and confirmed existing Auth users,
+  // and returns them to password setup without creating another account.
+  const { data: authData, error: authError } =
+    await admin.auth.admin.generateLink({
+      type: "recovery",
+      email: profile.email,
+    });
+  if (
+    authError ||
+    authData?.user?.id !== profile.uid ||
+    !authData?.properties?.hashed_token
+  ) {
+    return { error: "Couldn't create a new setup link" };
+  }
+  const { data: inviter } = await gate.supabase
+    .from("profiles")
+    .select("name")
+    .eq("id", gate.profileId)
+    .maybeSingle();
+  const params = new URLSearchParams({
+    token_hash: authData.properties.hashed_token,
+    type: "recovery",
+  });
+  try {
+    await sendAccountInvite({
+      email: profile.email,
+      recipientName: profile.name,
+      invitedByName: inviter?.name ?? "An SBI director",
+      role: profile.role,
+      confirmationUrl: `${getPortalOrigin()}/auth/continue?${params.toString()}`,
+      userId: profile.uid,
+      // Each new token must be delivered, not deduplicated as the first invite.
+      deliveryKey: authData.properties.hashed_token,
+    });
+  } catch (error) {
+    console.error("Invitation resend failed:", error);
+    return { error: "The invitation could not be sent. Try again." };
+  }
+  return { success: true };
+}
+
 export async function setDefaultProject(projectId: number) {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error };
@@ -441,11 +506,9 @@ export async function setDefaultProject(projectId: number) {
     return { error: "Invalid project" };
   }
 
-  const { error } = await gate.supabase.rpc("set_default_project", {
-    _project_id: projectId,
-  });
-  if (error) return { error: error.message };
-  return { success: true };
+  return {
+    error: "SBI is the fixed internal workspace; its roster is automatic",
+  };
 }
 
 export async function updateAccount(data: {
@@ -485,6 +548,12 @@ export async function updateAccount(data: {
     return { error: "You can't change your own role." };
   }
 
+  // The profile-role trigger maintains SBI access. Never remove that link
+  // during the legacy client-project membership reconciliation below.
+  const { data: internalProject, error: internalError } =
+    await findInternalProject(admin);
+  if (internalError) return { error: internalError.message };
+
   const { error } = await admin
     .from("profiles")
     .update({ name, role: data.role, department })
@@ -503,28 +572,34 @@ export async function updateAccount(data: {
     if (existing.role === "director" || existing.role === "president") {
       // Demotion from director: drop only the auto-linked director rows,
       // preserving owner/member memberships.
-      const { error: cleanupError } = await admin
+      let cleanup = admin
         .from("project_members")
         .delete()
         .eq("profile_id", data.id)
         .eq("role", "director");
+      if (internalProject)
+        cleanup = cleanup.neq("project_id", internalProject.id);
+      const { error: cleanupError } = await cleanup;
       if (cleanupError) {
         return {
-          error: `Role saved, but removing their director project access failed: ${cleanupError.message}. Remove them from projects via the Team panel.`,
+          error: `Role saved, but removing their director project access failed: ${cleanupError.message}. Review their client-project access in Projects settings.`,
         };
       }
     } else {
       // Other role changes: clean stale non-owner rows (e.g. 'member'
       // assignments) so they don't reference a role the profile no longer
-      // has. The caller can reassign memberships from the Team panel.
-      const { error: cleanupError } = await admin
+      // has. Client-project access can be reviewed in Projects settings.
+      let cleanup = admin
         .from("project_members")
         .delete()
         .eq("profile_id", data.id)
         .neq("role", "owner");
+      if (internalProject)
+        cleanup = cleanup.neq("project_id", internalProject.id);
+      const { error: cleanupError } = await cleanup;
       if (cleanupError) {
         return {
-          error: `Role saved, but cleaning up their project memberships failed: ${cleanupError.message}. Adjust their projects via the Team panel.`,
+          error: `Role saved, but cleaning up their project memberships failed: ${cleanupError.message}. Review their client-project access in Projects settings.`,
         };
       }
     }
@@ -539,7 +614,7 @@ export async function updateAccount(data: {
         .select("id");
       if (projectsError) {
         return {
-          error: `Role saved, but granting director project access failed: ${projectsError.message}. Assign their projects via the Team panel.`,
+          error: `Role saved, but granting director project access failed: ${projectsError.message}. Review their client-project access in Projects settings.`,
         };
       }
       if (projects && projects.length > 0) {
@@ -556,7 +631,7 @@ export async function updateAccount(data: {
           );
         if (backfillError) {
           return {
-            error: `Role saved, but granting director project access failed: ${backfillError.message}. Assign their projects via the Team panel.`,
+            error: `Role saved, but granting director project access failed: ${backfillError.message}. Review their client-project access in Projects settings.`,
           };
         }
       }
@@ -596,16 +671,165 @@ export async function deleteAccount(profileId: number) {
 
   if (profile.uid === uid) return { error: "Cannot delete your own account" };
 
-  // Delete auth user (cascades to profile via FK)
+  // Capture the rows we are about to anonymize so an Auth deletion failure can
+  // be compensated. Supabase Auth deletion is outside the Postgres transaction
+  // used by these REST calls, so the application must not leave a live account
+  // with erased message identity if Auth rejects the deletion.
+  const { data: participantRows, error: participantError } = await admin
+    .from("conversation_participants")
+    .select("conversation_id")
+    .eq("profile_id", profileId);
+  if (participantError) {
+    return {
+      error: `Couldn't inspect conversation memberships: ${participantError.message}`,
+    };
+  }
+  const conversationIds = [
+    ...new Set((participantRows ?? []).map((row) => row.conversation_id)),
+  ];
+  const conversationSnapshots =
+    conversationIds.length > 0
+      ? await admin
+          .from("conversations")
+          .select("id, title_override")
+          .in("id", conversationIds)
+      : { data: [], error: null };
+  if (conversationSnapshots.error) {
+    return {
+      error: `Couldn't inspect conversation titles: ${conversationSnapshots.error.message}`,
+    };
+  }
+
+  const messageSnapshots = await admin
+    .from("messages")
+    .select("id, sender_uid, sender_profile_id, sender_display_name")
+    .or(`sender_uid.eq.${profile.uid},sender_profile_id.eq.${profileId}`);
+  if (messageSnapshots.error) {
+    return {
+      error: `Couldn't inspect message attribution: ${messageSnapshots.error.message}`,
+    };
+  }
+
+  const rollbackDeletionPreparation = async () => {
+    const rollbackErrors: string[] = [];
+
+    for (const message of messageSnapshots.data ?? []) {
+      const { error } = await admin
+        .from("messages")
+        .update({
+          sender_uid: message.sender_uid,
+          sender_profile_id: message.sender_profile_id,
+          sender_display_name: message.sender_display_name,
+        })
+        .eq("id", message.id)
+        .is("sender_uid", null)
+        .is("sender_profile_id", null)
+        .eq("sender_display_name", "Deleted User");
+      if (error) rollbackErrors.push(`message ${message.id}: ${error.message}`);
+    }
+
+    for (const conversation of conversationSnapshots.data ?? []) {
+      const { error } = await admin
+        .from("conversations")
+        .update({ title_override: conversation.title_override })
+        .eq("id", conversation.id)
+        .eq("title_override", "Deleted User");
+      if (error)
+        rollbackErrors.push(
+          `conversation ${conversation.id}: ${error.message}`,
+        );
+    }
+
+    if (rollbackErrors.length > 0) {
+      console.error(
+        "Account deletion rollback was incomplete:",
+        rollbackErrors.join("; "),
+      );
+    }
+    return rollbackErrors.length === 0;
+  };
+
+  const failDeletion = async (message: string) => {
+    const rolledBack = await rollbackDeletionPreparation();
+    return {
+      error: rolledBack
+        ? message
+        : `${message} Some related records could not be restored; contact an administrator immediately.`,
+    };
+  };
+
+  // Keep the thread discoverable under a neutral title after its participant
+  // row cascades away with the profile.
+  if (conversationIds.length > 0) {
+    const { error: titleError } = await admin
+      .from("conversations")
+      .update({ title_override: "Deleted User" })
+      .in("id", conversationIds);
+    if (titleError) {
+      return await failDeletion(
+        `Couldn't update conversation titles: ${titleError.message}`,
+      );
+    }
+  }
+
+  // Preserve historical messages but remove identity foreign keys before the
+  // auth/profile cascade. The display-name snapshot keeps attribution clear.
+  const { error: attributionError } = await admin
+    .from("messages")
+    .update({
+      sender_display_name: "Deleted User",
+      sender_profile_id: null,
+      sender_uid: null,
+    })
+    .or(`sender_uid.eq.${profile.uid},sender_profile_id.eq.${profileId}`);
+  if (attributionError) {
+    return await failDeletion(
+      `Couldn't anonymize their messages: ${attributionError.message}`,
+    );
+  }
+
+  // Delete auth user (cascades to profile via FK). Auth is external to the
+  // database calls above, so restore the prepared records if it rejects this
+  // operation. The trusted service-role trigger path permits that restoration.
   const { error } = await admin.auth.admin.deleteUser(profile.uid);
-  if (error) return { error: error.message };
+  if (error) {
+    return await failDeletion(
+      error.message || "Supabase rejected account deletion",
+    );
+  }
 
   return { success: true };
 }
 
 // ============================================================
-// Team Management
+// Project access and rosters
 // ============================================================
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+async function findInternalProject(admin: AdminClient) {
+  const marked = await admin
+    .from("projects")
+    .select("id")
+    .eq("config->>workspace_type", "sbi")
+    .maybeSingle();
+  if (marked.error || marked.data) return marked;
+  // Transitional lookup only: the migration persists an immutable marker.
+  return admin
+    .from("projects")
+    .select("id")
+    .eq("company_name", "SBI")
+    .eq("is_default", true)
+    .maybeSingle();
+}
+
+async function getManagedProject(admin: AdminClient, projectId: number) {
+  return admin
+    .from("projects")
+    .select("id, company_name, config, is_default, archived_at")
+    .eq("id", projectId)
+    .maybeSingle();
+}
 
 export async function listProjects() {
   const gate = await requireDirector();
@@ -614,7 +838,7 @@ export async function listProjects() {
 
   const { data, error } = await admin
     .from("projects")
-    .select("id, url_slug, company_name, is_default, archived_at")
+    .select("id, url_slug, company_name, config, is_default, archived_at")
     .is("archived_at", null)
     .order("company_name");
 
@@ -628,7 +852,7 @@ export async function listArchivedProjects() {
 
   const { data, error } = await createAdminClient()
     .from("projects")
-    .select("id, url_slug, company_name, is_default, archived_at")
+    .select("id, url_slug, company_name, config, is_default, archived_at")
     .not("archived_at", "is", null)
     .order("archived_at", { ascending: false });
 
@@ -644,14 +868,15 @@ export async function archiveProject(projectId: number) {
     return { error: "Invalid project" };
   }
 
-  const { data: project, error: lookupError } = await createAdminClient()
-    .from("projects")
-    .select("id, company_name, archived_at")
-    .eq("id", projectId)
-    .maybeSingle();
+  const { data: project, error: lookupError } = await getManagedProject(
+    createAdminClient(),
+    projectId,
+  );
   if (lookupError || !project) {
     return { error: lookupError?.message || "Project not found" };
   }
+  if (isInternalProject(project))
+    return { error: "The SBI workspace cannot be archived" };
   if (project.archived_at) return { error: "This project is already archived" };
 
   const { error } = await gate.supabase.rpc("archive_project", {
@@ -690,75 +915,42 @@ export async function listProjectMembers(projectId: number) {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error, members: [] };
   const admin = createAdminClient();
+  const { data: project, error: projectError } = await getManagedProject(
+    admin,
+    projectId,
+  );
+  if (projectError || !project)
+    return { error: projectError?.message || "Project not found", members: [] };
+  const isInternal = isInternalProject(project);
 
-  // project_members has two FKs to profiles (profile_id + assigned_by), so
-  // we name the constraints. Aliasing the assigner embed as `assigner` keeps
-  // the resulting payload tidy.
   const { data: assigned, error: assignedError } = await admin
     .from("project_members")
     .select(
       "id, role, profile_id, created_at, " +
-        "profiles!project_members_profile_id_fkey(id, name, email, role), " +
+        "profiles!project_members_profile_id_fkey(id, name, email, contact_email, role, uid, portal_activated_at), " +
         "assigner:profiles!project_members_assigned_by_fkey(id, name)",
     )
     .eq("project_id", projectId)
-    .order("role");
+    .order("created_at");
   if (assignedError) return { error: assignedError.message, members: [] };
 
-  // Directors are documented as auto-assigned to every project. If the
-  // backfill trigger has missed any, materialise them in the response so
-  // the UI never shows an empty list when a director clearly belongs.
-  const { data: directors, error: directorsError } = await admin
+  let automatic = admin
     .from("profiles")
-    .select("id, name, email, role")
-    .in("role", ["director", "president"])
-    .order("name");
-  if (directorsError) return { error: directorsError.message, members: [] };
+    .select("id, name, email, contact_email, role, uid, portal_activated_at");
+  automatic = isInternal
+    ? automatic.neq("role", "client")
+    : automatic.in("role", ["director", "president"]);
+  const { data: profiles, error: profilesError } =
+    await automatic.order("name");
+  if (profilesError) return { error: profilesError.message, members: [] };
 
-  type AssignedRow = {
-    id: number;
-    role: string;
-    profile_id: number;
-    created_at: string | null;
-    profiles: {
-      id: number;
-      name: string;
-      email: string | null;
-      role: string;
-    } | null;
-    assigner: { id: number; name: string } | null;
+  return {
+    members: buildProjectRoster(
+      (assigned || []) as unknown as RosterAssignment[],
+      (profiles || []) as RosterProfile[],
+      isInternal,
+    ),
   };
-  type DirectorRow = {
-    id: number;
-    name: string;
-    email: string | null;
-    role: string;
-  };
-
-  const assignedRows = (assigned || []) as unknown as AssignedRow[];
-  const directorRows = (directors || []) as unknown as DirectorRow[];
-
-  const seen = new Set(assignedRows.map((m) => m.profile_id));
-  const synthetic = directorRows
-    .filter((d) => !seen.has(d.id))
-    .map((d) => ({
-      // Display-only rows for directors auto-assigned without a backing
-      // project_members row. `synthetic: true` is the discriminator — the
-      // negative id is just for React keys, but UI code MUST check
-      // `synthetic` before passing the id to any mutation.
-      id: -d.id,
-      synthetic: true as const,
-      role: "director" as const,
-      profile_id: d.id,
-      created_at: null,
-      profiles: { id: d.id, name: d.name, email: d.email, role: d.role },
-      assigner: null,
-    }));
-
-  // Mark real rows explicitly for symmetry.
-  const real = assignedRows.map((m) => ({ ...m, synthetic: false as const }));
-
-  return { members: [...synthetic, ...real] };
 }
 
 export async function assignMemberToProject(
@@ -769,6 +961,26 @@ export async function assignMemberToProject(
   if (!gate.ok) return { error: gate.error };
   const admin = createAdminClient();
   const callerProfileId = gate.profileId;
+  const { data: project, error: projectError } = await getManagedProject(
+    admin,
+    projectId,
+  );
+  if (projectError || !project)
+    return { error: projectError?.message || "Project not found" };
+  if (isInternalProject(project))
+    return { error: "SBI membership is automatic for all non-clients" };
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (profileError || !profile)
+    return { error: profileError?.message || "Profile not found" };
+  if (profile.role !== "member")
+    return {
+      error:
+        "Only member profiles can be added; staff access is automatic and clients are assigned as owners",
+    };
 
   const { error } = await admin.from("project_members").insert({
     profile_id: profileId,
@@ -787,7 +999,7 @@ export async function assignMemberToProject(
 }
 
 export async function removeMemberFromProject(membershipId: number) {
-  // Synthetic director rows use negative ids (no real row backs them).
+  // Display-only automatic roster entries use negative ids (no link exists yet).
   // Reject them defensively — Supabase would silently match zero rows
   // and report success, masking a real bug.
   if (!Number.isInteger(membershipId) || membershipId <= 0) {
@@ -797,6 +1009,33 @@ export async function removeMemberFromProject(membershipId: number) {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error };
   const admin = createAdminClient();
+
+  const { data: membership, error: lookupError } = await admin
+    .from("project_members")
+    .select("project_id, profile_id, role")
+    .eq("id", membershipId)
+    .maybeSingle();
+  if (lookupError || !membership)
+    return { error: lookupError?.message || "Membership not found" };
+  const { data: project, error: projectError } = await getManagedProject(
+    admin,
+    membership.project_id,
+  );
+  if (projectError || !project)
+    return { error: projectError?.message || "Project not found" };
+  if (isInternalProject(project))
+    return { error: "SBI membership is automatic for all non-clients" };
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", membership.profile_id)
+    .maybeSingle();
+  if (profileError || !profile)
+    return { error: profileError?.message || "Profile not found" };
+  if (membership.role === "owner" || isStaffRole(profile.role))
+    return {
+      error: "Owners and automatic staff access cannot be removed here",
+    };
 
   const { error } = await admin
     .from("project_members")
@@ -815,6 +1054,14 @@ export async function assignOwnerToProject(
   if (!gate.ok) return { error: gate.error };
   const admin = createAdminClient();
   const callerProfileId = gate.profileId;
+  const { data: project, error: projectError } = await getManagedProject(
+    admin,
+    projectId,
+  );
+  if (projectError || !project)
+    return { error: projectError?.message || "Project not found" };
+  if (isInternalProject(project))
+    return { error: "Clients cannot be assigned to the SBI workspace" };
 
   // Verify the target is actually a client.
   const { data: target } = await admin
@@ -855,6 +1102,13 @@ export async function listAvailableOwners(projectId: number) {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error, clients: [] };
   const admin = createAdminClient();
+  const { data: project, error: projectError } = await getManagedProject(
+    admin,
+    projectId,
+  );
+  if (projectError || !project)
+    return { error: projectError?.message || "Project not found", clients: [] };
+  if (isInternalProject(project)) return { clients: [] };
 
   // All clients not already a member of this project.
   const { data: existing } = await admin
@@ -881,6 +1135,13 @@ export async function listUnassignedMembers(projectId: number) {
   const gate = await requireDirector();
   if (!gate.ok) return { error: gate.error, members: [] };
   const admin = createAdminClient();
+  const { data: project, error: projectError } = await getManagedProject(
+    admin,
+    projectId,
+  );
+  if (projectError || !project)
+    return { error: projectError?.message || "Project not found", members: [] };
+  if (isInternalProject(project)) return { members: [] };
 
   // Get all members not already in this project
   const { data: existingIds } = await admin

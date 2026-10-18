@@ -46,6 +46,21 @@ describe("server environment URLs", () => {
     expect(() => getPortalOrigin()).toThrow("must use HTTPS");
   });
 
+  it.each([
+    "https://localhost:3000",
+    "https://portal.localhost",
+    "https://127.0.0.1:3000",
+    "https://127.0.0.2",
+    "https://[::1]:3000",
+    "https://0.0.0.0:3000",
+  ])("rejects loopback portal origin %s in production", (origin) => {
+    clearDeploymentUrls();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", origin);
+
+    expect(() => getPortalOrigin()).toThrow("must not use a loopback host");
+  });
+
   it("normalizes configured deployment URLs", () => {
     clearDeploymentUrls();
     vi.stubEnv("NODE_ENV", "production");
