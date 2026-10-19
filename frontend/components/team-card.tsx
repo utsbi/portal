@@ -58,8 +58,8 @@ export function TeamCard({
         }}
       />
 
-      <div className="relative bg-sbi-dark-card border border-sbi-dark-border hover:border-sbi-green/30 transition-colors duration-500 overflow-hidden">
-        <div className="aspect-3/4 relative overflow-hidden">
+      <div className="relative h-full flex flex-col bg-sbi-dark-card border border-sbi-dark-border hover:border-sbi-green/30 transition-colors duration-500 overflow-hidden">
+        <div className="aspect-3/4 relative shrink-0 overflow-hidden">
           {imageSrc ? (
             <Image
               src={imageSrc}
@@ -91,25 +91,27 @@ export function TeamCard({
           <div className="absolute inset-0 bg-linear-to-t from-sbi-dark via-sbi-dark/20 to-transparent" />
         </div>
 
-        <div className="relative p-6">
+        <div className="relative p-6 flex flex-1 flex-col">
           <h3 className="text-xl font-light text-white mb-1 tracking-tight">
             {name}
           </h3>
           <p className="text-sm text-sbi-green/80 mb-4">{role}</p>
 
-          {email && (
-            <motion.a
-              href={`mailto:${email}`}
-              className="inline-flex items-center gap-2 text-xs text-sbi-muted hover:text-white transition-colors duration-300"
-              whileHover={{ x: 4 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            >
-              <span className="w-6 h-6 flex items-center justify-center border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-300">
-                <Mail className="w-3 h-3" />
-              </span>
-              <span className="tracking-wide">{email}</span>
-            </motion.a>
-          )}
+          <div className="mt-auto min-h-6 flex items-start">
+            {email && (
+              <motion.a
+                href={`mailto:${email}`}
+                className="inline-flex items-center gap-2 text-xs text-sbi-muted hover:text-white transition-colors duration-300"
+                whileHover={{ x: 4 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              >
+                <span className="w-6 h-6 flex items-center justify-center border border-sbi-dark-border group-hover:border-sbi-green/30 transition-colors duration-300">
+                  <Mail className="w-3 h-3" />
+                </span>
+                <span className="tracking-wide">{email}</span>
+              </motion.a>
+            )}
+          </div>
         </div>
 
         <motion.div

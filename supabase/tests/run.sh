@@ -42,12 +42,21 @@ pick_image() {
       PG_IMAGE="${img}"; return
     fi
   done
-  # Nothing cached: try to pull the primary.
-  echo ">> Primary image not cached; attempting to pull ${PRIMARY_IMAGE} ..."
-  if docker pull "${PRIMARY_IMAGE}" >/dev/null 2>&1; then
-    PG_IMAGE="${PRIMARY_IMAGE}"; return
-  fi
-  echo "!! Could not find or pull a supabase/postgres image." >&2
+  # Fresh CI runners have no cache, and anonymous registry pulls can fail
+  # transiently. Retry the pinned primary, then pull each fallback instead of
+  # considering fallbacks only when they happen to be cached.
+  local attempt img
+  for img in "${PRIMARY_IMAGE}" "${FALLBACK_IMAGES[@]}"; do
+    for attempt in 1 2 3; do
+      echo ">> Pulling ${img} (attempt ${attempt}/3) ..."
+      if docker pull "${img}" >/dev/null 2>&1; then
+        PG_IMAGE="${img}"
+        return
+      fi
+      sleep "$((attempt * 2))"
+    done
+  done
+  echo "!! Could not pull any supported supabase/postgres image." >&2
   exit 3
 }
 

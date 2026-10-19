@@ -1,24 +1,8 @@
-/**
- * Tests for app/api/reports/route.ts  GET handler.
- *
- * The route uses createServerClient from @supabase/ssr directly (not the
- * @/lib/supabase/server wrapper), so we mock @supabase/ssr and next/headers.
- */
+/** Tests for the GET and POST handlers in app/api/reports/route.ts. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ─── Minimal cookie store mock ───────────────────────────────────────────────
-const cookieStoreMock = {
-  getAll: vi.fn(() => []),
-  set: vi.fn(),
-};
-
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => cookieStoreMock),
-}));
-
-// ─── Supabase mock ────────────────────────────────────────────────────────────
-// The route calls createServerClient from @supabase/ssr with a cookie adapter.
-// We intercept the call and return a configurable mock client.
+// ─── Shared Supabase server-client mock ──────────────────────────────────────
+// The route must use the same cookie-aware helper as the rest of the app.
 
 type MockChain = {
   select: ReturnType<typeof vi.fn>;
@@ -91,8 +75,8 @@ let ticketsResult: { data: unknown; error: unknown } = {
   error: null,
 };
 
-vi.mock("@supabase/ssr", () => ({
-  createServerClient: vi.fn(() => ({
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(async () => ({
     auth: {
       getUser: vi.fn(async () => authResult),
     },
@@ -140,7 +124,6 @@ function callPost(payload: unknown) {
 describe("GET /api/reports", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    cookieStoreMock.getAll.mockReturnValue([]);
     authResult = {
       data: { user: null },
       error: { message: "Not authenticated" },
@@ -327,7 +310,6 @@ describe("GET /api/reports", () => {
 describe("POST /api/reports", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    cookieStoreMock.getAll.mockReturnValue([]);
     authResult = { data: { user: { id: "uid-1" } }, error: null };
     profileResult = {
       data: {

@@ -22,15 +22,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ─── Cookie store mock ───────────────────────────────────────────────────────
-const cookieStoreMock = {
-  getAll: vi.fn(() => []),
-  set: vi.fn(),
-};
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => cookieStoreMock),
-}));
-
 // ─── Capturing Supabase mock ─────────────────────────────────────────────────
 // We record every project_id value passed to .eq() per table so the test can
 // assert the membership check and the data query agree.
@@ -96,8 +87,8 @@ function makeTicketsChain() {
   return chain;
 }
 
-vi.mock("@supabase/ssr", () => ({
-  createServerClient: vi.fn(() => ({
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(async () => ({
     auth: { getUser: vi.fn(async () => authResult) },
     from: vi.fn((table: string) => {
       if (table === "profiles") return makeProfileChain();

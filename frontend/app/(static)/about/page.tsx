@@ -337,7 +337,7 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {teamMembers.map((member, index) => (
               <TeamCard
-                key={member.email}
+                key={member.name}
                 name={member.name}
                 role={member.role}
                 email={member.email}

@@ -9,18 +9,14 @@ export interface DepartmentOption {
 
 export const DEPARTMENTS: DepartmentOption[] = [
   { value: "Architecture", label: "Architecture" },
-  { value: "Engineering — General", label: "Engineering: General" },
+  { value: "Engineering", label: "Engineering" },
   { value: "Engineering — Civil", label: "Engineering: Civil" },
-  {
-    value: "Engineering — Environmental",
-    label: "Engineering: Environmental",
-  },
+  { value: "Sustainability", label: "Sustainability" },
   { value: "Engineering — Structural", label: "Engineering: Structural" },
   { value: "Engineering — Electrical", label: "Engineering: Electrical" },
+  { value: "Business", label: "Business" },
   { value: "Finance", label: "Finance" },
-  { value: "Public Relations", label: "Public Relations" },
-  { value: "Marketing", label: "Marketing" },
-  { value: "Internal Technologies", label: "Internal Technologies" },
+  { value: "Tech", label: "Tech" },
   { value: "Legal", label: "Legal" },
   { value: "R&D", label: "R&D" },
 ];
@@ -30,10 +26,16 @@ export const DEPARTMENTS: DepartmentOption[] = [
 // just pass through.
 const LEGACY_TO_CANONICAL: Record<string, string> = {
   "n/a": "—",
-  engineering: "Engineering — General",
+  engineering: "Engineering",
+  "engineering — general": "Engineering",
+  "engineering - general": "Engineering",
+  "engineering — environmental": "Sustainability",
+  "engineering - environmental": "Sustainability",
+  sustainability: "Sustainability",
   architecture: "Architecture",
-  tech: "Internal Technologies",
-  business: "Finance",
+  tech: "Tech",
+  "internal technologies": "Tech",
+  business: "Business",
   pr: "Public Relations",
   research: "R&D",
   legal: "Legal",
