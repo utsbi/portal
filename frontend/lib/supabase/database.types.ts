@@ -14,6 +14,105 @@ export type Database = {
   };
   public: {
     Tables: {
+      departments: {
+        Row: {
+          id: number;
+          slug: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          slug: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          slug?: string;
+          name?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      department_file_project_links: {
+        Row: {
+          file_space_id: number;
+          storage_path: string;
+          project_id: number;
+          created_by: number | null;
+          created_at: string;
+        };
+        Insert: {
+          file_space_id: number;
+          storage_path: string;
+          project_id: number;
+          created_by?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          file_space_id?: number;
+          storage_path?: string;
+          project_id?: number;
+          created_by?: number | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      file_space_members: {
+        Row: {
+          file_space_id: number;
+          profile_id: number;
+          membership_source: "profile" | "explicit";
+          granted_by: number | null;
+          created_at: string;
+        };
+        Insert: {
+          file_space_id: number;
+          profile_id: number;
+          membership_source?: "profile" | "explicit";
+          granted_by?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          file_space_id?: number;
+          profile_id?: number;
+          membership_source?: "profile" | "explicit";
+          granted_by?: number | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      file_spaces: {
+        Row: {
+          id: number;
+          kind: "project" | "department";
+          name: string;
+          project_id: number | null;
+          department_id: number | null;
+          root_prefix: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          kind: "project" | "department";
+          name: string;
+          project_id?: number | null;
+          department_id?: number | null;
+          root_prefix: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          kind?: "project" | "department";
+          name?: string;
+          project_id?: number | null;
+          department_id?: number | null;
+          root_prefix?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       ai_usage_events: {
         Row: {
           completion_tokens: number;

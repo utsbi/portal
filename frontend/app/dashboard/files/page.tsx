@@ -16,10 +16,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   btnGhost,
   btnPrimary,
-  DashboardShell,
   EmptyState,
   Modal,
-  PageHeader,
   Panel,
   SectionLabel,
   TextField,
@@ -38,6 +36,7 @@ import { useProject } from "@/lib/project/project-context";
 import { uuid } from "@/lib/uuid";
 import DragOverlayCard from "./DragOverlay";
 import FileCard from "./FileCard";
+import FilesWorkspace from "./FilesWorkspace";
 import FolderCard from "./FolderCard";
 import {
   deleteFolder,
@@ -109,6 +108,14 @@ function FolderSkeletonRow() {
 }
 
 export default function FilesPage() {
+  return (
+    <FilesWorkspace>
+      <ProjectFilesBrowser />
+    </FilesWorkspace>
+  );
+}
+
+function ProjectFilesBrowser() {
   const { user, activeProject } = useProject();
   const isDirector = isStaffRole(user?.role);
   const projectId = activeProject?.projectId ?? null;
@@ -915,7 +922,7 @@ export default function FilesPage() {
   };
 
   return (
-    <DashboardShell>
+    <>
       <DndContext
         sensors={sensors}
         collisionDetection={pointerWithin}
@@ -926,11 +933,6 @@ export default function FilesPage() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <PageHeader
-          title="Client Document Portal"
-          subtitle="Browse and download files shared on your project."
-        />
-
         <div className="flex flex-1 min-h-0 gap-6">
           {/* Folder tree sidebar */}
           <Panel
@@ -1303,6 +1305,6 @@ export default function FilesPage() {
         </DragOverlay>
       </DndContext>
       <UploadTray items={uploadItems} onClose={clearUploadTray} />
-    </DashboardShell>
+    </>
   );
 }

@@ -206,10 +206,9 @@ export function ProcessTimeline({
   done,
   title,
 }: ProcessTimelineProps) {
-  // Open while the turn is live; auto-collapse once it settles so a long
-  // transcript doesn't keep every past turn's reasoning expanded. The user can
-  // still re-open any card (the effect only fires on the settle transition).
-  const [open, setOpen] = useState(streaming);
+  // Keep the reasoning and tool timeline collapsed by default, including while
+  // a turn is live. Users can expand it when they want to inspect the details.
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     if (done && !streaming) setOpen(false);
   }, [done, streaming]);
