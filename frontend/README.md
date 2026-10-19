@@ -36,6 +36,23 @@ bun run test       # Vitest suites
 bun run test:e2e   # Playwright smoke suite
 ```
 
+## Test accounts
+
+For a test Supabase database with migrations applied, set
+`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and a strong
+`SEED_TEST_PASSWORD` in your untracked `.env.local`, then run from `frontend/`:
+
+```bash
+bun run scripts/seed-test-accounts.ts
+```
+
+This creates `director@utsbi.org`, `client@utsbi.org`, and `member@utsbi.org`
+if missing, or resets their passwords to `SEED_TEST_PASSWORD` if they exist.
+Existing profiles, projects, memberships, and messages are preserved. A client
+project is created only if the client has no owned project or membership.
+Failures exit nonzero; verify that all three sign-ins print `OK`.
+Do not commit the password or run this against production.
+
 ## Project structure
 
 ```text

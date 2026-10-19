@@ -21,8 +21,12 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 const { buildEventIcs, eventIcsFilename } = await import("@/lib/calendar/ics");
-const { calendarEmailEnabled, emailNotificationEnabled, sendEmail } =
-  await import("@/lib/email/send");
+const {
+  calendarEmailEnabled,
+  emailNotificationEnabled,
+  sendEmail,
+  sendAccountInvite,
+} = await import("@/lib/email/send");
 const { accountInviteHtml, accountInviteText } = await import(
   "@/lib/email/templates/account-invite"
 );
@@ -72,6 +76,23 @@ describe("transactional email", () => {
       }),
       { idempotencyKey: "project-update/123" },
     );
+  });
+
+  it("uses a different delivery key for every fresh invitation token", async () => {
+    const invite = {
+      email: "pending@example.com",
+      recipientName: "Pending Member",
+      invitedByName: "Director",
+      role: "member" as const,
+      confirmationUrl: "https://portal.example.com/auth/continue",
+      userId: "pending-uid",
+    };
+    await sendAccountInvite(invite);
+    await sendAccountInvite({ ...invite, deliveryKey: "fresh-token" });
+    expect(mocks.providerSend.mock.calls.map((call) => call[1])).toEqual([
+      { idempotencyKey: "account-invite/pending-uid" },
+      { idempotencyKey: "account-invite/pending-uid/fresh-token" },
+    ]);
   });
 
   it("fails closed when the provider key is absent", async () => {

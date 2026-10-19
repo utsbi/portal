@@ -85,6 +85,48 @@ export default function UpdatePasswordPage() {
       const params = new URLSearchParams(rawHash);
       const queryError =
         recoveryErrorMessage(queryParams) ?? recoveryErrorMessage(params);
+      const code = queryParams.get("code");
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!isMounted) return;
+        if (error) {
+          // In development React may replay effects. If another invocation
+          // already exchanged this one-time code, accept only the recovery
+          // session it established in this browser.
+          const { data } = await supabase.auth.getSession();
+          const marker = readRecoveryMarker();
+          if (!data.session || marker?.userId !== data.session.user.id) {
+            setVerificationError(
+              "This reset link has expired or has already been used. Request a new link to continue.",
+            );
+            setIsLoading(false);
+            setIsVerifying(false);
+            return;
+          }
+        }
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          writeRecoveryMarker(data.session.user.id);
+          setHasRecoverySession(true);
+        } else {
+          setVerificationError(
+            "This reset link has expired or has already been used. Request a new link to continue.",
+          );
+          setIsLoading(false);
+          setIsVerifying(false);
+          return;
+        }
+        setVerificationError(null);
+        window.history.replaceState(
+          {},
+          document.title,
+          `${window.location.pathname}?flow=recovery`,
+        );
+        setIsLoading(false);
+        setIsVerifying(false);
+        return;
+      }
+
       const type = params.get("type");
       const accessToken = params.get("access_token");
       const refreshToken = params.get("refresh_token");

@@ -484,6 +484,7 @@ export type Database = {
           director_profile_id: number | null;
           id: number;
           project_id: number | null;
+          title_override: string | null;
         };
         Insert: {
           client_profile_id?: number | null;
@@ -491,6 +492,7 @@ export type Database = {
           director_profile_id?: number | null;
           id?: number;
           project_id?: number | null;
+          title_override?: string | null;
         };
         Update: {
           client_profile_id?: number | null;
@@ -498,6 +500,7 @@ export type Database = {
           director_profile_id?: number | null;
           id?: number;
           project_id?: number | null;
+          title_override?: string | null;
         };
         Relationships: [
           {
@@ -1063,6 +1066,7 @@ export type Database = {
           is_pinned: boolean;
           pinned_at: string | null;
           reply_to_id: number | null;
+          sender_display_name: string | null;
           sender_profile_id: number | null;
           sender_role: string;
           sender_uid: string | null;
@@ -1076,6 +1080,7 @@ export type Database = {
           is_pinned?: boolean;
           pinned_at?: string | null;
           reply_to_id?: number | null;
+          sender_display_name?: string | null;
           sender_profile_id?: number | null;
           sender_role: string;
           sender_uid?: string | null;
@@ -1089,6 +1094,7 @@ export type Database = {
           is_pinned?: boolean;
           pinned_at?: string | null;
           reply_to_id?: number | null;
+          sender_display_name?: string | null;
           sender_profile_id?: number | null;
           sender_role?: string;
           sender_uid?: string | null;

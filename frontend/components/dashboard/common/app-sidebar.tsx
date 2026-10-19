@@ -23,7 +23,6 @@ import {
   Repeat,
   Search,
   Settings,
-  User,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -622,18 +621,6 @@ export function AppSidebar() {
                     <span className="text-sm font-light">Admin stats</span>
                   </button>
                 )}
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    router.push("/dashboard/settings?section=profile");
-                    setIsUserMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sbi-muted hover:text-white hover:bg-sbi-green/5 transition-colors duration-200 cursor-pointer"
-                >
-                  <User className="size-4" strokeWidth={1.5} />
-                  <span className="text-sm font-light">Account</span>
-                </button>
                 <button
                   type="button"
                   role="menuitem"

@@ -14,7 +14,7 @@ export type DiscordVerification = {
 /**
  * Persistence boundary for the Discord verifier. The bot itself intentionally
  * remains outside this web app; it should call this server-only helper after a
- * successful verification. The DB trigger assigns the current default project.
+ * successful verification. The DB trigger links non-client profiles to SBI.
  */
 export async function upsertDiscordMemberProfile(input: DiscordVerification) {
   const discordId = String(input.discordId).trim();
