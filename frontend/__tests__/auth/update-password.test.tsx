@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  exchangeCodeForSession: vi.fn(),
   getSession: vi.fn(),
   replace: vi.fn(),
   push: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("@/app/auth/update-password/actions", () => ({
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     auth: {
+      exchangeCodeForSession: mocks.exchangeCodeForSession,
       getSession: mocks.getSession,
       onAuthStateChange: () => ({
         data: { subscription: { unsubscribe: vi.fn() } },
@@ -34,6 +36,7 @@ const { default: UpdatePasswordPage } = await import(
 describe("PKCE password recovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.exchangeCodeForSession.mockResolvedValue({ error: null });
     const storage = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => storage.get(key) ?? null,
@@ -48,15 +51,14 @@ describe("PKCE password recovery", () => {
   });
 
   it("shows the form after the browser client exchanges the code", async () => {
-    mocks.getSession.mockImplementation(async () => {
-      // Supabase removes the code as part of its automatic exchange.
-      window.history.replaceState({}, "", "/auth/update-password");
-      return { data: { session: { user: { id: "test-user" } } } };
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: "test-user" } } },
     });
     render(<UpdatePasswordPage />);
     expect(
       await screen.findByLabelText("Confirm password"),
     ).toBeInTheDocument();
+    expect(mocks.exchangeCodeForSession).toHaveBeenCalledWith("test-code");
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(window.location.search).toBe("?flow=recovery");
     expect(
@@ -65,10 +67,13 @@ describe("PKCE password recovery", () => {
   });
 
   it("explains an unsuccessful exchange instead of redirecting to login", async () => {
+    mocks.exchangeCodeForSession.mockResolvedValue({
+      error: new Error("invalid recovery code"),
+    });
     mocks.getSession.mockResolvedValue({ data: { session: null } });
     render(<UpdatePasswordPage />);
     expect(
-      await screen.findByText(/same browser where you requested it/),
+      await screen.findByText(/expired or has already been used/),
     ).toBeInTheDocument();
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Confirm password")).not.toBeInTheDocument();
