@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { manageDues } from "@/app/dashboard/admin/dues/actions";
+import { DuesCharts } from "@/components/dashboard/admin/DuesCharts";
 import {
   btnDanger,
   btnGhost,
@@ -461,6 +462,7 @@ export function DuesWorkspace({
               sublabel={`${rows.filter((r) => r.status === "Waived").length} waived · ${rows.filter((r) => r.status === "Partial").length} partial`}
             />
           </div>
+          <DuesCharts accounts={accounts} payments={payments} />
           <Panel padded={false}>
             <div className="flex flex-col gap-3 border-b border-sbi-dark-border/50 p-4 sm:flex-row sm:items-center">
               <div className="relative flex-1">
