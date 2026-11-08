@@ -2,8 +2,6 @@ import { ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { AdminNavigation } from "@/components/dashboard/common/AdminNavigation";
 import {
-  DashboardMain,
-  DashboardShell,
   EmptyState,
   PageHeader,
   Panel,
@@ -18,18 +16,18 @@ export default async function AdminLayout({
   const gate = await requireDirector();
 
   return (
-    <DashboardShell>
-      <PageHeader
-        title="Admin"
-        subtitle="Organization-wide reporting and administration."
-      />
-      {gate.ok ? (
-        <>
-          <AdminNavigation />
-          <DashboardMain contentClassName="pb-10">{children}</DashboardMain>
-        </>
-      ) : (
-        <DashboardMain>
+    <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-sbi-dark dashboard-scrollbar">
+      <div className="mx-auto w-full max-w-7xl p-4 pb-10 sm:p-6 sm:pb-10 md:p-8 md:pb-10">
+        <PageHeader
+          title="Admin"
+          subtitle="Organization-wide reporting and administration."
+        />
+        {gate.ok ? (
+          <>
+            <AdminNavigation />
+            {children}
+          </>
+        ) : (
           <Panel>
             <EmptyState
               icon={<ShieldCheck className="size-6" />}
@@ -37,8 +35,8 @@ export default async function AdminLayout({
               description="Only directors and the president can access this workspace."
             />
           </Panel>
-        </DashboardMain>
-      )}
-    </DashboardShell>
+        )}
+      </div>
+    </main>
   );
 }

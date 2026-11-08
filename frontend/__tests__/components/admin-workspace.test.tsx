@@ -29,6 +29,22 @@ beforeEach(() => {
 });
 
 describe("Admin workspace", () => {
+  it("scrolls the whole page, including its title and navigation, in a single region", async () => {
+    gate.mockResolvedValue({ ok: true, role: "director" });
+    const { container } = render(
+      await AdminLayout({ children: <div>Page content</div> }),
+    );
+    const main = screen.getByRole("main");
+    expect(main).toContainElement(
+      screen.getByRole("heading", { name: "Admin" }),
+    );
+    expect(main).toContainElement(
+      screen.getByRole("navigation", { name: "Admin sections" }),
+    );
+    expect(main).toContainElement(screen.getByText("Page content"));
+    expect(main).toHaveClass("overflow-y-auto");
+    expect(container.querySelectorAll(".overflow-y-auto")).toHaveLength(1);
+  });
   it("hides admin navigation and content when access is denied", async () => {
     render(await AdminLayout({ children: <div>Restricted content</div> }));
     expect(screen.getByText("Admin access required")).toBeInTheDocument();
