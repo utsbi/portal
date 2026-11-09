@@ -1,3 +1,5 @@
+import type { DuesAccount, DuesPayment, DuesPeriod } from "@/lib/dues";
+
 export type Json =
   | string
   | number
@@ -14,6 +16,40 @@ export type Database = {
   };
   public: {
     Tables: {
+      dues_periods: {
+        Row: DuesPeriod & {
+          request_id: string;
+          initial_profile_ids: number[];
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      dues_accounts: {
+        Row: DuesAccount & {
+          waiver_by_profile_id: number | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      dues_payments: {
+        Row: DuesPayment & {
+          recorded_by_profile_id: number;
+          voided_by_profile_id: number | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "dues_payments_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "dues_accounts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       departments: {
         Row: {
           id: number;
@@ -1547,6 +1583,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      manage_dues: {
+        Args: { p_action: string; p_input: Json };
+        Returns: number;
+      };
       admin_stats: {
         Args: Record<PropertyKey, never>;
         Returns: Json;
