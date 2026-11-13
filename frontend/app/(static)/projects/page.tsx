@@ -1,84 +1,176 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
 import { motion } from "motion/react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BlueprintGrid } from "@/components/blueprint-grid";
 import { MagneticButton } from "@/components/magnetic-button";
-import { CameraControlsUI } from "@/components/projects/CameraControlsUI";
-import type { Project3DViewerRef } from "@/components/projects/Project3DViewer";
 import { ProjectDetails } from "@/components/projects/ProjectDetails";
-import { ProjectHero } from "@/components/projects/ProjectHero";
-import { ProjectInfoOverlay } from "@/components/projects/ProjectInfoOverlay";
-import { ProjectSelector } from "@/components/projects/ProjectSelector";
+import {
+  formatProjectNumber,
+  ProjectIndex,
+} from "@/components/projects/ProjectIndex";
+import { ProjectStage } from "@/components/projects/ProjectStage";
+import { ProjectSwitcherBar } from "@/components/projects/ProjectSwitcherBar";
 import { type Project, projects } from "@/lib/data/projects";
 
+// Clearance kept above the project when scrolling it into view; matches the
+// `scroll-mt-28` on the showcase so the fixed navbar never covers the title.
+const NAVBAR_CLEARANCE_PX = 112;
+const INDEX_PEEK_PX = 160;
+
 export default function ProjectsPage() {
-  const [activeProject, setActiveProject] = useState<Project>(projects[0]);
-  const [activeCameraIndex, setActiveCameraIndex] = useState(-1);
-  const viewerRef = useRef<Project3DViewerRef>(null);
+  const [activeSlug, setActiveSlug] = useState(projects[0].slug);
+  const [indexInView, setIndexInView] = useState(true);
+  const [showcaseInView, setShowcaseInView] = useState(false);
+  const indexRef = useRef<HTMLElement>(null);
+  const showcaseRef = useRef<HTMLDivElement>(null);
 
-  const handleProjectChange = useCallback((project: Project) => {
-    setActiveProject(project);
-    setActiveCameraIndex(-1);
+  const total = projects.length;
+  const activeIndex = Math.max(
+    0,
+    projects.findIndex((project) => project.slug === activeSlug),
+  );
+  const activeProject = projects[activeIndex];
+
+  // Open the project named in a shared link (/projects?project=<slug>).
+  useEffect(() => {
+    const slug = new URLSearchParams(window.location.search).get("project");
+    if (slug && projects.some((project) => project.slug === slug)) {
+      setActiveSlug(slug);
+    }
   }, []);
 
-  const handleCameraSelect = useCallback((index: number) => {
-    setActiveCameraIndex(index);
-    viewerRef.current?.setCamera(index);
+  // The floating switcher shows only while the visitor is inside a project
+  // and the full index is off screen.
+  useEffect(() => {
+    const index = indexRef.current;
+    const showcase = showcaseRef.current;
+    if (!index || !showcase) return;
+
+    // Shrink the index's viewport from the top so a sliver of it peeking out
+    // under the navbar does not count as "in view".
+    const indexObserver = new IntersectionObserver(
+      ([entry]) => setIndexInView(entry.isIntersecting),
+      { rootMargin: `-${INDEX_PEEK_PX}px 0px 0px 0px` },
+    );
+    const showcaseObserver = new IntersectionObserver(([entry]) =>
+      setShowcaseInView(entry.isIntersecting),
+    );
+    indexObserver.observe(index);
+    showcaseObserver.observe(showcase);
+    return () => {
+      indexObserver.disconnect();
+      showcaseObserver.disconnect();
+    };
   }, []);
 
-  const handleCameraReset = useCallback(() => {
-    setActiveCameraIndex(-1);
-    viewerRef.current?.resetCamera();
+  const handleSelect = useCallback((project: Project) => {
+    setActiveSlug(project.slug);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("project", project.slug);
+    window.history.replaceState(window.history.state, "", url);
+
+    // Bring the project into view when it is off screen — below the index on
+    // phones, or scrolled past on any device.
+    const showcase = showcaseRef.current;
+    if (!showcase) return;
+    const top = showcase.getBoundingClientRect().top;
+    if (top < NAVBAR_CLEARANCE_PX || top > window.innerHeight * 0.5) {
+      showcase.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }, []);
 
   return (
     <div className="bg-sbi-dark text-white">
-      <ProjectHero project={activeProject} viewerRef={viewerRef}>
-        <ProjectSelector
-          projects={projects}
-          activeProject={activeProject}
-          onProjectChange={handleProjectChange}
-        />
-
-        <ProjectInfoOverlay project={activeProject} />
-
-        <CameraControlsUI
-          presets={activeProject.cameraPresets}
-          activeIndex={activeCameraIndex}
-          onPresetSelect={handleCameraSelect}
-          onReset={handleCameraReset}
-        />
-
-        {activeProject.has3D && (
-          <div className="absolute bottom-6 right-6 z-20 hidden md:block">
-            <div className="flex flex-col gap-1 bg-sbi-dark/60 backdrop-blur-md rounded-lg border border-sbi-dark-border p-1">
-              <button
-                type="button"
-                onClick={() => viewerRef.current?.zoomIn()}
-                className="p-2 hover:bg-white/10 rounded transition-colors text-white/80 hover:text-white"
-                aria-label="Zoom in"
+      <header className="relative overflow-hidden border-b border-sbi-dark-border">
+        <BlueprintGrid />
+        <div className="absolute inset-0 bg-linear-to-b from-sbi-dark/50 via-transparent to-sbi-dark" />
+        <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-6 px-6 pb-8 pt-28 md:flex-row md:items-end md:justify-between md:px-16 md:pb-12 md:pt-36">
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                delay: 0.1,
+                duration: 0.8,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              className="mb-5 flex items-center gap-4"
+            >
+              <div className="h-px w-16 bg-sbi-green" />
+              <span className="text-xs uppercase tracking-[0.3em] text-sbi-green">
+                Our Work
+              </span>
+            </motion.div>
+            <div className="overflow-hidden pb-2">
+              <motion.h1
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                transition={{
+                  delay: 0.2,
+                  duration: 1,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className="text-5xl font-extralight leading-[1.1] tracking-tighter sm:text-6xl md:text-7xl"
               >
-                <Plus size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => viewerRef.current?.zoomOut()}
-                className="p-2 hover:bg-white/10 rounded transition-colors text-white/80 hover:text-white"
-                aria-label="Zoom out"
-              >
-                <Minus size={16} />
-              </button>
+                Projects
+              </motion.h1>
             </div>
           </div>
-        )}
-      </ProjectHero>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="max-w-md text-base font-light leading-relaxed text-sbi-muted md:text-right md:text-lg"
+          >
+            Sustainable building solutions designed by our interdisciplinary
+            student team. Pick a project to explore its 3D model, renders, and
+            video.
+          </motion.p>
+        </div>
+      </header>
 
-      <ProjectDetails
-        project={activeProject}
+      <section className="mx-auto max-w-7xl px-6 py-8 md:px-16 md:py-12 lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-12 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <aside
+          ref={indexRef}
+          className="custom-scrollbar mb-10 lg:sticky lg:top-28 lg:mb-0 lg:max-h-[calc(100dvh-8rem)] lg:self-start lg:overflow-y-auto"
+        >
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-xs uppercase tracking-[0.3em] text-sbi-muted">
+              All Projects
+            </h2>
+            <span className="font-mono text-xs tracking-widest text-sbi-muted">
+              {formatProjectNumber(total - 1)}
+            </span>
+          </div>
+          <ProjectIndex
+            projects={projects}
+            activeSlug={activeProject.slug}
+            onSelect={handleSelect}
+          />
+        </aside>
+
+        <div ref={showcaseRef} className="min-w-0 scroll-mt-28">
+          <ProjectStage
+            project={activeProject}
+            index={activeIndex}
+            total={total}
+          />
+          <ProjectDetails
+            project={activeProject}
+            previous={projects[(activeIndex - 1 + total) % total]}
+            next={projects[(activeIndex + 1) % total]}
+            onSelect={handleSelect}
+          />
+        </div>
+      </section>
+
+      <ProjectSwitcherBar
         projects={projects}
-        onProjectChange={handleProjectChange}
+        activeIndex={activeIndex}
+        visible={!indexInView && showcaseInView}
+        onSelect={handleSelect}
       />
 
       <section className="relative py-32 border-t border-sbi-dark-border">
