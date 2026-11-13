@@ -6,15 +6,15 @@ import Link from "next/link";
 
 import group from "@/assets/images/group.jpg";
 import Ali from "@/assets/images/people/Ali.jpg";
-import Brendan from "@/assets/images/people/Brendan.jpg";
-import JohnathanAlvarado from "@/assets/images/people/JohnathanAlvarado.jpg";
-import JohnathanRodriguez from "@/assets/images/people/JohnathanRodriguez.jpeg";
-import Kabir from "@/assets/images/people/Kabir.jpg";
-import KirstenWomack from "@/assets/images/people/KirstenWomack.jpg";
-import NikhilKadiyala from "@/assets/images/people/NikhilKadiyala.png";
+import Brendan from "@/assets/images/people/cutouts/Brendan.webp";
+import JohnathanAlvarado from "@/assets/images/people/cutouts/JohnathanAlvarado.webp";
+import JohnathanRodriguez from "@/assets/images/people/cutouts/JohnathanRodriguez.webp";
+import Kabir from "@/assets/images/people/cutouts/Kabir.webp";
+import KirstenWomack from "@/assets/images/people/cutouts/KirstenWomack.webp";
+import NikhilKadiyala from "@/assets/images/people/cutouts/NikhilKadiyala.webp";
+import Pedro from "@/assets/images/people/cutouts/Pedro.webp";
+import VishnuNalamKandan from "@/assets/images/people/cutouts/VishnuNalamKandan.webp";
 import Noah from "@/assets/images/people/Noah.jpg";
-import Pedro from "@/assets/images/people/Pedro.jpg";
-import VishnuNalamKandan from "@/assets/images/people/VishnuNalamKandan.png";
 import Harvard from "@/assets/images/schools/Harvard_University_coat_of_arms.svg";
 // University Logos
 import Rice from "@/assets/images/schools/rice_university.png";
