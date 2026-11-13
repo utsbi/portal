@@ -2,11 +2,15 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import type { Project } from "@/lib/data/projects";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { CameraConfig, CameraLimits, Project } from "@/lib/data/projects";
 import type { Project3DViewerRef } from "./Project3DViewer";
-import { ProjectImageHero } from "./ProjectImageHero";
 
 const Project3DViewer = dynamic(
   () => import("./Project3DViewer").then((mod) => mod.Project3DViewer),
@@ -16,33 +20,79 @@ const Project3DViewer = dynamic(
   },
 );
 
-interface ProjectHeroProps {
+interface ProjectModelViewProps {
   project: Project;
   viewerRef?: React.RefObject<Project3DViewerRef | null>;
-  children?: React.ReactNode;
+  /** Called when the 3D viewer crashes (decode failure, offline, 404). */
+  onError?: () => void;
 }
 
 const MIN_LOADING_MS = 1500;
 
+// Default cameras are framed for a wide (16:10) stage. On phones the stage is
+// square, so the camera backs away by the ratio between the two to keep the
+// whole model in frame, without leaving the project's zoom limits.
+const NARROW_STAGE_QUERY = "(max-width: 639px)";
+const NARROW_STAGE_PULLBACK = 1.6;
+
+function fitCameraToStage(
+  camera: CameraConfig | undefined,
+  limits: CameraLimits | undefined,
+  narrow: boolean,
+): CameraConfig | undefined {
+  if (!camera || !narrow) return camera;
+  const [px, py, pz] = camera.position;
+  const [tx, ty, tz] = camera.target;
+  const distance = Math.hypot(px - tx, py - ty, pz - tz);
+  if (distance === 0) return camera;
+  const scale = Math.min(
+    NARROW_STAGE_PULLBACK,
+    (limits?.maxDistance ?? distance * NARROW_STAGE_PULLBACK) / distance,
+  );
+  if (scale <= 1) return camera;
+  return {
+    target: camera.target,
+    position: [
+      tx + (px - tx) * scale,
+      ty + (py - ty) * scale,
+      tz + (pz - tz) * scale,
+    ],
+  };
+}
+
+interface ViewerErrorBoundaryProps {
+  children: React.ReactNode;
+  /** Changing this clears a previous crash so the next project can load. */
+  resetKey: string;
+  onError?: () => void;
+}
+
+interface ViewerErrorBoundaryState {
+  hasError: boolean;
+  resetKey: string;
+}
+
 class ViewerErrorBoundary extends React.Component<
-  {
-    children: React.ReactNode;
-    fallback: React.ReactNode;
-    onError?: () => void;
-  },
-  { hasError: boolean }
+  ViewerErrorBoundaryProps,
+  ViewerErrorBoundaryState
 > {
-  constructor(props: {
-    children: React.ReactNode;
-    fallback: React.ReactNode;
-    onError?: () => void;
-  }) {
+  constructor(props: ViewerErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, resetKey: props.resetKey };
   }
 
   static getDerivedStateFromError() {
     return { hasError: true };
+  }
+
+  static getDerivedStateFromProps(
+    props: ViewerErrorBoundaryProps,
+    state: ViewerErrorBoundaryState,
+  ) {
+    if (props.resetKey !== state.resetKey) {
+      return { hasError: false, resetKey: props.resetKey };
+    }
+    return null;
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
@@ -52,17 +102,41 @@ class ViewerErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback;
+      return null;
     }
     return this.props.children;
   }
 }
 
-export function ProjectHero({
+/**
+ * Interactive 3D model with its loading overlay. Fills its positioned parent.
+ */
+export function ProjectModelView({
   project,
   viewerRef,
-  children,
-}: ProjectHeroProps) {
+  onError,
+}: ProjectModelViewProps) {
+  // Unknown until mounted; the viewer waits for it so the camera is created
+  // at its final position instead of jumping after the first paint.
+  const [narrowStage, setNarrowStage] = useState<boolean | null>(null);
+  useEffect(() => {
+    const query = window.matchMedia(NARROW_STAGE_QUERY);
+    const update = () => setNarrowStage(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  const defaultCamera = useMemo(
+    () =>
+      fitCameraToStage(
+        project.defaultCamera,
+        project.cameraLimits,
+        narrowStage === true,
+      ),
+    [project.defaultCamera, project.cameraLimits, narrowStage],
+  );
+
   const [displayProgress, setDisplayProgress] = useState(0);
   const [phase, setPhase] = useState<"loading" | "revealing" | "done">(
     "loading",
@@ -127,13 +201,14 @@ export function ProjectHero({
     modelLoadedRef.current = true;
   }, []);
 
-  // If the viewer crashes (decode failure, offline, 404), the error boundary
-  // swaps in the image fallback — dismiss the loading overlay too, otherwise
-  // it would sit at 85% forever hiding the fallback.
+  // If the viewer crashes (decode failure, offline, 404), dismiss the loading
+  // overlay — otherwise it would sit at 85% forever — and let the parent fall
+  // back to the image gallery.
   const handleViewerError = useCallback(() => {
     hasCompletedRef.current = true;
     setPhase("done");
-  }, []);
+    onError?.();
+  }, [onError]);
 
   // Smooth animated progress bar with minimum display duration
   useEffect(() => {
@@ -168,35 +243,17 @@ export function ProjectHero({
   }, [phase, triggerCompletion]);
 
   return (
-    <div className="relative w-full h-[calc(100dvh-80px)] mt-20 overflow-hidden bg-sbi-dark">
-      {/* 3D Viewer or Parallax Image */}
-      {project.has3D && project.modelUrl ? (
+    <div className="absolute inset-0 overflow-hidden bg-sbi-dark">
+      {project.has3D && project.modelUrl && narrowStage !== null && (
         <ViewerErrorBoundary
+          resetKey={project.slug}
           onError={handleViewerError}
-          fallback={
-            project.galleryImages && project.galleryImages.length > 1 ? (
-              <ProjectImageHero
-                images={project.galleryImages}
-                title={project.title}
-              />
-            ) : (
-              <div className="absolute inset-0 bg-sbi-dark">
-                <Image
-                  src={project.coverImage}
-                  alt={project.title}
-                  fill
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-sbi-dark via-sbi-dark/50 to-transparent" />
-              </div>
-            )
-          }
         >
           <Project3DViewer
             ref={viewerRef as React.RefObject<Project3DViewerRef>}
             modelUrl={project.modelUrl}
             cameraPresets={project.cameraPresets}
-            defaultCamera={project.defaultCamera}
+            defaultCamera={defaultCamera}
             cameraLimits={project.cameraLimits}
             modelScale={project.modelScale}
             autoRotate={false}
@@ -204,30 +261,9 @@ export function ProjectHero({
             onModelReady={handleModelReady}
           />
         </ViewerErrorBoundary>
-      ) : project.galleryImages && project.galleryImages.length > 1 ? (
-        <ProjectImageHero
-          images={project.galleryImages}
-          title={project.title}
-        />
-      ) : (
-        <motion.div
-          className="absolute inset-0"
-          initial={{ scale: 1.1 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 20, ease: "linear" }}
-        >
-          <Image
-            src={project.coverImage}
-            alt={project.title}
-            fill
-            className="object-cover"
-            priority
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-sbi-dark via-sbi-dark/50 to-transparent" />
-        </motion.div>
       )}
 
-      {/* Full-screen loading overlay */}
+      {/* Loading overlay */}
       <AnimatePresence mode="wait">
         {phase !== "done" && project.has3D && (
           <motion.div
@@ -280,7 +316,7 @@ export function ProjectHero({
               </motion.span>
 
               <motion.h2
-                className="text-2xl md:text-3xl font-light tracking-tight text-white mb-8"
+                className="px-6 text-center text-xl md:text-3xl font-light tracking-tight text-white mb-8"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
@@ -325,7 +361,7 @@ export function ProjectHero({
             </div>
 
             {/* Corner accents (top-left and bottom-right only, simpler than home) */}
-            <div className="absolute top-8 left-8 w-12 h-12">
+            <div className="absolute top-4 left-4 w-8 h-8 md:top-8 md:left-8 md:w-12 md:h-12">
               <motion.div
                 className="absolute top-0 left-0 w-full h-px bg-sbi-dark-border"
                 initial={{ scaleX: 0 }}
@@ -339,7 +375,7 @@ export function ProjectHero({
                 transition={{ delay: 0.2, duration: 0.6 }}
               />
             </div>
-            <div className="absolute bottom-8 right-8 w-12 h-12">
+            <div className="absolute bottom-4 right-4 w-8 h-8 md:bottom-8 md:right-8 md:w-12 md:h-12">
               <motion.div
                 className="absolute bottom-0 right-0 w-full h-px bg-sbi-dark-border"
                 initial={{ scaleX: 0 }}
@@ -364,12 +400,6 @@ export function ProjectHero({
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Bottom gradient hint — signals content below */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-sbi-dark via-sbi-dark/30 to-transparent pointer-events-none z-10" />
-
-      {/* Children (overlays) */}
-      {children}
     </div>
   );
 }

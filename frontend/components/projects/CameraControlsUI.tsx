@@ -45,7 +45,7 @@ export function CameraControlsUI({
   const activePreset = activeIndex >= 0 ? presets[activeIndex] : null;
 
   return (
-    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 p-4 md:p-8 z-20 pointer-events-none">
+    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 p-3 md:p-4 z-20 pointer-events-none">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -64,7 +64,7 @@ export function CameraControlsUI({
                   transition={{ duration: 0.2 }}
                   className="absolute bottom-full mb-2 left-0 bg-sbi-dark/80 backdrop-blur-md rounded-lg border border-sbi-dark-border p-1 min-w-[160px] shadow-xl overflow-hidden"
                 >
-                  <div className="flex flex-col gap-0.5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                  <div className="flex flex-col gap-0.5 max-h-[min(60vh,14rem)] overflow-y-auto custom-scrollbar">
                     {presets.map((preset, index) => (
                       <button
                         key={preset.id}
