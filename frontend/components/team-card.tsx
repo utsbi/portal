@@ -5,6 +5,34 @@ import { motion, useMotionTemplate, useMotionValue } from "motion/react";
 import Image from "next/image";
 import { useRef } from "react";
 
+import logoMask from "@/assets/logos/logo-mask.png";
+
+const LOGO_MASK = `url(${logoMask.src})`;
+
+/**
+ * Shared studio backdrop for every portrait: a soft green spotlight with the
+ * SBI mark as a watermark. Portraits are transparent cutouts placed on top,
+ * so every card has the same background regardless of where it was shot.
+ */
+function PortraitBackdrop() {
+  return (
+    <div aria-hidden="true" className="absolute inset-0">
+      <div className="absolute inset-0 bg-[radial-gradient(75%_75%_at_50%_32%,#1e3a29_0%,#0d1a12_55%,#060b08_100%)]" />
+      <div
+        className="absolute left-[-7.5%] top-[6%] aspect-[1400/1247] w-[115%] bg-[#86efac]/[0.13]"
+        style={{
+          maskImage: LOGO_MASK,
+          WebkitMaskImage: LOGO_MASK,
+          maskSize: "contain",
+          WebkitMaskSize: "contain",
+          maskRepeat: "no-repeat",
+          WebkitMaskRepeat: "no-repeat",
+        }}
+      />
+    </div>
+  );
+}
+
 interface TeamCardProps {
   name: string;
   role: string;
@@ -60,30 +88,18 @@ export function TeamCard({
 
       <div className="relative h-full flex flex-col bg-sbi-dark-card border border-sbi-dark-border hover:border-sbi-green/30 transition-colors duration-500 overflow-hidden">
         <div className="aspect-3/4 relative shrink-0 overflow-hidden">
+          <PortraitBackdrop />
           {imageSrc ? (
             <Image
               src={imageSrc}
               alt={`${name}, ${role}`}
               fill
-              className="object-cover brightness-90 group-hover:brightness-100 group-hover:scale-105 transition-all duration-700"
+              className="origin-bottom object-cover object-bottom brightness-95 group-hover:brightness-100 group-hover:scale-105 transition-all duration-700"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
           ) : (
-            <div className="absolute inset-0 bg-sbi-dark-card flex flex-col items-center justify-center gap-4">
-              <div className="w-20 h-20 rounded-full border border-sbi-dark-border flex items-center justify-center">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1"
-                  className="w-10 h-10 text-sbi-dark-border"
-                  aria-hidden="true"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </div>
-              <span className="text-xs tracking-[0.2em] uppercase select-none text-sbi-muted/60">
+            <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center pb-10">
+              <span className="text-xs tracking-[0.2em] uppercase select-none text-sbi-muted">
                 Portrait Coming Soon
               </span>
             </div>
