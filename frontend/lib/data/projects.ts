@@ -26,6 +26,15 @@ import pi1 from "@/assets/images/project-two/interior-concept/1.webp";
 import pi2 from "@/assets/images/project-two/interior-concept/2.webp";
 import pi3 from "@/assets/images/project-two/interior-concept/3.webp";
 import pi4 from "@/assets/images/project-two/interior-concept/4.webp";
+import sp1 from "@/assets/images/sienna-point/01-hero-front.webp";
+import sp2 from "@/assets/images/sienna-point/02-entry-axis.webp";
+import sp3 from "@/assets/images/sienna-point/03-aerial.webp";
+import sp4 from "@/assets/images/sienna-point/04-pool-aerial.webp";
+import sp5 from "@/assets/images/sienna-point/05-pool-terrace.webp";
+import sp6 from "@/assets/images/sienna-point/06-rear-house.webp";
+import sp7 from "@/assets/images/sienna-point/07-garage-solar.webp";
+import sp8 from "@/assets/images/sienna-point/08-dusk-pool.webp";
+import sp9 from "@/assets/images/sienna-point/09-dusk-front.webp";
 
 export interface CameraPreset {
   id: string;
@@ -221,5 +230,17 @@ export const projects: Project[] = [
     cameraPresets: null,
     videoUrl: "https://www.youtube.com/watch?v=uuex1wIOf8Y",
     galleryImages: [hr1, hr2, hr3, hr4],
+  },
+  {
+    slug: "sienna-point-home",
+    title: "Sienna Point Home",
+    description:
+      "A Mediterranean-style family home concept planned for lifelong, all-electric living. A ground-floor primary suite, zero-step entry and residential elevator keep both floors usable at any age, while rooftop solar, heat pumps, EV charging, a rainwater cistern and low-water planting cut energy and water demand. The rear terrace opens to a lagoon pool with a lazy river, guest casita and dining pergola.",
+    status: "concept",
+    tags: ["Residential", "Mediterranean", "All-Electric", "Accessible"],
+    coverImage: sp1,
+    has3D: false,
+    cameraPresets: null,
+    galleryImages: [sp1, sp2, sp3, sp4, sp5, sp6, sp7, sp8, sp9],
   },
 ];
