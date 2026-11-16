@@ -115,6 +115,12 @@ export function ProjectStage({ project, index, total }: ProjectStageProps) {
     setFailedModelSlug(project.slug);
   }, [project.slug]);
 
+  // Pressing "Load 3D model" already says the visitor wants to explore, so
+  // skip the separate "Tap to explore" step once it has loaded.
+  const handleModelLoadRequested = useCallback(() => {
+    setTouchUnlocked(true);
+  }, []);
+
   const handleCameraSelect = useCallback((presetIndex: number) => {
     setCameraIndex(presetIndex);
     viewerRef.current?.setCamera(presetIndex);
@@ -175,6 +181,7 @@ export function ProjectStage({ project, index, total }: ProjectStageProps) {
 
       {/* Stage */}
       <div
+        data-project-stage
         className={cn(
           "relative isolate w-full overflow-hidden rounded-sm border border-sbi-dark-border bg-sbi-dark-card",
           activeMedia.type === "model" && "aspect-square sm:aspect-[16/10]",
@@ -195,6 +202,7 @@ export function ProjectStage({ project, index, total }: ProjectStageProps) {
               project={project}
               viewerRef={viewerRef}
               onError={handleModelError}
+              onLoadRequested={handleModelLoadRequested}
             />
 
             {/* On touch devices a drag scrolls the page until the visitor

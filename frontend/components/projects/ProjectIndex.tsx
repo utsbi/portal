@@ -2,6 +2,7 @@ import { Box, Images, Play } from "lucide-react";
 import Image from "next/image";
 import type { Project } from "@/lib/data/projects";
 import { cn } from "@/lib/utils";
+import { modelIntentHandlers } from "./modelAssets";
 
 interface ProjectIndexProps {
   projects: Project[];
@@ -33,6 +34,7 @@ export function ProjectIndex({
               <button
                 type="button"
                 onClick={() => onSelect(project)}
+                {...(isActive ? {} : modelIntentHandlers(project))}
                 aria-current={isActive ? "true" : undefined}
                 className={cn(
                   "group relative flex h-full w-full flex-col overflow-hidden rounded-sm border text-left transition-colors duration-300 lg:flex-row lg:items-stretch",

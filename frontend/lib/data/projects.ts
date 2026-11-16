@@ -35,6 +35,7 @@ import sp6 from "@/assets/images/sienna-point/06-rear-house.webp";
 import sp7 from "@/assets/images/sienna-point/07-garage-solar.webp";
 import sp8 from "@/assets/images/sienna-point/08-dusk-pool.webp";
 import sp9 from "@/assets/images/sienna-point/09-dusk-front.webp";
+import type { ViewerLighting } from "@/lib/viewer/lighting";
 
 export interface CameraPreset {
   id: string;
@@ -61,12 +62,24 @@ export interface Project {
   status: "completed" | "in-progress" | "concept";
   tags: string[];
   coverImage: StaticImageData;
+  /**
+   * GLB under /models. Served with an immutable one-year cache header (see
+   * next.config.ts), so bump the `?v=` query whenever the file changes.
+   */
   modelUrl?: string;
+  /**
+   * Approximate download size of modelUrl in MB (1 MB = 1,000,000 bytes).
+   * Shown on the "Load 3D model" button on slow connections and used for the
+   * progress bar when the response has no usable Content-Length.
+   */
+  modelSizeMB?: number;
   has3D: boolean;
   cameraPresets: CameraPreset[] | null;
   defaultCamera?: CameraConfig;
   cameraLimits?: CameraLimits;
   modelScale?: number;
+  /** Optional per-model exposure/light adjustments (lib/viewer/lighting.ts). */
+  lighting?: Partial<ViewerLighting>;
   videoUrl?: string;
   galleryImages: StaticImageData[];
 }
@@ -80,7 +93,8 @@ export const projects: Project[] = [
     status: "completed",
     tags: ["Residential", "Modern Farmhouse", "2BR/2BA", "Eco-Friendly"],
     coverImage: pe1,
-    modelUrl: "/models/family_home.glb",
+    modelUrl: "/models/family_home.glb?v=2",
+    modelSizeMB: 2.5,
     has3D: true,
     defaultCamera: {
       position: [6.5, 615, 1015],
@@ -158,7 +172,8 @@ export const projects: Project[] = [
     status: "completed",
     tags: ["Prototype", "Space-Efficient", "Sustainable Tech"],
     coverImage: ex1,
-    modelUrl: "/models/hobbie_farm.glb",
+    modelUrl: "/models/hobbie_farm.glb?v=2",
+    modelSizeMB: 0.7,
     has3D: true,
     defaultCamera: {
       position: [60, 40, 70],
@@ -169,6 +184,12 @@ export const projects: Project[] = [
       maxDistance: 150,
     },
     modelScale: 250,
+    // Uncoloured clay model: less ambient light, a stronger key for form.
+    lighting: {
+      environmentIntensity: 0.4,
+      fillIntensity: 0.6,
+      keyIntensity: 2.2,
+    },
     cameraPresets: [
       {
         id: "exterior-front",
@@ -217,7 +238,15 @@ export const projects: Project[] = [
     status: "completed",
     tags: ["Commercial", "High-Rise", "Urban", "Mixed-Use"],
     coverImage: hr1,
-    modelUrl: "/models/high_rise.glb",
+    modelUrl: "/models/high_rise.glb?v=2",
+    modelSizeMB: 3.1,
+    // Its materials are all half-metallic, so the studio environment
+    // dominates; dimmed to keep the facade from washing out.
+    lighting: {
+      environmentIntensity: 0.35,
+      fillIntensity: 0.9,
+      keyIntensity: 1.6,
+    },
     has3D: true,
     defaultCamera: {
       position: [120, 80, -130],

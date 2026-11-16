@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import Image from "next/image";
 import type { Project } from "@/lib/data/projects";
 import { cn } from "@/lib/utils";
+import { modelIntentHandlers } from "./modelAssets";
 
 interface ProjectDetailsProps {
   project: Project;
@@ -89,6 +90,7 @@ function AdjacentProjectCard({
     <button
       type="button"
       onClick={() => onSelect(project)}
+      {...modelIntentHandlers(project)}
       className={cn(
         "group relative flex min-h-28 flex-col justify-between gap-4 overflow-hidden rounded-sm border border-sbi-dark-border p-4 transition-colors hover:border-sbi-green/50 md:min-h-36 md:p-6",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sbi-green/70",
