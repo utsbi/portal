@@ -1,39 +1,65 @@
 "use client";
 
-import {
-  CameraControls,
-  ContactShadows,
-  useEnvironment,
-  useGLTF,
-  useProgress,
-} from "@react-three/drei";
+import { CameraControls, useEnvironment } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import type React from "react";
-import {
+import React, {
   forwardRef,
   Suspense,
+  use,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type {
   CameraConfig,
   CameraLimits,
   CameraPreset,
 } from "@/lib/data/projects";
+import {
+  FILL_GROUND_COLOR,
+  FILL_SKY_COLOR,
+  GROUND_COLOR,
+  KEY_COLOR,
+  KEY_POSITION,
+  resolveLighting,
+  type ViewerLighting,
+} from "@/lib/viewer/lighting";
+import type { ViewerQuality } from "@/lib/viewer/tiers";
+import {
+  loadModel,
+  releaseDecoder,
+  releaseModel,
+  retainModel,
+} from "./modelCache";
 
-const HDRI = "/textures/spruit_sunrise_4k.jpg";
-// Self-hosted Draco decoder (three/examples/jsm/libs/draco/gltf). drei's
-// default is the gstatic CDN, which the CSP connect-src blocks — and the
-// cross-origin fetch adds latency to first paint. Keep this in sync with
-// the worker-src/'wasm-unsafe-eval' allowances in lib/security/csp.ts.
-const DRACO_DECODER_PATH = "/draco/";
 const AUTO_ROTATE_RESUME_DELAY_MS = 5000;
 const FALLBACK_CAMERA_POSITION: [number, number, number] = [6.5, 615, 1015];
 const FALLBACK_CAMERA_TARGET: [number, number, number] = [0, 0, 0];
+
+// No logarithmic depth buffer: it writes gl_FragDepth, which disables early
+// depth testing for every fragment of these 0.4-1.6M triangle models. Depth
+// precision comes from the near plane instead, which follows the orbit
+// distance: interior presets look 10 units ahead and keep 0.1, the
+// family-home overview (~1200 units) gets ~6. Side-by-side renders of every
+// preset showed no z-fighting difference against the log buffer.
+const NEAR_PER_DISTANCE = 0.005;
+const MIN_NEAR = 0.1;
+const FAR = 10000;
+
+// Frame-time sampling for the adaptive pixel ratio. Gaps longer than
+// IDLE_GAP_MS are the demand frameloop resting, not slow frames.
+const IDLE_GAP_MS = 100;
+const FRAMES_PER_SAMPLE = 30;
+const SLOW_FRAME_MS = 1000 / 45;
+const FAST_FRAME_MS = 1000 / 57;
+const FAST_SAMPLES_TO_RAISE = 3;
+const DPR_STEP = 0.25;
+const MAX_DPR_RAISES = 2;
 
 // =============================================================================
 // Types
@@ -41,14 +67,21 @@ const FALLBACK_CAMERA_TARGET: [number, number, number] = [0, 0, 0];
 
 export interface Project3DViewerProps {
   modelUrl: string;
+  /** Expected model size, for progress when Content-Length is unusable. */
+  modelSizeBytes?: number;
+  quality: ViewerQuality;
   cameraPresets?: CameraPreset[] | null;
   defaultCamera?: CameraConfig;
   cameraLimits?: CameraLimits;
   modelScale?: number;
+  /** Per-project adjustments on top of DEFAULT_LIGHTING. */
+  lighting?: Partial<ViewerLighting>;
   autoRotate?: boolean;
   onCameraChange?: (index: number) => void;
-  onLoadProgress?: (percent: number) => void;
-  onModelReady?: () => void;
+  /** Called with the model URL once it is on screen with shaders compiled. */
+  onModelReady?: (modelUrl: string) => void;
+  /** The browser dropped the WebGL context (common on low-memory phones). */
+  onContextLost?: () => void;
 }
 
 export interface Project3DViewerRef {
@@ -67,6 +100,7 @@ interface CameraSelectorProps {
 
 interface SceneEnvironmentProps {
   path: string;
+  backgroundIntensity: number;
 }
 
 interface CameraConstraintsProps {
@@ -74,15 +108,12 @@ interface CameraConstraintsProps {
   cameraControlsRef: React.RefObject<CameraControls | null>;
 }
 
-interface ModelOptimizerProps {
-  houseRef: React.RefObject<THREE.Group | null> | null;
-}
-
 interface ModelProps {
   url: string;
+  expectedBytes: number;
+  keepUnused: number;
   scale?: number;
   setModelRef?: (ref: React.RefObject<THREE.Group | null>) => void;
-  onReady?: () => void;
 }
 
 interface AutoRotateControllerProps {
@@ -92,17 +123,20 @@ interface AutoRotateControllerProps {
 
 interface SceneContentProps {
   modelUrl: string;
+  modelSizeBytes: number;
+  quality: ViewerQuality;
   cameraPresets?: CameraPreset[] | null;
   defaultCamera?: CameraConfig;
   cameraLimits?: CameraLimits;
   modelScale?: number;
+  lighting: ViewerLighting;
   autoRotateEnabled: boolean;
   activeCameraIndex: number;
   cameraControlsRef: React.RefObject<CameraControls | null>;
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
   setModelRef: (ref: React.RefObject<THREE.Group | null>) => void;
-  onModelReady?: () => void;
+  onModelReady?: (modelUrl: string) => void;
 }
 
 // =============================================================================
@@ -194,14 +228,26 @@ function DebugPanel({
 // Scene Helpers
 // =============================================================================
 
-const SceneEnvironment: React.FC<SceneEnvironmentProps> = ({ path }) => {
+/**
+ * The sunrise sky is the visible backdrop only. As image-based light its HDR
+ * sun turns every surface facing it yellow, so lighting comes from
+ * NeutralEnvironment instead.
+ */
+const SceneEnvironment: React.FC<SceneEnvironmentProps> = ({
+  path,
+  backgroundIntensity,
+}) => {
   const envMap = useEnvironment({ files: path });
-  const { scene } = useThree();
+  const { scene, invalidate } = useThree();
+
+  useEffect(() => {
+    scene.backgroundIntensity = backgroundIntensity;
+    invalidate();
+  }, [scene, backgroundIntensity, invalidate]);
 
   useEffect(() => {
     if (envMap) {
       scene.background = envMap;
-      scene.environment = envMap;
       envMap.rotation = Math.PI / 2;
     }
 
@@ -209,14 +255,64 @@ const SceneEnvironment: React.FC<SceneEnvironmentProps> = ({ path }) => {
       if (scene.background === envMap) {
         scene.background = null;
       }
-      if (scene.environment === envMap) {
-        scene.environment = null;
-      }
     };
   }, [envMap, scene]);
 
   return null;
 };
+
+/**
+ * Neutral grey studio environment (three's RoomEnvironment) for diffuse
+ * light and reflections. Prefiltered once per renderer; nothing per frame.
+ */
+const NeutralEnvironment: React.FC<{ intensity: number }> = ({ intensity }) => {
+  const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl);
+    const room = new RoomEnvironment();
+    const target = pmrem.fromScene(room, 0.04);
+    room.dispose();
+    pmrem.dispose();
+    scene.environment = target.texture;
+    invalidate();
+    return () => {
+      if (scene.environment === target.texture) scene.environment = null;
+      target.dispose();
+    };
+  }, [gl, scene, invalidate]);
+
+  useEffect(() => {
+    scene.environmentIntensity = intensity;
+    invalidate();
+  }, [scene, intensity, invalidate]);
+
+  return null;
+};
+
+/**
+ * A missing or undecodable sky should cost the backdrop, not the model:
+ * without this the whole viewer would fall back to the image gallery.
+ */
+class EnvironmentBoundary extends React.Component<
+  { children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.warn("3D viewer environment failed to load:", error);
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 const CameraConstraints: React.FC<CameraConstraintsProps> = ({
   minHeight = 5,
@@ -237,39 +333,19 @@ const CameraConstraints: React.FC<CameraConstraintsProps> = ({
   return null;
 };
 
-const ModelOptimizer: React.FC<ModelOptimizerProps> = ({ houseRef }) => {
-  useEffect(() => {
-    if (houseRef?.current) {
-      houseRef.current.traverse((object) => {
-        if (object.type === "Mesh") {
-          const mesh = object as THREE.Mesh;
-          mesh.frustumCulled = true;
-
-          if (mesh.material) {
-            const material = mesh.material as THREE.Material;
-            if ("map" in material && material.map) {
-              const map = material.map as THREE.Texture;
-              map.generateMipmaps = false;
-              map.minFilter = THREE.LinearFilter;
-            }
-            material.needsUpdate = true;
-
-            if ("transparent" in material && material.transparent) {
-              if ("side" in material) {
-                (material as THREE.MeshStandardMaterial).side =
-                  THREE.DoubleSide;
-              }
-              if ("alphaTest" in material)
-                (material as THREE.MeshStandardMaterial).alphaTest = 0.01;
-              if ("depthWrite" in material)
-                (material as THREE.MeshStandardMaterial).depthWrite = true;
-            }
-          }
-        }
-      });
+/** Keeps the near plane proportional to the orbit distance (see NEAR_PER_DISTANCE). */
+const ClipPlanes: React.FC<{
+  cameraControlsRef: React.RefObject<CameraControls | null>;
+}> = ({ cameraControlsRef }) => {
+  useFrame(({ camera }) => {
+    const distance = cameraControlsRef.current?.distance;
+    if (!distance || !(camera instanceof THREE.PerspectiveCamera)) return;
+    const near = Math.max(MIN_NEAR, distance * NEAR_PER_DISTANCE);
+    if (Math.abs(near - camera.near) > camera.near * 0.1) {
+      camera.near = near;
+      camera.updateProjectionMatrix();
     }
-  }, [houseRef]);
-
+  });
   return null;
 };
 
@@ -282,12 +358,17 @@ const Ground: React.FC = () => {
     >
       <planeGeometry args={[15000, 10000]} />
       <meshStandardMaterial
-        color="#ffffff"
-        roughness={0.8}
-        metalness={0.2}
+        color={GROUND_COLOR}
+        roughness={1}
+        metalness={0}
         envMapIntensity={0.2}
         transparent={true}
         opacity={0.9}
+        // The plane sits 0.01 below floors at y=0; bias it back in depth so
+        // it never shows through them from far away.
+        polygonOffset
+        polygonOffsetFactor={1}
+        polygonOffsetUnits={1}
       />
     </mesh>
   );
@@ -331,6 +412,101 @@ const AutoRotateController: React.FC<AutoRotateControllerProps> = ({
       invalidate();
     }
   });
+
+  return null;
+};
+
+/**
+ * Steps the pixel ratio down while interaction frames are slow and back up
+ * when they recover. drei's PerformanceMonitor counts frames per wall-clock
+ * window, which reads the idle gaps of frameloop="demand" as low FPS, so
+ * this samples only back-to-back frames.
+ */
+const AdaptiveResolution: React.FC<{
+  dpr: number;
+  minDpr: number;
+  maxDpr: number;
+  onChange: (dpr: number) => void;
+}> = ({ dpr, minDpr, maxDpr, onChange }) => {
+  const sample = useRef({ last: 0, total: 0, count: 0, fast: 0, raises: 0 });
+
+  useFrame(() => {
+    const s = sample.current;
+    const now = performance.now();
+    const frameMs = now - s.last;
+    s.last = now;
+    if (frameMs > IDLE_GAP_MS) return;
+    s.total += frameMs;
+    s.count += 1;
+    if (s.count < FRAMES_PER_SAMPLE) return;
+    const average = s.total / s.count;
+    s.total = 0;
+    s.count = 0;
+
+    if (average > SLOW_FRAME_MS && dpr > minDpr) {
+      s.fast = 0;
+      onChange(Math.max(minDpr, dpr - DPR_STEP));
+    } else if (average < FAST_FRAME_MS && dpr < maxDpr) {
+      s.fast += 1;
+      if (s.fast >= FAST_SAMPLES_TO_RAISE && s.raises < MAX_DPR_RAISES) {
+        s.fast = 0;
+        s.raises += 1;
+        onChange(Math.min(maxDpr, dpr + DPR_STEP));
+      }
+    } else {
+      s.fast = 0;
+    }
+  });
+
+  return null;
+};
+
+/** Hands a lost WebGL context to the parent, which falls back to the gallery. */
+const ContextLossGuard: React.FC<{ onContextLost?: () => void }> = ({
+  onContextLost,
+}) => {
+  const gl = useThree((state) => state.gl);
+
+  useEffect(() => {
+    if (!onContextLost) return;
+    const canvas = gl.domElement;
+    canvas.addEventListener("webglcontextlost", onContextLost);
+    return () => canvas.removeEventListener("webglcontextlost", onContextLost);
+  }, [gl, onContextLost]);
+
+  return null;
+};
+
+/**
+ * Rendered after the model and environment inside the same Suspense
+ * boundary, so it runs once both are in the scene. Compiles every shader
+ * (in parallel where KHR_parallel_shader_compile is available), draws a
+ * frame, then reports the model as ready.
+ */
+const SceneReady: React.FC<{
+  url: string;
+  onReady?: (url: string) => void;
+}> = ({ url, onReady }) => {
+  const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+  const camera = useThree((state) => state.camera);
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    let active = true;
+    gl.compileAsync(scene, camera)
+      .catch(() => undefined)
+      .then(() => {
+        if (!active) return;
+        invalidate();
+        requestAnimationFrame(() => {
+          if (active) onReady?.(url);
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [url, gl, scene, camera, invalidate, onReady]);
 
   return null;
 };
@@ -430,11 +606,13 @@ const CameraSelector: React.FC<CameraSelectorProps> = ({
 
 const Model: React.FC<ModelProps> = ({
   url,
+  expectedBytes,
+  keepUnused,
   scale = 1,
   setModelRef,
-  onReady,
 }) => {
-  const { scene } = useGLTF(url, DRACO_DECODER_PATH);
+  // Suspends until downloaded and decoded; null if the download was dropped.
+  const gltf = use(loadModel(url, expectedBytes));
   const group = useRef<THREE.Group>(null);
 
   useEffect(() => {
@@ -443,38 +621,18 @@ const Model: React.FC<ModelProps> = ({
     }
   }, [setModelRef]);
 
-  // Signal that the model is loaded and rendered.
-  // useGLTF suspends until the model is ready, so this effect
-  // only fires once the model (cached or fetched) is available.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: url is intentionally a trigger so onReady re-fires when a new model URL finishes loading, not only when the onReady reference changes
+  // Release this model when another replaces it or the viewer unmounts.
   useEffect(() => {
-    onReady?.();
-  }, [url, onReady]);
+    retainModel(url);
+    return () => releaseModel(url, keepUnused);
+  }, [url, keepUnused]);
 
   return (
     <group ref={group} position={[0, 0, 0]} scale={scale}>
-      <primitive object={scene} />
+      {gltf && <primitive object={gltf.scene} />}
     </group>
   );
 };
-
-// =============================================================================
-// Load Progress Reporter (bridges drei's useProgress to parent callback)
-// =============================================================================
-
-function LoadProgressReporter({
-  onLoadProgress,
-}: {
-  onLoadProgress?: (percent: number) => void;
-}) {
-  const { progress } = useProgress();
-
-  useEffect(() => {
-    onLoadProgress?.(progress);
-  }, [progress, onLoadProgress]);
-
-  return null;
-}
 
 // =============================================================================
 // Scene Content
@@ -482,10 +640,13 @@ function LoadProgressReporter({
 
 const SceneContent: React.FC<SceneContentProps> = ({
   modelUrl,
+  modelSizeBytes,
+  quality,
   cameraPresets,
   defaultCamera,
   cameraLimits,
   modelScale,
+  lighting,
   autoRotateEnabled,
   activeCameraIndex,
   cameraControlsRef,
@@ -507,19 +668,25 @@ const SceneContent: React.FC<SceneContentProps> = ({
 
   return (
     <>
-      <ambientLight intensity={0.3} />
-      <spotLight
-        intensity={0.3}
-        angle={0.1}
-        penumbra={1}
-        position={[5, 25, 20]}
+      {/* Neutral light (see lib/viewer/lighting.ts); no shadow maps. */}
+      <NeutralEnvironment intensity={lighting.environmentIntensity} />
+      <hemisphereLight
+        name="viewer-fill"
+        args={[FILL_SKY_COLOR, FILL_GROUND_COLOR, lighting.fillIntensity]}
+      />
+      <directionalLight
+        name="viewer-key"
+        color={KEY_COLOR}
+        position={KEY_POSITION}
+        intensity={lighting.keyIntensity}
       />
 
       <Model
         url={modelUrl}
+        expectedBytes={modelSizeBytes}
+        keepUnused={quality.keepUnusedModels}
         scale={modelScale}
         setModelRef={handleSetModelRef}
-        onReady={onModelReady}
       />
 
       {activeCameraIndex >= 0 && (
@@ -531,12 +698,12 @@ const SceneContent: React.FC<SceneContentProps> = ({
         />
       )}
 
-      <SceneEnvironment path={HDRI} />
-      <ContactShadows
-        rotation-x={Math.PI / 2}
-        position={[0, -0.8, 0]}
-        opacity={1}
-      />
+      <EnvironmentBoundary>
+        <SceneEnvironment
+          path={quality.skyUrl}
+          backgroundIntensity={lighting.backgroundIntensity}
+        />
+      </EnvironmentBoundary>
       <Ground />
 
       <CameraControls
@@ -562,11 +729,12 @@ const SceneContent: React.FC<SceneContentProps> = ({
         cameraControlsRef={cameraControlsRef}
       />
       <CameraConstraints minHeight={5} cameraControlsRef={cameraControlsRef} />
-      {modelRef && <ModelOptimizer houseRef={modelRef} />}
+      <ClipPlanes cameraControlsRef={cameraControlsRef} />
       <AutoRotateController
         enabled={autoRotateEnabled}
         cameraControlsRef={cameraControlsRef}
       />
+      <SceneReady url={modelUrl} onReady={onModelReady} />
     </>
   );
 };
@@ -582,14 +750,17 @@ export const Project3DViewer = forwardRef<
   (
     {
       modelUrl,
+      modelSizeBytes = 0,
+      quality,
       cameraPresets,
       defaultCamera,
       cameraLimits,
       modelScale,
+      lighting: lightingOverrides,
       autoRotate = true,
       onCameraChange,
-      onLoadProgress,
       onModelReady,
+      onContextLost,
     },
     ref,
   ) => {
@@ -603,13 +774,27 @@ export const Project3DViewer = forwardRef<
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFirstMount = useRef(true);
 
+    // Highest useful pixel ratio on this screen; AdaptiveResolution moves
+    // between 1 and this while frames are slow.
+    const [maxDpr] = useState(() =>
+      Math.max(1, Math.min(quality.maxDpr, window.devicePixelRatio || 1)),
+    );
+    const [dpr, setDpr] = useState(maxDpr);
+
     // Debug state (dev-only, polling and rendering gated behind IS_DEV)
     const [debugData, setDebugData] = useState<DebugData | null>(null);
     const [boundingBox, setBoundingBox] = useState<BBoxData | null>(null);
 
-    useEffect(() => {
-      useGLTF.preload(modelUrl, DRACO_DECODER_PATH);
-    }, [modelUrl]);
+    // Low tier: drop the Draco workers (and their wasm heaps) once the
+    // model on screen is decoded.
+    const lowTier = quality.tier === "low";
+    const handleModelReady = useCallback(
+      (url: string) => {
+        if (lowTier) releaseDecoder();
+        onModelReady?.(url);
+      },
+      [lowTier, onModelReady],
+    );
 
     // Reset camera when project changes (modelUrl changes)
     // biome-ignore lint/correctness/useExhaustiveDependencies: modelUrl is intentionally the trigger to reset the camera when the project/model changes, even though the effect body reads it indirectly
@@ -748,43 +933,62 @@ export const Project3DViewer = forwardRef<
     );
 
     const initialPosition = defaultCamera?.position ?? FALLBACK_CAMERA_POSITION;
+    const lighting = useMemo(
+      () => resolveLighting(lightingOverrides),
+      [lightingOverrides],
+    );
 
     return (
       <div className="w-full h-full relative">
         <Canvas
-          dpr={[1, 1.5]}
+          dpr={dpr}
           camera={{
             position: initialPosition,
             fov: 50,
-            near: 0.1,
-            far: 10000,
+            near: MIN_NEAR,
+            far: FAR,
           }}
-          linear
+          // sRGB output (R3F default; the old `linear` prop sent linear values
+          // to the screen, crushing darks and oversaturating colours) with
+          // neutral tone mapping, which keeps hues and whites as authored
+          // where ACES shifts them.
           gl={{
-            antialias: true,
-            logarithmicDepthBuffer: true,
+            antialias: quality.antialias,
+            logarithmicDepthBuffer: false,
             depth: true,
             stencil: false,
+            toneMapping: THREE.NeutralToneMapping,
+            toneMappingExposure: lighting.exposure,
           }}
           frameloop="demand"
-          performance={{ min: 0.5 }}
         >
+          <ContextLossGuard onContextLost={onContextLost} />
+          {maxDpr > 1 && (
+            <AdaptiveResolution
+              dpr={dpr}
+              minDpr={1}
+              maxDpr={maxDpr}
+              onChange={setDpr}
+            />
+          )}
           <Suspense fallback={null}>
             <SceneContent
               modelUrl={modelUrl}
+              modelSizeBytes={modelSizeBytes}
+              quality={quality}
               cameraPresets={cameraPresets}
               defaultCamera={defaultCamera}
               cameraLimits={cameraLimits}
               modelScale={modelScale}
+              lighting={lighting}
               autoRotateEnabled={autoRotateEnabled}
               activeCameraIndex={activeCameraIndex}
               cameraControlsRef={cameraControlsRef}
               onInteractionStart={handleInteractionStart}
               onInteractionEnd={handleInteractionEnd}
               setModelRef={handleSetModelRef}
-              onModelReady={onModelReady}
+              onModelReady={handleModelReady}
             />
-            <LoadProgressReporter onLoadProgress={onLoadProgress} />
           </Suspense>
         </Canvas>
 

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { Project } from "@/lib/data/projects";
 import { cn } from "@/lib/utils";
+import { modelIntentHandlers } from "./modelAssets";
 import { formatProjectNumber } from "./ProjectIndex";
 
 interface ProjectSwitcherBarProps {
@@ -79,6 +80,7 @@ export function ProjectSwitcherBar({
                           setOpen(false);
                           onSelect(project);
                         }}
+                        {...(isActive ? {} : modelIntentHandlers(project))}
                         aria-current={isActive ? "true" : undefined}
                         className={cn(
                           "flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors",

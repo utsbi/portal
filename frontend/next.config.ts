@@ -78,6 +78,39 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // 3D viewer assets. Files under public/ are otherwise revalidated on
+      // every request. Model URLs carry a ?v= version (lib/data/projects.ts),
+      // so they can be cached forever; the decoder and sky keep their names
+      // across releases and only get a week plus background revalidation.
+      // These rules add Cache-Control only; the security headers above
+      // still apply to every path.
+      {
+        source: "/models/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/draco/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      {
+        source: "/textures/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=86400",
+          },
+        ],
+      },
     ];
   },
 };
